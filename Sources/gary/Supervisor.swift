@@ -77,7 +77,7 @@ private func supervise(_ child: Child) -> Int32 {
         log("supervisor pid=\(getpid()): started gary pid=\(process.processIdentifier)")
         exited.wait()
         let exit: ProcessExit = process.terminationReason == .uncaughtSignal ? .signaled(process.terminationStatus) : .exited(process.terminationStatus)
-        if exit.asksForRestart && !child.isStopping {
+        if exit.asksForRestart, !child.isStopping {
             log("supervisor: gary asked to restart")
             continue
         }

@@ -1,5 +1,5 @@
-import Testing
 @testable import GaryCore
+import Testing
 
 struct DDCTests {
     @Test func aBrightnessReadAsksForVCP10WithTheChecksumMonitorsAccept() {

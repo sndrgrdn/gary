@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 private let home = "/Users/gary"
 

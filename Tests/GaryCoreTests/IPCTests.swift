@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 struct IPCTests {
     private let today = PluginID("gary.today")!

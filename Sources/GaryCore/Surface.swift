@@ -41,8 +41,8 @@ public enum ScreenSelector: Equatable, Sendable {
         switch self {
         case .all: return displays
         case .main: return Array(displays.prefix(1))
-        case .focused: return [displays.first { $0.id == focused } ?? displays.first].compactMap { $0 }
-        case .index(let index): return [displays.first { $0.index == index } ?? displays.first].compactMap { $0 }
+        case .focused: return [displays.first { $0.id == focused } ?? displays.first].compactMap(\.self)
+        case .index(let index): return [displays.first { $0.index == index } ?? displays.first].compactMap(\.self)
         }
     }
 }
@@ -192,7 +192,7 @@ public struct SurfaceSpec: Equatable, Sendable {
     public func frame(on display: DisplayInfo, fitting: (_ width: Double?, _ height: Double?, _ limit: CGSize) -> CGSize) -> CGRect {
         let area = area(on: display)
         func forced(_ dimension: Dimension, _ low: Bool, _ high: Bool, _ span: Double, _ lowMargin: Double, _ highMargin: Double) -> Double? {
-            if low && high { return max(0, span - lowMargin - highMargin) }
+            if low, high { return max(0, span - lowMargin - highMargin) }
             if case .points(let value) = dimension { return value }
             return nil
         }

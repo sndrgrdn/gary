@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 struct SurfaceTests {
     private let display = DisplayInfo(id: "a", index: 0, frame: CGRect(x: 0, y: 0, width: 1000, height: 800), band: 32)

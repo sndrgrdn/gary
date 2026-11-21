@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 let testCapabilities = try! CapabilityNames([("battery", false, true), ("clock", false, true), ("exec", true, false), ("files", true, false), ("network", true, false)])
 
@@ -207,5 +207,4 @@ struct PluginCatalogTests {
         try FileManager.default.createSymbolicLink(at: directory.appendingPathComponent("widget.js"), withDestinationURL: root)
         #expect(throws: PluginFileError.symlink("widget.js")) { try bundle.entryPoint(.barWidget) }
     }
-
 }

@@ -14,6 +14,7 @@ if !args.isEmpty, Bundle.main.bundleIdentifier == nil, let invoked = Bundle.main
    let resolved = realpath(invoked, nil).map({ String(cString: $0) }), resolved != invoked, resolved.contains(".app/Contents/MacOS/") {
     execv(resolved, CommandLine.unsafeArgv)
 }
+
 guard let verb = args.first else {
     if Bundle.main.bundleIdentifier != nil {
         if stdoutIsDiscarded() {

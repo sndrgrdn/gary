@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 struct PluginTypesTests {
     private let theme = try! JSON.parse(#"{"styles": {"default": {}, "title": {}}, "fonts": {"body": {}}, "colors": {"accent": "accent"}}"#)

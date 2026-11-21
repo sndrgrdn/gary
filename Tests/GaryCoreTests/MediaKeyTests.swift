@@ -1,5 +1,5 @@
-import Testing
 @testable import GaryCore
+import Testing
 
 struct MediaKeyTests {
     @Test func decodesTheKeyAndWhetherItWentDownFromSystemDefinedData() {

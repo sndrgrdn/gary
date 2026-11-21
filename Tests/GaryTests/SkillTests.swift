@@ -1,7 +1,7 @@
 import Foundation
+@testable import gary
 import GaryCore
 import Testing
-@testable import gary
 
 private let deno = (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":").map { URL(fileURLWithPath: String($0)).appending(path: "deno") }
     .first { FileManager.default.isExecutableFile(atPath: $0.path) }

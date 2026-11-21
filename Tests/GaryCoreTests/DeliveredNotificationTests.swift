@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 struct DeliveredNotificationTests {
     static func record(_ fields: [String: Any]) throws -> Data {

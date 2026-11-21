@@ -278,7 +278,7 @@ private extension View {
     }
 
     @ViewBuilder func interactive(_ action: String?, hovering: Binding<Bool>?, pressing: Binding<Bool>?, _ perform: @escaping (String) -> Void) -> some View {
-        if action == nil && hovering == nil {
+        if action == nil, hovering == nil {
             self
         } else {
             contentShape(Rectangle())

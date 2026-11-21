@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import GarySocket
+import Testing
 
 struct LineBufferTests {
     @Test func splitsLinesAndHoldsTheRemainder() throws {

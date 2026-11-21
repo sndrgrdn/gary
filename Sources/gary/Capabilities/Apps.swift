@@ -51,7 +51,7 @@ private func perform(_ request: AppsRequest) throws -> JSON {
         app.activate()
         return json(app)
     case .quit(let bundle):
-        return .object(["asked": .number(Double(running(bundle).filter { $0.terminate() }.count))])
+        return .object(["asked": .number(Double(running(bundle).count(where: { $0.terminate() })))])
     }
 }
 

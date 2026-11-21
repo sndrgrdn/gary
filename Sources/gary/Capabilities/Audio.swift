@@ -73,7 +73,7 @@ private func property<T>(_ object: AudioObjectID, _ address: AudioObjectProperty
     return value
 }
 
-private func setProperty<T>(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress, _ value: T) -> OSStatus? {
+private func setProperty(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress, _ value: some Any) -> OSStatus? {
     var address = address, value = value, settable: DarwinBoolean = false
     guard AudioObjectHasProperty(object, &address), AudioObjectIsPropertySettable(object, &address, &settable) == noErr, settable.boolValue else { return nil }
     return withUnsafeBytes(of: &value) { AudioObjectSetPropertyData(object, &address, 0, nil, UInt32($0.count), $0.baseAddress!) }

@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 struct NodeTests {
     private func parse(_ text: String) throws -> Node { try Node.parse(Data(text.utf8)) }
@@ -77,7 +77,7 @@ struct NodeTests {
                 Node(.image("/p.jpg"), props: StyleProps(width: 768, height: 475, fit: .fill)),
                 Node(.row([]), props: StyleProps(opacity: 0.42, background: "background"), hovered: StyleProps(opacity: 0.2)),
             ]), key: "card", props: StyleProps(radius: 12, x: -94.5, y: 17.5, zIndex: 100, scale: 0.97, transition: .opacity, clip: true,
-                                                shadow: Shadow(color: "alpha(#000000, 0.45)", radius: 30, y: 18), border: Border(color: "accent", width: 2.5)),
+                                               shadow: Shadow(color: "alpha(#000000, 0.45)", radius: 30, y: 18), border: Border(color: "accent", width: 2.5)),
                  pressed: StyleProps(scale: 0.97)),
         ]), props: StyleProps(width: 768, height: 475, animation: .smooth, duration: 0.35)))
         #expect(try parse(#"{"type":"row","border":{"color":"accent"},"shadow":{"color":"accent"}}"#).props
@@ -113,7 +113,7 @@ struct NodeTests {
         #expect(ImageFit.fit.pixelSize(source: .zero, frame: CGSize(width: 32, height: 30)) == 32)
     }
 
-    @Test func aScrollRevealsTheChildItNamesOrElseTheFirstSelectedOne() throws {
+    @Test func aScrollRevealsTheChildItNamesOrElseTheFirstSelectedOne() {
         let rows = (0..<12).map { index in Node(.text("\(index)"), key: "r\(index)", style: index == 9 || index == 11 ? "selected" : nil) }
         #expect(Node(.scroll(rows, reveal: nil)).revealedChild == 9)
         #expect(Node(.scroll(rows, reveal: "r3")).revealedChild == 3)

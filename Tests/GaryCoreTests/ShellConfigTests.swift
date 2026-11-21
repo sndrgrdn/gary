@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 struct ShellConfigTests {
     private func id(_ raw: String) -> PluginID { PluginID(raw)! }

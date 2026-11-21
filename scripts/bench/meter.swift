@@ -30,6 +30,7 @@ let targets = CommandLine.arguments.dropFirst(2).map { argument -> (String, Int3
     let parts = argument.split(separator: "=")
     return (String(parts[0]), Int32(parts[1])!)
 }
+
 let start = targets.map { sample($0.1) }
 Thread.sleep(forTimeInterval: seconds)
 let end = targets.map { sample($0.1) }

@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 private final class FakeSurface {
     var display: DisplayInfo

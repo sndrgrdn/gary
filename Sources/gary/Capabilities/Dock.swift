@@ -114,7 +114,7 @@ private final class Dock {
         }
         guard current.rect != rect else { return }
         let own = saved == nil || current.rect != saved!.reserved.rect ? current : saved!.own
-        if saved != nil && own == current { log("dock: the Dock rewrote its rect to \(current.rect); reserving again") }
+        if saved != nil, own == current { log("dock: the Dock rewrote its rect to \(current.rect); reserving again") }
         let reserved = DockRect(rect: rect, reason: own.reason, orientation: reservation.orientation)
         SystemState.update { $0.dock = SavedSystemState.Dock(own: own, reserved: reserved) }
         SkyLight.setDockRect(reserved)

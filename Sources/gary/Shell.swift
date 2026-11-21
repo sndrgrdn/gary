@@ -337,9 +337,8 @@ final class Shell {
         slots[key]?.runtime?.perform(action, payload)
     }
 
-
     private func present(_ slot: PluginSlot, _ output: RuntimeOutput, _ trace: Trace) {
-        if slot.key.kind.isSurface && !slot.visible { return }
+        if slot.key.kind.isSurface, !slot.visible { return }
         slot.surface = output.surface
         for (display, tree) in output.trees { mount(slot, display, tree, trace) }
         for key in mounts.keys where key.slot == slot.key && output.trees[key.display] == nil { unmount(key) }
@@ -436,7 +435,7 @@ final class Shell {
     }
 
     private func returnFocus() {
-        guard !windows.values.contains(where: { $0.panel.isKeyWindow }) else { return }
+        guard !windows.values.contains(where: \.panel.isKeyWindow) else { return }
         NSApp.deactivate()
         if NSWorkspace.shared.frontmostApplication?.processIdentifier == getpid() { previousApp?.activate() }
         previousApp = nil
@@ -494,7 +493,7 @@ final class Shell {
 
     private func applyBarLevel(_ display: String) {
         let aside = barsAside[display] != nil
-        let panels = [bars[display]?.panel].compactMap { $0 } + windows.filter { $0.key.slot.kind == .bar && $0.key.display == display }.map(\.value.panel)
+        let panels = [bars[display]?.panel].compactMap(\.self) + windows.filter { $0.key.slot.kind == .bar && $0.key.display == display }.map(\.value.panel)
         NSAnimationContext.runAnimationGroup { context in
             context.duration = theme.motion.fade
             for panel in panels {
@@ -543,7 +542,6 @@ final class Shell {
         }
         CATransaction.flush()
     }
-
 
     private func refreshDisplays(_ trace: Trace) {
         let next = NSScreen.screens.enumerated().map { $1.display(index: $0, theme: theme) }
@@ -629,7 +627,6 @@ final class Shell {
         }
     }
 
-
     @discardableResult
     private func loadConfig() -> Response {
         guard FileManager.default.fileExists(atPath: Paths.shellConfig.path) else {
@@ -713,7 +710,6 @@ final class Shell {
             reload(slot, trace)
         }
     }
-
 
     private final class ReplyBox: @unchecked Sendable {
         private let lock = NSLock()

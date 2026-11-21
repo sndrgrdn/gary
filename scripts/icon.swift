@@ -22,6 +22,7 @@ for points in [16, 32, 128, 256, 512] {
         try draw(points * factor).representation(using: .png, properties: [:])!.write(to: iconset.appending(path: name))
     }
 }
+
 let iconutil = try Process.run(URL(fileURLWithPath: "/usr/bin/iconutil"), arguments: ["-c", "icns", iconset.path, "-o", output.path])
 iconutil.waitUntilExit()
 exit(iconutil.terminationStatus)

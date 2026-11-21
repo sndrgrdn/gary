@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 struct NowPlayingTests {
     static let full = #"{"type":"data","diff":false,"payload":{"bundleIdentifier":"com.spotify.client","playing":true,"title":"Song","artist":"Band","album":"Record","durationMicros":215000000,"elapsedTimeMicros":12500000,"timestampEpochMicros":1795280000123456,"playbackRate":1,"artworkMimeType":"image/png","artworkData":"iVBORw0K"}}"#

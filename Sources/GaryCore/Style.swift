@@ -147,7 +147,7 @@ public struct StyleProps: Equatable, Sendable {
         for (name, path) in numbers {
             guard let value = fields[name], value != .null else { continue }
             guard let number = value.number, number.isFinite, number >= 0 else { throw fail(name, "must be a non-negative number") }
-            if name == "opacity" && number > 1 { throw fail(name, "must be between 0 and 1") }
+            if name == "opacity", number > 1 { throw fail(name, "must be between 0 and 1") }
             props[keyPath: path] = number
         }
         for (name, path) in signed {

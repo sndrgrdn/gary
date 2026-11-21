@@ -46,7 +46,7 @@ func runCli(_ verb: String, _ arguments: [String]) -> Int32 {
 
 private func awaitQuit(_ done: String) -> Int32 {
     for _ in 0..<50 {
-        if !lockIsHeld(appLockPath) && !lockIsHeld(supervisorLockPath) {
+        if !lockIsHeld(appLockPath), !lockIsHeld(supervisorLockPath) {
             print(done)
             return 0
         }

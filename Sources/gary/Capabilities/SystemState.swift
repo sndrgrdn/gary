@@ -65,7 +65,7 @@ struct SavedSystemState: Codable, Equatable {
 }
 
 enum SystemState {
-    static private(set) var saved = SavedSystemState()
+    private(set) static var saved = SavedSystemState()
     private static var watchdog: pid_t = 0
 
     static func update(_ change: (inout SavedSystemState) -> Void) {

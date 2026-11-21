@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 struct ThemeTests {
     private static let bundled = try! JSON.parse(Data(contentsOf: URL(fileURLWithPath: #filePath)

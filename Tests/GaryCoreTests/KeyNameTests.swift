@@ -1,5 +1,5 @@
-import Testing
 @testable import GaryCore
+import Testing
 
 struct KeyNameTests {
     private func name(_ code: UInt16, _ characters: String? = nil, _ ignoring: String? = nil, _ modifiers: KeyName.Modifiers = []) -> String? {

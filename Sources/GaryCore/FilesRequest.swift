@@ -18,7 +18,7 @@ public enum FilesRequest: Equatable, Sendable {
         case "mkdir": return .makeDirectory(path: path)
         case "list": return .list(path: path)
         default:
-            guard path != "/" && path != home else { throw call.fail("refusing to remove \(path)") }
+            guard path != "/", path != home else { throw call.fail("refusing to remove \(path)") }
             return .remove(path: path)
         }
     }

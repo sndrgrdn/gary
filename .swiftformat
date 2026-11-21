@@ -1,0 +1,12 @@
+--swiftversion 6.2
+--exclude .build,build,Vendor,tmp
+
+--ranges no-space
+--stripunusedargs closure-only
+
+--disable indent,wrapConditionalBodies,wrapIfStatementBodies,wrapLoopBodies,wrapFunctionBodies,wrapPropertyBodies,wrapMultilineStatementBraces
+--disable hoistPatternLet,hoistTry,sortedSwitchCases,numberFormatting,extensionAccessControl,noForceUnwrapInTests,privateStateVariables
+--disable redundantReturn,conditionalAssignment,wrapIfExpressionBodies,swiftTestingTestCaseNames,trailingCommas,environmentEntry,redundantSelf,trailingClosures
+
+--enable blockComments,emptyExtensions,isEmpty,preferContains,preferCountWhere,preferFirstWhere,preferMinOverSorted,preferFinalClasses
+--enable preferSwiftTesting,redundantSendable,unusedPrivateDeclarations,commonTypos

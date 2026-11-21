@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 private let resources = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../../Resources")
 private let baseTheme = try! JSON.parse(Data(contentsOf: resources.appending(path: "theme.json")))
@@ -105,7 +105,7 @@ private func mutatedTexts(_ sample: String, count: Int, seed: UInt64) -> [String
 }
 
 struct MalformedInputTests {
-    @Test func malformedShellConfigsAreRejectedOrResolvedWithoutCrashing() throws {
+    @Test func malformedShellConfigsAreRejectedOrResolvedWithoutCrashing() {
         var catalog = PluginCatalog()
         for text in mutatedTexts(manifestSample, count: 50, seed: 7) {
             if let manifest = try? PluginManifest.parse(Data(text.utf8), origin: .user, capabilities: capabilities) {

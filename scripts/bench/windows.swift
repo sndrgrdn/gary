@@ -6,7 +6,7 @@ let windows = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[St
 for window in windows {
     let name = window[kCGWindowOwnerName as String] as? String ?? ""
     let pid = window[kCGWindowOwnerPID as String] as? Int ?? 0
-    guard owner == nil || name == owner || "\(pid)" == owner else { continue }
+    guard owner == nil || name == owner || owner == "\(pid)" else { continue }
     let bounds = window[kCGWindowBounds as String] as? [String: Double] ?? [:]
     print([
         "id=\(window[kCGWindowNumber as String] as? Int ?? 0)", "pid=\(pid)", "owner=\(name)",

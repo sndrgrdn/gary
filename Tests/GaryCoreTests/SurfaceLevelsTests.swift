@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 struct SurfaceLevelsTests {
     private func levels(_ major: Int, _ minor: Int, _ patch: Int = 0) -> SurfaceLevels {
