@@ -12,13 +12,11 @@ final class SurfacePanel: NSPanel {
     }
 
     override func keyDown(with event: NSEvent) {
-        let flags = event.modifierFlags
-        let modifiers = [(NSEvent.ModifierFlags.control, KeyName.Modifiers.control), (.option, .option), (.shift, .shift), (.command, .command)]
-            .reduce(into: KeyName.Modifiers()) {
-                modifiers, pair in if flags.contains(pair.0) {
-                    modifiers.insert(pair.1)
-                }
-            }
+        let pairs: [(NSEvent.ModifierFlags, KeyName.Modifiers)] = [(.control, .control), (.option, .option), (.shift, .shift), (.command, .command)]
+        var modifiers = KeyName.Modifiers()
+        for (flag, modifier) in pairs where event.modifierFlags.contains(flag) {
+            modifiers.insert(modifier)
+        }
         if let onKey, let key = KeyName.name(
             keyCode: event.keyCode,
             characters: event.characters,
