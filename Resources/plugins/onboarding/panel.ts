@@ -219,7 +219,7 @@ module.exports = {
           key: "header",
           gap: 14,
           children: [
-            { type: "image", key: "icon", path: "../../Gary.icns", width: 64, height: 64 },
+            { type: "image", key: "icon", path: "Gary.icns", width: 64, height: 64 },
             {
               type: "column",
               key: "text",

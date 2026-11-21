@@ -158,16 +158,23 @@ struct NodeTests {
 
     @Test func `relative image paths resolve inside the plugin folder`() throws {
         let tree = try parse(#"""
-        {"type":"row","children":[{"type":"image","path":"icons/logo.png"},{"type":"image","path":"../../Gary.icns"},\#
+        {"type":"row","children":[{"type":"image","path":"icons/logo.png"},{"type":"image","path":"art/../Gary.icns"},\#
         {"type":"image","path":"~/a.png"},{"type":"image","path":"/b.png"}]}
         """#)
-        let resolved = tree.resolvingImages(against: URL(fileURLWithPath: "/App/Resources/plugins/onboarding"))
+        let resolved = try tree.resolvingImages(against: URL(fileURLWithPath: "/App/Resources/plugins/onboarding"))
         #expect(resolved.children.map(\.content) == [
             .image("/App/Resources/plugins/onboarding/icons/logo.png"),
-            .image("/App/Resources/Gary.icns"),
+            .image("/App/Resources/plugins/onboarding/Gary.icns"),
             .image("~/a.png"),
             .image("/b.png"),
         ])
+    }
+
+    @Test func `an image path that leaves the plugin folder is an error`() throws {
+        let tree = try parse(#"{"type":"image","key":"icon","path":"../../Gary.icns"}"#)
+        #expect(throws: NodeError(path: "icon", reason: "image path \"../../Gary.icns\" must stay inside the plugin folder")) {
+            try tree.resolvingImages(against: URL(fileURLWithPath: "/App/Resources/plugins/onboarding"))
+        }
     }
 
     @Test func `null optional fields are absent`() throws {

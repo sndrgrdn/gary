@@ -258,7 +258,7 @@ extension Skill {
     - A `text` node is exactly as wide as its text and as tall as its lines, with no padding of its own. A `text` node with its own `width` keeps its text on one line, placed by `align`, and text wider than that spills over the edge. To wrap text at a width, give the width to its row or column.
     - Give siblings unique `key` values so Gary keeps each child's view, and its state such as hover or typed text, when the order changes.
     - A node with `action` is clickable. Gary calls `onAction(action, payload)`.
-    - An `image` path that does not start with `/` or `~` is relative to the plugin folder, so a plugin can ship its own images. A path that ends in `.app` shows that app's icon.
+    - An `image` path that does not start with `/` or `~` is relative to the plugin folder and must stay inside it, so a plugin can ship its own images. A path that ends in `.app` shows that app's icon.
     - Text wraps when its surface is narrower than the text, such as a surface with a fixed `width` or one at the display's edge. Text in a `button` stays on one line.
     - A tree holds at most 1000 nodes and 16 levels.
     - Colors are \(ColorExpr.syntax).

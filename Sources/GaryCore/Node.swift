@@ -113,13 +113,16 @@ public struct Node: Equatable, Sendable {
         }
     }
 
-    public func resolvingImages(against folder: URL) -> Node {
+    public func resolvingImages(against folder: URL) throws -> Node {
         if case let .image(path) = content, !path.hasPrefix("/"), !path.hasPrefix("~") {
+            guard let resolved = absolutePath(path, home: "", folder: folder.path) else {
+                throw NodeError(path: key ?? "image", reason: "image path \"\(path)\" must stay inside the plugin folder")
+            }
             var node = self
-            node.content = .image(folder.appending(path: path).standardizedFileURL.path)
+            node.content = .image(resolved)
             return node
         }
-        return with(children: children.map { $0.resolvingImages(against: folder) })
+        return try with(children: children.map { try $0.resolvingImages(against: folder) })
     }
 
     public var revealedChild: Int? {
