@@ -139,13 +139,13 @@ extension Shell {
     }
 
     func filesChanged(_ paths: Set<String>, _ trace: Trace) {
-        let configRoot = Paths.config.resolvingSymlinksInPath().path
-        let roots = pluginRoots.map { $0.resolvingSymlinksInPath().path }
+        let configRoot = realPath(Paths.config)
+        let roots = pluginRoots.map(realPath)
         let changes = paths.compactMap { ConfigFileChange(path: $0, configRoot: configRoot, pluginRoots: roots) }
         var rescan = false
         var reloads = Set<SlotKey>()
         for case let .plugin(path, rescansCatalog) in changes {
-            let owners = slots.values.filter { $0.bundle.origin == .user && path.hasPrefix($0.bundle.directory.path + "/") }
+            let owners = slots.values.filter { $0.bundle.origin == .user && path.hasPrefix(realPath($0.bundle.directory) + "/") }
             if owners.isEmpty || rescansCatalog {
                 rescan = true
             } else {
@@ -167,6 +167,12 @@ extension Shell {
             reload(slot, trace)
         }
     }
+}
+
+private func realPath(_ url: URL) -> String {
+    guard let resolved = realpath(url.path, nil) else { return url.path }
+    defer { free(resolved) }
+    return String(cString: resolved)
 }
 
 extension Palette.Mode {

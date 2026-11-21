@@ -14,7 +14,7 @@ public enum ConfigFileChange: Equatable, Sendable {
         } else if let root = pluginRoots.first(where: { path == $0 || path.hasPrefix($0 + "/") }) {
             let components = path.dropFirst(root.count).split(separator: "/")
             guard !components.contains(where: { $0.hasPrefix(".") }) else { return nil }
-            self = .plugin(path: path, rescansCatalog: components.count <= 1 || components.last == "manifest.json")
+            self = .plugin(path: path, rescansCatalog: components.last == "manifest.json")
         } else {
             return nil
         }

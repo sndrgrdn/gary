@@ -19,24 +19,28 @@ struct ConfigFileChangeTests {
         #expect(change("/packages-old/a/widget.js") == nil)
     }
 
-    @Test func `a file inside a plugin root reloads the plugin that holds it`() {
-        #expect(change("/home/.config/gary/plugins/weather/widget.js") == .plugin(
-            path: "/home/.config/gary/plugins/weather/widget.js",
-            rescansCatalog: false,
-        ))
-        #expect(change("/packages/git/host/o/r/weather/lib/util.js") == .plugin(
-            path: "/packages/git/host/o/r/weather/lib/util.js",
-            rescansCatalog: false,
-        ))
+    private func plugin(_ path: String, rescans: Bool = false) -> ConfigFileChange {
+        .plugin(path: path, rescansCatalog: rescans)
     }
 
-    @Test func `a manifest a root or a folder directly inside it rescans the catalog`() {
-        #expect(change("/home/.config/gary/plugins/weather/manifest.json") == .plugin(
-            path: "/home/.config/gary/plugins/weather/manifest.json",
-            rescansCatalog: true,
-        ))
-        #expect(change("/home/.config/gary/plugins/weather") == .plugin(path: "/home/.config/gary/plugins/weather", rescansCatalog: true))
-        #expect(change("/packages") == .plugin(path: "/packages", rescansCatalog: true))
+    @Test func `a file inside a plugin root is a plugin change`() {
+        for path in [
+            "/home/.config/gary/plugins/weather/widget.js",
+            "/packages/git/host/o/r/weather/lib/util.js",
+            "/packages/npm/weather/widget.js",
+        ] {
+            #expect(change(path) == plugin(path))
+        }
+    }
+
+    @Test func `a root or a folder inside it is a plugin change`() {
+        #expect(change("/home/.config/gary/plugins/weather") == plugin("/home/.config/gary/plugins/weather"))
+        #expect(change("/packages") == plugin("/packages"))
+    }
+
+    @Test func `a manifest rescans the catalog`() {
+        let path = "/packages/npm/weather/manifest.json"
+        #expect(change(path) == plugin(path, rescans: true))
     }
 
     @Test func `hidden files and folders are ignored`() {
