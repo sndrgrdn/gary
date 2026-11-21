@@ -250,7 +250,7 @@ enum Skill {
     | `button` | `children`, and `hover`, a style name for the pointer-over state | `null` |
     | `text` | `text`, a string or number | `null` |
     | `icon` | `symbol`, an SF Symbol name such as `battery.75percent` | `null` |
-    | `image` | `path`, an absolute path to an image file | `null` |
+    | `image` | `path` to an image file, absolute, from `~`, or relative to the plugin folder | `null` |
     | `slider` | `value` from 0 to 1 | the new value |
     | `progress` | `value` from 0 to 1 | `null` |
     | `input` | `value`, `placeholder`, `change`, and `submit` | the text. `change` and `submit` name the actions. |
@@ -258,6 +258,7 @@ enum Skill {
 
     - Give siblings unique `key` values so Gary can patch views in place.
     - A node with `action` is clickable. Gary calls `onAction(action, payload)`.
+    - An `image` path that does not start with `/` or `~` is relative to the plugin folder, so a plugin can ship its own images. A path that ends in `.app` shows that app's icon.
     - Text wraps when its surface is narrower than the text, such as a surface with a fixed `width` or one at the display's edge. Text in a `button` stays on one line.
     - A tree holds at most 1000 nodes and 16 levels.
     - Colors are \(ColorExpr.syntax).

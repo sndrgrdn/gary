@@ -64,6 +64,12 @@ struct NodeTests {
         #expect(try !parse(#"{"type":"row","children":[{"type":"text","text":"a"},{"type":"icon","symbol":"b"}]}"#).grows(along: .horizontal))
     }
 
+    @Test func relativeImagePathsResolveInsideThePluginFolder() throws {
+        let tree = try parse(#"{"type":"row","children":[{"type":"image","path":"icons/logo.png"},{"type":"image","path":"../../Gary.icns"},{"type":"image","path":"~/a.png"},{"type":"image","path":"/b.png"}]}"#)
+        let resolved = tree.resolvingImages(against: URL(fileURLWithPath: "/App/Resources/plugins/onboarding"))
+        #expect(resolved.children.map(\.content) == [.image("/App/Resources/plugins/onboarding/icons/logo.png"), .image("/App/Resources/Gary.icns"), .image("~/a.png"), .image("/b.png")])
+    }
+
     @Test func nullOptionalFieldsAreAbsent() throws {
         #expect(try parse(#"{"type":"text","text":"a","style":null,"key":null}"#) == Node(.text("a")))
     }

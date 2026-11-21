@@ -100,6 +100,15 @@ public struct Node: Equatable, Sendable {
         return children.contains { $0.kind == .spacer ? axis == stackAxis : $0.grows(along: axis) }
     }
 
+    public func resolvingImages(against folder: URL) -> Node {
+        if case .image(let path) = content, !path.hasPrefix("/"), !path.hasPrefix("~") {
+            var node = self
+            node.content = .image(folder.appending(path: path).standardizedFileURL.path)
+            return node
+        }
+        return with(children: children.map { $0.resolvingImages(against: folder) })
+    }
+
     public var revealedChild: Int? {
         guard case .scroll(let children, let reveal) = content else { return nil }
         return children.firstIndex { child in reveal.map { child.key == $0 } ?? (child.style == "selected") }
