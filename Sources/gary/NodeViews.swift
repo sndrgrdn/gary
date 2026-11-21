@@ -548,7 +548,7 @@ private struct ImageNode: View {
             }
         }
         .task(id: key) {
-            guard images.object(forKey: key) == nil, let image = await decode(path, pixels, fit, key) else { return }
+            guard images.object(forKey: key) == nil, let image = await decode(path, pixels, fit, key as String) else { return }
             withAnimation(shown.wrappedValue == nil ? arrival : nil) { shown.wrappedValue = image }
         }
     }
@@ -563,12 +563,12 @@ private final class Cancellation: @unchecked Sendable {
     func cancel() { lock.withLock { cancelled = true } }
 }
 
-private func decode(_ path: String, _ pixels: CGSize, _ fit: ImageFit, _ key: NSString) async -> NSImage? {
+private func decode(_ path: String, _ pixels: CGSize, _ fit: ImageFit, _ key: String) async -> NSImage? {
     let cancellation = Cancellation()
     return await withTaskCancellationHandler {
         await withCheckedContinuation { continuation in
             decoder.async {
-                continuation.resume(returning: cancellation.isCancelled ? nil : decoded(path, pixels, fit, key))
+                continuation.resume(returning: cancellation.isCancelled ? nil : decoded(path, pixels, fit, key as NSString))
             }
         }
     } onCancel: {
