@@ -3,7 +3,7 @@ import GaryCore
 import JavaScriptCore
 
 extension Capability {
-    static let exec = Capability(name: "exec", summary: "Run a command off the main thread and get its exit status and output.", types: """
+    static let exec = Capability(name: "exec", summary: "Run a command off the main thread and get its exit status and output. Gary looks the command up in the PATH of the user's login shell, so commands from Homebrew and `~/.local/bin` need no absolute path.", types: """
     declare namespace Gary {
       interface Host { exec(argv: string[], callback: (result: ExecResult) => void): void }
       interface ExecResult { status: number; stdout: string; stderr: string }
@@ -46,7 +46,7 @@ private func runProcess(_ argv: [String]) -> [String: Any] {
     process.arguments = ["--"] + argv
     let output = Pipe(), errors = Pipe()
     var environment = ProcessInfo.processInfo.environment
-    environment["PATH"] = [Bundle.main.executableURL!.deletingLastPathComponent().path, environment["PATH"] ?? "/usr/bin:/bin"].joined(separator: ":")
+    environment["PATH"] = [Bundle.main.executableURL!.deletingLastPathComponent().path, loginPath].joined(separator: ":")
     process.environment = environment
     process.standardInput = FileHandle.nullDevice
     process.standardOutput = output
@@ -68,3 +68,27 @@ private func runProcess(_ argv: [String]) -> [String: Any] {
         "stderr": String(decoding: errorData, as: UTF8.self),
     ]
 }
+
+private let loginPath: String = {
+    let fallback = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin"
+    guard let entry = getpwuid(getuid()), let shell = entry.pointee.pw_shell.map({ String(cString: $0) }) else { return fallback }
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: shell)
+    process.arguments = ["-l", "-c", "exec /usr/bin/printenv PATH"]
+    let output = Pipe()
+    process.standardInput = FileHandle.nullDevice
+    process.standardOutput = output
+    process.standardError = FileHandle.nullDevice
+    do {
+        try process.run()
+    } catch {
+        return fallback
+    }
+    let deadline = DispatchWorkItem { process.terminate() }
+    DispatchQueue.global().asyncAfter(deadline: .now() + 5, execute: deadline)
+    let data = output.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    deadline.cancel()
+    let path = String(decoding: data, as: UTF8.self).split(separator: "\n").last.map(String.init) ?? ""
+    return process.terminationStatus == 0 && path.contains("/") ? path : fallback
+}()
