@@ -52,7 +52,7 @@ extension Capability {
     )
 }
 
-private final class ClipboardTopic {
+private final class ClipboardTopic: TopicFeed {
     private let publish: (JSON, Trace) -> Void
     private var count = -1
     private var observation: Observation?

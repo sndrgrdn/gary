@@ -106,7 +106,7 @@ private struct Adapter {
     }
 }
 
-private final class NowPlayingTopic {
+private final class NowPlayingTopic: TopicFeed {
     private let publish: (JSON, Trace) -> Void
     private let queue = DispatchQueue(label: "gary.nowplaying")
     private var stream: (process: Process, output: Pipe)?

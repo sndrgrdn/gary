@@ -123,7 +123,7 @@ final class LocationAccess: NSObject, CLLocationManagerDelegate {
     }
 }
 
-private final class WiFiTopic: NSObject, CWEventDelegate {
+private final class WiFiTopic: NSObject, CWEventDelegate, TopicFeed {
     private let publish: (JSON, Trace) -> Void
     private let client = CWWiFiClient.shared()
 

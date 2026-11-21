@@ -184,7 +184,7 @@ private struct Listener: Hashable {
     let scope: AudioObjectPropertyScope
 }
 
-private final class AudioTopic {
+private final class AudioTopic: TopicFeed {
     private let publish: (JSON, Trace) -> Void
     private let queue = DispatchQueue(label: "gary.audio")
     private var listeners: [Listener: AudioObjectPropertyListenerBlock] = [:]

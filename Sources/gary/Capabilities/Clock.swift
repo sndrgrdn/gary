@@ -17,7 +17,7 @@ extension Capability {
     """, topic: { ClockTopic($0) })
 }
 
-private final class ClockTopic {
+private final class ClockTopic: TopicFeed {
     private let publish: (JSON, Trace) -> Void
     private var observations: [Observation] = []
 

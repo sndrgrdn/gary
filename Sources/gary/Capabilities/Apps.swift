@@ -82,7 +82,7 @@ private func launch(_ bundle: String) throws -> JSON {
     return try json(result.get())
 }
 
-private final class AppsTopic {
+private final class AppsTopic: TopicFeed {
     private let publish: (JSON, Trace) -> Void
     private var observations: [Observation] = []
 

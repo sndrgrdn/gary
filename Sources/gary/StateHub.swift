@@ -5,7 +5,9 @@ protocol Subscriber: AnyObject {
     func receive(_ topic: Topic, _ value: JSON, _ trace: Trace)
 }
 
-typealias TopicSource = (@escaping (JSON, Trace) -> Void) -> AnyObject
+protocol TopicFeed: AnyObject {}
+
+typealias TopicSource = (@escaping (JSON, Trace) -> Void) -> any TopicFeed
 
 final class StateHub {
     private let sources: [Topic: TopicSource]
@@ -13,7 +15,7 @@ final class StateHub {
     private var latest: [Topic: JSON] = [:]
     private var subscribers: [Topic: [ObjectIdentifier: Subscriber]] = [:]
     private var live: Set<Topic> = []
-    private var running: [Topic: AnyObject] = [:]
+    private var running: [Topic: any TopicFeed] = [:]
 
     init(sources: [Topic: TopicSource]) {
         self.sources = sources

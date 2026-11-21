@@ -91,7 +91,7 @@ private enum NotificationStore {
     }
 }
 
-private final class NotificationsTopic {
+private final class NotificationsTopic: TopicFeed {
     private let publish: (JSON, Trace) -> Void
     private let queue = DispatchQueue(label: "gary.notifications")
     private var names: [String: String] = [:]

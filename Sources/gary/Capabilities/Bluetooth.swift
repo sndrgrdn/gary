@@ -156,7 +156,7 @@ final class BluetoothAccess: NSObject, CBCentralManagerDelegate {
 
 extension IOBluetoothDevice: BluetoothBatteryPercents {}
 
-private final class BluetoothTopic: NSObject {
+private final class BluetoothTopic: NSObject, TopicFeed {
     weak static var current: BluetoothTopic?
     private let publish: (JSON, Trace) -> Void
     private var observations: [Observation] = []

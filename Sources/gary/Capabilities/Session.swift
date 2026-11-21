@@ -30,7 +30,7 @@ extension Capability {
     )
 }
 
-private final class SessionTopic {
+private final class SessionTopic: TopicFeed {
     private let publish: (JSON, Trace) -> Void
     private var observations: [Observation] = []
 

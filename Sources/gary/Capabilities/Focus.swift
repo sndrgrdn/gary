@@ -26,7 +26,7 @@ extension Capability {
     """, permissions: [.fullDiskAccess], topic: { FocusTopic($0) })
 }
 
-private final class FocusTopic {
+private final class FocusTopic: TopicFeed {
     static let directory = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/DoNotDisturb/DB")
     private let publish: (JSON, Trace) -> Void
     private var observations: [Observation] = []

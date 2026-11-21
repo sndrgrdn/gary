@@ -19,7 +19,7 @@ extension Capability {
     """, topic: { BatteryTopic($0) })
 }
 
-private final class BatteryTopic {
+private final class BatteryTopic: TopicFeed {
     private let publish: (JSON, Trace) -> Void
     private var observation: Observation?
 

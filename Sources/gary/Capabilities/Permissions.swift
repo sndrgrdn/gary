@@ -68,7 +68,7 @@ extension Notification.Name {
     static let restartGary = Notification.Name("GaryRestart")
 }
 
-private final class PermissionsTopic {
+private final class PermissionsTopic: TopicFeed {
     private let publish: (JSON, Trace) -> Void
     private var observation: Observation?
     private var grantedSinceStart: Set<Permission> = []

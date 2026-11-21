@@ -218,7 +218,7 @@ private final class Panel {
     }
 }
 
-private final class BrightnessTopic {
+private final class BrightnessTopic: TopicFeed {
     weak static var current: BrightnessTopic?
     private static var registered: Set<CGDirectDisplayID> = []
     private let publish: (JSON, Trace) -> Void
