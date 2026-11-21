@@ -322,18 +322,7 @@ final class Shell {
         }
         switch event {
         case let .loaded(output, trace):
-            slot.candidate = nil
-            slot.runtime?.stop()
-            slot.phase = .running(runtime)
-            log("plugin \(key): loaded \(slot.bundle.manifest.version)")
-            present(slot, output, trace)
-            if runtime.initialScene != scene(for: slot) {
-                runtime.setScene(scene(for: slot), trace)
-            }
-            slot.answerWaiters(.ok(slot.visible ? "shown" : "loaded"))
-            if key.kind == .bar {
-                sync(trace)
-            }
+            loaded(slot, runtime, output, trace)
         case let .output(output, trace):
             guard slot.runtime === runtime else { return }
             present(slot, output, trace)
@@ -341,42 +330,66 @@ final class Shell {
                 slot.answerWaiters(.ok("shown"))
             }
         case let .surface(request):
-            let trace = Trace("host-\(request.rawValue)")
-            switch request {
-            case .show: summon(key.id, trace)
-            case .hide: _ = hide(key.id, trace)
-            case .toggle: toggle(key.id, trace)
-            }
+            surfaceRequested(request, by: key.id)
         case let .call(method, arguments, reply):
             call(key.id, method, arguments, Trace("host-call"), reply)
         case let .failed(reason):
-            if slot.candidate === runtime {
-                slot.candidate = nil
-                if slot.runtime != nil {
-                    log("plugin \(key): reload rejected, the running version stays: \(reason)")
-                    return
-                }
-            }
-            slot.phase = .failed(reason)
-            unmount(key)
-            slot.visible = false
-            slot.answerWaiters(.failure("\(key.id) failed: \(reason)"))
-            log("plugin \(key): failed: \(reason)")
-            if !slot.failures.allowsRestart(afterFailureAt: now()) {
-                slot.phase = .disabled("\(slot.failures.summary), last: \(reason)")
-                log("plugin \(key): disabled after \(slot.failures.summary); reload it or change its files to try again")
-            } else if !key.kind.isSurface {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self, weak slot] in
-                    guard let self, let slot, slots[key] === slot, case .failed = slot.phase, slot.candidate == nil else { return }
-                    log("plugin \(key): restarting (\(slot.failures.summary))")
-                    load(slot, Trace("restart"))
-                }
-            }
-            if key.kind == .bar {
-                sync(Trace("bar-fallback"))
-            }
-            commitFrame()
+            failed(slot, runtime, reason)
         }
+    }
+
+    private func loaded(_ slot: PluginSlot, _ runtime: PluginRuntime, _ output: RuntimeOutput, _ trace: Trace) {
+        slot.candidate = nil
+        slot.runtime?.stop()
+        slot.phase = .running(runtime)
+        log("plugin \(slot.key): loaded \(slot.bundle.manifest.version)")
+        present(slot, output, trace)
+        if runtime.initialScene != scene(for: slot) {
+            runtime.setScene(scene(for: slot), trace)
+        }
+        slot.answerWaiters(.ok(slot.visible ? "shown" : "loaded"))
+        if slot.key.kind == .bar {
+            sync(trace)
+        }
+    }
+
+    private func surfaceRequested(_ request: SurfaceRequest, by id: PluginID) {
+        let trace = Trace("host-\(request.rawValue)")
+        switch request {
+        case .show: summon(id, trace)
+        case .hide: _ = hide(id, trace)
+        case .toggle: toggle(id, trace)
+        }
+    }
+
+    private func failed(_ slot: PluginSlot, _ runtime: PluginRuntime, _ reason: String) {
+        let key = slot.key
+        if slot.candidate === runtime {
+            slot.candidate = nil
+            if slot.runtime != nil {
+                log("plugin \(key): reload rejected, the running version stays: \(reason)")
+                return
+            }
+        }
+        slot.phase = .failed(reason)
+        unmount(key)
+        slot.visible = false
+        slot.answerWaiters(.failure("\(key.id) failed: \(reason)"))
+        log("plugin \(key): failed: \(reason)")
+        if !slot.failures.allowsRestart(afterFailureAt: now()) {
+            slot.phase = .disabled("\(slot.failures.summary), last: \(reason)")
+            log("plugin \(key): disabled after \(slot.failures.summary); reload it or change its files to try again")
+        } else if !key.kind.isSurface {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self, weak slot] in
+                guard let self, let slot, slots[key] === slot, case .failed = slot.phase, slot.candidate == nil else { return }
+                log("plugin \(key): restarting (\(slot.failures.summary))")
+                load(slot, Trace("restart"))
+            }
+        }
+        if key.kind == .bar {
+            sync(Trace("bar-fallback"))
+        }
+        commitFrame()
     }
 
     private func perform(_ action: String, _ payload: JSON, _ key: SlotKey) {
