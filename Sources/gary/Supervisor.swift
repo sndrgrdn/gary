@@ -61,9 +61,11 @@ private func supervise(_ child: Child) -> Int32 {
         let process = Process()
         process.executableURL = Bundle.main.executableURL
         process.arguments = ["app"]
+        let exited = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in exited.signal() }
         guard child.start(process) else { return 0 }
         log("supervisor pid=\(getpid()): started gary pid=\(process.processIdentifier)")
-        process.waitUntilExit()
+        exited.wait()
         let exit: ProcessExit = process.terminationReason == .uncaughtSignal ? .signaled(process.terminationStatus) : .exited(process.terminationStatus)
         guard exit.isCrash, !child.isStopping else {
             log("supervisor: gary \(exit.description); not restarting")
