@@ -106,9 +106,7 @@ private func mutatedTexts(_ sample: String, count: Int, seed: UInt64) -> [String
                 default: bytes = Array(bytes[..<index])
                 }
             }
-            if let text = String(bytes: bytes, encoding: .utf8) {
-                texts.append(text)
-            }
+            texts.append(String(decoding: bytes, as: UTF8.self))
         }
     }
     return texts
