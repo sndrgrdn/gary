@@ -19,10 +19,10 @@ func runCli(_ verb: String, _ arguments: [String]) -> Int32 {
     do {
         let line: String
         do {
-            line = try requestLine(request.line, path: socketPath, timeout: 10)
+            line = try requestLine(request.line, path: socketPath, timeout: request.timeout + 5)
         } catch SocketError.unreachable where request.verb == Request.permissions.verb || request == .summon(.onboarding) {
             try startApp()
-            line = try requestLine(request.line, path: socketPath, timeout: 10)
+            line = try requestLine(request.line, path: socketPath, timeout: request.timeout + 5)
         }
         switch try Response.decode(line: line) {
         case .ok(let result):

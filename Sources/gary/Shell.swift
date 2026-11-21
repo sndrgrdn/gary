@@ -731,7 +731,7 @@ final class Shell {
         }
         let box = ReplyBox()
         DispatchQueue.main.async { self.handle(request, reply: box.set) }
-        return box.wait(5).line
+        return box.wait(request.timeout).line
     }
 
     private func handle(_ request: Request, reply: @escaping (Response) -> Void) {
@@ -774,11 +774,29 @@ final class Shell {
             runtime.perform(action, payload.map { Double($0).map(JSON.number) ?? .string($0) } ?? .null)
             reply(.ok("sent \(action) to \(id)/\(kind.rawValue)"))
         case .call(let id, let method, let arguments):
-            guard let slot = handlerSlot(id) else { return reply(.failure("\(id) is not enabled")) }
-            withRuntime(slot, trace) { runtime in
-                guard let runtime else { return reply(.failure("\(id) did not load")) }
-                DispatchQueue.global(qos: .userInitiated).async { reply(runtime.call(method, arguments)) }
+            call(id, method, arguments, trace) { response in
+                guard case .ok(let text) = response, case .string(let string)? = try? JSON.parse(text) else { return reply(response) }
+                reply(.ok(string))
             }
+        }
+    }
+
+    private func call(_ id: PluginID, _ method: String, _ arguments: [String], _ trace: Trace, _ reply: @escaping (Response) -> Void) {
+        guard let slot = handlerSlot(id) else { return reply(.failure("\(id) is not enabled")) }
+        var answered = false
+        let once: (Response) -> Void = { response in
+            DispatchQueue.main.async {
+                guard !answered else { return }
+                answered = true
+                reply(response)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Request.callTimeout) {
+            once(.failure("\(id) \(method) did not finish within \(Int(Request.callTimeout)) seconds"))
+        }
+        withRuntime(slot, trace) { runtime in
+            guard let runtime else { return once(.failure("\(id) did not load")) }
+            runtime.call(method, arguments, reply: once)
         }
     }
 

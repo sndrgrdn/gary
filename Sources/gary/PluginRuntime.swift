@@ -144,15 +144,15 @@ final class PluginRuntime: Subscriber {
         }
     }
 
-    func call(_ method: String, _ arguments: [String]) -> Response {
-        queue.sync {
-            guard let functions else { return .failure("\(id) is not running") }
+    func call(_ method: String, _ arguments: [String], reply: @escaping (Response) -> Void) {
+        queue.async { [self] in
+            guard let functions else { return reply(.failure("\(id) is not running")) }
+            let done: @convention(block) (Bool, String) -> Void = { ok, text in reply(ok ? .ok(text) : .failure(text)) }
             do {
-                let result = try invoke(functions.call, [method, JSON.array(arguments.map(JSON.string)).text]).toString() ?? ""
+                try invoke(functions.call, [method, JSON.array(arguments.map(JSON.string)).text, done])
                 renderAll(Trace("call"))
-                return .ok(result)
             } catch {
-                return .failure("\(error)")
+                reply(.failure("\(error)"))
             }
         }
     }
@@ -259,11 +259,13 @@ final class PluginRuntime: Subscriber {
               var f = e()[name];
               if (typeof f === "function") f.apply(e(), JSON.parse(args).concat([JSON.parse(state)]));
             },
-            function (method, args) {
+            function (method, args, done) {
               var f = e().methods && e().methods[method];
               if (typeof f !== "function") throw new Error("no method " + method);
               var r = f.apply(null, JSON.parse(args));
-              return r === undefined ? "" : typeof r === "string" ? r : JSON.stringify(r);
+              var text = function (v) { return v === undefined ? "" : JSON.stringify(v); };
+              if (!r || typeof r.then !== "function") return done(true, text(r));
+              r.then(function (v) { done(true, text(v)); }, function (x) { done(false, x instanceof Error ? x.message : String(x)); });
             },
             function (state) {
               var s = e().surface;

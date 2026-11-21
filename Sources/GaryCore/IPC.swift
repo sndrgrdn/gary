@@ -36,9 +36,13 @@ public enum Request: Equatable, Sendable {
         ("onboarding", "Show the permissions window, which lists what the enabled plugins need, with a Grant button for each. Starts Gary if needed.", nil),
         ("permissions", "List each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Starts Gary if needed.", nil),
         ("permissions request <name>", "Show the macOS prompt for a permission, or open its System Settings pane where macOS has no prompt.", "gary permissions request screen-recording"),
-        ("call <plugin> <method> [args...]", "Call a method a plugin exports, loading it first if needed. Arguments arrive as strings, and a result that is not a string prints as JSON.", "gary call you.weather forecast 3"),
+        ("call <plugin> <method> [args...]", "Call a method a plugin exports, loading it first if needed. Arguments arrive as strings. Gary waits up to 60 seconds for a method that returns a promise. A result that is not a string prints as JSON, and a thrown error or rejected promise prints its message and exits with status 1.", "gary call you.weather forecast 3"),
         ("action <plugin> <kind> <action> [payload]", "Send onAction to a running kind of a plugin, as a click, slider or input would, with an optional number or text payload.", "gary action you.music panel volume 0.5"),
     ]
+
+    public static let callTimeout: TimeInterval = 60
+
+    public var timeout: TimeInterval { verb == "call" ? Self.callTimeout + 1 : 5 }
 
     public static func parse(verb: String, arguments: [String]) throws -> Request {
         func fail(_ message: String) -> RequestError { RequestError(description: message) }

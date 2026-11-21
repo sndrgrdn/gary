@@ -95,7 +95,7 @@ public enum PluginTypes {
             onKey?(key: Key, state: State): void;
             onHotkey?(id: string, state: State): void;
             onTopic?(topic: string, value: Json, state: State): void;
-            methods?: { [name: string]: (...args: string[]) => Json | void };
+            methods?: { [name: string]: (...args: string[]) => Json | void | Promise<Json | void> };
             surface?: Surface | null | ((state: State) => Surface | null | undefined);
           }
           interface Rendered extends Module {
