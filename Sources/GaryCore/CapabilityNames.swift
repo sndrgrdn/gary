@@ -14,11 +14,23 @@ public enum CapabilityError: Error, Equatable, CustomStringConvertible {
     }
 }
 
+public struct CapabilityDeclaration: Sendable {
+    public let name: String
+    public let installs: Bool
+    public let publishes: Bool
+
+    public init(_ name: String, installs: Bool, publishes: Bool) {
+        self.name = name
+        self.installs = installs
+        self.publishes = publishes
+    }
+}
+
 public struct CapabilityNames: Equatable, Sendable {
     public let uses: Set<String>
     public let topics: Set<String>
 
-    public init(_ capabilities: [(name: String, installs: Bool, publishes: Bool)]) throws {
+    public init(_ capabilities: [CapabilityDeclaration]) throws {
         var names: Set<String> = []
         for capability in capabilities {
             guard isCapabilityName(capability.name) else { throw CapabilityError.invalidName(capability.name) }

@@ -98,7 +98,7 @@ extension Skill {
     }
 
     static var commandSection: String {
-        func list(_ usage: [(syntax: String, description: String, example: String?)]) -> String {
+        func list(_ usage: [CommandUsage]) -> String {
             usage.map { "- `gary \($0.syntax)`: \($0.description)" + ($0.example.map { " For example, `\($0)`." } ?? "") }.joined(separator: "\n")
         }
         return """

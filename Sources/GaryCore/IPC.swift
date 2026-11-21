@@ -21,38 +21,38 @@ public enum Request: Equatable, Sendable {
     case call(PluginID, method: String, arguments: [String])
     case action(PluginID, kind: PluginKind, action: String, payload: String?)
 
-    public static let usage: [(syntax: String, description: String, example: String?)] = [
-        ("ping", "Check that Gary is running.", nil),
-        ("quit", "Stop Gary and its crash supervisor, restoring the menu bar and Dock settings that plugins changed.", nil),
-        ("summon <plugin>", "Load and show a plugin's panel, overlay or menu.", "gary summon you.launcher"),
-        ("hide <plugin>", "Hide a plugin's surface and unload it unless it is keepLoaded.", nil),
-        ("toggle <plugin>", "Summon a hidden surface or hide a shown one.", nil),
-        ("reloadPlugins [plugin]", "Reload one plugin, or every loaded plugin, from disk.", nil),
-        ("rescanPlugins", "Find added and removed plugin directories.", nil),
-        ("reloadConfig", "Re-read ~/.config/gary/shell.json.", nil),
-        (
+    public static let usage: [CommandUsage] = [
+        CommandUsage("ping", "Check that Gary is running.", nil),
+        CommandUsage("quit", "Stop Gary and its crash supervisor, restoring the menu bar and Dock settings that plugins changed.", nil),
+        CommandUsage("summon <plugin>", "Load and show a plugin's panel, overlay or menu.", "gary summon you.launcher"),
+        CommandUsage("hide <plugin>", "Hide a plugin's surface and unload it unless it is keepLoaded.", nil),
+        CommandUsage("toggle <plugin>", "Summon a hidden surface or hide a shown one.", nil),
+        CommandUsage("reloadPlugins [plugin]", "Reload one plugin, or every loaded plugin, from disk.", nil),
+        CommandUsage("rescanPlugins", "Find added and removed plugin directories.", nil),
+        CommandUsage("reloadConfig", "Re-read ~/.config/gary/shell.json.", nil),
+        CommandUsage(
             "applyTheme [json]",
             "Apply a theme override payload, or re-read the theme files.",
             ##"gary applyTheme '{"colors": {"accent": "#ff8800"}}'"##,
         ),
-        ("listPlugins", "List every plugin with its state.", nil),
-        ("doctor", "Report the version, window levels, private API, permissions, plugin and config problems.", nil),
-        (
+        CommandUsage("listPlugins", "List every plugin with its state.", nil),
+        CommandUsage("doctor", "Report the version, window levels, private API, permissions, plugin and config problems.", nil),
+        CommandUsage(
             "onboarding",
             "Show the permissions window, which lists what the enabled plugins need, with a Grant button for each. Starts Gary if needed.",
             nil,
         ),
-        (
+        CommandUsage(
             "permissions",
             "List each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Starts Gary if needed.",
             nil,
         ),
-        (
+        CommandUsage(
             "permissions request <name>",
             "Show the macOS prompt for a permission, or open its System Settings pane where macOS has no prompt.",
             "gary permissions request screen-recording",
         ),
-        (
+        CommandUsage(
             "call <plugin> <method> [args...]",
             """
             Call a method a plugin exports, loading it first if needed. Arguments arrive as strings. \
@@ -61,7 +61,7 @@ public enum Request: Equatable, Sendable {
             """,
             "gary call you.weather forecast 3",
         ),
-        (
+        CommandUsage(
             "action <plugin> <kind> <action> [payload]",
             "Send onAction to a running kind of a plugin, as a click, slider or input would, with an optional number or text payload.",
             "gary action you.music panel volume 0.5",

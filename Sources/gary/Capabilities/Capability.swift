@@ -39,7 +39,7 @@ struct Capability {
     ]
 
     static func names() throws -> CapabilityNames {
-        try CapabilityNames(all.map { ($0.name, $0.install != nil, $0.topic != nil) })
+        try CapabilityNames(all.map { CapabilityDeclaration($0.name, installs: $0.install != nil, publishes: $0.topic != nil) })
     }
 
     static var topics: [Topic: TopicSource] {

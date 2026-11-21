@@ -81,8 +81,8 @@ struct SkillTests {
         for permission in Permission.allCases {
             #expect(guide.contains("| `\(permission.rawValue)` | \(permission.name) |"))
         }
-        for (syntax, _, _) in Request.usage + appUsage + skillUsage + pluginUsage {
-            #expect(guide.contains("`gary \(syntax)`"), "\(syntax)")
+        for usage in Request.usage + appUsage + skillUsage + pluginUsage {
+            #expect(guide.contains("`gary \(usage.syntax)`"), "\(usage.syntax)")
         }
         let fields = try #require(try PluginTypes.manifestSchema(Capability.names())["properties"]?.object).keys
         for field in fields {

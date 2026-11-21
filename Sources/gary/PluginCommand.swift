@@ -1,8 +1,8 @@
 import Foundation
 import GaryCore
 
-let pluginUsage: [(syntax: String, description: String, example: String?)] = [
-    (
+let pluginUsage: [CommandUsage] = [
+    CommandUsage(
         "plugin new <id> [--kind <kind,...> | --from <example>] [--dir <folder>] [--enable]",
         """
         Scaffold a TypeScript plugin with one or more kinds, or copy a bundled example under a new id, \
@@ -11,18 +11,26 @@ let pluginUsage: [(syntax: String, description: String, example: String?)] = [
         """,
         "gary plugin new you.weather --from load --enable",
     ),
-    ("plugin validate <path>", "Check a plugin folder with the checks Gary runs when it loads plugins.", nil),
-    (
+    CommandUsage("plugin validate <path>", "Check a plugin folder with the checks Gary runs when it loads plugins.", nil),
+    CommandUsage(
         "plugin add <git-url|path> [--enable]",
         "Install a plugin from a git repository or a folder without running any of it.",
         "gary plugin add https://github.com/you/gary-weather --enable",
     ),
-    ("plugin update <id> [--yes]", "Show what changed upstream, then fast-forward the plugin's checkout.", "gary plugin update you.weather"),
-    ("plugin remove <id>", "Move a plugin to the Trash and drop it from shell.json.", nil),
-    ("plugin enable <id>", "Turn a plugin on in shell.json; a bar widget goes to the right of the bar.", nil),
-    ("plugin disable <id>", "Turn a plugin off in shell.json.", nil),
-    ("plugin list", "List installed plugins and whether shell.json enables them.", nil),
-    ("plugin types [path]", "Write gary.d.ts and manifest.schema.json into a plugin folder.", "gary plugin types ~/.config/gary/plugins/you.weather"),
+    CommandUsage(
+        "plugin update <id> [--yes]",
+        "Show what changed upstream, then fast-forward the plugin's checkout.",
+        "gary plugin update you.weather",
+    ),
+    CommandUsage("plugin remove <id>", "Move a plugin to the Trash and drop it from shell.json.", nil),
+    CommandUsage("plugin enable <id>", "Turn a plugin on in shell.json; a bar widget goes to the right of the bar.", nil),
+    CommandUsage("plugin disable <id>", "Turn a plugin off in shell.json.", nil),
+    CommandUsage("plugin list", "List installed plugins and whether shell.json enables them.", nil),
+    CommandUsage(
+        "plugin types [path]",
+        "Write gary.d.ts and manifest.schema.json into a plugin folder.",
+        "gary plugin types ~/.config/gary/plugins/you.weather",
+    ),
 ]
 
 private func dispatch(_ arguments: [String]) throws {
@@ -49,8 +57,8 @@ func runPlugin(_ arguments: [String]) -> Int32 {
         return 0
     } catch let error as CommandError where error.usage {
         fputs("gary plugin: \(error)\nusage:\n", stderr)
-        for (syntax, _, _) in pluginUsage {
-            fputs("  gary \(syntax)\n", stderr)
+        for usage in pluginUsage {
+            fputs("  gary \(usage.syntax)\n", stderr)
         }
         return 64
     } catch {

@@ -9,7 +9,11 @@ private func loadBaseTheme() throws -> JSON {
 }
 
 private func makeCapabilities() throws -> CapabilityNames {
-    try CapabilityNames([("exec", true, false), ("battery", false, true), ("clock", false, true)])
+    try CapabilityNames([
+        CapabilityDeclaration("exec", installs: true, publishes: false),
+        CapabilityDeclaration("battery", installs: false, publishes: true),
+        CapabilityDeclaration("clock", installs: false, publishes: true),
+    ])
 }
 
 private let shellSample = """

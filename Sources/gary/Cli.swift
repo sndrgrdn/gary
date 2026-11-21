@@ -74,11 +74,11 @@ private func startApp() throws {
     throw SocketError.unreachable(socketPath)
 }
 
-let appUsage: [(syntax: String, description: String, example: String?)] = [
-    ("app", "Run the shell in the foreground, logging to the terminal, without the crash supervisor.", nil),
-    ("login [on|off|status]", "Start Gary at login, or stop doing so.", nil),
-    ("--version", "Print the version of this Gary.", nil),
-    ("update", "Install the latest release from GitHub with gh, after saying which version is installed and which is the latest.", nil),
+let appUsage: [CommandUsage] = [
+    CommandUsage("app", "Run the shell in the foreground, logging to the terminal, without the crash supervisor.", nil),
+    CommandUsage("login [on|off|status]", "Start Gary at login, or stop doing so.", nil),
+    CommandUsage("--version", "Print the version of this Gary.", nil),
+    CommandUsage("update", "Install the latest release from GitHub with gh, after saying which version is installed and which is the latest.", nil),
 ]
 
 func runUpdate(_ arguments: [String]) -> Int32 {
@@ -112,6 +112,6 @@ func runHelp() -> Int32 {
     return 0
 }
 
-private func printUsage(_ usage: (syntax: String, description: String, example: String?)) {
+private func printUsage(_ usage: CommandUsage) {
     print("  \(usage.syntax)\n      \(usage.description)" + (usage.example.map { "\n      for example: \($0)" } ?? ""))
 }

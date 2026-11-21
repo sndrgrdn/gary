@@ -1,8 +1,8 @@
 import Foundation
 import GaryCore
 
-let skillUsage: [(syntax: String, description: String, example: String?)] = [
-    (
+let skillUsage: [CommandUsage] = [
+    CommandUsage(
         "skill [status|setup|remove|show]",
         "Install the gary skill into Claude Code and agents that read ~/.agents/skills, or print the guide it points to.",
         nil,

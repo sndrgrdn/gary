@@ -4,11 +4,11 @@ import Testing
 
 func makeTestCapabilities() throws -> CapabilityNames {
     try CapabilityNames([
-        ("battery", false, true),
-        ("clock", false, true),
-        ("exec", true, false),
-        ("files", true, false),
-        ("network", true, false),
+        CapabilityDeclaration("battery", installs: false, publishes: true),
+        CapabilityDeclaration("clock", installs: false, publishes: true),
+        CapabilityDeclaration("exec", installs: true, publishes: false),
+        CapabilityDeclaration("files", installs: true, publishes: false),
+        CapabilityDeclaration("network", installs: true, publishes: false),
     ])
 }
 
@@ -46,7 +46,12 @@ struct PluginManifestTests {
 
     @Test func `capabilities are the uses then the subscribed capability topics`() throws {
         let parsed = try manifest(["subscribes": ["clock", "acme.counter", "exec"], "uses": ["exec", "files"]], capabilities: CapabilityNames([
-            ("clock", false, true), ("exec", true, true), ("files", true, false),
+            CapabilityDeclaration("clock", installs: false, publishes: true), CapabilityDeclaration("exec", installs: true, publishes: true),
+            CapabilityDeclaration(
+                "files",
+                installs: true,
+                publishes: false,
+            ),
         ]))
         #expect(parsed.capabilities == ["exec", "files", "clock"])
     }
@@ -114,7 +119,11 @@ struct PluginManifestTests {
     }
 
     @Test func `uses names capabilities with an API and subscribes names capabilities with A topic`() throws {
-        let registry = try CapabilityNames([("wifi", true, true), ("volume", true, false), ("battery", false, true)])
+        let registry = try CapabilityNames([
+            CapabilityDeclaration("wifi", installs: true, publishes: true),
+            CapabilityDeclaration("volume", installs: true, publishes: false),
+            CapabilityDeclaration("battery", installs: false, publishes: true),
+        ])
         let parsed = try manifest(["uses": ["wifi", "volume"], "subscribes": ["wifi", "battery"]], capabilities: registry)
         #expect(parsed.uses == ["wifi", "volume"])
         #expect(parsed.subscribes == [.capability("wifi"), .capability("battery")])
