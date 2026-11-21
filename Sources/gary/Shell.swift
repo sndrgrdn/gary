@@ -174,7 +174,7 @@ final class Shell {
         guard let data = try? Data(contentsOf: Paths.reopen) else { return }
         try? FileManager.default.removeItem(at: Paths.reopen)
         for id in (try? JSON.parse(data))?.array?.compactMap({ $0.string.flatMap(PluginID.init) }) ?? [] {
-            summon(id, trace) { _ in }
+            summon(id, trace)
         }
     }
 
@@ -343,9 +343,9 @@ final class Shell {
         case let .surface(request):
             let trace = Trace("host-\(request.rawValue)")
             switch request {
-            case .show: summon(key.id, trace) { _ in }
+            case .show: summon(key.id, trace)
             case .hide: _ = hide(key.id, trace)
-            case .toggle: toggle(key.id, trace) { _ in }
+            case .toggle: toggle(key.id, trace)
             }
         case let .call(method, arguments, reply):
             call(key.id, method, arguments, Trace("host-call"), reply)
@@ -798,7 +798,7 @@ final class Shell {
             return
         }
         log("onboarding: shown, " + (dismissed == nil ? "first launch" : "missing \(missing.joined(separator: ", "))"))
-        summon(.onboarding, trace) { _ in }
+        summon(.onboarding, trace)
     }
 
     private func recordOnboardingDismissed() {
@@ -967,29 +967,32 @@ final class Shell {
         return displays.first { NSMouseInRect(pointer, $0.frame, false) }?.id
     }
 
-    private func toggle(_ id: PluginID, _ trace: Trace, _ reply: @escaping (Response) -> Void) {
+    private func toggle(_ id: PluginID, _ trace: Trace, _ reply: ((Response) -> Void)? = nil) {
         if surfaceSlot(id)?.visible == true {
-            reply(hide(id, trace))
+            let response = hide(id, trace)
+            reply?(response)
         } else {
             summon(id, trace, reply)
         }
     }
 
-    private func summon(_ id: PluginID, _ trace: Trace, _ reply: @escaping (Response) -> Void) {
-        guard let slot = surfaceSlot(id) else { reply(.failure("no enabled surface \(id)"))
+    private func summon(_ id: PluginID, _ trace: Trace, _ reply: ((Response) -> Void)? = nil) {
+        guard let slot = surfaceSlot(id) else { reply?(.failure("no enabled surface \(id)"))
             return
         }
         if let reason = slot.disabledReason {
-            reply(.failure("\(id) is disabled: \(reason)"))
+            reply?(.failure("\(id) is disabled: \(reason)"))
             return
         }
         if slot.visible, slot.runtime != nil {
-            reply(.ok("shown"))
+            reply?(.ok("shown"))
             return
         }
         slot.visible = true
         slot.focused = pointerDisplay()
-        slot.waiters.append(reply)
+        if let reply {
+            slot.waiters.append(reply)
+        }
         if let runtime = slot.runtime {
             runtime.setScene(scene(for: slot), trace)
         } else if slot.candidate == nil {
