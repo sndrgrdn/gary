@@ -54,8 +54,7 @@ struct TreeView: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        let root = NodeView(node: tree.root)
-            .environment(\.nodeTheme, tree.theme)
+        let root = NodeView(node: tree.root, theme: tree.theme)
             .environment(\.nodeAction, onAction)
         if let fit = tree.fit, tree.backdrop {
             fit {
@@ -109,21 +108,12 @@ private struct ScrollFit: Layout {
     }
 }
 
-private struct ThemeKey: EnvironmentKey {
-    static let defaultValue: Theme? = nil
-}
-
 private struct ActionKey: EnvironmentKey {
-    static let defaultValue: ActionHandler = { _, _ in }
+    static let defaultValue: ActionHandler? = nil
 }
 
 extension EnvironmentValues {
-    var nodeTheme: Theme? {
-        get { self[ThemeKey.self] }
-        set { self[ThemeKey.self] = newValue }
-    }
-
-    var nodeAction: ActionHandler {
+    var nodeAction: ActionHandler? {
         get { self[ActionKey.self] }
         set { self[ActionKey.self] = newValue }
     }
@@ -142,7 +132,7 @@ private extension Node {
 
 struct NodeView: View {
     let node: Node
-    @Environment(\.nodeTheme) private var theme
+    let theme: Theme
     @Environment(\.nodeAction) private var perform
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let hovering = State(initialValue: false)
@@ -160,7 +150,7 @@ struct NodeView: View {
         if hovering.wrappedValue, case let .button(_, style) = node.content {
             hover = style ?? "hover"
         }
-        let look = theme!.resolve(node.style, props, hover: hover)
+        let look = theme.resolve(node.style, props, hover: hover)
         let tracksHover = node.hovered != nil || node.kind == .button
         let fade: SwiftUI.Animation? = reduceMotion || node.kind == .button ? nil : .easeOut(duration: 0.15)
         return content(look).box(
@@ -178,16 +168,16 @@ struct NodeView: View {
     }
 
     @ViewBuilder private func content(_ look: ResolvedStyle) -> some View {
-        let gap = look.gap ?? theme!.spacing.item
+        let gap = look.gap ?? theme.spacing.item
         switch node.content {
         case .row:
-            HStack(alignment: .center, spacing: gap) { Children(node: node) }
+            HStack(alignment: .center, spacing: gap) { Children(node: node, theme: theme) }
         case .column:
-            VStack(alignment: .leading, spacing: gap) { Children(node: node) }
+            VStack(alignment: .leading, spacing: gap) { Children(node: node, theme: theme) }
         case .stack:
-            ZStack(alignment: .topLeading) { Children(node: node) }
+            ZStack(alignment: .topLeading) { Children(node: node, theme: theme) }
         case .scroll:
-            ScrollNode(node: node, gap: gap, padding: look.padding ?? Insets(0), maxHeight: look.height)
+            ScrollNode(node: node, theme: theme, gap: gap, padding: look.padding ?? Insets(0), maxHeight: look.height)
         case let .text(text):
             Text(verbatim: text).font(Font(nsFont(look.font) as CTFont)).foregroundStyle(Color(look.color))
                 .multilineTextAlignment(TextAlignment(look.align ?? .leading)).fixedSize(horizontal: look.width != nil, vertical: true)
@@ -212,16 +202,17 @@ struct NodeView: View {
         case .spacer:
             Spacer(minLength: 0)
         case .button:
-            HStack(alignment: .center, spacing: gap) { Children(node: node) }.fixedSize()
+            HStack(alignment: .center, spacing: gap) { Children(node: node, theme: theme) }.fixedSize()
         }
     }
 }
 
 private struct Children: View {
     let node: Node
+    let theme: Theme
 
     var body: some View {
-        ForEach(node.identifiedChildren) { child in NodeView(node: child.node) }
+        ForEach(node.identifiedChildren) { child in NodeView(node: child.node, theme: theme) }
     }
 }
 
@@ -229,7 +220,7 @@ private extension View {
     func box(
         _ look: ResolvedStyle,
         _ node: Node,
-        _ perform: @escaping ActionHandler,
+        _ perform: ActionHandler?,
         reduceMotion: Bool,
         hovering: Binding<Bool>?,
         pressing: Binding<Bool>?,
@@ -276,7 +267,7 @@ private extension View {
                     shape.strokeBorder(Color(color), lineWidth: border.width)
                 }
             }
-            .interactive(clickable, hovering: hovering, pressing: pressing) { perform($0, .null) }
+            .interactive(clickable, hovering: hovering, pressing: pressing) { perform?($0, .null) }
             .dropShadow(look.shadow, look.shadowColor)
             .scaleEffect(look.scale ?? 1)
             .opacity(look.opacity ?? 1)
@@ -366,6 +357,7 @@ private extension View {
 
 private struct ScrollNode: View {
     let node: Node
+    let theme: Theme
     let gap: Double
     let padding: Insets
     let maxHeight: Double?
@@ -376,7 +368,7 @@ private struct ScrollNode: View {
             ScrollViewReader { proxy in
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: gap) {
-                        ForEach(node.identifiedChildren) { child in NodeView(node: child.node).id(child.id) }
+                        ForEach(node.identifiedChildren) { child in NodeView(node: child.node, theme: theme).id(child.id) }
                     }
                     .padding(EdgeInsets(padding))
                 }

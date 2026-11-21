@@ -41,7 +41,7 @@ struct SliderNode: View {
         Slider(value: Binding(get: { shown.wrappedValue }, set: { next in
             shown.wrappedValue = next
             if let action {
-                perform(action, .number(next))
+                perform?(action, .number(next))
             }
         }), in: 0...1)
             .tint(tint)
@@ -67,7 +67,7 @@ struct InputNode: View {
             .foregroundStyle(color)
             .onSubmit {
                 if let submit = input.submit {
-                    perform(submit, .string(text.wrappedValue))
+                    perform?(submit, .string(text.wrappedValue))
                 } else {
                     pressKey("enter")
                 }
@@ -93,7 +93,7 @@ struct InputNode: View {
         text.wrappedValue = next
         guard let change = input.change else { return }
         sent.wrappedValue.append(next)
-        perform(change, .string(next))
+        perform?(change, .string(next))
     }
 
     private func pressKey(_ key: String) {
