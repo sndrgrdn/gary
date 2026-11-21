@@ -79,6 +79,7 @@ extension JSON: Codable {
         switch self {
         case .null: try container.encodeNil()
         case .bool(let value): try container.encode(value)
+        case .number(let value) where !value.isFinite: try container.encodeNil()
         case .number(let value): try container.encode(value)
         case .string(let value): try container.encode(value)
         case .array(let value): try container.encode(value)
