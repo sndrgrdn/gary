@@ -7,7 +7,8 @@
     "bright": ["bright_foreground", "mix(foreground, contrast(background), 0.4)"],
     "good": ["green", "color2", "#4c9a52"],
     "bad": ["red", "color1", "#d9534f"],
-    "panel": ["alpha(lighter_background, 0.95)", "alpha(mix(background, foreground, 0.06), 0.95)"],
+    "panel": ["lighter_background", "mix(background, foreground, 0.06)"],
+    "border": "alpha(foreground, 0.12)",
     "hover": "alpha(foreground, 0.1)",
     "selected": "alpha(accent, 0.25)",
     "bar": "background"
@@ -29,6 +30,7 @@
     "bad": { "color": "bad" },
     "title": { "color": "bright", "font": "title" },
     "panel": { "background": "panel", "radius": 12, "padding": 14 },
+    "surface": { "background": "panel", "radius": 12 },
     "hover": { "background": "hover", "radius": 6 },
     "selected": { "color": "bright", "background": "selected", "radius": 6 }
   }

@@ -376,9 +376,9 @@ final class Shell {
             spec.anchors = Edges(top: true, bottom: false, left: true, right: true)
             spec.height = .points(display.band)
             spec.exclusionMode = .ignore
-            window.place(spec, on: display, level: barLevel(display.id))
+            window.place(spec, on: display, level: barLevel(display.id), theme: theme)
         } else if let spec = slot.surface {
-            window.place(spec, on: display, level: levels.level(spec.layer))
+            window.place(spec, on: display, level: levels.level(spec.layer), theme: theme)
         }
         if isNew {
             if key.slot.kind == .bar { watchTopEdge(of: window.panel.contentView!) { [weak self] in self?.pointerReachedTop(key.display) } }

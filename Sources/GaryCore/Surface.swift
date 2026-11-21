@@ -56,6 +56,10 @@ public enum ExclusionMode: String, Sendable {
     case normal, ignore
 }
 
+public enum SurfaceBackground: String, CaseIterable, Sendable {
+    case solid, vibrant, none
+}
+
 public struct Edges<Value: Equatable & Sendable>: Equatable, Sendable {
     public var top, bottom, left, right: Value
 
@@ -83,6 +87,7 @@ public struct SurfaceSpec: Equatable, Sendable {
     public var exclusionMode: ExclusionMode
     public var clickThrough: Bool
     public var focusable: Bool
+    public var background: SurfaceBackground
 
     public static let none = Edges(top: false, bottom: false, left: false, right: false)
     public static let all = Edges(top: true, bottom: true, left: true, right: true)
@@ -91,7 +96,7 @@ public struct SurfaceSpec: Equatable, Sendable {
         var spec = SurfaceSpec(
             screen: .focused, anchors: none, width: .fit, height: .fit,
             margins: Edges(top: 0, bottom: 0, left: 0, right: 0),
-            layer: .top, exclusionMode: .normal, clickThrough: false, focusable: false
+            layer: .top, exclusionMode: .normal, clickThrough: false, focusable: false, background: .solid
         )
         switch kind {
         case .overlay:
@@ -101,7 +106,9 @@ public struct SurfaceSpec: Equatable, Sendable {
         case .menu:
             spec.layer = .overlay
             spec.focusable = true
-        default:
+        case .bar, .barWidget, .service:
+            spec.background = .none
+        case .panel:
             break
         }
         return spec
@@ -165,6 +172,11 @@ public struct SurfaceSpec: Equatable, Sendable {
                 spec.exclusionMode = mode
             case "clickThrough": spec.clickThrough = try bool(value, path)
             case "focusable": spec.focusable = try bool(value, path)
+            case "background":
+                guard let background = value.string.flatMap(SurfaceBackground.init(rawValue:)) else {
+                    throw fail(path, "must be one of \(SurfaceBackground.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: ", "))")
+                }
+                spec.background = background
             default: throw fail(path, "is not a surface field")
             }
         }

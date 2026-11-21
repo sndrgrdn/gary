@@ -42,7 +42,7 @@ struct ThemeTests {
         #expect(contrast(colors["dim"]!, background) < contrast(foreground, background))
         #expect(contrast(colors["bright"]!, background) > contrast(foreground, background))
         let panel = colors["panel"]!
-        #expect(panel.alpha > 0.8 && panel.alpha < 1)
+        #expect(panel.alpha == 1)
         #expect(contrast(panel, background) > 1 && contrast(panel, background) < 1.5)
         #expect(colors["selected"] == RGBA(red: accent.red, green: accent.green, blue: accent.blue, alpha: 0.25))
         #expect(colors["hover"] == RGBA(red: foreground.red, green: foreground.green, blue: foreground.blue, alpha: 0.1))
@@ -74,7 +74,7 @@ struct ThemeTests {
         """)
         #expect(theme.colors["dim"] == RGBA(hex: "#4b4e55"))
         #expect(theme.colors["bright"] == RGBA(hex: "#a5aeb4"))
-        #expect(theme.colors["panel"] == RGBA(red: 0x1a / 255, green: 0x1d / 255, blue: 0x20 / 255, alpha: 0.95))
+        #expect(theme.colors["panel"] == RGBA(hex: "#1a1d20"))
         #expect(theme.colors["good"] == RGBA(hex: "#9fa5a9"))
         #expect(theme.colors["bad"] == RGBA(hex: "#de6145"))
     }

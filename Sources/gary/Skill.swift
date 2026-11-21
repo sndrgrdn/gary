@@ -274,6 +274,7 @@ enum Skill {
     | `exclusionMode` | `"normal"` keeps clear of the bar, and `"ignore"` covers it | `"normal"`. An overlay uses `"ignore"`. |
     | `clickThrough` | boolean | `false` |
     | `focusable` | boolean. A focusable surface takes keys. | `false`. A menu is focusable. |
+    | `background` | `"solid"` paints the theme's `surface` style with a border and a shadow, `"vibrant"` blurs what is behind the window, and `"none"` leaves the window clear for the tree to paint | `"solid"` |
     """
 
     private static func themeSection(_ theme: JSON?) -> String {

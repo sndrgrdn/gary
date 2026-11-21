@@ -68,6 +68,7 @@ public enum PluginTypes {
             exclusionMode?: "normal" | "ignore";
             clickThrough?: boolean;
             focusable?: boolean;
+            background?: \(union(SurfaceBackground.allCases.map(\.rawValue)));
           }
 
           type ActionPayload = null | number | string;
