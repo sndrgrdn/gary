@@ -43,3 +43,49 @@ final class FileWatcher {
         queue.asyncAfter(deadline: .now() + quiet, execute: work)
     }
 }
+
+final class PathWatch {
+    private let paths: [String]
+    private let queue: DispatchQueue
+    private let onChange: () -> Void
+    private var sources: [DispatchSourceFileSystemObject] = []
+    private var pending: DispatchWorkItem?
+
+    init(_ paths: [String], queue: DispatchQueue, onChange: @escaping () -> Void) {
+        self.paths = paths
+        self.queue = queue
+        self.onChange = onChange
+        queue.async { [weak self] in self?.arm() }
+    }
+
+    func stop() {
+        queue.sync {
+            pending?.cancel()
+            for source in sources { source.cancel() }
+            sources = []
+        }
+    }
+
+    private func arm() {
+        for source in sources { source.cancel() }
+        sources = paths.compactMap { path in
+            let descriptor = open(path, O_EVTONLY)
+            guard descriptor >= 0 else { return nil }
+            let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: descriptor, eventMask: [.write, .extend, .delete, .rename, .attrib], queue: queue)
+            source.setEventHandler { [weak self] in self?.changed() }
+            source.setCancelHandler { close(descriptor) }
+            source.resume()
+            return source
+        }
+    }
+
+    private func changed() {
+        pending?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.arm()
+            self?.onChange()
+        }
+        pending = work
+        queue.asyncAfter(deadline: .now() + 0.2, execute: work)
+    }
+}

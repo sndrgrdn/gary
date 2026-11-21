@@ -3,7 +3,7 @@ import GaryCore
 import JavaScriptCore
 
 enum Permission {
-    case accessibility, bluetooth, location, notifications
+    case accessibility, bluetooth, fullDiskAccess, location, notifications
 }
 
 struct Capability {
@@ -21,6 +21,7 @@ struct Capability {
         .files,
         .mediakeys,
         .network,
+        .notifications,
         .nowplaying,
     ]
 
