@@ -7,6 +7,7 @@ enum Paths {
     static let userPlugins = config.appending(path: "plugins")
     static let shellConfig = config.appending(path: "shell.json")
     static let userTheme = config.appending(path: "theme.json")
+    static let palette = config.appending(path: "palette.toml")
     static let builtinPlugins = Bundle.main.resourceURL!.appending(path: "plugins")
     static let defaultTheme = Bundle.main.resourceURL!.appending(path: "theme.json")
     static let storage = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appending(path: "Gary/storage")
@@ -67,6 +68,8 @@ final class Shell {
     private var theme: Theme
     private var renderer: ViewRenderer
     private var themePayload: JSON?
+    private var paletteFile: PaletteFile?
+    private var systemMode = Palette.Mode.dark
     private var config = ShellConfig.defaults
     private var catalog = PluginCatalog()
     private var resolution: ShellConfig.Resolution
@@ -84,7 +87,7 @@ final class Shell {
     private var signals: [DispatchSourceSignal] = []
 
     init() throws {
-        theme = try Theme.parse(try JSON.parse(Data(contentsOf: Paths.defaultTheme)))
+        theme = try Theme.parse(try JSON.parse(Data(contentsOf: Paths.defaultTheme)), palette: Palette(nil, system: systemMode))
         renderer = ViewRenderer(theme: theme)
         resolution = config.resolve(catalog)
     }
@@ -93,7 +96,8 @@ final class Shell {
         hotkeys = HotkeyCenter { [weak self] binding in self?.hotkeyPressed(binding) }
         server = try LineServer(path: socketPath) { [weak self] line in self?.serve(line) ?? Response.failure("shutting down").line }
         try FileManager.default.createDirectory(at: Paths.config, withIntermediateDirectories: true)
-        reloadTheme()
+        loadPalette()
+        reloadTheme(Trace("start"))
         loadConfig()
         scan()
 
@@ -448,25 +452,46 @@ final class Shell {
         log("screens: " + NSScreen.screens.map { "\($0.localizedName) \(Int($0.frame.width))x\(Int($0.frame.height)) notch=\($0.notch != nil)" }.joined(separator: "; "))
     }
 
+    private func loadPalette() {
+        guard FileManager.default.fileExists(atPath: Paths.palette.path) else {
+            paletteFile = nil
+            return
+        }
+        do {
+            let file = PaletteFile.parse(try String(contentsOf: Paths.palette, encoding: .utf8))
+            for problem in file.ignored { log("palette.toml \(problem); ignored") }
+            paletteFile = file
+        } catch {
+            log("palette.toml: \(error); using the built-in palette")
+            paletteFile = nil
+        }
+    }
+
     @discardableResult
-    private func reloadTheme() -> Response {
+    private func reloadTheme(_ trace: Trace) -> Response {
         do {
             var override = themePayload ?? .object([:])
             if FileManager.default.fileExists(atPath: Paths.userTheme.path) {
                 override = override.merging(try JSON.parse(Data(contentsOf: Paths.userTheme)))
             }
-            let next = try Theme.parse(try JSON.parse(Data(contentsOf: Paths.defaultTheme)), override: override)
+            let next = try Theme.parse(
+                try JSON.parse(Data(contentsOf: Paths.defaultTheme)), override: override, palette: Palette(paletteFile, system: systemMode)
+            )
             guard next != theme else { return .ok("theme unchanged") }
             let bandChanged = next.bar.height != theme.bar.height
             theme = next
+            for warning in theme.warnings { log("theme \(warning)") }
             renderer = ViewRenderer(theme: theme)
             if bandChanged {
-                rebuildDisplays(Trace("theme"))
+                rebuildDisplays(trace)
+            } else {
+                for (screen, display) in zip(NSScreen.screens, displays) { bars[display.id]?.layout(on: screen, theme: theme) }
             }
             for mount in mounts.values { renderer.restyle(mount.view, mount.node) }
             for key in mounts.keys { place(key) }
             commitFrame()
-            log("theme applied")
+            log(String(format: "theme applied mode=%@ palette=%@ cause=%@ since_ms=%.3f", theme.mode.rawValue,
+                       paletteFile == nil ? "built-in" : "palette.toml", trace.cause, (now() - trace.start) * 1000))
             return .ok("theme applied")
         } catch {
             log("theme: \(error); keeping the current theme")
@@ -505,11 +530,14 @@ final class Shell {
     private func filesChanged(_ paths: Set<String>, _ trace: Trace) {
         let root = Paths.config.resolvingSymlinksInPath().path
         let plugins = Paths.userPlugins.resolvingSymlinksInPath().path + "/"
-        var rescan = false
+        var rescan = false, themeChanged = false
         var reloads = Set<SlotKey>()
         for path in paths {
             if path == root + "/theme.json" {
-                reloadTheme()
+                themeChanged = true
+            } else if path == root + "/palette.toml" {
+                loadPalette()
+                themeChanged = true
             } else if path == root + "/shell.json" {
                 _ = reloadConfig(trace)
             } else if path.hasPrefix(plugins) {
@@ -523,6 +551,7 @@ final class Shell {
                 }
             }
         }
+        if themeChanged { reloadTheme(trace) }
         if rescan {
             scan()
             sync(trace)
@@ -586,7 +615,7 @@ final class Shell {
             reply(reloadConfig(trace))
         case .applyTheme(let payload):
             themePayload = payload
-            reply(reloadTheme())
+            reply(reloadTheme(trace))
         case .listPlugins:
             reply(.ok(listing()))
         case .call(let id, let method, let arguments):

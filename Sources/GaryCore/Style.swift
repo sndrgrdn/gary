@@ -34,9 +34,7 @@ public struct StyleProps: Equatable, Sendable {
         }
         for (name, path) in colors {
             guard let value = fields[name], value != .null else { continue }
-            guard let color = value.string, !color.hasPrefix("#") || RGBA(hex: color) != nil else {
-                throw fail(name, "must be a theme color name, #rrggbb or #rrggbbaa")
-            }
+            guard let color = value.string, ColorExpr(color) != nil else { throw fail(name, "must be \(ColorExpr.syntax)") }
             props[keyPath: path] = color
         }
         if let value = fields["font"], value != .null {

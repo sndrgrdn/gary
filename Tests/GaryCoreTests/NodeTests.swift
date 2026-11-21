@@ -56,7 +56,7 @@ struct NodeTests {
             (#"{"type":"image"}"#, NodeError(path: "root", reason: "path is required")),
             (#"{"type":"spacer","width":-1}"#, NodeError(path: "root", reason: "width must be a non-negative number")),
             (#"{"type":"spacer","opacity":2}"#, NodeError(path: "root", reason: "opacity must be between 0 and 1")),
-            (##"{"type":"spacer","color":"#12"}"##, NodeError(path: "root", reason: "color must be a theme color name, #rrggbb or #rrggbbaa")),
+            (##"{"type":"spacer","color":"#12"}"##, NodeError(path: "root", reason: "color must be \(ColorExpr.syntax)")),
             (#"{"type":"text"}"#, NodeError(path: "root", reason: "text is required")),
             (#"{"type":"icon","text":"x"}"#, NodeError(path: "root", reason: "symbol is required")),
             (#"{"type":"text","text":"a","style":3}"#, NodeError(path: "root", reason: "style must be a string")),
