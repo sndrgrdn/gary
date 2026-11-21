@@ -44,8 +44,8 @@ public struct RGBA: Equatable, Sendable {
     }
 
     public func mixed(with other: RGBA, _ amount: Double) -> RGBA {
-        func blend(_ a: Double, _ b: Double) -> Double {
-            a + (b - a) * amount
+        func blend(_ from: Double, _ to: Double) -> Double {
+            from + (to - from) * amount
         }
         return RGBA(red: blend(red, other.red), green: blend(green, other.green), blue: blend(blue, other.blue), alpha: blend(alpha, other.alpha))
     }
@@ -70,9 +70,9 @@ public indirect enum ColorExpr: Equatable, Sendable {
         switch self {
         case let .literal(color): return color
         case let .name(name): return lookup(name)
-        case let .mix(a, b, amount):
-            guard let a = a.evaluate(lookup), let b = b.evaluate(lookup) else { return nil }
-            return a.mixed(with: b, amount)
+        case let .mix(first, second, amount):
+            guard let first = first.evaluate(lookup), let second = second.evaluate(lookup) else { return nil }
+            return first.mixed(with: second, amount)
         case let .alpha(base, alpha):
             guard var color = base.evaluate(lookup) else { return nil }
             color.alpha = alpha
@@ -121,10 +121,16 @@ public indirect enum ColorExpr: Equatable, Sendable {
             }
             guard let first = word.first, first.isLetter || first == "_" else { return nil }
             guard take("(") else { return .name(String(word)) }
-            switch word {
+            return call(word)
+        }
+
+        private mutating func call(_ function: Substring) -> ColorExpr? {
+            switch function {
             case "mix":
-                guard let a = expression(), take(","), let b = expression(), take(","), let amount = fraction(), take(")") else { return nil }
-                return .mix(a, b, amount)
+                guard let first = expression(), take(","), let second = expression(), take(","), let amount = fraction(), take(")") else {
+                    return nil
+                }
+                return .mix(first, second, amount)
             case "alpha":
                 guard let base = expression(), take(","), let alpha = fraction(), take(")") else { return nil }
                 return .alpha(base, alpha)
