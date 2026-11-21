@@ -1,5 +1,4 @@
 import Foundation
-import GaryCore
 import JavaScriptCore
 
 private let fetchSession = URLSession(configuration: .ephemeral)

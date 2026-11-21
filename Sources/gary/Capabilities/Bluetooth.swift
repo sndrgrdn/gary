@@ -63,12 +63,10 @@ extension Capability {
 }
 
 private enum BluetoothPower {
-    typealias Get = @convention(c) () -> Int32
     typealias Set = @convention(c) (Int32) -> Void
-    static let get = privateSymbol(.bluetoothGetPower, as: Get.self)
     static let set = privateSymbol(.bluetoothSetPower, as: Set.self)
 
-    static var missing: [String] { missingSymbols([.bluetoothGetPower, .bluetoothSetPower]) }
+    static var missing: [String] { missingSymbols([.bluetoothSetPower]) }
 }
 
 private func connection(_ address: String, open: Bool) throws -> JSON {

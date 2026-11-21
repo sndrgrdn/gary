@@ -1,5 +1,4 @@
 import Foundation
-import GaryCore
 import JavaScriptCore
 
 extension Capability {
