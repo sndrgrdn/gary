@@ -73,6 +73,8 @@ private final class PermissionsTopic: TopicFeed {
     private var observation: Observation?
     private var grantedSinceStart: Set<Permission> = []
     private var probing = false
+    private var checking = false
+    private let checks = DispatchQueue(label: "gary.permissions", qos: .utility)
 
     init(_ publish: @escaping (JSON, Trace) -> Void) {
         self.publish = publish
@@ -83,7 +85,25 @@ private final class PermissionsTopic: TopicFeed {
     }
 
     private func send(_ trace: Trace) {
-        var needs = PermissionNeed.all(enabled: PermissionNeed.enabledPlugins, checkGrants: true)
+        guard !checking else { return }
+        checking = true
+        let enabled = PermissionNeed.enabledPlugins
+        let location = Permission.location.grant
+        checks.async { [weak self] in
+            var needs = PermissionNeed.all(enabled: enabled, checkGrants: false)
+            for index in needs.indices {
+                let permission = needs[index].permission
+                needs[index].grant = permission == .location ? location : permission.grant
+            }
+            DispatchQueue.main.async {
+                self?.checking = false
+                self?.deliver(needs, trace)
+            }
+        }
+    }
+
+    private func deliver(_ checked: [PermissionNeed], _ trace: Trace) {
+        var needs = checked
         for index in needs.indices where needs[index].grant != .granted && grantedSinceStart.contains(needs[index].permission) {
             needs[index].grant = .needsRestart
         }
