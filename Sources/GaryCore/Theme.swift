@@ -94,7 +94,7 @@ public struct Theme: Equatable, Sendable {
         return .object(["mode": .string(mode.rawValue), "colors": hexes(colors), "palette": hexes(palette.colors)])
     }
 
-    public static func parse(_ base: JSON, override: JSON? = nil, palette: Palette) throws -> Theme {
+    public static func parse(_ base: JSON, palette: Palette, override: JSON? = nil) throws -> Theme {
         let json = override.map { base.merging($0) } ?? base
         _ = try object(json["colors"], "colors")
         let (colors, colorWarnings) = try resolveColors(

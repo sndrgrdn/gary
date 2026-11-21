@@ -194,7 +194,7 @@ struct Doctor {
         let file = checkPalette()
         do {
             let override = FileManager.default.fileExists(atPath: Paths.userTheme.path) ? try JSON.parse(Data(contentsOf: Paths.userTheme)) : nil
-            let theme = try Theme.parse(JSON.parse(Data(contentsOf: Paths.defaultTheme)), override: override, palette: Palette(file, system: .dark))
+            let theme = try Theme.parse(JSON.parse(Data(contentsOf: Paths.defaultTheme)), palette: Palette(file, system: .dark), override: override)
             if theme.warnings.isEmpty {
                 ok(override == nil ? "built-in theme" : "theme.json")
             }

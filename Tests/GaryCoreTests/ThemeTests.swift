@@ -13,7 +13,7 @@ struct ThemeTests {
 
     private func theme(_ override: String? = nil, palette: String? = nil) throws -> Theme {
         let resolved = Palette(palette.map(PaletteFile.parse), system: .dark)
-        return try Theme.parse(Self.bundled(), override: override.map { try JSON.parse($0) }, palette: resolved)
+        return try Theme.parse(Self.bundled(), palette: resolved, override: override.map { try JSON.parse($0) })
     }
 
     private func contrast(_ first: RGBA, _ second: RGBA) -> Double {

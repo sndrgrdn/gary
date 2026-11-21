@@ -9,8 +9,8 @@ struct ThemeFallbackTests {
             .appendingPathComponent("Resources/theme.json")
         return try Theme.parse(
             JSON.parse(Data(contentsOf: bundled)),
-            override: override.map { try JSON.parse($0) },
             palette: Palette(nil, system: .dark),
+            override: override.map { try JSON.parse($0) },
         )
     }
 

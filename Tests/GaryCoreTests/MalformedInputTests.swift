@@ -136,7 +136,7 @@ struct MalformedInputTests {
         let palettes = [Palette(nil, system: .dark), Palette(PaletteFile.parse(paletteSample), system: .light)]
         for (index, text) in mutatedTexts(themeSample, count: 3000, seed: 2).enumerated() {
             guard let json = try? JSON.parse(text) else { continue }
-            if let theme = try? Theme.parse(baseTheme, override: json, palette: palettes[index % 2]) {
+            if let theme = try? Theme.parse(baseTheme, palette: palettes[index % 2], override: json) {
                 _ = theme.json.text
             }
         }

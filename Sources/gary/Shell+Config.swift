@@ -35,7 +35,7 @@ extension Shell {
                 override = try override.merging(JSON.parse(Data(contentsOf: Paths.userTheme)))
             }
             let next = try Theme.parse(
-                JSON.parse(Data(contentsOf: Paths.defaultTheme)), override: override, palette: Palette(paletteFile, system: systemMode),
+                JSON.parse(Data(contentsOf: Paths.defaultTheme)), palette: Palette(paletteFile, system: systemMode), override: override,
             )
             guard next != theme else { return .ok("theme unchanged") }
             theme = next
