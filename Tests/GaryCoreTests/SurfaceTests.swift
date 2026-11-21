@@ -100,7 +100,7 @@ struct SurfaceTests {
             (#"{"width":-3}"#, SurfaceError(path: "surface.width", reason: "must be a positive number or \"fit\"")),
             (#"{"margins":{"left":-1}}"#, SurfaceError(path: "surface.margins.left", reason: "must be a non-negative number")),
             (#"{"layer":"floating"}"#, SurfaceError(path: "surface.layer", reason: "must be one of desktop, below, normal, top, overlay, notch")),
-            (#"{"background":"vibrant"}"#, SurfaceError(path: "surface.background", reason: "must be one of \"solid\", \"none\"")),
+            (#"{"background":"vibrant"}"#, SurfaceError(path: "surface.background", reason: "must be one of \"solid\", \"none\", \"backdrop\"")),
             (#"{"anchor":{}}"#, SurfaceError(path: "surface.anchor", reason: "is not a surface field")),
         ]
         for (text, error) in cases {

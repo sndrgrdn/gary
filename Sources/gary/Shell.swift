@@ -356,7 +356,9 @@ final class Shell {
             changed = view.tree.root != tree
             if changed { view.tree.root = tree }
         } else {
-            mounts[key] = TreeHostingView(tree: MountedTree(root: tree, theme: theme(for: slot.key.kind)), onAction: onAction)
+            mounts[key] = TreeHostingView(tree: MountedTree(root: tree, theme: theme(for: slot.key.kind)), onAction: onAction) { [weak self] in
+                _ = self?.hide(slotKey.id, Trace("click-outside"))
+            }
             changed = true
         }
         place(key)
@@ -892,7 +894,7 @@ extension Palette.Mode {
 extension Node {
     var summary: String {
         switch content {
-        case .row(let children), .column(let children), .scroll(let children, _), .button(let children, _):
+        case .row(let children), .column(let children), .stack(let children), .scroll(let children, _), .button(let children, _):
             return children.map(\.summary).filter { !$0.isEmpty }.joined(separator: " ")
         case .text(let value), .icon(let value), .image(let value): return value.replacingOccurrences(of: " ", with: "_") + ":" + (style ?? "default")
         case .slider(let value), .progress(let value): return "\(kind.rawValue)=\(value)"

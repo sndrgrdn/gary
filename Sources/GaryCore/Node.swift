@@ -18,6 +18,7 @@ public struct Node: Equatable, Sendable {
     public enum Content: Equatable, Sendable {
         case row([Node])
         case column([Node])
+        case stack([Node])
         case scroll([Node], reveal: String?)
         case button([Node], hover: String?)
         case text(String)
@@ -30,7 +31,7 @@ public struct Node: Equatable, Sendable {
     }
 
     public enum Kind: String, CaseIterable, Sendable {
-        case row, column, scroll, button, text, icon, image, slider, progress, input, spacer
+        case row, column, stack, scroll, button, text, icon, image, slider, progress, input, spacer
     }
 
     public var content: Content
@@ -38,19 +39,25 @@ public struct Node: Equatable, Sendable {
     public var style: String?
     public var action: String?
     public var props: StyleProps
+    public var hovered: StyleProps?
+    public var pressed: StyleProps?
 
-    public init(_ content: Content, key: String? = nil, style: String? = nil, action: String? = nil, props: StyleProps = StyleProps()) {
+    public init(_ content: Content, key: String? = nil, style: String? = nil, action: String? = nil, props: StyleProps = StyleProps(),
+                hovered: StyleProps? = nil, pressed: StyleProps? = nil) {
         self.content = content
         self.key = key
         self.style = style
         self.action = action
         self.props = props
+        self.hovered = hovered
+        self.pressed = pressed
     }
 
     public var kind: Kind {
         switch content {
         case .row: return .row
         case .column: return .column
+        case .stack: return .stack
         case .scroll: return .scroll
         case .button: return .button
         case .text: return .text
@@ -65,7 +72,7 @@ public struct Node: Equatable, Sendable {
 
     public var children: [Node] {
         switch content {
-        case .row(let children), .column(let children), .scroll(let children, _), .button(let children, _): return children
+        case .row(let children), .column(let children), .stack(let children), .scroll(let children, _), .button(let children, _): return children
         case .text, .icon, .image, .slider, .progress, .input, .spacer: return []
         }
     }
@@ -75,6 +82,7 @@ public struct Node: Equatable, Sendable {
         switch content {
         case .row: node.content = .row(children)
         case .column: node.content = .column(children)
+        case .stack: node.content = .stack(children)
         case .scroll(_, let reveal): node.content = .scroll(children, reveal: reveal)
         case .button(_, let hover): node.content = .button(children, hover: hover)
         case .text, .icon, .image, .slider, .progress, .input, .spacer: break
@@ -174,6 +182,7 @@ extension Node {
         switch Kind(rawValue: type) {
         case .row?: content = .row(try children())
         case .column?: content = .column(try children())
+        case .stack?: content = .stack(try children())
         case .scroll?: content = .scroll(try children(), reveal: try string("reveal"))
         case .button?: content = .button(try children(), hover: try string("hover"))
         case .text?: content = .text(try required("text"))
@@ -186,7 +195,15 @@ extension Node {
         case .spacer?: content = .spacer
         case nil: throw fail("unknown type \"\(type)\"")
         }
-        let props = try StyleProps.parse(fields) { field, reason in NodeError(path: path, reason: "\(field) \(reason)") }
-        return Node(content, key: try string("key"), style: try string("style"), action: try string("action"), props: props)
+        func props(_ fields: [String: JSON], _ prefix: String) throws -> StyleProps {
+            try StyleProps.parse(fields) { field, reason in NodeError(path: path, reason: "\(prefix)\(field) \(reason)") }
+        }
+        func state(_ name: String) throws -> StyleProps? {
+            guard let value = fields[name], value != .null else { return nil }
+            guard let object = value.object else { throw fail("\(name) must be an object of style properties") }
+            return try props(object, "\(name).")
+        }
+        return Node(content, key: try string("key"), style: try string("style"), action: try string("action"), props: try props(fields, ""),
+                    hovered: try state("hovered"), pressed: try state("pressed"))
     }
 }

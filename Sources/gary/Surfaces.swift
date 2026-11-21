@@ -201,8 +201,8 @@ final class SurfaceWindow {
     private func paint(_ spec: SurfaceSpec, _ theme: Theme) {
         let look = theme.style("surface")
         let radius = spec.anchors == SurfaceSpec.all ? 0 : look.radius ?? 0
-        content?.paint(spec.background == .solid ? Card(look: look, radius: radius, border: theme.color("border")) : nil)
-        panel.hasShadow = spec.background != .none
+        content?.paint(spec.background == .solid ? Card(look: look, radius: radius, border: theme.color("border")) : nil, backdrop: spec.background == .backdrop)
+        panel.hasShadow = spec.background == .solid
     }
 
     private func measure(_ fit: Fit) -> CGSize {

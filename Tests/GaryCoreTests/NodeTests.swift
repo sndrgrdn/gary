@@ -59,6 +59,58 @@ struct NodeTests {
         #expect(throws: NodeError(path: "root", reason: "offset must be a number")) { try props(#""offset":"1""#) }
     }
 
+    @Test func parsesAStackWithPlacedLayeredAndDecoratedChildren() throws {
+        let node = try parse("""
+        {"type":"stack","width":768,"height":475,"animation":"smooth","duration":0.35,"children":[
+          {"type":"stack","key":"card","x":-94.5,"y":17.5,"zIndex":100,"scale":0.97,"radius":12,"clip":true,"transition":"opacity",
+           "border":{"color":"accent","width":2.5},"shadow":{"color":"alpha(#000000, 0.45)","radius":30,"y":18},
+           "pressed":{"scale":0.97},"children":[
+            {"type":"image","path":"/p.jpg","width":768,"height":475,"fit":"fill"},
+            {"type":"row","background":"background","opacity":0.42,"hovered":{"opacity":0.2}}
+          ]}
+        ]}
+        """)
+        #expect(node == Node(.stack([
+            Node(.stack([
+                Node(.image("/p.jpg"), props: StyleProps(width: 768, height: 475, fit: .fill)),
+                Node(.row([]), props: StyleProps(opacity: 0.42, background: "background"), hovered: StyleProps(opacity: 0.2)),
+            ]), key: "card", props: StyleProps(radius: 12, x: -94.5, y: 17.5, zIndex: 100, scale: 0.97, transition: .opacity, clip: true,
+                                                shadow: Shadow(color: "alpha(#000000, 0.45)", radius: 30, y: 18), border: Border(color: "accent", width: 2.5)),
+                 pressed: StyleProps(scale: 0.97)),
+        ]), props: StyleProps(width: 768, height: 475, animation: .smooth, duration: 0.35)))
+        #expect(try parse(#"{"type":"row","border":{"color":"accent"},"shadow":{"color":"accent"}}"#).props
+            == StyleProps(shadow: Shadow(color: "accent"), border: Border(color: "accent", width: 1)))
+    }
+
+    @Test func rejectsMalformedStackAndDecorationProperties() {
+        let cases: [(String, String)] = [
+            (#""x":"1""#, "x must be a number"),
+            (#""zIndex":true"#, "zIndex must be a number"),
+            (#""scale":-1"#, "scale must be a non-negative number"),
+            (#""duration":-0.1"#, "duration must be a non-negative number"),
+            (#""clip":1"#, "clip must be true or false"),
+            (#""transition":"slide""#, "transition must be one of \"opacity\", \"scale\", \"none\""),
+            (#""fit":"cover""#, "fit must be one of \"fit\", \"fill\""),
+            (#""border":"accent""#, "border must be an object with color and width"),
+            (#""border":{"width":1}"#, "border.color must be \(ColorExpr.syntax)"),
+            (#""shadow":{"color":"accent","radius":-1}"#, "shadow.radius must be a non-negative number"),
+            (#""shadow":{"color":"accent","y":"down"}"#, "shadow.y must be a number"),
+            (#""hovered":"dim""#, "hovered must be an object of style properties"),
+            (#""pressed":{"scale":"small"}"#, "pressed.scale must be a non-negative number"),
+        ]
+        for (fields, reason) in cases {
+            #expect(throws: NodeError(path: "root", reason: reason), "\(fields)") { try parse(#"{"type":"stack",\#(fields)}"#) }
+        }
+    }
+
+    @Test func anImageDecodesAtTheLargestSizeItsFitShowsWithoutUpscaling() {
+        let wide = CGSize(width: 2048, height: 1024), frame = CGSize(width: 1536, height: 950)
+        #expect(ImageFit.fill.pixelSize(source: wide, frame: frame) == 1900)
+        #expect(ImageFit.fit.pixelSize(source: wide, frame: frame) == 1536)
+        #expect(ImageFit.fill.pixelSize(source: CGSize(width: 1024, height: 633), frame: frame) == 1024)
+        #expect(ImageFit.fit.pixelSize(source: .zero, frame: CGSize(width: 32, height: 30)) == 32)
+    }
+
     @Test func aScrollRevealsTheChildItNamesOrElseTheFirstSelectedOne() throws {
         let rows = (0..<12).map { index in Node(.text("\(index)"), key: "r\(index)", style: index == 9 || index == 11 ? "selected" : nil) }
         #expect(Node(.scroll(rows, reveal: nil)).revealedChild == 9)

@@ -11,9 +11,12 @@ public enum PluginTypes {
         }
         func union(_ values: [String]) -> String { values.map { "\"\($0)\"" }.joined(separator: " | ") }
         let style = (StyleProps.numbers.map { "\($0.0)?: number;" } + [
-            "padding?: number | [number, number] | [number, number, number, number];", "offset?: number;",
+            "padding?: number | [number, number] | [number, number, number, number];",
+        ] + StyleProps.signed.map { "\($0.0)?: number;" } + [
             "align?: \(union(Align.allCases.map(\.rawValue)));", "animation?: \(union(Animation.allCases.map(\.rawValue)));",
-            "material?: \(union(Material.allCases.map(\.rawValue)));",
+            "material?: \(union(Material.allCases.map(\.rawValue)));", "transition?: \(union(Transition.allCases.map(\.rawValue)));",
+            "fit?: \(union(ImageFit.allCases.map(\.rawValue)));", "clip?: boolean;",
+            "shadow?: { color: Color; radius?: number; y?: number };", "border?: { color: Color; width?: number };",
         ] + StyleProps.colors.map { "\($0.0)?: Color;" } + ["font?: FontName;"])
             .map { "    \($0)" }.joined(separator: "\n")
         let nodes = Node.Kind.allCases.map { kind in
@@ -37,11 +40,15 @@ public enum PluginTypes {
           type ColorName = \(names("colors"));
           type Color = ColorName;
 
-          interface Style {
+          interface StyleProps {
+        \(style)
+          }
+          interface Style extends StyleProps {
             key?: string;
             style?: StyleName;
             action?: string;
-        \(style)
+            hovered?: StyleProps;
+            pressed?: StyleProps;
           }
         \(nodes)
           type Node = \(Node.Kind.allCases.map { typeName($0.rawValue) }.joined(separator: " | "));
@@ -175,7 +182,7 @@ public enum PluginTypes {
 
     private static func fields(_ kind: Node.Kind) -> [String] {
         switch kind {
-        case .row, .column: return ["children?: Node[];"]
+        case .row, .column, .stack: return ["children?: Node[];"]
         case .scroll: return ["children?: Node[];", "reveal?: string;"]
         case .button: return ["children?: Node[];", "hover?: StyleName;"]
         case .text: return ["text: string | number;"]

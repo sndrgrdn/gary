@@ -248,11 +248,12 @@ enum Skill {
     | `type` | Own fields | `onAction` payload |
     | --- | --- | --- |
     | `row`, `column` | `children` | `null` |
+    | `stack` | `children`, drawn on top of each other from the top left corner, later children above earlier ones unless `zIndex` says otherwise. Give the stack a `width` and `height`, and place each child with `x` and `y`. | `null` |
     | `scroll` | `children`, and `reveal`, the key of a child to keep in view | `null` |
     | `button` | `children`, and `hover`, a style name for the pointer-over state | `null` |
     | `text` | `text`, a string or number | `null` |
     | `icon` | `symbol`, an SF Symbol name such as `battery.75percent` | `null` |
-    | `image` | `path` to an image file, absolute, from `~`, or relative to the plugin folder | `null` |
+    | `image` | `path` to an image file, absolute, from `~`, or relative to the plugin folder, and `fit` | `null` |
     | `slider` | `value` from 0 to 1 | the new value |
     | `progress` | `value` from 0 to 1 | `null` |
     | `input` | `value`, `placeholder`, `change`, and `submit` | the text. `change` and `submit` name the actions. |
@@ -261,8 +262,16 @@ enum Skill {
     - `width` and `height` give a node exactly that size, padding included, and `minWidth` keeps it at least that wide. A `scroll` grows with its content up to its `height`.
     - `padding` is one number for every side, `[vertical, horizontal]`, or `[top, right, bottom, left]`.
     - `align` places the content of a node that is wider than its content, such as text with a `width`: `"leading"`, `"center"`, or `"trailing"`. It also aligns the lines of wrapped text. A node aligns to `"leading"`, and an icon to `"center"`.
-    - `offset` moves a node down by that many points, or up when it is negative, without moving its siblings.
-    - `animation` animates what changes inside the node when `render` returns a different tree: `"smooth"`, `"spring"`, or `"none"`, which turns off an animation that an enclosing node set. Sizes, positions, colors, and progress values move, and changed text cross-fades.
+    - `x` and `y` move a node right and down from where its container places it, or left and up when negative, without moving its siblings. In a `stack` they place the child from the top left corner. `offset` is an older name for `y` and adds to it.
+    - `zIndex` draws a node above its siblings with a lower `zIndex`. It is `0` by default.
+    - `scale` draws a node larger or smaller around its center, such as `0.97`, without changing its layout size.
+    - `animation` animates what changes inside the node when `render` returns a different tree: `"smooth"`, `"spring"`, or `"none"`, which turns off an animation that an enclosing node set. `duration` sets its length in seconds. Sizes, positions, `x`, `y`, `scale`, `opacity`, colors, shadows, and progress values move, and changed text cross-fades. Keyed children keep their identity, so a child whose `x` or `width` changes slides and resizes. Gary draws no animation when the user turns on Reduce Motion.
+    - `transition` says how a child appears and disappears when a render adds or removes it: `"opacity"`, the default, fades it, `"scale"` grows or shrinks it from its center, and `"none"` shows and hides it at once. An enclosing `animation` sets the timing.
+    - `radius` rounds the corners with Apple's continuous curve. `clip: true` cuts the node's content to that rounded shape.
+    - `border` draws a line inside the edge: `{ color, width }`, with `width` 1 by default.
+    - `shadow` draws a shadow under the node: `{ color, radius, y }`. Use a translucent color, such as `alpha(#000000, 0.45)`.
+    - `hovered` and `pressed` are objects of style properties that apply while the pointer is over the node, and while the user holds the mouse button down on a node with `action`. They fade in and out over 0.15 seconds, so `{ opacity: 0.2 }` brightens a dimmed overlay and `{ scale: 0.97 }` presses a card in.
+    - `fit` sets how an `image` fills its `width` and `height`: `"fit"`, the default, shows the whole image, and `"fill"` covers the box and cuts off what overflows. Gary decodes the file off the main thread at the size the screen shows it, caches it, and fades it in when it is ready.
     - `material` paints a material behind the node, inside its `radius` and under its `background`: `"vibrant"` blurs what is behind the window, `"glass"` is Liquid Glass, and `"none"` removes a material that the node's `style` sets. Give `background` a translucent color, such as `alpha(panel, 0.4)`, to tint it.
     - A `text` node is exactly as wide as its text and as tall as its lines, with no padding of its own. A `text` node with its own `width` keeps its text on one line, placed by `align`, and text wider than that spills over the edge. To wrap text at a width, give the width to its row or column.
     - Give siblings unique `key` values so Gary keeps each child's view, and its state such as hover or typed text, when the order changes.
@@ -284,7 +293,7 @@ enum Skill {
     | `exclusionMode` | `"normal"` keeps clear of the bar, and `"ignore"` covers it | `"normal"`. An overlay uses `"ignore"`. |
     | `clickThrough` | boolean | `false` |
     | `focusable` | boolean. A focusable surface takes keys. | `false`. A menu is focusable. |
-    | `background` | `"solid"` paints the theme's `surface` style, including its `material`, with a border and a shadow. `"none"` leaves the window clear for the tree to paint, so a root node with `material` and `radius` gives one surface its own material. | `"solid"` |
+    | `background` | `"solid"` paints the theme's `surface` style, including its `material`, with a border and a shadow. `"none"` leaves the window clear for the tree to paint, so a root node with `material` and `radius` gives one surface its own material. `"backdrop"` leaves the window clear too, centres the root node in it, catches every click, and hides the surface when a click lands where no node paints or takes the click. With `anchors` on every edge and `exclusionMode` `"ignore"`, it gives a full-display picker: `{ anchors: { top: true, bottom: true, left: true, right: true }, exclusionMode: "ignore", background: "backdrop" }`. | `"solid"` |
     """
 
     private static func themeSection(_ theme: JSON?) -> String {

@@ -10,6 +10,7 @@ final class MountedTree: ObservableObject {
     @Published var theme: Theme
     @Published var fit: Fit?
     @Published var card: Card?
+    @Published var backdrop = false
 
     init(root: Node, theme: Theme) {
         self.root = root
@@ -20,9 +21,9 @@ final class MountedTree: ObservableObject {
 final class TreeHostingView: NSHostingView<TreeView> {
     let tree: MountedTree
 
-    init(tree: MountedTree, onAction: @escaping ActionHandler) {
+    init(tree: MountedTree, onAction: @escaping ActionHandler, onDismiss: @escaping () -> Void = {}) {
         self.tree = tree
-        super.init(rootView: TreeView(tree: tree, onAction: onAction))
+        super.init(rootView: TreeView(tree: tree, onAction: onAction, onDismiss: onDismiss))
         sizingOptions = [.intrinsicContentSize]
     }
 
@@ -38,20 +39,29 @@ final class TreeHostingView: NSHostingView<TreeView> {
         if tree.fit != fit { tree.fit = fit }
     }
 
-    func paint(_ card: Card?) {
+    func paint(_ card: Card?, backdrop: Bool) {
         if tree.card != card { tree.card = card }
+        if tree.backdrop != backdrop { tree.backdrop = backdrop }
     }
 }
 
 struct TreeView: View {
     @ObservedObject var tree: MountedTree
     let onAction: ActionHandler
+    let onDismiss: () -> Void
 
     var body: some View {
         let root = NodeView(node: tree.root)
             .environment(\.nodeTheme, tree.theme)
             .environment(\.nodeAction, onAction)
-        if let fit = tree.fit {
+        if let fit = tree.fit, tree.backdrop {
+            fit {
+                ZStack {
+                    Color.black.opacity(0.005).onTapGesture(perform: onDismiss)
+                    root
+                }
+            }
+        } else if let fit = tree.fit {
             fit { root.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).card(tree.card) }
         } else {
             root
@@ -128,15 +138,25 @@ struct NodeView: View {
     let node: Node
     @Environment(\.nodeTheme) private var theme
     @Environment(\.nodeAction) private var perform
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let hovering = State(initialValue: false)
+    private let pressing = State(initialValue: false)
 
     var body: some View {
-        let look = theme!.resolve(node.style, node.props)
-        switch node.content {
-        case .button(_, let hover):
-            ButtonNode(node: node, look: look, hovered: theme!.resolve(node.style, node.props, hover: hover ?? "hover"))
-        default:
-            content(look).box(look, node, perform)
-        }
+        var props = node.props
+        if hovering.wrappedValue, let hovered = node.hovered { props = hovered.over(props) }
+        if pressing.wrappedValue, let pressed = node.pressed { props = pressed.over(props) }
+        var hover: String?
+        if hovering.wrappedValue, case .button(_, let style) = node.content { hover = style ?? "hover" }
+        let look = theme!.resolve(node.style, props, hover: hover)
+        let tracksHover = node.hovered != nil || node.kind == .button
+        let fade: SwiftUI.Animation? = reduceMotion || node.kind == .button ? nil : .easeOut(duration: 0.15)
+        return content(look).box(look, node, perform, reduceMotion: reduceMotion,
+                                 hovering: tracksHover ? animated(hovering, fade) : nil, pressing: node.pressed != nil ? animated(pressing, fade) : nil)
+    }
+
+    private func animated(_ state: State<Bool>, _ animation: SwiftUI.Animation?) -> Binding<Bool> {
+        Binding(get: { state.wrappedValue }, set: { next in withAnimation(animation) { state.wrappedValue = next } })
     }
 
     @ViewBuilder private func content(_ look: ResolvedStyle) -> some View {
@@ -146,6 +166,8 @@ struct NodeView: View {
             HStack(alignment: .center, spacing: gap) { Children(node: node) }
         case .column:
             VStack(alignment: .leading, spacing: gap) { Children(node: node) }
+        case .stack:
+            ZStack(alignment: .topLeading) { Children(node: node) }
         case .scroll:
             ScrollNode(node: node, gap: gap, padding: look.padding ?? Insets(0), maxHeight: look.height)
         case .text(let text):
@@ -154,7 +176,7 @@ struct NodeView: View {
         case .icon(let symbol):
             Image(systemName: symbol).font(.system(size: look.font.size, weight: .init(look.font.weight))).foregroundStyle(Color(look.color))
         case .image(let path):
-            if let image = image(path) { Image(nsImage: image).resizable().aspectRatio(contentMode: .fit) } else { Color.clear }
+            ImageNode(path: path, fit: look.fit ?? .fit, size: CGSize(width: look.width ?? look.height ?? 16, height: look.height ?? look.width ?? 16))
         case .slider(let value):
             SliderNode(value: value, action: node.action, tint: node.props.color == nil ? nil : Color(look.color))
         case .progress(let value):
@@ -166,7 +188,7 @@ struct NodeView: View {
         case .spacer:
             Spacer(minLength: 0)
         case .button:
-            EmptyView()
+            HStack(alignment: .center, spacing: gap) { Children(node: node) }.fixedSize()
         }
     }
 }
@@ -180,37 +202,47 @@ private struct Children: View {
 }
 
 private extension View {
-    func box(_ look: ResolvedStyle, _ node: Node, _ perform: @escaping ActionHandler) -> some View {
+    func box(_ look: ResolvedStyle, _ node: Node, _ perform: @escaping ActionHandler, reduceMotion: Bool,
+             hovering: Binding<Bool>?, pressing: Binding<Bool>?) -> some View {
         var width = look.width, height = look.height, padding = look.padding ?? Insets(0), background = look.background
         var clickable = node.action, vertical = VerticalAlignment.center, horizontal = HorizontalAlignment(look.align ?? .leading)
+        var clip = look.clip == true
         switch node.content {
-        case .column: vertical = .top
+        case .column, .stack: vertical = .top
         case .scroll: (height, padding, clickable, vertical) = (nil, Insets(0), nil, .top)
-        case .image: (width, height) = (width ?? height ?? 16, height ?? width ?? 16)
+        case .image: (width, height, clip) = (width ?? height ?? 16, height ?? width ?? 16, clip || look.fit == .fill)
         case .slider: (width, clickable) = (width ?? 120, nil)
         case .input: (width, clickable) = (width ?? 240, nil)
         case .progress: (width, height, background) = (width ?? 120, height ?? 6, nil)
         case .icon: horizontal = look.align.map(HorizontalAlignment.init) ?? .center
         case .row, .button, .text, .spacer: break
         }
+        let shape = RoundedRectangle(cornerRadius: look.radius ?? 0, style: .continuous)
+        let shadow = look.shadow
         return self
             .padding(EdgeInsets(padding))
             .frame(width: width.map { CGFloat($0) }, height: height.map { CGFloat($0) }, alignment: Alignment(horizontal: horizontal, vertical: vertical))
             .frame(minWidth: look.minWidth.map { CGFloat($0) }, alignment: Alignment(horizontal: horizontal, vertical: vertical))
-            .background { if let background { RoundedRectangle(cornerRadius: look.radius ?? 0).fill(Color(background)) } }
+            .background { if let background { shape.fill(Color(background)) } }
             .material(look.material, radius: look.radius ?? 0)
+            .clipped(to: clip ? shape : nil)
+            .overlay { if let border = look.border, let color = look.borderColor { shape.strokeBorder(Color(color), lineWidth: border.width) } }
+            .interactive(clickable, hovering: hovering, pressing: pressing) { perform($0, .null) }
+            .shadow(color: Color(look.shadowColor ?? RGBA(red: 0, green: 0, blue: 0, alpha: 0)), radius: shadow?.radius ?? 0, y: shadow?.y ?? 0)
+            .scaleEffect(look.scale ?? 1)
             .opacity(look.opacity ?? 1)
-            .offset(y: look.offset ?? 0)
+            .offset(x: look.x ?? 0, y: (look.offset ?? 0) + (look.y ?? 0))
             .transaction(value: node) { transaction in
-                switch look.animation {
-                case .smooth?: transaction.animation = .smooth
-                case .spring?: transaction.animation = .spring
-                case GaryCore.Animation.none?: transaction.animation = nil
-                case nil: break
-                }
+                guard let animation = look.animation else { return }
+                transaction.animation = reduceMotion ? nil : SwiftUI.Animation(animation, duration: look.duration)
             }
-            .pressable(clickable) { perform($0, .null) }
+            .transition(AnyTransition(look.transition ?? .opacity))
+            .zIndex(look.zIndex ?? 0)
             .layoutPriority(node.kind == .spacer ? -1 : 0)
+    }
+
+    @ViewBuilder func clipped(to shape: RoundedRectangle?) -> some View {
+        if let shape { clipShape(shape) } else { self }
     }
 
     @ViewBuilder func material(_ material: GaryCore.Material?, radius: Double) -> some View {
@@ -233,28 +265,38 @@ private extension View {
         }
     }
 
-    @ViewBuilder func pressable(_ action: String?, _ perform: @escaping (String) -> Void) -> some View {
-        if let action {
-            contentShape(Rectangle()).onLongPressGesture(minimumDuration: 0, perform: {}, onPressingChanged: { pressing in if pressing { perform(action) } })
-        } else {
+    @ViewBuilder func interactive(_ action: String?, hovering: Binding<Bool>?, pressing: Binding<Bool>?, _ perform: @escaping (String) -> Void) -> some View {
+        if action == nil && hovering == nil {
             self
+        } else {
+            contentShape(Rectangle())
+                .onHover { inside in hovering?.wrappedValue = inside }
+                .onLongPressGesture(minimumDuration: 0, perform: {}, onPressingChanged: { down in
+                    guard let action else { return }
+                    pressing?.wrappedValue = down
+                    if down { perform(action) }
+                })
         }
     }
 }
 
-private struct ButtonNode: View {
-    let node: Node
-    let look: ResolvedStyle
-    let hovered: ResolvedStyle
-    @Environment(\.nodeTheme) private var theme
-    @Environment(\.nodeAction) private var perform
-    private let hovering = State(initialValue: false)
+extension SwiftUI.Animation {
+    init?(_ animation: GaryCore.Animation, duration: Double?) {
+        switch animation {
+        case .smooth: self = duration.map { .smooth(duration: $0) } ?? .smooth
+        case .spring: self = duration.map { .spring(duration: $0) } ?? .spring
+        case .none: return nil
+        }
+    }
+}
 
-    var body: some View {
-        HStack(alignment: .center, spacing: look.gap ?? theme!.spacing.item) { Children(node: node) }
-            .fixedSize()
-            .box(hovering.wrappedValue ? hovered : look, node, perform)
-            .onHover { hovering.wrappedValue = $0 }
+extension AnyTransition {
+    init(_ transition: GaryCore.Transition) {
+        switch transition {
+        case .opacity: self = .opacity
+        case .scale: self = .scale
+        case .none: self = .identity
+        }
     }
 }
 
@@ -466,12 +508,76 @@ private func nsFont(_ token: FontToken) -> NSFont {
     return font
 }
 
-private let images = NSCache<NSString, NSImage>()
+private let images: NSCache<NSString, NSImage> = {
+    let cache = NSCache<NSString, NSImage>()
+    cache.totalCostLimit = 256 << 20
+    return cache
+}()
 
-private func image(_ path: String) -> NSImage? {
-    if let cached = images.object(forKey: path as NSString) { return cached }
+private let decoder = DispatchQueue(label: "gary.images", qos: .userInitiated)
+
+private struct ImageNode: View {
+    let path: String
+    let fit: ImageFit
+    let size: CGSize
+    @Environment(\.displayScale) private var scale
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let shown = State<NSImage?>(initialValue: nil)
+
+    var body: some View {
+        let pixels = CGSize(width: (size.width * scale).rounded(.up), height: (size.height * scale).rounded(.up))
+        let key = "\(path)|\(Int(pixels.width))x\(Int(pixels.height))|\(fit.rawValue)" as NSString
+        ZStack {
+            if let image = images.object(forKey: key) ?? shown.wrappedValue {
+                Image(nsImage: image).resizable().interpolation(.high).aspectRatio(contentMode: fit == .fill ? .fill : .fit).transition(.opacity)
+            }
+        }
+        .task(id: key) {
+            guard images.object(forKey: key) == nil, let image = await decode(path, pixels, fit, key) else { return }
+            withAnimation(shown.wrappedValue == nil && !reduceMotion ? .easeOut(duration: 0.2) : nil) { shown.wrappedValue = image }
+        }
+    }
+}
+
+private final class Cancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+
+    var isCancelled: Bool { lock.withLock { cancelled } }
+
+    func cancel() { lock.withLock { cancelled = true } }
+}
+
+private func decode(_ path: String, _ pixels: CGSize, _ fit: ImageFit, _ key: NSString) async -> NSImage? {
+    let cancellation = Cancellation()
+    return await withTaskCancellationHandler {
+        await withCheckedContinuation { continuation in
+            decoder.async {
+                guard !cancellation.isCancelled, let image = load(path, pixels, fit) else { return continuation.resume(returning: nil) }
+                let cost = Int(image.size.width * image.size.height * 4)
+                images.setObject(image, forKey: key, cost: cost)
+                continuation.resume(returning: image)
+            }
+        }
+    } onCancel: {
+        cancellation.cancel()
+    }
+}
+
+private func load(_ path: String, _ pixels: CGSize, _ fit: ImageFit) -> NSImage? {
     let expanded = (path as NSString).expandingTildeInPath
-    let image = expanded.hasSuffix(".app") ? NSWorkspace.shared.icon(forFile: expanded) : NSImage(contentsOfFile: expanded)
-    if let image { images.setObject(image, forKey: path as NSString) }
-    return image
+    if expanded.hasSuffix(".app") { return NSWorkspace.shared.icon(forFile: expanded) }
+    let url = URL(fileURLWithPath: expanded)
+    guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+          let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+          let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue,
+          let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue,
+          let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+              kCGImageSourceCreateThumbnailFromImageAlways: true,
+              kCGImageSourceCreateThumbnailWithTransform: true,
+              kCGImageSourceShouldCacheImmediately: true,
+              kCGImageSourceThumbnailMaxPixelSize: fit.pixelSize(source: CGSize(width: width, height: height), frame: pixels),
+          ] as CFDictionary)
+    else { return NSImage(contentsOf: url) }
+    return NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
 }

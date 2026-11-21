@@ -69,9 +69,8 @@ public struct Theme: Equatable, Sendable {
         var font = merged.font.flatMap { fonts[$0] } ?? fonts[fallback.font!]!
         if let size = merged.fontSize { font.size = size }
         return ResolvedStyle(
-            color: color(merged.color) ?? color(fallback.color) ?? palette.foreground, font: font, background: color(merged.background),
-            width: merged.width, height: merged.height, minWidth: merged.minWidth, gap: merged.gap, radius: merged.radius, opacity: merged.opacity,
-            offset: merged.offset, padding: merged.padding, align: merged.align, animation: merged.animation, material: merged.material
+            props: merged, color: color(merged.color) ?? color(fallback.color) ?? palette.foreground, font: font, background: color(merged.background),
+            shadowColor: color(merged.shadow?.color), borderColor: color(merged.border?.color)
         )
     }
 
