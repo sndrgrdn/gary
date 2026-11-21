@@ -55,7 +55,7 @@ final class Shell {
         offerOnboarding(Trace("start"))
         reopenAfterRestart(Trace("start"))
 
-        watcher = FileWatcher(root: Paths.config) { [weak self] paths, trace in self?.filesChanged(paths, trace) }
+        watcher = FileWatcher(roots: [Paths.config, Paths.userPlugins]) { [weak self] paths, trace in self?.filesChanged(paths, trace) }
         appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] app, _ in
             let mode = Palette.Mode(app.effectiveAppearance)
             DispatchQueue.main.async { self?.systemAppearanceChanged(mode) }

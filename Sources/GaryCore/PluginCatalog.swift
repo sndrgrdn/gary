@@ -54,7 +54,7 @@ public struct PluginCatalog: Equatable, Sendable {
     }
 
     private mutating func add(root: URL, origin: PluginOrigin, capabilities: CapabilityNames) {
-        let entries = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
+        let entries = (try? FileManager.default.contentsOfDirectory(at: root.resolvingSymlinksInPath(), includingPropertiesForKeys: nil)) ?? []
         for directory in entries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
             guard !directory.lastPathComponent.hasPrefix("."), isDirectory(directory) else { continue }
             do {
