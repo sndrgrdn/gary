@@ -10,7 +10,7 @@ final class FileWatcher {
     private var firstEvent: Double?
     private var flush: DispatchWorkItem?
 
-    init(root: URL, quiet: TimeInterval = 0.02, onChange: @escaping (Set<String>, Trace) -> Void) {
+    init(roots: [URL], quiet: TimeInterval = 0.02, onChange: @escaping (Set<String>, Trace) -> Void) {
         self.quiet = quiet
         self.onChange = onChange
         var context = FSEventStreamContext(version: 0, info: Unmanaged.passUnretained(self).toOpaque(), retain: nil, release: nil, copyDescription: nil)
@@ -19,7 +19,7 @@ final class FileWatcher {
             let watcher = Unmanaged<FileWatcher>.fromOpaque(info!).takeUnretainedValue()
             let list = Unmanaged<NSArray>.fromOpaque(paths).takeUnretainedValue() as? [String] ?? []
             watcher.received(Array(list.prefix(count)))
-        }, &context, [root.path] as CFArray, FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 0, FSEventStreamCreateFlags(flags))
+        }, &context, roots.map { $0.resolvingSymlinksInPath().path } as CFArray, FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 0, FSEventStreamCreateFlags(flags))
         if let stream {
             FSEventStreamSetDispatchQueue(stream, queue)
             FSEventStreamStart(stream)

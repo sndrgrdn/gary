@@ -161,6 +161,12 @@ struct PluginCatalogTests {
         #expect(entry.path.hasSuffix("media/src/widget.js"))
     }
 
+    @Test func followsAUserPluginFolderThatIsASymlink() throws {
+        try plugin("media", id: "acme.media", in: "elsewhere")
+        try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("user"), withDestinationURL: root.appendingPathComponent("elsewhere"))
+        #expect(scan().sortedIDs.map(\.rawValue) == ["acme.media"])
+    }
+
     @Test func reportsAUserPluginThatClaimsABuiltinID() throws {
         try plugin("clock", id: "gary.clock", in: "builtin")
         try plugin("fake-clock", id: "gary.clock")
