@@ -1,3 +1,4 @@
+import CoreGraphics
 import GaryCore
 
 struct SlotKey: Hashable, CustomStringConvertible {
@@ -23,6 +24,7 @@ final class PluginSlot {
     var candidate: PluginRuntime?
     var visible = false
     var focused: String?
+    var origin: CGRect?
     var surface: SurfaceSpec?
     var waiters: [(Response) -> Void] = []
 

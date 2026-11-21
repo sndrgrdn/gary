@@ -249,10 +249,35 @@ struct PluginRuntimeTests {
         harness.runtime.perform("publish", .null)
         for request in [SurfaceRequest.show, .hide, .toggle] {
             harness.runtime.perform(request.rawValue, .null)
-            guard case let .surface(next) = try await harness.events.next() else { throw RenderError("expected \(request)") }
+            guard case let .surface(next, _) = try await harness.events.next() else { throw RenderError("expected \(request)") }
             #expect(next == request)
         }
         #expect(listener.values == [.object(["n": .number(1)])])
+        harness.runtime.stop()
+    }
+
+    @Test func `a surface request carries the clicked node's frame only while onAction runs for that click`() async throws {
+        let harness = try Harness(widget("""
+        module.exports.onAction = function (name) {
+          if (name === "now") host.show();
+          if (name === "later") setTimeout(function () { host.toggle(); }, 1);
+        };
+        module.exports.onHotkey = function () { host.show(); };
+        """))
+        #expect(try await harness.text() == "0")
+        let origin = CGRect(x: 10, y: 700, width: 40, height: 24)
+        func next() async throws -> (SurfaceRequest, CGRect?) {
+            guard case let .surface(request, origin) = try await harness.events.next() else { throw RenderError("expected a surface request") }
+            return (request, origin)
+        }
+        harness.runtime.perform("now", .null, origin: origin)
+        #expect(try await next() == (.show, origin))
+        harness.runtime.perform("later", .null, origin: origin)
+        #expect(try await next() == (.toggle, nil))
+        harness.runtime.hotkey("open")
+        #expect(try await next() == (.show, nil))
+        harness.runtime.perform("now", .null)
+        #expect(try await next() == (.show, nil))
         harness.runtime.stop()
     }
 

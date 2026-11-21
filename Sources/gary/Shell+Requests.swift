@@ -123,16 +123,16 @@ extension Shell {
         return displays.first { NSMouseInRect(pointer, $0.frame, false) }?.id
     }
 
-    func toggle(_ id: PluginID, _ trace: Trace, _ reply: ((Response) -> Void)? = nil) {
+    func toggle(_ id: PluginID, _ trace: Trace, origin: CGRect? = nil, _ reply: ((Response) -> Void)? = nil) {
         if surfaceSlot(id)?.visible == true {
             let response = hide(id, trace)
             reply?(response)
         } else {
-            summon(id, trace, reply)
+            summon(id, trace, origin: origin, reply)
         }
     }
 
-    func summon(_ id: PluginID, _ trace: Trace, _ reply: ((Response) -> Void)? = nil) {
+    func summon(_ id: PluginID, _ trace: Trace, origin: CGRect? = nil, _ reply: ((Response) -> Void)? = nil) {
         guard let slot = surfaceSlot(id) else { reply?(.failure("no enabled surface \(id)"))
             return
         }
@@ -146,6 +146,7 @@ extension Shell {
         }
         slot.visible = true
         slot.focused = pointerDisplay()
+        slot.origin = origin
         if let reply {
             slot.waiters.append(reply)
         }
@@ -160,6 +161,7 @@ extension Shell {
         guard let slot = surfaceSlot(id) else { return .failure("no enabled surface \(id)") }
         guard slot.visible else { return .ok("hidden") }
         slot.visible = false
+        slot.origin = nil
         if id == .onboarding {
             recordOnboardingDismissed()
         }

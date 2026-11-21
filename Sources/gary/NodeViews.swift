@@ -3,7 +3,7 @@ import Combine
 import GaryCore
 import SwiftUI
 
-typealias ActionHandler = (String, JSON) -> Void
+typealias ActionHandler = (ActionEvent) -> Void
 
 final class MountedTree: ObservableObject {
     @Published var root: Node
@@ -133,10 +133,10 @@ private extension Node {
 struct NodeView: View {
     let node: Node
     let theme: Theme
-    @Environment(\.nodeAction) private var perform
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let hovering = State(initialValue: false)
     private let pressing = State(initialValue: false)
+    private let anchor = State(initialValue: GestureAnchor())
 
     var body: some View {
         var props = node.props
@@ -157,7 +157,7 @@ struct NodeView: View {
             .box(
                 look,
                 node,
-                perform,
+                anchor.wrappedValue,
                 hovering: tracksHover ? animated(hovering, fade) : nil,
                 pressing: node.pressed != nil ? animated(pressing, fade) : nil,
             )
@@ -224,7 +224,7 @@ private struct Children: View {
 }
 
 private extension View {
-    func box(_ look: ResolvedStyle, _ node: Node, _ perform: ActionHandler?, hovering: Binding<Bool>?, pressing: Binding<Bool>?) -> some View {
+    func box(_ look: ResolvedStyle, _ node: Node, _ anchor: GestureAnchor, hovering: Binding<Bool>?, pressing: Binding<Bool>?) -> some View {
         let box = NodeBox(look, node)
         let shape = RoundedRectangle(cornerRadius: look.radius ?? 0, style: .continuous)
         return padding(EdgeInsets(box.padding))
@@ -245,10 +245,10 @@ private extension View {
             }
             .overlay {
                 if !node.actions.isEmpty {
-                    GestureCatcher(actions: node.actions)
+                    GestureCatcher(actions: node.actions, anchor: anchor)
                 }
             }
-            .interactive(box.action, hovering: hovering, pressing: pressing) { perform?($0, .null) }
+            .interactive(box.action, hovering: hovering, pressing: pressing) { _ in anchor.view?.send(.click, .null) }
             .dropShadow(look.shadow, look.shadowColor)
             .scaleEffect(look.scale ?? 1)
             .opacity(look.opacity ?? 1)

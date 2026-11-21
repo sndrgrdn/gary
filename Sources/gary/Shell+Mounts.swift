@@ -19,7 +19,7 @@ extension Shell {
     private func mount(_ slot: PluginSlot, _ display: String, _ tree: Node, _ trace: Trace) {
         let key = MountKey(slot: slot.key, display: display)
         let slotKey = slot.key
-        let onAction: ActionHandler = { [weak self] action, payload in self?.perform(action, payload, slotKey) }
+        let onAction: ActionHandler = { [weak self] event in self?.perform(event, slotKey) }
         let started = now()
         let changed: Bool
         if let view = mounts[key] {

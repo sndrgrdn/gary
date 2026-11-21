@@ -21,7 +21,7 @@ enum SurfaceRequest: String {
 enum RuntimeEvent {
     case loaded(RuntimeOutput, Trace)
     case output(RuntimeOutput, Trace)
-    case surface(SurfaceRequest)
+    case surface(SurfaceRequest, origin: CGRect?)
     case call(method: String, arguments: [String], reply: (Response) -> Void)
     case failed(String)
 }
@@ -50,6 +50,7 @@ final class PluginRuntime: Subscriber {
     let initialScene: Scene
     private var scene: Scene
     private var output = RuntimeOutput()
+    private var origin: CGRect?
 
     var id: PluginID {
         bundle.manifest.id
@@ -127,8 +128,8 @@ final class PluginRuntime: Subscriber {
         try invoke(functions.dispatch, ["onTopic", JSON.array([.string(topic.description), value]).text, stateText(for: nil)])
     }
 
-    func perform(_ action: String, _ payload: JSON) {
-        dispatch("onAction", [.string(action), payload], Trace("action"))
+    func perform(_ action: String, _ payload: JSON, origin: CGRect? = nil) {
+        dispatch("onAction", [.string(action), payload], Trace("action"), origin: origin)
     }
 
     func key(_ key: String, unhandled: @escaping () -> Void) {
@@ -147,9 +148,11 @@ final class PluginRuntime: Subscriber {
         dispatch("onMediaKey", [event], Trace("mediakey"))
     }
 
-    private func dispatch(_ handler: String, _ arguments: [JSON], _ trace: Trace, unhandled: (() -> Void)? = nil) {
+    private func dispatch(_ handler: String, _ arguments: [JSON], _ trace: Trace, origin: CGRect? = nil, unhandled: (() -> Void)? = nil) {
         queue.async { [self] in
             guard let functions else { return }
+            self.origin = origin
+            defer { self.origin = nil }
             do {
                 let handled = try invoke(functions.dispatch, [handler, JSON.array(arguments).text, stateText(for: nil)])
                 if !handled.isNull {
@@ -317,7 +320,7 @@ private extension PluginRuntime {
         let surfaceBlocks = [SurfaceRequest.show, .hide, .toggle].map { request in
             { [weak self] in
                 guard let self else { return }
-                deliver(self, .surface(request))
+                deliver(self, .surface(request, origin: origin))
             } as @convention(block) () -> Void
         }
         let callBlock: @convention(block) (String, [String], JSValue, JSValue) -> Void = { [weak self] method, arguments, resolve, reject in

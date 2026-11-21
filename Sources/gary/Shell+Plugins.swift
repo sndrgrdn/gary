@@ -135,8 +135,8 @@ extension Shell {
             if slot.visible {
                 slot.answerWaiters(.ok("shown"))
             }
-        case let .surface(request):
-            surfaceRequested(request, by: key.id)
+        case let .surface(request, origin):
+            surfaceRequested(request, origin, by: key.id)
         case let .call(method, arguments, reply):
             call(key.id, method, arguments, Trace("host-call"), reply)
         case let .failed(reason):
@@ -159,12 +159,12 @@ extension Shell {
         }
     }
 
-    private func surfaceRequested(_ request: SurfaceRequest, by id: PluginID) {
+    private func surfaceRequested(_ request: SurfaceRequest, _ origin: CGRect?, by id: PluginID) {
         let trace = Trace("host-\(request.rawValue)")
         switch request {
-        case .show: summon(id, trace)
+        case .show: summon(id, trace, origin: origin)
         case .hide: _ = hide(id, trace)
-        case .toggle: toggle(id, trace)
+        case .toggle: toggle(id, trace, origin: origin)
         }
     }
 
@@ -198,10 +198,10 @@ extension Shell {
         commitFrame()
     }
 
-    func perform(_ action: String, _ payload: JSON, _ key: SlotKey) {
+    func perform(_ event: ActionEvent, _ key: SlotKey) {
         if tracing {
-            log("action plugin=\(key) action=\(action) payload=\(payload.text)")
+            log("action plugin=\(key) action=\(event.name) payload=\(event.payload.text) origin=\(event.origin.map { "\($0)" } ?? "none")")
         }
-        slots[key]?.runtime?.perform(action, payload)
+        slots[key]?.runtime?.perform(event.name, event.payload, origin: event.origin)
     }
 }

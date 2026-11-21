@@ -2,9 +2,19 @@ import AppKit
 import GaryCore
 import SwiftUI
 
+struct ActionEvent {
+    let name: String
+    let payload: JSON
+    let origin: CGRect?
+}
+
+final class GestureAnchor {
+    weak var view: GestureView?
+}
+
 final class GestureView: NSView {
     var actions: [Node.Gesture: String] = [:]
-    var perform: ActionHandler?
+    var handler: ActionHandler?
 
     static func gesture(of event: NSEvent) -> Node.Gesture? {
         switch event.type {
@@ -33,23 +43,22 @@ final class GestureView: NSView {
     }
 
     override func rightMouseDown(with _: NSEvent) {
-        fire(.rightClick, .null)
+        send(.rightClick, .null)
     }
 
     override func otherMouseDown(with event: NSEvent) {
         if event.buttonNumber == 2 {
-            fire(.middleClick, .null)
+            send(.middleClick, .null)
         }
     }
 
     override func scrollWheel(with event: NSEvent) {
-        fire(.scroll, event.scrollEvent)
+        send(.scroll, event.scrollEvent)
     }
 
-    private func fire(_ gesture: Node.Gesture, _ payload: JSON) {
-        if let action = actions[gesture] {
-            perform?(action, payload)
-        }
+    func send(_ gesture: Node.Gesture, _ payload: JSON) {
+        guard let action = actions[gesture] else { return }
+        handler?(ActionEvent(name: action, payload: payload, origin: window?.convertToScreen(convert(bounds, to: nil))))
     }
 }
 
@@ -61,6 +70,7 @@ private extension NSView {
 
 struct GestureCatcher: NSViewRepresentable {
     let actions: [Node.Gesture: String]
+    let anchor: GestureAnchor
     @Environment(\.nodeAction) private var perform
 
     func makeNSView(context _: Context) -> GestureView {
@@ -69,6 +79,7 @@ struct GestureCatcher: NSViewRepresentable {
 
     func updateNSView(_ view: GestureView, context _: Context) {
         view.actions = actions
-        view.perform = perform
+        view.handler = perform
+        anchor.view = view
     }
 }
