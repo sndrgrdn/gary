@@ -67,8 +67,8 @@ gary plugin add https://github.com/you/gary-hello.git --enable
 | `name`, `version` | string | Required. |
 | `kinds` | array | Required. One or more of `bar-widget`, `bar`, `panel`, `overlay`, `menu`, and `service`. |
 | `entryPoints` | object | Required. One relative `.ts` or `.js` path per kind, such as `{ "panel": "panel.ts" }`. Symlinks are refused. |
-| `subscribes` | array | Topics whose values appear in `state`: `clock`, `battery`, or another plugin's id. |
-| `uses` | array | Capabilities that add functions to `host`: `exec`, `files`, and `network`. |
+| `subscribes` | array | Topics whose values appear in `state`: a capability topic such as `clock`, `battery`, `audio`, or `wifi`, or another plugin's id. A capability topic runs only while some plugin subscribes to it. |
+| `uses` | array | Capabilities that add functions to `host`, such as `exec`, `files`, `network`, `clipboard`, or `audio`. `manifest.schema.json` lists them all. |
 | `keepLoaded` | boolean | Keep a panel, overlay, or menu running while it is hidden. |
 | `hotkeys` | array | `{ "id": "open", "keys": "ctrl+alt+space" }`. Gary calls `onHotkey(id)`. A combination needs `cmd`, `ctrl`, or `alt`, unless its key is `f1` to `f12`. |
 
@@ -89,6 +89,8 @@ gary plugin add https://github.com/you/gary-hello.git --enable
 | `onAction(action, payload, state)` | When someone clicks a node with `action`, moves a slider, or types in an input. |
 | `onKey(key, state)` | When a focused surface gets `up`, `down`, `enter`, `escape`, or `tab`. |
 | `onHotkey(id, state)` | When a manifest hotkey fires. |
+| `onTopic(topic, value, state)` | When a subscribed topic gets a new value, and once per topic at load. |
+| `onMediaKey(event, state)` | When a key that `host.mediakeys.intercept` claimed is pressed. |
 | `methods` | Functions that `gary call <id> <method> [args...]` runs with string arguments. A string result prints as is, and anything else prints as JSON. |
 | `surface` | An object, or a function of `state`, that places a panel, overlay, or menu. |
 
@@ -104,6 +106,7 @@ Gary renders again after every handler, timer, and host callback. It draws only 
 | `clock` | `{ epoch }`, updated each minute. Needs `subscribes: ["clock"]`. |
 | `battery` | `{ present, percent, charging, source }`. Needs `subscribes: ["battery"]`. |
 | `<plugin id>` | The last value that plugin published. Needs its id in `subscribes`. |
+| `<capability>` | The value of any other subscribed capability topic. `gary.d.ts` gives its shape. |
 
 ### host
 
@@ -114,8 +117,9 @@ Gary renders again after every handler, timer, and host callback. It draws only 
 | `host.publish(value)` | | Publishes a JSON value under the plugin's id. |
 | `host.show()`, `host.hide()`, `host.toggle()` | | Shows or hides the plugin's surface. |
 | `host.exec(argv, callback)` | `exec` | Runs a command off the main thread and calls back with `{ status, stdout, stderr }`. |
-| `host.readFile(path)`, `host.watchFile(path, callback)` | `files` | Reads a file, or calls back with its text after each change. |
+| `host.readFile(path)`, `writeFile(path, text)`, `mkdir(path)`, `remove(path)`, `list(path)`, `watchFile(path, callback)` | `files` | Reads, writes, and lists files, or calls back with a file's text after each change. A path is absolute or starts with `~/`. |
 | `fetch(url)` | `network` | Resolves to `{ status, text }` for an `http` or `https` URL. |
+| `host.<capability>.<method>(...)` | the capability | The other capabilities, such as `host.clipboard.read()` or `host.audio.setVolume(0.5)`. `gary.d.ts` lists every method. |
 
 `setTimeout`, `setInterval`, `clearTimeout`, and `clearInterval` work as in a browser. There is no `console`. Use `host.log`.
 
