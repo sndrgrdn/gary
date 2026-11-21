@@ -1,7 +1,16 @@
 import AppKit
 
 private final class TopEdgeView: NSView {
-    var onEnter: () -> Void = {}
+    private let onEnter: () -> Void
+
+    init(onEnter: @escaping () -> Void) {
+        self.onEnter = onEnter
+        super.init(frame: .zero)
+    }
+
+    required init?(coder _: NSCoder) {
+        nil
+    }
 
     override func hitTest(_: NSPoint) -> NSView? {
         nil
@@ -21,8 +30,7 @@ private final class TopEdgeView: NSView {
 }
 
 func watchTopEdge(of view: NSView, _ onEnter: @escaping () -> Void) {
-    let edge = TopEdgeView()
-    edge.onEnter = onEnter
+    let edge = TopEdgeView(onEnter: onEnter)
     edge.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(edge)
     NSLayoutConstraint.activate([
