@@ -18,15 +18,15 @@ public enum Request: Equatable, Sendable {
 
     public static let usage: [(syntax: String, description: String)] = [
         ("ping", "Check that Gary is running."),
-        ("summon <plugin>", "Load and show a panel."),
-        ("hide <plugin>", "Hide a panel and unload it unless it is keepLoaded."),
-        ("toggle <plugin>", "Summon a hidden panel or hide a shown one."),
+        ("summon <plugin>", "Load and show a plugin's panel, overlay or menu."),
+        ("hide <plugin>", "Hide a plugin's surface and unload it unless it is keepLoaded."),
+        ("toggle <plugin>", "Summon a hidden surface or hide a shown one."),
         ("reloadPlugins [plugin]", "Reload one plugin, or every loaded plugin, from disk."),
         ("rescanPlugins", "Find added and removed plugin directories."),
         ("reloadConfig", "Re-read ~/.config/gary/shell.json."),
         ("applyTheme [json]", "Apply a theme override payload, or re-read the theme files."),
         ("listPlugins", "List every plugin with its state."),
-        ("call <plugin> <method> [args...]", "Call a method a loaded plugin exports."),
+        ("call <plugin> <method> [args...]", "Call a method a plugin exports, loading it first if needed."),
     ]
 
     public static func parse(verb: String, arguments: [String]) throws -> Request {
