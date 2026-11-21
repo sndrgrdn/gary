@@ -25,8 +25,8 @@ let package = Package(
             cSettings: [.headerSearchPath("src")],
             linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("UniformTypeIdentifiers"), .linkedFramework("ImageIO")],
         ),
-        // Pure shell model: manifests, node trees, reconcile, theme, shell config, surfaces, IPC messages, and parsers for the data capabilities
-        // read. Foundation and CoreGraphics geometry only. Unit tested.
+        // Pure shell model: manifests, node trees, reconcile, theme, shell config, plugin package sources, surfaces, IPC messages, and parsers for
+        // the data capabilities read. Foundation, CoreGraphics geometry, and CryptoKit hashing only. Unit tested.
         .target(
             name: "GaryCore",
             swiftSettings: [.swiftLanguageMode(.v6)],
