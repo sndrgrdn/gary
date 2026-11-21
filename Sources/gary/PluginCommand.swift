@@ -262,9 +262,9 @@ private func update(_ arguments: Arguments) throws {
 
 private func remove(_ id: PluginID) throws {
     let directory = try userPlugin(id)
+    try editShellConfig(.remove(id))
     var trashed: NSURL?
     try FileManager.default.trashItem(at: directory, resultingItemURL: &trashed)
-    try editShellConfig(.remove(id))
     print("moved \(directory.path) to \(trashed?.path ?? "the Trash")")
 }
 

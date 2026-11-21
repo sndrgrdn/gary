@@ -112,6 +112,7 @@ final class Shell {
         reloadTheme(Trace("start"))
         loadConfig()
         scan()
+        resolve()
         refreshDisplays(Trace("start"))
         sync(Trace("start"))
 
@@ -147,7 +148,6 @@ final class Shell {
     private func scan() {
         catalog = PluginCatalog.scan(builtin: Paths.builtinPlugins, user: Paths.userPlugins, capabilities: capabilities)
         for problem in catalog.problems { log("plugin \(problem.directory.path): \(problem.reason)") }
-        resolve()
     }
 
     private func resolve() {
@@ -570,10 +570,11 @@ final class Shell {
         }
     }
 
-    private func reloadConfig(_ trace: Trace) -> Response {
+    private func refresh(config reloadsConfig: Bool, catalog rescans: Bool, _ trace: Trace) -> Response {
         let previous = config
-        let response = loadConfig()
-        guard config != previous else { return response }
+        let response = reloadsConfig ? loadConfig() : .ok("config unchanged")
+        if rescans { scan() }
+        guard rescans || config != previous else { return response }
         resolve()
         for slot in slots.values where config.settings[slot.key.id] != previous.settings[slot.key.id] {
             reload(slot, trace)
@@ -585,7 +586,7 @@ final class Shell {
     private func filesChanged(_ paths: Set<String>, _ trace: Trace) {
         let root = Paths.config.resolvingSymlinksInPath().path
         let plugins = Paths.userPlugins.resolvingSymlinksInPath().path + "/"
-        var rescan = false, themeChanged = false
+        var rescan = false, themeChanged = false, configChanged = false
         var reloads = Set<SlotKey>()
         for path in paths {
             if path == root + "/theme.json" {
@@ -594,7 +595,7 @@ final class Shell {
                 loadPalette()
                 themeChanged = true
             } else if path == root + "/shell.json" {
-                _ = reloadConfig(trace)
+                configChanged = true
             } else if path.hasPrefix(plugins) {
                 let relative = path.dropFirst(plugins.count)
                 if relative.split(separator: "/").dropFirst().contains(where: { $0.hasPrefix(".") }) { continue }
@@ -608,10 +609,7 @@ final class Shell {
             }
         }
         if themeChanged { reloadTheme(trace) }
-        if rescan {
-            scan()
-            sync(trace)
-        }
+        if rescan || configChanged { _ = refresh(config: configChanged, catalog: rescan, trace) }
         for key in reloads {
             guard let slot = slots[key] else { continue }
             reload(slot, trace)
@@ -664,11 +662,10 @@ final class Shell {
             for slot in live { reload(slot, trace) }
             reply(.ok("reloading \(live.count)"))
         case .rescanPlugins:
-            scan()
-            sync(trace)
+            _ = refresh(config: false, catalog: true, trace)
             reply(.ok("\(catalog.plugins.count) plugins, \(catalog.problems.count) problems"))
         case .reloadConfig:
-            reply(reloadConfig(trace))
+            reply(refresh(config: true, catalog: false, trace))
         case .applyTheme(let payload):
             themePayload = payload
             reply(reloadTheme(trace))
