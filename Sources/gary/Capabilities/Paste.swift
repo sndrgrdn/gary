@@ -7,7 +7,7 @@ extension Capability {
     declare namespace Gary {
       interface Host { paste(): Promise<{ app: string | null; name: string | null }> }
     }
-    """, permission: .accessibility, install: { host, plugin in
+    """, permissions: [.accessibility], install: { host, plugin in
         plugin.installAPI(host, nil, ["paste"]) { _ in .later(.global(qos: .userInitiated)) { try pasteIntoFrontApp() } }
     })
 }

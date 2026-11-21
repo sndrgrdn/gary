@@ -29,7 +29,7 @@ extension Capability {
         requestLocation(): void;
       }
     }
-    """, permission: .location, install: { host, plugin in
+    """, permissions: [.location], install: { host, plugin in
         let setPower: @convention(block) (Bool) -> Void = { on in
             guard let interface = CWWiFiClient.shared().interface() else { return JSValue.fail("this Mac has no Wi-Fi interface") }
             do { try interface.setPower(on) } catch { JSValue.fail("cannot turn Wi-Fi \(on ? "on" : "off"): \(error.localizedDescription)") }

@@ -19,7 +19,7 @@ extension Capability {
       }
       interface Host { notifications: { open(id: number): void } }
     }
-    """, permission: .fullDiskAccess, install: { host, _ in
+    """, permissions: [.fullDiskAccess], install: { host, _ in
         let open: @convention(block) (Int) -> Void = { id in
             let found: Result<[DeliveredNotification], NotificationStore.Failure> = NotificationStore.read("WHERE r.rec_id = \(id)")
             guard case .success(let records) = found, let record = records.first else { return JSValue.fail("no delivered notification \(id)") }

@@ -112,18 +112,18 @@ struct Doctor {
         }
 
         section("Permissions")
-        if let runtime {
-            let needed = Capability.all.filter { runtime.capabilities.contains($0.name) && $0.permission != nil }
-            if needed.isEmpty { info("no enabled capability needs a permission") }
-            for capability in needed {
-                let permission = capability.permission!
-                if permission.isGranted { ok("\(permission.name) for \(capability.name)") } else { fail("\(permission.name) not granted; \(capability.name) needs it") }
+        if runtime == nil { info("grants unknown: macOS answers for the process that asks, so run Gary and ask again") }
+        for permission in Permission.allCases {
+            let users = Capability.all.filter { $0.permissions.contains(permission) }.map(\.name)
+            let needs = "needed by " + (users.isEmpty ? "no capability" : users.joined(separator: ", "))
+            guard let runtime else {
+                info("\(permission.name) \(needs)")
+                continue
             }
-            for permission in Permission.allCases where !needed.contains(where: { $0.permission == permission }) {
-                info("\(permission.name) \(permission.isGranted ? "granted" : "not granted"), not needed")
-            }
-        } else {
-            info("unknown: macOS answers for the process that asks, so run Gary and ask again")
+            let enabled = users.filter(runtime.capabilities.contains)
+            let granted = permission.isGranted
+            let line = "\(permission.name) \(granted ? "granted" : "not granted"); \(needs); " + (enabled.isEmpty ? "none enabled" : "enabled: \(enabled.joined(separator: ", "))")
+            if enabled.isEmpty { info(line) } else if granted { ok(line) } else { fail(line) }
         }
 
         section("Plugins")

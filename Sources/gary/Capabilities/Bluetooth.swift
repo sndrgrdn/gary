@@ -25,7 +25,7 @@ extension Capability {
         requestAccess(): void;
       }
     }
-    """, permission: .bluetooth, install: { host, plugin in
+    """, permissions: [.bluetooth], install: { host, plugin in
         let setPower: @convention(block) (Bool) -> Void = { on in
             guard CBManager.authorization == .allowedAlways else { return JSValue.fail("Gary needs Bluetooth permission") }
             guard let set = BluetoothPower.set else { return JSValue.fail("IOBluetoothPreferenceSetControllerPowerState is missing on this macOS") }

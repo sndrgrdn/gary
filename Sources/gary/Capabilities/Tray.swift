@@ -27,7 +27,7 @@ extension Capability {
         press(id: string): Promise<TrayItem>;
       }
     }
-    """, permission: .accessibility, install: { host, plugin in
+    """, permissions: [.accessibility, .screenRecording], install: { host, plugin in
         plugin.installAPI(host, "tray", TrayRequest.methods) { call in
             let request = try TrayRequest.parse(call)
             return .later(trayQueue) {

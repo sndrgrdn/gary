@@ -11,7 +11,7 @@ enum Permission: String, CaseIterable {
 struct Capability {
     let name: String
     let types: String
-    var permission: Permission?
+    var permissions: [Permission] = []
     var install: ((JSValue, PluginRuntime) -> Void)?
     var topic: TopicSource?
 

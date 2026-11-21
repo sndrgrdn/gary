@@ -10,7 +10,7 @@ extension Capability {
       interface Module { onMediaKey?(event: MediaKeyEvent, state: State): void }
       interface Host { mediakeys: { intercept(keys: MediaKeyName[]): boolean } }
     }
-    """, permission: .accessibility, install: { host, plugin in
+    """, permissions: [.accessibility], install: { host, plugin in
         let intercept: @convention(block) (JSValue) -> Bool = { [weak plugin] names in
             guard let plugin else { return false }
             guard let raw = names.toArray() as? [String] else {

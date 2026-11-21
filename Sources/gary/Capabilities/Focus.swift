@@ -15,7 +15,7 @@ extension Capability {
         source?: string | null;
       }
     }
-    """, permission: .fullDiskAccess, topic: { FocusTopic($0) })
+    """, permissions: [.fullDiskAccess], topic: { FocusTopic($0) })
 }
 
 private final class FocusTopic {

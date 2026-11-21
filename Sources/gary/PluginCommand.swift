@@ -176,8 +176,8 @@ private func warnUnsandboxed(_ manifest: PluginManifest) {
     print("\(manifest.id) uses:")
     let width = manifest.uses.map(\.count).max()!
     for name in manifest.uses {
-        let permission = Capability.all.first { $0.name == name }?.permission?.rawValue ?? "none"
-        print("  \(name.padding(toLength: width, withPad: " ", startingAt: 0))  macOS permission: \(permission)")
+        let permissions = Capability.all.first { $0.name == name }?.permissions.map(\.rawValue) ?? []
+        print("  \(name.padding(toLength: width, withPad: " ", startingAt: 0))  macOS permission: \(permissions.isEmpty ? "none" : permissions.joined(separator: ", "))")
     }
 }
 
