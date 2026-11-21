@@ -118,7 +118,7 @@ extension Skill {
     - `gary doctor` reports private API, permission, plugin, `shell.json`, and theme problems.
     - `gary permissions` shows which macOS permissions Gary has and which enabled plugins need them. A capability that lacks a permission says so in its error or topic value, with the `gary permissions request <name>` command that asks for it.
     - Take a screenshot to check the result. Capture only the rectangle you need with `-R x,y,width,height`, because a full-screen capture includes the user's other windows. `screencapture -x -R 0,0,1728,40 /tmp/bar.png` captures the bar of a display 1728 points wide. The `screens` line in the log gives each display's size in points. Rectangles are in points from the top left of the main display. A Retina PNG has two pixels per point, so halve PNG pixel positions to get points. The bar is `theme.bar.height` points tall, 32 by default. Summon a surface before you capture it, and capture the corner its `anchors` and `margins` place it in. The screenshot needs Screen Recording for the program that runs `screencapture`, not for Gary.
-    - When `gary` prints `not running`, start Gary with `open ~/Applications/Gary.app`. To restart Gary, for example after the user grants Screen Recording, run `gary quit` and then `open ~/Applications/Gary.app`.
+    - When `gary` prints `not running`, start Gary with `open -a Gary`. To restart Gary, for example after the user grants Screen Recording, run `gary quit` and then `open -a Gary`.
     """
 
     static let reference = """

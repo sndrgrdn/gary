@@ -64,7 +64,7 @@ extension Skill {
             "## Permissions",
             "",
             """
-            macOS grants each permission to Gary itself, `com.sndrgrdn.gary` at `~/Applications/Gary.app`, not to the \
+            macOS grants each permission to Gary itself, the app `com.sndrgrdn.gary`, not to the \
             terminal or the agent. `gary permissions` asks the running Gary, starting it if needed, and lists each \
             permission with its state, the capabilities that need it, and the enabled plugins that use them. `gary \
             permissions request <name>` shows the macOS prompt, or opens the System Settings pane where macOS has no \
