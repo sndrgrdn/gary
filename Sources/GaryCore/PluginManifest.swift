@@ -9,6 +9,10 @@ public enum Topic: String, CaseIterable, Sendable {
     case battery, clock
 }
 
+public enum HostService: String, CaseIterable, Sendable {
+    case exec
+}
+
 public enum PluginOrigin: Sendable {
     case builtin, user
 }
@@ -46,6 +50,7 @@ public enum ManifestError: Error, Equatable, CustomStringConvertible {
     case entryPointWithoutKind(String)
     case unsafeEntryPoint(String)
     case unknownTopic(String)
+    case unknownService(String)
 
     public var description: String {
         switch self {
@@ -63,6 +68,7 @@ public enum ManifestError: Error, Equatable, CustomStringConvertible {
         case .entryPointWithoutKind(let key): return "entry point \(key) has no matching kind"
         case .unsafeEntryPoint(let path): return "entry point \(path) must be a relative .js path inside the plugin"
         case .unknownTopic(let topic): return "unknown subscription \(topic)"
+        case .unknownService(let service): return "unknown host service \(service)"
         }
     }
 }
@@ -77,6 +83,7 @@ public struct PluginManifest: Equatable, Sendable {
     public let entryPoints: [PluginKind: String]
     public let keepLoaded: Bool
     public let subscribes: [Topic]
+    public let uses: [HostService]
 
     public static func parse(_ data: Data, origin: PluginOrigin) throws -> PluginManifest {
         guard let json = try? JSON.parse(data), case .object = json else { throw ManifestError.invalidJSON }
@@ -134,10 +141,14 @@ public struct PluginManifest: Equatable, Sendable {
             guard let topic = Topic(rawValue: raw) else { throw ManifestError.unknownTopic(raw) }
             return topic
         }
+        let uses = try optional("uses", strings, default: []).map { raw in
+            guard let service = HostService(rawValue: raw) else { throw ManifestError.unknownService(raw) }
+            return service
+        }
 
         return PluginManifest(
             id: id, name: name, version: version, kinds: kinds, entryPoints: entryPoints,
-            keepLoaded: keepLoaded, subscribes: subscribes
+            keepLoaded: keepLoaded, subscribes: subscribes, uses: uses
         )
     }
 }

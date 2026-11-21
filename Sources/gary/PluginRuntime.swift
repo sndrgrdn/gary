@@ -182,7 +182,33 @@ final class PluginRuntime: Subscriber {
         let id = self.id
         let logBlock: @convention(block) (String) -> Void = { message in log("plugin \(id): \(message)") }
         host.setObject(logBlock, forKeyedSubscript: "log" as NSString)
+        if bundle.manifest.uses.contains(.exec) {
+            let execBlock: @convention(block) (JSValue, JSValue) -> Void = { [weak self] argv, callback in
+                guard let argv = argv.toArray() as? [String], !argv.isEmpty, callback.isObject else {
+                    let context = JSContext.current()!
+                    context.exception = JSValue(newErrorFromMessage: "host.exec takes an array of strings and a callback", in: context)
+                    return
+                }
+                self?.exec(argv, callback)
+            }
+            host.setObject(execBlock, forKeyedSubscript: "exec" as NSString)
+        }
         return host
+    }
+
+    private func exec(_ argv: [String], _ callback: JSValue) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = runProcess(argv)
+            self?.queue.async {
+                guard let self, self.functions != nil else { return }
+                do {
+                    try self.invoke(callback, [result])
+                    self.renderAll(Trace("exec"))
+                } catch {
+                    self.fail("\(error)")
+                }
+            }
+        }
     }
 
     private func render(_ target: Target) throws -> Node {
@@ -215,6 +241,32 @@ final class PluginRuntime: Subscriber {
         guard let result else { throw RenderError("script returned no value") }
         return result
     }
+}
+
+private func runProcess(_ argv: [String]) -> [String: Any] {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = ["--"] + argv
+    let output = Pipe(), errors = Pipe()
+    process.standardInput = FileHandle.nullDevice
+    process.standardOutput = output
+    process.standardError = errors
+    do {
+        try process.run()
+    } catch {
+        return ["status": -1, "stdout": "", "stderr": "\(error)"]
+    }
+    var errorData = Data()
+    let reading = DispatchGroup()
+    DispatchQueue.global(qos: .userInitiated).async(group: reading) { errorData = errors.fileHandleForReading.readDataToEndOfFile() }
+    let outputData = output.fileHandleForReading.readDataToEndOfFile()
+    reading.wait()
+    process.waitUntilExit()
+    return [
+        "status": Int(process.terminationStatus),
+        "stdout": String(decoding: outputData, as: UTF8.self),
+        "stderr": String(decoding: errorData, as: UTF8.self),
+    ]
 }
 
 struct RenderError: Error, CustomStringConvertible {
