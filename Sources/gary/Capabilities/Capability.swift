@@ -13,6 +13,7 @@ struct Capability {
     var topic: TopicSource?
 
     static let all: [Capability] = [
+        .audio,
         .battery,
         .clock,
         .exec,
@@ -42,4 +43,19 @@ final class Observation {
     }
 
     deinit { cancel() }
+}
+
+extension JSValue {
+    static func fail(_ message: String) {
+        let context = JSContext.current()!
+        context.exception = JSValue(newErrorFromMessage: message, in: context)
+    }
+
+    static func namespace(_ functions: [String: Any], in host: JSValue, as name: String) {
+        let object = JSValue(newObjectIn: host.context)!
+        for (key, function) in functions { object.setObject(function, forKeyedSubscript: key as NSString) }
+        host.setObject(object, forKeyedSubscript: name as NSString)
+    }
+
+    var optionalString: String? { isUndefined || isNull ? nil : toString() }
 }
