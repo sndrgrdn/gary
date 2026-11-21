@@ -5,6 +5,13 @@ public struct PluginBundle: Equatable, Sendable {
     public let directory: URL
     public let origin: PluginOrigin
 
+    public static func load(_ directory: URL, origin: PluginOrigin, capabilities: CapabilityNames) throws -> PluginBundle {
+        let manifest = try PluginManifest.parse(try Data(contentsOf: try resolveInside(directory, "manifest.json")), origin: origin, capabilities: capabilities)
+        let bundle = PluginBundle(manifest: manifest, directory: directory, origin: origin)
+        for kind in manifest.kinds { _ = try bundle.entryPoint(kind) }
+        return bundle
+    }
+
     public func entryPoint(_ kind: PluginKind) throws -> URL {
         guard let relative = manifest.entryPoints[kind] else { throw ManifestError.missingEntryPoint(kind) }
         return try resolveInside(directory, relative)
@@ -36,14 +43,11 @@ public struct PluginCatalog: Equatable, Sendable {
         for directory in entries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
             guard !directory.lastPathComponent.hasPrefix("."), isDirectory(directory) else { continue }
             do {
-                let manifestURL = try resolveInside(directory, "manifest.json")
-                let manifest = try PluginManifest.parse(try Data(contentsOf: manifestURL), origin: origin, capabilities: capabilities)
-                let bundle = PluginBundle(manifest: manifest, directory: directory, origin: origin)
-                for kind in manifest.kinds { _ = try bundle.entryPoint(kind) }
-                if let existing = plugins[manifest.id] {
-                    problems.append(CatalogProblem(directory: directory, reason: "duplicate id \(manifest.id), already at \(existing.directory.path)"))
+                let bundle = try PluginBundle.load(directory, origin: origin, capabilities: capabilities)
+                if let existing = plugins[bundle.manifest.id] {
+                    problems.append(CatalogProblem(directory: directory, reason: "duplicate id \(bundle.manifest.id), already at \(existing.directory.path)"))
                 } else {
-                    plugins[manifest.id] = bundle
+                    plugins[bundle.manifest.id] = bundle
                 }
             } catch {
                 problems.append(CatalogProblem(directory: directory, reason: "\(error)"))

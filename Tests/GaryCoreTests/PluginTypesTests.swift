@@ -34,3 +34,23 @@ struct PluginTypesTests {
         #expect(properties["schemaVersion"]?["const"] == .number(Double(PluginManifest.schemaVersion)))
     }
 }
+
+struct PluginScaffoldTests {
+    @Test func everyScaffoldPassesTheLoadTimeChecks() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("gary-scaffold-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        for kinds in PluginKind.allCases.map({ [$0] }) + [[.service, .barWidget], [.panel, .service]] {
+            let directory = root.appendingPathComponent(kinds.map(\.rawValue).joined(separator: "+"))
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let id = PluginID("acme.hello-world")!
+            for (name, text) in PluginScaffold.files(id: id, kinds: kinds) {
+                try Data(text.utf8).write(to: directory.appendingPathComponent(name))
+            }
+            let bundle = try PluginBundle.load(directory, origin: .user, capabilities: testCapabilities)
+            #expect(bundle.manifest.id == id)
+            #expect(bundle.manifest.name == "Hello World")
+            #expect(bundle.manifest.kinds == kinds)
+            for kind in kinds { #expect(try bundle.entryPoint(kind).lastPathComponent == PluginScaffold.entryFile(kind)) }
+        }
+    }
+}
