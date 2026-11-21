@@ -182,10 +182,6 @@ final class PluginRuntime: Subscriber {
         let id = self.id
         let logBlock: @convention(block) (String) -> Void = { message in log("plugin \(id): \(message)") }
         host.setObject(logBlock, forKeyedSubscript: "log" as NSString)
-        if bundle.manifest.uses.contains(.dinky) {
-            let dinkyBlock: @convention(block) (String) -> Void = { command in DinkyCommands.send(command, from: id) }
-            host.setObject(dinkyBlock, forKeyedSubscript: "dinky" as NSString)
-        }
         return host
     }
 

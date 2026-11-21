@@ -6,15 +6,6 @@ const week = (date) => {
   return Math.ceil(((day - Date.UTC(day.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
 };
 
-const focusedWorkspace = (workspaces) => {
-  if (!workspaces) return null;
-  for (const display of workspaces.displays) {
-    const focused = display.workspaces.find((w) => w.focused);
-    if (focused) return focused.name;
-  }
-  return null;
-};
-
 module.exports = {
   render(state) {
     const date = new Date(state.clock ? state.clock.epoch : Date.now());
@@ -31,17 +22,6 @@ module.exports = {
         children: [
           { type: "icon", symbol: battery.charging ? "bolt.fill" : "battery.75percent", style: "dim" },
           { type: "text", text: battery.percent + "% " + (battery.source === "ac" ? "on power" : "on battery"), style: "dim" },
-        ],
-      });
-    }
-    const workspace = focusedWorkspace(state.workspaces);
-    if (workspace) {
-      lines.push({
-        type: "row",
-        key: "workspace",
-        children: [
-          { type: "icon", symbol: "square.grid.2x2", style: "dim" },
-          { type: "text", text: "workspace " + workspace + (state.workspaces.source === "dinky" ? " (dinky)" : ""), style: "dim" },
         ],
       });
     }

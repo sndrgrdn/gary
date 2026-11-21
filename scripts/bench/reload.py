@@ -11,7 +11,7 @@ manifest = {
     "schemaVersion": 1, "id": "bench.reload", "name": "Reload bench", "version": "0.1.0",
     "kinds": ["bar-widget"], "entryPoints": {"bar-widget": "widget.js"},
 }
-layout = {"bar": {"left": ["gary.workspaces"], "center": ["bench.reload"], "right": ["gary.battery", "gary.clock"]}}
+layout = {"bar": {"left": [], "center": ["bench.reload"], "right": ["gary.battery", "gary.clock"]}}
 
 
 def source(token):

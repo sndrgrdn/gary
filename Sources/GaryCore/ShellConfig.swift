@@ -17,7 +17,7 @@ public struct ShellConfig: Equatable, Sendable {
     public var settings: [PluginID: JSON]
 
     public static let defaults = ShellConfig(
-        bar: [.left: [PluginID("gary.workspaces")!], .center: [], .right: [PluginID("gary.battery")!, PluginID("gary.clock")!]],
+        bar: [.left: [], .center: [], .right: [PluginID("gary.battery")!, PluginID("gary.clock")!]],
         plugins: [], disabledPlugins: [], settings: [:]
     )
 

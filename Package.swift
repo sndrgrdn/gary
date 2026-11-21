@@ -20,18 +20,6 @@ let package = Package(
             dependencies: ["GaryCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
-        // dinky adapter: its socket, defensive parsing of its output, and workspace names per Space. Unit tested on fixtures.
-        .target(
-            name: "GaryDinky",
-            dependencies: ["GaryCore", "GarySocket"],
-            swiftSettings: [.swiftLanguageMode(.v5)]
-        ),
-        .testTarget(
-            name: "GaryDinkyTests",
-            dependencies: ["GaryDinky", "GaryCore", "GarySocket"],
-            resources: [.copy("Fixtures")],
-            swiftSettings: [.swiftLanguageMode(.v5)]
-        ),
         // Unix socket server and clients: NDJSON lines for Gary's IPC, EOF-framed exchanges for dinky. Unit tested.
         .target(
             name: "GarySocket",
@@ -45,7 +33,7 @@ let package = Package(
         // The app and CLI.
         .executableTarget(
             name: "gary",
-            dependencies: ["GaryCore", "GarySocket", "GaryDinky", "GaryPrivate"],
+            dependencies: ["GaryCore", "GarySocket", "GaryPrivate"],
             swiftSettings: [.swiftLanguageMode(.v5)],
             linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("JavaScriptCore"), .linkedFramework("IOKit")]
         ),

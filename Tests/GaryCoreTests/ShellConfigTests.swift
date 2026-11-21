@@ -11,7 +11,7 @@ struct ShellConfigTests {
             let manifest = PluginManifest(
                 id: id(raw), name: raw, version: "1", kinds: kinds,
                 entryPoints: Dictionary(uniqueKeysWithValues: kinds.map { ($0, "main.js") }),
-                keepLoaded: false, subscribes: [], uses: []
+                keepLoaded: false, subscribes: []
             )
             catalog.plugins[id(raw)] = PluginBundle(manifest: manifest, directory: URL(fileURLWithPath: "/p/\(raw)"), origin: origin)
         }
@@ -20,8 +20,8 @@ struct ShellConfigTests {
 
     private var standard: PluginCatalog {
         catalog([
-            ("gary.workspaces", .builtin, [.barWidget]), ("gary.clock", .builtin, [.barWidget]),
-            ("gary.battery", .builtin, [.barWidget]), ("gary.today", .builtin, [.panel]),
+            ("gary.clock", .builtin, [.barWidget]), ("gary.battery", .builtin, [.barWidget]),
+            ("gary.today", .builtin, [.panel]),
             ("acme.weather", .user, [.barWidget]), ("acme.notes", .user, [.panel]),
         ])
     }
@@ -31,16 +31,16 @@ struct ShellConfigTests {
     @Test func anEmptyFileKeepsTheDefaults() throws {
         #expect(try config("{}") == ShellConfig.defaults)
         let resolution = ShellConfig.defaults.resolve(standard)
-        #expect(resolution.bar == [.left: [id("gary.workspaces")], .center: [], .right: [id("gary.battery"), id("gary.clock")]])
-        #expect(resolution.enabled == Set(["gary.workspaces", "gary.clock", "gary.battery", "gary.today"].map(id)))
+        #expect(resolution.bar == [.left: [], .center: [], .right: [id("gary.battery"), id("gary.clock")]])
+        #expect(resolution.enabled == Set(["gary.clock", "gary.battery", "gary.today"].map(id)))
         #expect(resolution.warnings.isEmpty)
     }
 
     @Test func aUserBarReplacesTheDefaultBarWhole() throws {
-        let parsed = try config(#"{"bar": {"right": ["gary.clock"]}}"#)
-        #expect(parsed.bar == [.left: [], .center: [], .right: [id("gary.clock")]])
-        #expect(parsed.resolve(standard).bar[.left] == [])
-        #expect(parsed.resolve(standard).enabled.contains(id("gary.workspaces")))
+        let parsed = try config(#"{"bar": {"left": ["gary.clock"]}}"#)
+        #expect(parsed.bar == [.left: [id("gary.clock")], .center: [], .right: []])
+        #expect(parsed.resolve(standard).bar[.right] == [])
+        #expect(parsed.resolve(standard).enabled.contains(id("gary.battery")))
     }
 
     @Test func aThirdPartyPluginRunsOnlyWhenNamed() throws {

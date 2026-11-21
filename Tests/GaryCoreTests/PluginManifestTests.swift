@@ -20,21 +20,19 @@ struct PluginManifestTests {
         let parsed = try manifest([
             "kinds": ["service", "bar-widget"],
             "entryPoints": ["service": "lib/service.js", "bar-widget": "widget.js"],
-            "keepLoaded": true, "subscribes": ["clock", "battery"], "uses": ["dinky"],
+            "keepLoaded": true, "subscribes": ["clock", "battery"],
         ])
         #expect(parsed.id.rawValue == "acme.media")
         #expect(parsed.kinds == [.service, .barWidget])
         #expect(parsed.entryPoints == [.service: "lib/service.js", .barWidget: "widget.js"])
         #expect(parsed.keepLoaded)
         #expect(parsed.subscribes == [.clock, .battery])
-        #expect(parsed.uses == [.dinky])
     }
 
     @Test func optionalFieldsDefaultToOff() throws {
         let parsed = try manifest([:])
         #expect(!parsed.keepLoaded)
         #expect(parsed.subscribes.isEmpty)
-        #expect(parsed.uses.isEmpty)
     }
 
     @Test func rejectsWrongSchemaVersion() {
@@ -79,9 +77,8 @@ struct PluginManifestTests {
         }
     }
 
-    @Test func subscriptionsAndServicesMustBeKnown() {
+    @Test func subscriptionsMustBeKnown() {
         rejects(["subscribes": ["weather"]], with: .unknownTopic("weather"))
-        rejects(["uses": ["exec"]], with: .unknownService("exec"))
     }
 }
 

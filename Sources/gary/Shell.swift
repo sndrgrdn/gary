@@ -90,11 +90,10 @@ final class Shell {
         loadConfig()
         scan()
 
-        let clock = ClockProvider(hub: hub), battery = BatteryProvider(hub: hub), workspaces = WorkspacesProvider(hub: hub)
-        providers = [clock, battery, workspaces]
+        let clock = ClockProvider(hub: hub), battery = BatteryProvider(hub: hub)
+        providers = [clock, battery]
         clock.start()
         battery.start()
-        workspaces.start()
 
         rebuildBars(Trace("start"))
         sync(Trace("start"))
@@ -102,7 +101,6 @@ final class Shell {
         watcher = FileWatcher(root: Paths.config) { [weak self] paths, trace in self?.filesChanged(paths, trace) }
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             self?.rebuildBars(Trace("screens"))
-            workspaces.topologyChanged(Trace("screens"))
         }
         for number in [SIGTERM, SIGINT] {
             signal(number, SIG_IGN)

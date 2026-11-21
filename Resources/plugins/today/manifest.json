@@ -5,5 +5,5 @@
   "version": "0.1.0",
   "kinds": ["panel"],
   "entryPoints": { "panel": "panel.js" },
-  "subscribes": ["clock", "battery", "workspaces"]
+  "subscribes": ["clock", "battery"]
 }
