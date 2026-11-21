@@ -9,6 +9,22 @@ extension Capability {
       interface Module { onMediaKey?(event: MediaKeyEvent, state: State): void }
       interface Host { mediakeys: { intercept(keys: MediaKeyName[]): boolean } }
     }
+    """, example: """
+    host.mediakeys.intercept(["volume-up", "volume-down"]);
+    let hideTimer = 0;
+
+    module.exports = {
+      onMediaKey(event, state) {
+        const volume = state.audio?.output?.volume ?? 0;
+        host.audio.setVolume(Math.min(1, Math.max(0, volume + (event.key === "volume-up" ? 0.0625 : -0.0625))));
+        host.show();
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => host.hide(), 1500);
+      },
+      render(state) {
+        return { type: "progress", value: state.audio?.output?.volume ?? 0 };
+      },
+    } satisfies Gary.Overlay;
     """, permissions: [.accessibility], install: { host, plugin in
         plugin.installAPI(host, "mediakeys", MediaKeysRequest.methods) { [weak plugin] call in
             switch try MediaKeysRequest.parse(call) {

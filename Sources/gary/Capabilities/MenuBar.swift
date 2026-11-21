@@ -12,6 +12,16 @@ extension Capability {
         state(): Promise<MenuBarState>;
       }
     }
+    """, example: """
+    host.menubar.hide().then((menubar) => {
+      if (!menubar.hidden) host.log("this macOS cannot hide the menu bar");
+    });
+
+    module.exports = {
+      render(state) {
+        return { type: "row", children: [{ type: "spacer", key: "gap" }, { type: "text", key: "width", text: String(state.display?.width) }] };
+      },
+    } satisfies Gary.Bar;
     """, install: { host, plugin in
         let owner = ObjectIdentifier(plugin)
         plugin.onStop { DispatchQueue.main.async { MenuBar.shared.release(owner) } }

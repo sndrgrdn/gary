@@ -20,6 +20,15 @@ extension Capability {
         state(): Promise<DockState>;
       }
     }
+    """, example: """
+    host.dock.hide().then(() => host.dock.reserve("bottom", 56)).then((dock) => host.log(`reserved ${dock.reserved?.size} points`));
+
+    module.exports = {
+      surface: { screen: "main", anchors: { bottom: true, left: true, right: true }, height: 56, layer: "top", exclusionMode: "ignore" },
+      render() {
+        return { type: "row", children: [{ type: "icon", key: "finder", symbol: "folder", action: "com.apple.finder" }] };
+      },
+    } satisfies Gary.Panel;
     """, install: { host, plugin in
         let owner = ObjectIdentifier(plugin)
         plugin.onStop { DispatchQueue.main.async { Dock.shared.release(owner) } }

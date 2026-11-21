@@ -8,6 +8,14 @@ extension Capability {
       interface State { battery?: Battery }
       interface Battery { present: boolean; percent: number | null; charging: boolean; source: "ac" | "battery" }
     }
+    """, example: """
+    module.exports = {
+      render(state) {
+        const battery = state.battery;
+        if (!battery?.present) return { type: "icon", symbol: "powerplug" };
+        return { type: "text", text: `${battery.percent}%`, style: battery.charging ? "good" : battery.percent! < 20 ? "bad" : "default" };
+      },
+    } satisfies Gary.BarWidget;
     """, topic: { BatteryTopic($0) })
 }
 

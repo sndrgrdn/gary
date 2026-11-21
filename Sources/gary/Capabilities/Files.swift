@@ -15,6 +15,21 @@ extension Capability {
       }
       interface FileEntry { name: string; type: "file" | "directory" | "link" | "other"; size: number }
     }
+    """, example: """
+    const path = "~/Documents/scratch.txt";
+    let text = "";
+    host.watchFile(path, (contents) => {
+      text = contents ?? "";
+    });
+
+    module.exports = {
+      render() {
+        return { type: "input", value: text, placeholder: "Scratch", submit: "save" };
+      },
+      onAction(action, payload) {
+        if (action === "save" && typeof payload === "string") host.writeFile(path, payload);
+      },
+    } satisfies Gary.Menu;
     """, install: { host, plugin in
         plugin.installAPI(host, nil, FilesRequest.methods) { call in .now(try perform(try FilesRequest.parse(call, home: home))) }
         let watchFile: @convention(block) (String, JSValue) -> Void = { [weak plugin] path, callback in

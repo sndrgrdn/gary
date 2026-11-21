@@ -68,15 +68,19 @@ private func startApp() throws {
     throw SocketError.unreachable(socketPath)
 }
 
-let appUsage: [(syntax: String, description: String)] = [
-    ("app", "Run the shell in the foreground, logging to the terminal, without the crash supervisor."),
-    ("login [on|off|status]", "Start Gary at login, or stop doing so."),
+let appUsage: [(syntax: String, description: String, example: String?)] = [
+    ("app", "Run the shell in the foreground, logging to the terminal, without the crash supervisor.", nil),
+    ("login [on|off|status]", "Start Gary at login, or stop doing so.", nil),
 ]
 
 func runHelp() -> Int32 {
     print("usage: gary <verb> [args], sent to the running app over \(socketPath)\n")
-    for (syntax, description) in Request.usage { print("  \(syntax)\n      \(description)") }
+    for usage in Request.usage { printUsage(usage) }
     print("\nThese commands work without the running app:\n")
-    for (syntax, description) in appUsage + skillUsage + pluginUsage { print("  \(syntax)\n      \(description)") }
+    for usage in appUsage + skillUsage + pluginUsage { printUsage(usage) }
     return 0
+}
+
+private func printUsage(_ usage: (syntax: String, description: String, example: String?)) {
+    print("  \(usage.syntax)\n      \(usage.description)" + (usage.example.map { "\n      for example: \($0)" } ?? ""))
 }

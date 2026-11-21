@@ -1,8 +1,8 @@
 import Foundation
 import GaryCore
 
-let skillUsage: [(syntax: String, description: String)] = [
-    ("skill [status|setup|remove|show]", "Install the gary skill into Claude Code and agents that read ~/.agents/skills, or print the guide it points to."),
+let skillUsage: [(syntax: String, description: String, example: String?)] = [
+    ("skill [status|setup|remove|show]", "Install the gary skill into Claude Code and agents that read ~/.agents/skills, or print the guide it points to.", nil),
 ]
 
 struct BundledExample {
@@ -106,7 +106,7 @@ enum Skill {
     	gary plugin validate ~/.config/gary/plugins/you.weather
     	```
 
-    	Without `npx`, run `deno check gary.d.ts *.ts` in the plugin folder. Deno ignores `tsconfig.json`, so name `gary.d.ts` first.
+    	Without `npx`, run `deno check --config tsconfig.json gary.d.ts *.ts` in the plugin folder. The config replaces Deno's own `fetch` and other globals with Gary's, and Deno warns that it ignores some of its options.
 
     6. Save. Gary reloads the plugin. Verify it as the next section describes.
 
@@ -300,7 +300,7 @@ enum Skill {
     }
 
     private static var capabilitySection: String {
-        var lines = ["## Capabilities", "", "Each section gives the manifest entry, the macOS permissions, and the declarations that `gary.d.ts` adds."]
+        var lines = ["## Capabilities", "", "Each section gives the manifest entry, the macOS permissions, an example entry file, and the declarations that `gary.d.ts` adds."]
         for capability in Capability.all {
             var entry: [String] = []
             if capability.install != nil { entry.append("`\"uses\": [\"\(capability.name)\"]` for the functions") }
@@ -310,6 +310,7 @@ enum Skill {
                 "", "### \(capability.name)", "", capability.summary, "",
                 "- Manifest: \(entry.joined(separator: ", and "))",
                 "- macOS permissions: \(permissions)",
+                "", "```ts", capability.example.trimmingCharacters(in: .newlines), "```",
                 "", "```ts", capability.types.trimmingCharacters(in: .newlines), "```",
             ]
         }
@@ -340,8 +341,8 @@ enum Skill {
     }
 
     private static var commandSection: String {
-        func list(_ usage: [(syntax: String, description: String)]) -> String {
-            usage.map { "- `gary \($0.syntax)`: \($0.description)" }.joined(separator: "\n")
+        func list(_ usage: [(syntax: String, description: String, example: String?)]) -> String {
+            usage.map { "- `gary \($0.syntax)`: \($0.description)" + ($0.example.map { " For example, `\($0)`." } ?? "") }.joined(separator: "\n")
         }
         return """
         ## Commands

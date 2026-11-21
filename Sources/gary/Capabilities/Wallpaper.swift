@@ -11,6 +11,15 @@ extension Capability {
         set(path: string, display?: string | null): Promise<Wallpaper[]>;
       }
     }
+    """, example: """
+    module.exports = {
+      methods: {
+        set(path) {
+          host.wallpaper.set(path).then((wallpapers) => host.log(wallpapers.map((each) => `${each.name}: ${each.path}`).join(", ")));
+          return `setting ${path}`;
+        },
+      },
+    } satisfies Gary.Service;
     """, install: { host, plugin in
         plugin.installAPI(host, "wallpaper", WallpaperRequest.methods) { call in
             let request = try WallpaperRequest.parse(call, home: home)

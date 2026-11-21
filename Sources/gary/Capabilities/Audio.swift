@@ -23,6 +23,17 @@ extension Capability {
         setDefaultDevice(id: string, scope?: AudioScope): null;
       }
     }
+    """, example: """
+    module.exports = {
+      render(state) {
+        const output = state.audio?.output;
+        if (output?.volume == null) return { type: "text", text: "No output" };
+        return { type: "slider", value: output.muted ? 0 : output.volume, action: "volume" };
+      },
+      onAction(action, payload) {
+        if (action === "volume" && typeof payload === "number") host.audio.setVolume(payload);
+      },
+    } satisfies Gary.Panel;
     """, install: { host, plugin in
         plugin.installAPI(host, "audio", AudioRequest.methods) { call in
             switch try AudioRequest.parse(call) {

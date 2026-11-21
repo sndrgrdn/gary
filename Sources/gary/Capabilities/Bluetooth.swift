@@ -24,6 +24,24 @@ extension Capability {
         requestAccess(): Promise<string>;
       }
     }
+    """, example: """
+    module.exports = {
+      render(state) {
+        if (state.bluetooth?.permission === "notDetermined") return { type: "button", action: "allow", children: [{ type: "text", text: "Allow Bluetooth" }] };
+        return {
+          type: "column",
+          children: (state.bluetooth?.devices ?? []).map((device) => ({
+            type: "text", key: device.address, action: device.address, style: device.connected ? "bright" : "dim",
+            text: `${device.name ?? device.address}${device.battery === null ? "" : ` ${device.battery}%`}`,
+          })),
+        };
+      },
+      onAction(action, _payload, state) {
+        if (action === "allow") return void host.bluetooth.requestAccess();
+        const device = state.bluetooth?.devices.find((each) => each.address === action);
+        if (device) (device.connected ? host.bluetooth.disconnect(action) : host.bluetooth.connect(action)).catch((error) => host.log(String(error)));
+      },
+    } satisfies Gary.Panel;
     """, permissions: [.bluetooth], install: { host, plugin in
         plugin.installAPI(host, "bluetooth", BluetoothRequest.methods) { call in
             switch try BluetoothRequest.parse(call) {

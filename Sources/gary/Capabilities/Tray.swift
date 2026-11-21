@@ -27,6 +27,30 @@ extension Capability {
         press(id: string): Promise<TrayItem & { opened: boolean }>;
       }
     }
+    """, example: """
+    let items: Gary.TrayItem[] = [];
+
+    function refresh() {
+      host.tray.items().then((result) => {
+        items = result.items;
+      });
+    }
+    refresh();
+    setInterval(refresh, 5_000);
+
+    module.exports = {
+      render() {
+        return {
+          type: "row",
+          children: items.map((item): Gary.Node => item.icon
+            ? { type: "image", key: item.id, path: item.icon, action: item.id }
+            : { type: "text", key: item.id, text: item.name, action: item.id }),
+        };
+      },
+      onAction(id) {
+        host.tray.press(id).then((item) => host.log(`${item.name} opened a menu: ${item.opened}`));
+      },
+    } satisfies Gary.BarWidget;
     """, permissions: [.accessibility, .screenRecording], install: { host, plugin in
         plugin.installAPI(host, "tray", TrayRequest.methods) { call in
             let request = try TrayRequest.parse(call)

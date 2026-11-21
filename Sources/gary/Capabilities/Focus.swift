@@ -15,6 +15,14 @@ extension Capability {
         source?: string | null;
       }
     }
+    """, example: """
+    module.exports = {
+      render(state) {
+        const focus = state.focus;
+        if (!focus?.available) return { type: "icon", symbol: "moon", style: "dim" };
+        return focus.active ? { type: "icon", symbol: focus.symbol ?? "moon.fill", style: "active" } : { type: "text", text: "" };
+      },
+    } satisfies Gary.BarWidget;
     """, permissions: [.fullDiskAccess], topic: { FocusTopic($0) })
 }
 

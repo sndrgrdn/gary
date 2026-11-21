@@ -12,6 +12,20 @@ extension Capability {
       interface Host { brightness: BrightnessApi }
       interface BrightnessApi { set(value: number, display?: string | null): null }
     }
+    """, example: """
+    module.exports = {
+      render(state) {
+        return {
+          type: "column",
+          children: (state.brightness?.displays ?? []).filter((display) => display.brightness !== null).map((display) => (
+            { type: "slider", key: display.id, value: display.brightness!, action: display.id }
+          )),
+        };
+      },
+      onAction(display, payload) {
+        if (typeof payload === "number") host.brightness.set(payload, display);
+      },
+    } satisfies Gary.Panel;
     """, install: { host, plugin in
         plugin.installAPI(host, "brightness", BrightnessRequest.methods) { call in
             switch try BrightnessRequest.parse(call) {

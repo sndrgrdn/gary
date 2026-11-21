@@ -13,6 +13,23 @@ extension Capability {
         writeText(text: string): { count: number };
       }
     }
+    """, example: """
+    const history: string[] = [];
+
+    module.exports = {
+      onTopic(topic) {
+        if (topic !== "clipboard") return;
+        host.clipboard.read().then((contents) => {
+          if (contents.text && contents.text !== history[0]) history.unshift(contents.text);
+        });
+      },
+      render() {
+        return { type: "column", children: history.slice(0, 8).map((text, index) => ({ type: "text", key: String(index), text, action: text })) };
+      },
+      onAction(text) {
+        host.clipboard.writeText(text);
+      },
+    } satisfies Gary.Menu;
     """, install: { host, plugin in
         plugin.installAPI(host, "clipboard", ClipboardRequest.methods) { call in
             switch try ClipboardRequest.parse(call) {

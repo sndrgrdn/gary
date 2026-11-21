@@ -7,6 +7,13 @@ extension Capability {
       interface State { clock?: Clock }
       interface Clock { epoch: number }
     }
+    """, example: """
+    module.exports = {
+      render(state) {
+        const now = new Date(state.clock?.epoch ?? Date.now());
+        return { type: "text", text: `${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`, style: "bright" };
+      },
+    } satisfies Gary.BarWidget;
     """, topic: { ClockTopic($0) })
 }
 

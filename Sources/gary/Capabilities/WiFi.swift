@@ -28,6 +28,19 @@ extension Capability {
         requestLocation(): Promise<string>;
       }
     }
+    """, example: """
+    module.exports = {
+      render(state) {
+        const wifi = state.wifi;
+        if (!wifi?.power) return { type: "icon", symbol: "wifi.slash", style: "dim", action: "on" };
+        if (wifi.location !== "authorized") return { type: "text", text: "Allow Location for the network name", action: "location" };
+        return { type: "row", children: [{ type: "icon", key: "icon", symbol: "wifi" }, { type: "text", key: "ssid", text: wifi.ssid ?? "Not connected" }] };
+      },
+      onAction(action) {
+        if (action === "on") host.wifi.setPower(true);
+        if (action === "location") host.wifi.requestLocation().then((message) => host.log(message));
+      },
+    } satisfies Gary.BarWidget;
     """, permissions: [.location], install: { host, plugin in
         plugin.installAPI(host, "wifi", WiFiRequest.methods) { call in
             switch try WiFiRequest.parse(call) {

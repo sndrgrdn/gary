@@ -3,6 +3,9 @@ import GaryCore
 import Testing
 @testable import gary
 
+private let deno = (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":").map { URL(fileURLWithPath: String($0)).appending(path: "deno") }
+    .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+
 struct SkillTests {
     private let theme = try! JSON.parse(#"{"styles": {"panel": {"radius": 12}}, "colors": {"accent": "accent"}, "fonts": {"body": {"size": 12}}}"#)
     private var guide: String { Skill.guide(theme: theme, examples: [BundledExample(name: "load", summary: "A bar widget that shows the load.", manifest: nil)]) }
@@ -18,10 +21,40 @@ struct SkillTests {
         }
     }
 
+    @Test func showsAnExampleEntryFileForEveryCapability() {
+        let guide = guide
+        for capability in Capability.all {
+            #expect(capability.example.contains("module.exports = {") && capability.example.contains("} satisfies Gary."), "\(capability.name)")
+            #expect(guide.contains("```ts\n\(capability.example.trimmingCharacters(in: .newlines))\n```"), "\(capability.name)")
+        }
+    }
+
+    @Test(.enabled(if: deno != nil, "deno is not installed")) func everyCapabilityExampleTypeChecks() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "gary-examples-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let declarations = PluginTypes.declarations(capabilities: Capability.all.map(\.types), pluginTopics: [], theme: nil)
+        try Data(declarations.utf8).write(to: folder.appending(path: "gary.d.ts"))
+        let tsconfig = PluginScaffold.files(id: PluginID("you.examples")!, kinds: [.service])["tsconfig.json"]!
+        try Data(tsconfig.utf8).write(to: folder.appending(path: "tsconfig.json"))
+        for capability in Capability.all { try Data(capability.example.utf8).write(to: folder.appending(path: "\(capability.name).ts")) }
+        let check = Process()
+        check.executableURL = deno
+        check.currentDirectoryURL = folder
+        check.arguments = ["check", "--quiet", "--config", "tsconfig.json", "gary.d.ts"] + Capability.all.map { "\($0.name).ts" }
+        let output = Pipe()
+        check.standardOutput = output
+        check.standardError = output
+        try check.run()
+        let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        check.waitUntilExit()
+        #expect(check.terminationStatus == 0, "\(text)")
+    }
+
     @Test func documentsEveryPermissionCommandManifestFieldKindNodeAndLayer() throws {
         let guide = guide
         for permission in Permission.allCases { #expect(guide.contains("| `\(permission.rawValue)` | \(permission.name) |")) }
-        for (syntax, _) in Request.usage + appUsage + skillUsage + pluginUsage { #expect(guide.contains("`gary \(syntax)`"), "\(syntax)") }
+        for (syntax, _, _) in Request.usage + appUsage + skillUsage + pluginUsage { #expect(guide.contains("`gary \(syntax)`"), "\(syntax)") }
         let fields = try #require(PluginTypes.manifestSchema(try Capability.names())["properties"]?.object).keys
         for field in fields { #expect(guide.contains("`\(field)`"), "\(field)") }
         for kind in PluginKind.allCases { #expect(guide.contains("| `\(kind.rawValue)` |")) }

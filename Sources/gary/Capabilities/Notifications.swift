@@ -18,6 +18,22 @@ extension Capability {
       }
       interface Host { notifications: { open(id: number): null } }
     }
+    """, example: """
+    module.exports = {
+      render(state) {
+        const notifications = state.notifications;
+        if (!notifications?.available) return { type: "text", text: notifications?.reason ?? "…", style: "dim" };
+        return {
+          type: "column",
+          children: notifications.items.slice(0, 5).map((item) => (
+            { type: "text", key: String(item.id), action: String(item.id), text: `${item.appName ?? item.app}: ${item.title ?? item.body ?? ""}` }
+          )),
+        };
+      },
+      onAction(id) {
+        host.notifications.open(Number(id));
+      },
+    } satisfies Gary.Panel;
     """, permissions: [.fullDiskAccess], install: { host, plugin in
         plugin.installAPI(host, "notifications", NotificationsRequest.methods) { call in
             switch try NotificationsRequest.parse(call) {

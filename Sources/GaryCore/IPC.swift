@@ -21,22 +21,22 @@ public enum Request: Equatable, Sendable {
     case call(PluginID, method: String, arguments: [String])
     case action(PluginID, kind: PluginKind, action: String, payload: String?)
 
-    public static let usage: [(syntax: String, description: String)] = [
-        ("ping", "Check that Gary is running."),
-        ("quit", "Stop Gary and its crash supervisor, restoring the menu bar and Dock settings that plugins changed."),
-        ("summon <plugin>", "Load and show a plugin's panel, overlay or menu."),
-        ("hide <plugin>", "Hide a plugin's surface and unload it unless it is keepLoaded."),
-        ("toggle <plugin>", "Summon a hidden surface or hide a shown one."),
-        ("reloadPlugins [plugin]", "Reload one plugin, or every loaded plugin, from disk."),
-        ("rescanPlugins", "Find added and removed plugin directories."),
-        ("reloadConfig", "Re-read ~/.config/gary/shell.json."),
-        ("applyTheme [json]", "Apply a theme override payload, or re-read the theme files."),
-        ("listPlugins", "List every plugin with its state."),
-        ("doctor", "Report the version, window levels, private API, permissions, plugin and config problems."),
-        ("permissions", "List each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Starts Gary if needed."),
-        ("permissions request <name>", "Show the macOS prompt for a permission, or open its System Settings pane where macOS has no prompt."),
-        ("call <plugin> <method> [args...]", "Call a method a plugin exports, loading it first if needed."),
-        ("action <plugin> <kind> <action> [payload]", "Send onAction to a running kind of a plugin, as a click, slider or input would, with an optional number or text payload."),
+    public static let usage: [(syntax: String, description: String, example: String?)] = [
+        ("ping", "Check that Gary is running.", nil),
+        ("quit", "Stop Gary and its crash supervisor, restoring the menu bar and Dock settings that plugins changed.", nil),
+        ("summon <plugin>", "Load and show a plugin's panel, overlay or menu.", "gary summon you.launcher"),
+        ("hide <plugin>", "Hide a plugin's surface and unload it unless it is keepLoaded.", nil),
+        ("toggle <plugin>", "Summon a hidden surface or hide a shown one.", nil),
+        ("reloadPlugins [plugin]", "Reload one plugin, or every loaded plugin, from disk.", nil),
+        ("rescanPlugins", "Find added and removed plugin directories.", nil),
+        ("reloadConfig", "Re-read ~/.config/gary/shell.json.", nil),
+        ("applyTheme [json]", "Apply a theme override payload, or re-read the theme files.", ##"gary applyTheme '{"colors": {"accent": "#ff8800"}}'"##),
+        ("listPlugins", "List every plugin with its state.", nil),
+        ("doctor", "Report the version, window levels, private API, permissions, plugin and config problems.", nil),
+        ("permissions", "List each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Starts Gary if needed.", nil),
+        ("permissions request <name>", "Show the macOS prompt for a permission, or open its System Settings pane where macOS has no prompt.", "gary permissions request screen-recording"),
+        ("call <plugin> <method> [args...]", "Call a method a plugin exports, loading it first if needed. Arguments arrive as strings, and a result that is not a string prints as JSON.", "gary call you.weather forecast 3"),
+        ("action <plugin> <kind> <action> [payload]", "Send onAction to a running kind of a plugin, as a click, slider or input would, with an optional number or text payload.", "gary action you.music panel volume 0.5"),
     ]
 
     public static func parse(verb: String, arguments: [String]) throws -> Request {

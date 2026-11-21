@@ -29,6 +29,24 @@ extension Capability {
         seek(seconds: number): null;
       }
     }
+    """, example: """
+    module.exports = {
+      render(state) {
+        const track = state.nowplaying?.track;
+        if (!track) return { type: "text", text: "" };
+        return {
+          type: "row",
+          action: "toggle",
+          children: [
+            { type: "icon", key: "state", symbol: track.playing ? "pause.fill" : "play.fill" },
+            { type: "text", key: "title", text: track.artist ? `${track.artist} – ${track.title}` : track.title },
+          ],
+        };
+      },
+      onAction(action) {
+        if (action === "toggle") host.nowplaying.toggle();
+      },
+    } satisfies Gary.BarWidget;
     """, install: { host, plugin in
         plugin.installAPI(host, "nowplaying", NowPlayingRequest.methods) { call in
             switch try NowPlayingRequest.parse(call) {

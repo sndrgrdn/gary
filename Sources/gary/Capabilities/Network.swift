@@ -10,6 +10,22 @@ extension Capability {
       interface FetchResponse { status: number; text: string }
     }
     declare function fetch(url: string): Promise<Gary.FetchResponse>;
+    """, example: """
+    let temperature = "…";
+
+    function refresh() {
+      fetch("https://wttr.in/?format=%t").then((response) => {
+        temperature = response.status === 200 ? response.text.trim() : "?";
+      });
+    }
+    refresh();
+    setInterval(refresh, 15 * 60_000);
+
+    module.exports = {
+      render() {
+        return { type: "text", text: temperature };
+      },
+    } satisfies Gary.BarWidget;
     """, install: { host, plugin in
         let fetch: @convention(block) (String) -> JSValue = { [weak plugin] address in
             let context = JSContext.current()!

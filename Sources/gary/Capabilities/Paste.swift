@@ -7,6 +7,19 @@ extension Capability {
     declare namespace Gary {
       interface Host { paste(): Promise<{ app: string | null; name: string | null }> }
     }
+    """, example: """
+    const snippets = ["Thanks!", "Looks good to me."];
+
+    module.exports = {
+      render() {
+        return { type: "column", children: snippets.map((text) => ({ type: "text", key: text, text, action: text })) };
+      },
+      onAction(text) {
+        host.clipboard.writeText(text);
+        host.hide();
+        host.paste().then((target) => host.log(`pasted into ${target.name}`)).catch((error) => host.log(String(error)));
+      },
+    } satisfies Gary.Menu;
     """, permissions: [.accessibility], install: { host, plugin in
         plugin.installAPI(host, nil, ["paste"]) { _ in .later(.global(qos: .userInitiated)) { try pasteIntoFrontApp() } }
     })

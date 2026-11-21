@@ -14,6 +14,15 @@ extension Capability {
         quit(bundle: string): Promise<{ asked: number }>;
       }
     }
+    """, example: """
+    module.exports = {
+      render(state) {
+        return { type: "text", text: state.apps?.frontmost?.name ?? "", action: "terminal" };
+      },
+      onAction(action) {
+        if (action === "terminal") host.apps.activate("com.apple.Terminal").catch(() => host.apps.launch("com.apple.Terminal"));
+      },
+    } satisfies Gary.BarWidget;
     """, install: { host, plugin in
         plugin.installAPI(host, "apps", AppsRequest.methods) { call in
             let request = try AppsRequest.parse(call)
