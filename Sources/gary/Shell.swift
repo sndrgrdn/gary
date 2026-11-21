@@ -69,7 +69,8 @@ final class Shell {
     private var renderer: ViewRenderer
     private var themePayload: JSON?
     private var paletteFile: PaletteFile?
-    private var systemMode = Palette.Mode.dark
+    private var systemMode = Palette.Mode(NSApp.effectiveAppearance)
+    private var appearanceObservation: NSKeyValueObservation?
     private var config = ShellConfig.defaults
     private var catalog = PluginCatalog()
     private var resolution: ShellConfig.Resolution
@@ -110,6 +111,10 @@ final class Shell {
         sync(Trace("start"))
 
         watcher = FileWatcher(root: Paths.config) { [weak self] paths, trace in self?.filesChanged(paths, trace) }
+        appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] app, _ in
+            let mode = Palette.Mode(app.effectiveAppearance)
+            DispatchQueue.main.async { self?.systemAppearanceChanged(mode) }
+        }
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             self?.rebuildDisplays(Trace("screens"))
         }
@@ -330,6 +335,7 @@ final class Shell {
         let window = windows[key] ?? SurfaceWindow()
         let isNew = windows[key] == nil
         windows[key] = window
+        if isNew { window.panel.appearance = appearance }
         window.setContent(view)
         if key.slot.kind == .bar {
             var spec = SurfaceSpec.defaults(for: .bar)
@@ -425,8 +431,11 @@ final class Shell {
         }
     }
 
+    private var panels: [NSPanel] { bars.values.map(\.panel) + windows.values.map(\.panel) }
+
+    private var appearance: NSAppearance? { NSAppearance(named: theme.mode == .dark ? .darkAqua : .aqua) }
+
     private func commitFrame() {
-        let panels = bars.values.map(\.panel) + windows.values.map(\.panel)
         for panel in panels where panel.isVisible {
             panel.contentView?.layoutSubtreeIfNeeded()
             panel.displayIfNeeded()
@@ -442,6 +451,7 @@ final class Shell {
         displays = NSScreen.screens.enumerated().map { $1.display(index: $0, theme: theme) }
         for (screen, display) in zip(NSScreen.screens, displays) where usesBuiltinBar {
             let bar = BarWindow(display: display, level: levels.bar)
+            bar.panel.appearance = appearance
             bar.layout(on: screen, theme: theme)
             bars[display.id] = bar
         }
@@ -467,6 +477,13 @@ final class Shell {
         }
     }
 
+    private func systemAppearanceChanged(_ mode: Palette.Mode) {
+        guard mode != systemMode else { return }
+        systemMode = mode
+        log("system appearance \(mode.rawValue)")
+        reloadTheme(Trace("appearance"))
+    }
+
     @discardableResult
     private func reloadTheme(_ trace: Trace) -> Response {
         do {
@@ -482,6 +499,7 @@ final class Shell {
             theme = next
             for warning in theme.warnings { log("theme \(warning)") }
             renderer = ViewRenderer(theme: theme)
+            for panel in panels { panel.appearance = appearance }
             if bandChanged {
                 rebuildDisplays(trace)
             } else {
@@ -685,6 +703,12 @@ final class Shell {
         }
         lines += catalog.problems.map { "\($0.directory.lastPathComponent)\t-\tinvalid\t\($0.reason)" }
         return lines.joined(separator: "\n")
+    }
+}
+
+extension Palette.Mode {
+    init(_ appearance: NSAppearance) {
+        self = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
     }
 }
 
