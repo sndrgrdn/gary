@@ -89,6 +89,7 @@ public enum PluginTypes {
             onAction?(action: string, payload: ActionPayload, state: State): void;
             onKey?(key: Key, state: State): void;
             onHotkey?(id: string, state: State): void;
+            onTopic?(topic: string, value: Json, state: State): void;
             methods?: { [name: string]: (...args: string[]) => Json | void };
             surface?: Surface | null | ((state: State) => Surface | null | undefined);
           }

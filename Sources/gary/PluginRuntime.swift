@@ -71,6 +71,7 @@ final class PluginRuntime: Subscriber {
             state = hub.subscribe(self, to: bundle.manifest.subscribes)
             do {
                 try evaluate()
+                for (topic, value) in state.sorted(by: { $0.key.description < $1.key.description }) { try announce(topic, value) }
                 output = try renderOutput()
                 deliver(self, .loaded(output, trace))
             } catch {
@@ -101,8 +102,18 @@ final class PluginRuntime: Subscriber {
     func receive(_ topic: Topic, _ value: JSON, _ trace: Trace) {
         queue.async { [self] in
             state[topic] = value
-            renderAll(trace)
+            guard functions != nil else { return }
+            do {
+                try announce(topic, value)
+                renderAll(trace)
+            } catch {
+                fail("\(error)")
+            }
         }
+    }
+
+    private func announce(_ topic: Topic, _ value: JSON) throws {
+        try invoke(functions!.dispatch, ["onTopic", JSON.array([.string(topic.description), value]).text, stateText(for: nil)])
     }
 
     func perform(_ action: String, _ payload: JSON) {

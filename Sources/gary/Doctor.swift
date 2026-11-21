@@ -38,6 +38,7 @@ extension Permission {
         case .fullDiskAccess: return "Full Disk Access"
         case .location: return "Location"
         case .notifications: return "Notifications"
+        case .screenRecording: return "Screen Recording"
         }
     }
 
@@ -63,6 +64,8 @@ extension Permission {
             }
             _ = done.wait(timeout: .now() + 2)
             return [.authorized, .provisional].contains(status)
+        case .screenRecording:
+            return CGPreflightScreenCaptureAccess()
         }
     }
 }

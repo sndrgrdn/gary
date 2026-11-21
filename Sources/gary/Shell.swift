@@ -11,6 +11,7 @@ enum Paths {
     static let builtinPlugins = Bundle.main.resourceURL!.appending(path: "plugins")
     static let defaultTheme = Bundle.main.resourceURL!.appending(path: "theme.json")
     static let storage = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appending(path: "Gary/storage")
+    static let systemRestore = storage.deletingLastPathComponent().appending(path: "restore.json")
 }
 
 struct SlotKey: Hashable, CustomStringConvertible {
@@ -92,7 +93,7 @@ final class Shell {
     private var previousApp: NSRunningApplication?
     private var server: LineServer?
     private var watcher: FileWatcher?
-    private var publishers: [AnyObject] = []
+    private var publishers: [String: AnyObject] = [:]
     private var signals: [DispatchSourceSignal] = []
 
     init() throws {
@@ -105,14 +106,16 @@ final class Shell {
     func start() throws {
         hotkeys = HotkeyCenter { [weak self] binding in self?.hotkeyPressed(binding) }
         server = try LineServer(path: socketPath) { [weak self] line in self?.serve(line) ?? Response.failure("shutting down").line }
+        SystemState.restore()
+        hub.demandChanged = { [weak self] topic in DispatchQueue.main.async { self?.demandChanged(topic) } }
         try FileManager.default.createDirectory(at: Paths.config, withIntermediateDirectories: true)
         loadPalette()
         reloadTheme(Trace("start"))
         loadConfig()
         scan()
 
-        publishers = Capability.all.compactMap { capability in
-            capability.topic.map { start in start { [hub] value, trace in hub.publish(.capability(capability.name), value, trace) } }
+        for capability in Capability.all {
+            publishers[capability.name] = capability.topic.map { start in start { [hub] value, trace in hub.publish(.capability(capability.name), value, trace) } }
         }
 
         refreshDisplays(Trace("start"))
@@ -126,6 +129,9 @@ final class Shell {
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             self?.refreshDisplays(Trace("screens"))
         }
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
+            SystemState.restore(SystemState.saved)
+        }
         for number in [SIGTERM, SIGINT] {
             signal(number, SIG_IGN)
             let source = DispatchSource.makeSignalSource(signal: number, queue: .main)
@@ -138,9 +144,17 @@ final class Shell {
     }
 
     private func quit() {
+        SystemState.restore(SystemState.saved)
         server?.stop()
         unlink(socketPath)
         exit(0)
+    }
+
+    private func demandChanged(_ topic: Topic) {
+        guard case .capability(let name) = topic, let publisher = publishers[name] as? DemandDrivenTopic else { return }
+        let demanded = hub.isDemanded(topic)
+        publisher.demand(demanded)
+        log("topic \(name) \(demanded ? "has subscribers" : "has no subscribers")")
     }
 
 
