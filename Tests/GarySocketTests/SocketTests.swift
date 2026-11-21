@@ -12,7 +12,7 @@ struct LineBufferTests {
     @Test func `joins A character split across reads`() throws {
         var buffer = LineBuffer()
         let bytes = Array("é\n".utf8)
-        #expect(try buffer.append(bytes[..<1]) == [])
+        #expect(try buffer.append(bytes[..<1]).isEmpty)
         #expect(try buffer.append(bytes[1...]) == ["é"])
     }
 
