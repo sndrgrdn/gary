@@ -9,6 +9,7 @@ function start() {
   now = Date.now();
   ticker = setInterval(() => {
     now = Date.now();
+
     if (endsAt !== null && now >= endsAt) {
       stop();
       host.log("timer finished");
@@ -21,12 +22,14 @@ function stop() {
   if (ticker !== null) {
     clearInterval(ticker);
   }
+
   ticker = null;
   endsAt = null;
 }
 
 function format(milliseconds: number) {
   const seconds = Math.ceil(milliseconds / 1000);
+
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
@@ -47,6 +50,7 @@ module.exports = {
   render() {
     const length = minutes * 60_000;
     const left = endsAt === null ? length : Math.max(0, endsAt - now);
+
     return {
       type: "column",
       style: "panel",
@@ -89,12 +93,15 @@ module.exports = {
       minutes = Math.round(5 + payload * 55);
       host.storage.set("minutes", minutes);
     }
+
     if (action === "start") {
       start();
     }
+
     if (action === "stop") {
       stop();
     }
+
     if (action === "close") {
       host.hide();
     }

@@ -40,6 +40,7 @@ let allowingAll = false;
 
 function listed(all: Status[]) {
   const needed = all.filter((permission) => permission.plugins.length > 0);
+
   return needed.length > 0 ? needed : all;
 }
 
@@ -53,14 +54,17 @@ function sentence(parts: string[]) {
 
 function benefit(permission: Status) {
   const copy = permissions[permission.name];
+
   const parts = permission.plugins
     .map((plugin) => {
       const uses = [
         ...new Set(plugin.capabilities.map((capability) => copy.uses[capability]).filter(Boolean)),
       ];
+
       return uses.length > 0 ? `${plugin.name} ${sentence(uses)}` : null;
     })
     .filter((part): part is string => part !== null);
+
   return parts.length > 0 ? `Lets ${sentence(parts)}.` : copy.general;
 }
 
@@ -83,12 +87,15 @@ function button(action: string, text: string, primary = false): Gary.Node {
 function footer(missing: Status[], restarting: boolean): Gary.Node[] {
   const nodes: Gary.Node[] = missing.length > 0 || restarting ? [button("close", "Not now")] : [];
   nodes.push({ type: "spacer", key: "push" });
+
   if (missing.length > 1) {
     nodes.push(button("all", "Allow all", true));
   }
+
   if (missing.length === 0 && !restarting) {
     nodes.push(button("close", "Done", true));
   }
+
   return nodes;
 }
 
@@ -147,15 +154,19 @@ function row(permission: Status): Gary.Node {
 
 function intro(shown: Status[], missing: Status[], restarting: boolean) {
   const noneNeeded = shown.every((permission) => permission.plugins.length === 0);
+
   if (missing.length > 0 && noneNeeded) {
     return "None of your plugins need these yet. Allow them now, and plugins you add later work right away.";
   }
+
   if (missing.length > 0) {
     return "Your plugins need a few permissions from macOS. Allow each one, and its row updates.";
   }
+
   if (restarting) {
     return "Restart Gary to finish. macOS gives Gary these permissions when it starts.";
   }
+
   return noneNeeded
     ? "Gary has every permission a plugin can ask for."
     : "Gary has everything your plugins need.";
@@ -163,11 +174,13 @@ function intro(shown: Status[], missing: Status[], restarting: boolean) {
 
 function allowNext(all: Status[]) {
   const next = listed(all).find((permission) => !isDone(permission));
+
   if (next) {
     host.permissions.request(next.name).then((message) => host.log(message));
   } else {
     allowingAll = false;
   }
+
   return next;
 }
 
@@ -180,8 +193,10 @@ module.exports = {
     if (topic !== "permissions" || !allowingAll) {
       return;
     }
+
     const all = value as unknown as Status[];
     const waiting = all.find((permission) => permission.name === waitingFor);
+
     if (!waiting || isDone(waiting)) {
       waitingFor = allowNext(all)?.name;
     }
@@ -192,6 +207,7 @@ module.exports = {
     const shown = listed(all);
     const missing = shown.filter((permission) => !isDone(permission));
     const restarting = shown.some((permission) => permission.status === "needsRestart");
+
     return {
       type: "column",
       key: "onboarding",
@@ -236,18 +252,24 @@ module.exports = {
 
   onAction(action, _payload, state) {
     const all = state.permissions ?? [];
+
     if (action === "close") {
       return host.hide();
     }
+
     if (action === "restart") {
       return void host.permissions.restart().then((message) => host.log(message));
     }
+
     if (action === "all") {
       allowingAll = true;
       waitingFor = allowNext(all)?.name;
+
       return;
     }
+
     const permission = all.find((each) => each.name === action);
+
     if (permission) {
       host.permissions.request(permission.name).then((message) => host.log(message));
     }

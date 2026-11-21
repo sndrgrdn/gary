@@ -3,6 +3,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
 function week(date: Date) {
   const day = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   day.setUTCDate(day.getUTCDate() + 4 - (day.getUTCDay() || 7));
+
   return Math.ceil(((day.getTime() - Date.UTC(day.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
 }
 
@@ -11,11 +12,13 @@ module.exports = {
 
   render(state) {
     const date = new Date(state.clock ? state.clock.epoch : Date.now());
+
     const day = date.toLocaleDateString("en-GB", {
       weekday: "long",
       day: "numeric",
       month: "long",
     });
+
     const lines: Gary.Node[] = [
       { type: "text", key: "title", text: day, style: "title" },
       {
@@ -25,7 +28,9 @@ module.exports = {
         style: "bright",
       },
     ];
+
     const battery = state.battery;
+
     if (battery && battery.present) {
       lines.push({
         type: "row",
@@ -44,6 +49,7 @@ module.exports = {
         ],
       });
     }
+
     return { type: "column", style: "panel", children: lines };
   },
 } satisfies Gary.Panel;

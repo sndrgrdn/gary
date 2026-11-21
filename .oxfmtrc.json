@@ -9,6 +9,18 @@
     "tmp/**",
     "Vendor/**",
     "package-lock.json",
-    ".swiftlint-baseline.json"
+    ".swiftlint-baseline.json",
+    ".agent/**",
+    ".agents/**",
+    ".claude/**",
+    ".codex/**",
+    ".continue/**",
+    ".cursor/**",
+    ".gemini/**",
+    ".opencode/**",
+    ".pi/**",
+    ".roo/**",
+    ".windsurf/**",
+    "tools/oxlint/anti-slop/**"
   ]
 }

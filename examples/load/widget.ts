@@ -8,6 +8,7 @@ function refresh() {
 }
 
 refresh();
+
 setInterval(refresh, 30_000);
 
 module.exports = {

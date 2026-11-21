@@ -5,9 +5,11 @@ let showFree = false;
 module.exports = {
   render(state) {
     const disk = state["example.disk"] as Disk | undefined;
+
     if (!disk) {
       return { type: "text", text: "disk …", style: "dim" };
     }
+
     return {
       type: "row",
       action: "toggle",
