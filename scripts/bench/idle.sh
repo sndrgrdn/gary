@@ -14,7 +14,7 @@ for run in $(seq "$RUNS"); do
     while pgrep -f "$APP/Contents/MacOS/gary" > /dev/null; do sleep 0.2; done
     open "$APP"
     sleep 5
-    GARY=$(pgrep -f "$APP/Contents/MacOS/gary")
+    GARY=$(pgrep -f "$APP/Contents/MacOS/gary app$")
     echo "run=$run $(tmp/bin/meter "$SECONDS_PER_RUN" "gary=$GARY" "sketchybar=$SKETCHYBAR" | tr '\n' ' ')"
     footprint -p "$GARY" 2>/dev/null | grep -E "^\s*Footprint|phys_footprint:" | head -1 | sed "s/^/run=$run gary footprint tool: /"
 done

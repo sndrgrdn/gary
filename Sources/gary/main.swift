@@ -10,6 +10,10 @@ func stdoutIsDiscarded() -> Bool {
 }
 
 let args = Array(CommandLine.arguments.dropFirst())
+if !args.isEmpty, Bundle.main.bundleIdentifier == nil, let invoked = Bundle.main.executablePath,
+   let resolved = realpath(invoked, nil).map({ String(cString: $0) }), resolved != invoked, resolved.contains(".app/Contents/MacOS/") {
+    execv(resolved, CommandLine.unsafeArgv)
+}
 guard let verb = args.first else {
     if Bundle.main.bundleIdentifier != nil {
         if stdoutIsDiscarded() {
@@ -18,7 +22,7 @@ guard let verb = args.first else {
             }
             for stream in [stdout, stderr] { freopen(logURL.path, "a", stream) }
         }
-        exit(runApp())
+        exit(runSupervisor())
     }
     fputs("usage: gary <verb> [args] (see gary help) | gary app\n", stderr)
     exit(64)
@@ -26,6 +30,7 @@ guard let verb = args.first else {
 
 switch verb {
 case "app": exit(runApp())
+case "login": exit(runLogin(Array(args.dropFirst())))
 case "help", "--help", "-h": exit(runHelp())
 default: exit(runCli(verb, Array(args.dropFirst())))
 }

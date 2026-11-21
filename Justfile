@@ -11,5 +11,12 @@ run: kill
     scripts/bundle.sh --debug
     ./build/Gary.app/Contents/MacOS/gary
 
+install: bundle
+    rm -rf ~/Applications/Gary.app
+    mkdir -p ~/Applications ~/.local/bin
+    cp -R build/Gary.app ~/Applications/Gary.app
+    ln -sf ~/Applications/Gary.app/Contents/MacOS/gary ~/.local/bin/gary
+    ls -l ~/.local/bin/gary
+
 kill:
     pkill -f "Gary.app/Contents/MacOS/gary" || true

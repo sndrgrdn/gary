@@ -37,6 +37,7 @@ func runCli(_ verb: String, _ arguments: [String]) -> Int32 {
 func runHelp() -> Int32 {
     print("usage: gary <verb> [args], sent to the running app over \(socketPath)\n")
     for (syntax, description) in Request.usage { print("  \(syntax)\n      \(description)") }
-    print("\n  app\n      Run the shell in the foreground, logging to the terminal.")
+    print("\n  app\n      Run the shell in the foreground, logging to the terminal, without the crash supervisor.")
+    print("  login [on|off|status]\n      Start Gary at login, or stop doing so.")
     return 0
 }
