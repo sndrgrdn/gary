@@ -7,8 +7,27 @@ public enum PluginKind: String, CaseIterable, Sendable {
     public var isSurface: Bool { self == .panel || self == .overlay || self == .menu }
 }
 
-public enum Topic: String, CaseIterable, Sendable {
+public enum Topic: Hashable, Sendable, CustomStringConvertible {
     case battery, clock
+    case plugin(PluginID)
+
+    public init?(_ raw: String) {
+        switch raw {
+        case "battery": self = .battery
+        case "clock": self = .clock
+        default:
+            guard let id = PluginID(raw) else { return nil }
+            self = .plugin(id)
+        }
+    }
+
+    public var description: String {
+        switch self {
+        case .battery: return "battery"
+        case .clock: return "clock"
+        case .plugin(let id): return id.rawValue
+        }
+    }
 }
 
 public enum HostService: String, CaseIterable, Sendable {
@@ -140,7 +159,7 @@ public struct PluginManifest: Equatable, Sendable {
 
         let keepLoaded = try optional("keepLoaded", \.bool, default: false)
         let subscribes = try optional("subscribes", strings, default: []).map { raw in
-            guard let topic = Topic(rawValue: raw) else { throw ManifestError.unknownTopic(raw) }
+            guard let topic = Topic(raw) else { throw ManifestError.unknownTopic(raw) }
             return topic
         }
         let uses = try optional("uses", strings, default: []).map { raw in

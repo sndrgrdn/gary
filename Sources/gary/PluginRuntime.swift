@@ -192,6 +192,12 @@ final class PluginRuntime: Subscriber {
         let id = self.id
         let logBlock: @convention(block) (String) -> Void = { message in log("plugin \(id): \(message)") }
         host.setObject(logBlock, forKeyedSubscript: "log" as NSString)
+        let publishBlock: @convention(block) (JSValue) -> Void = { [weak self] value in
+            guard let self, let text = value.context.objectForKeyedSubscript("JSON").invokeMethod("stringify", withArguments: [value]).toString(),
+                  let json = try? JSON.parse(text) else { return }
+            hub.publish(.plugin(id), json, Trace("publish"))
+        }
+        host.setObject(publishBlock, forKeyedSubscript: "publish" as NSString)
         if bundle.manifest.uses.contains(.exec) {
             let execBlock: @convention(block) (JSValue, JSValue) -> Void = { [weak self] argv, callback in
                 guard let argv = argv.toArray() as? [String], !argv.isEmpty, callback.isObject else {
@@ -228,7 +234,7 @@ final class PluginRuntime: Subscriber {
     }
 
     private func stateText(for display: DisplayInfo?) -> String {
-        var fields = Dictionary(uniqueKeysWithValues: state.map { ($0.key.rawValue, $0.value) })
+        var fields = Dictionary(uniqueKeysWithValues: state.map { ($0.key.description, $0.value) })
         fields["settings"] = settings
         fields["display"] = display?.json
         return JSON.object(fields).text

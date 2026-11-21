@@ -12,13 +12,16 @@ final class StateHub {
     private var subscribers: [Topic: [ObjectIdentifier: Subscriber]] = [:]
 
     func publish<S: Snapshot>(_ snapshot: S, _ trace: Trace) {
-        let value = snapshot.json
+        publish(S.topic, snapshot.json, trace)
+    }
+
+    func publish(_ topic: Topic, _ value: JSON, _ trace: Trace) {
         let targets: [Subscriber] = lock.withLock {
-            guard latest[S.topic] != value else { return [] }
-            latest[S.topic] = value
-            return Array(subscribers[S.topic, default: [:]].values)
+            guard latest[topic] != value else { return [] }
+            latest[topic] = value
+            return Array(subscribers[topic, default: [:]].values)
         }
-        for subscriber in targets { subscriber.receive(S.topic, value, trace) }
+        for subscriber in targets { subscriber.receive(topic, value, trace) }
     }
 
     func subscribe(_ subscriber: Subscriber, to topics: [Topic]) -> [Topic: JSON] {

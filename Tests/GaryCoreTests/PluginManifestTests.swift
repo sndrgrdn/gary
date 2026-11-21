@@ -20,13 +20,13 @@ struct PluginManifestTests {
         let parsed = try manifest([
             "kinds": ["service", "bar-widget"],
             "entryPoints": ["service": "lib/service.js", "bar-widget": "widget.js"],
-            "keepLoaded": true, "subscribes": ["clock", "battery"], "uses": ["exec"],
+            "keepLoaded": true, "subscribes": ["clock", "battery", "acme.counter"], "uses": ["exec"],
         ])
         #expect(parsed.id.rawValue == "acme.media")
         #expect(parsed.kinds == [.service, .barWidget])
         #expect(parsed.entryPoints == [.service: "lib/service.js", .barWidget: "widget.js"])
         #expect(parsed.keepLoaded)
-        #expect(parsed.subscribes == [.clock, .battery])
+        #expect(parsed.subscribes == [.clock, .battery, .plugin(PluginID("acme.counter")!)])
         #expect(parsed.uses == [.exec])
     }
 
@@ -81,6 +81,7 @@ struct PluginManifestTests {
 
     @Test func subscriptionsAndServicesMustBeKnown() {
         rejects(["subscribes": ["weather"]], with: .unknownTopic("weather"))
+        rejects(["subscribes": ["Acme.Counter"]], with: .unknownTopic("Acme.Counter"))
         rejects(["uses": ["dbus"]], with: .unknownService("dbus"))
     }
 }

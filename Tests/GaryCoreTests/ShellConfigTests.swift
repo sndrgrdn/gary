@@ -5,13 +5,13 @@ import Testing
 struct ShellConfigTests {
     private func id(_ raw: String) -> PluginID { PluginID(raw)! }
 
-    private func catalog(_ entries: [(String, PluginOrigin, [PluginKind])]) -> PluginCatalog {
+    private func catalog(_ entries: [(String, PluginOrigin, [PluginKind])], subscribes: [String: [Topic]] = [:]) -> PluginCatalog {
         var catalog = PluginCatalog()
         for (raw, origin, kinds) in entries {
             let manifest = PluginManifest(
                 id: id(raw), name: raw, version: "1", kinds: kinds,
                 entryPoints: Dictionary(uniqueKeysWithValues: kinds.map { ($0, "main.js") }),
-                keepLoaded: false, subscribes: [], uses: []
+                keepLoaded: false, subscribes: subscribes[raw] ?? [], uses: []
             )
             catalog.plugins[id(raw)] = PluginBundle(manifest: manifest, directory: URL(fileURLWithPath: "/p/\(raw)"), origin: origin)
         }
@@ -74,6 +74,15 @@ struct ShellConfigTests {
         #expect(resolution.barPlugin == id("acme.alt"))
         #expect(resolution.warnings == ["acme.top is a bar too; acme.alt replaces the built-in bar"])
         #expect(try config(#"{"plugins": ["acme.top", "acme.alt"], "disabledPlugins": ["acme.alt"]}"#).resolve(bars).barPlugin == id("acme.top"))
+    }
+
+    @Test func subscriptionsToPluginsThatAreMissingOrOffAreWarnings() throws {
+        let plugins = catalog(
+            [("acme.counter", .user, [.service]), ("acme.view", .user, [.barWidget]), ("acme.off", .user, [.service])],
+            subscribes: ["acme.view": [.clock, .plugin(id("acme.counter")), .plugin(id("acme.off")), .plugin(id("acme.ghost"))]]
+        )
+        let resolution = try config(#"{"bar": {"left": ["acme.view"]}, "plugins": ["acme.counter"]}"#).resolve(plugins)
+        #expect(resolution.warnings == ["acme.view subscribes to acme.off, which is not enabled", "acme.view subscribes to acme.ghost, which is not installed"])
     }
 
     @Test func settingsAreKeptPerPlugin() throws {
