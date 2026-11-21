@@ -57,6 +57,7 @@ public struct ShellConfig: Equatable, Sendable {
     public struct Resolution: Equatable, Sendable {
         public var enabled: Set<PluginID>
         public var bar: [BarSection: [PluginID]]
+        public var barPlugin: PluginID?
         public var warnings: [String]
     }
 
@@ -89,6 +90,8 @@ public struct ShellConfig: Equatable, Sendable {
             }
         }
         for id in plugins where catalog.plugins[id] == nil { warnings.append("plugins: no plugin \(id)") }
-        return Resolution(enabled: enabled, bar: resolved, warnings: warnings)
+        let bars = enabled.filter { catalog.plugins[$0]!.manifest.kinds.contains(.bar) }.sorted()
+        for id in bars.dropFirst() { warnings.append("\(id) is a bar too; \(bars[0]) replaces the built-in bar") }
+        return Resolution(enabled: enabled, bar: resolved, barPlugin: bars.first, warnings: warnings)
     }
 }

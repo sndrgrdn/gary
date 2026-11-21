@@ -113,7 +113,7 @@ final class BarWindow {
     }
 
     func close() {
-        panel.orderOut(nil)
+        panel.close()
     }
 }
 
@@ -121,44 +121,56 @@ final class SurfaceWindow {
     let panel = makeSurfacePanel(level: 0)
     private let card = NSView()
     private var content: NSView?
+    private var edges: [NSLayoutConstraint] = []
+    private var size: [NSLayoutConstraint] = []
 
     init() {
         card.wantsLayer = true
         panel.contentView = card
     }
 
-    func setContent(_ view: NSView, theme: Theme) {
+    func setContent(_ view: NSView) {
         guard view !== content else { return }
         content?.removeFromSuperview()
         content = view
         view.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(view)
-        let padding = theme.panel.padding
-        NSLayoutConstraint.activate([
-            view.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: padding),
-            view.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -padding),
-            view.topAnchor.constraint(equalTo: card.topAnchor, constant: padding),
-            view.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -padding),
-        ])
+        edges = [
+            view.leadingAnchor.constraint(equalTo: card.leadingAnchor),
+            view.topAnchor.constraint(equalTo: card.topAnchor),
+            card.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            card.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ]
+        for edge in edges.suffix(2) { edge.priority = .init(490) }
+        NSLayoutConstraint.activate(edges)
     }
 
-    func place(_ spec: SurfaceSpec, on display: DisplayInfo, level: Int, theme: Theme) {
-        card.layer?.backgroundColor = NSColor(theme.panel.background).cgColor
-        card.layer?.cornerRadius = theme.panel.radius
+    func place(_ spec: SurfaceSpec, on display: DisplayInfo, level: Int, chrome: (background: RGBA, radius: Double, padding: Double)) {
+        card.layer?.backgroundColor = NSColor(chrome.background).cgColor
+        card.layer?.cornerRadius = chrome.radius
+        for edge in edges { edge.constant = chrome.padding }
         panel.level = NSWindow.Level(rawValue: level)
         panel.ignoresMouseEvents = spec.clickThrough
         panel.focusable = spec.focusable
-        let card = card
+        NSLayoutConstraint.deactivate(size)
         let frame = spec.frame(on: display) { width, height in
-            let forced = [width.map { card.widthAnchor.constraint(equalToConstant: $0) }, height.map { card.heightAnchor.constraint(equalToConstant: $0) }].compactMap { $0 }
-            for constraint in forced { constraint.priority = .init(999) }
-            NSLayoutConstraint.activate(forced)
-            defer { NSLayoutConstraint.deactivate(forced) }
-            return card.fittingSize
+            fixedSize(width, height, priority: 999).fitting
         }
+        size = fixedSize(frame.width, frame.height, priority: 999).constraints
+        NSLayoutConstraint.activate(size)
         panel.setFrame(frame, display: false)
     }
 
+    private func fixedSize(_ width: Double?, _ height: Double?, priority: Float) -> (constraints: [NSLayoutConstraint], fitting: CGSize) {
+        let constraints = [width.map { card.widthAnchor.constraint(equalToConstant: $0) }, height.map { card.heightAnchor.constraint(equalToConstant: $0) }].compactMap { $0 }
+        for constraint in constraints { constraint.priority = .init(priority) }
+        NSLayoutConstraint.activate(constraints)
+        let fitting = card.fittingSize
+        NSLayoutConstraint.deactivate(constraints)
+        return (constraints, fitting)
+    }
+
     func show() { panel.orderFrontRegardless() }
-    func close() { panel.orderOut(nil) }
+    func close() { panel.close() }
+    func contains(_ point: NSPoint) -> Bool { panel.isVisible && NSMouseInRect(point, panel.frame, false) }
 }

@@ -74,6 +74,7 @@ final class Shell {
     private var bars: [String: BarWindow] = [:]
     private var windows: [MountKey: SurfaceWindow] = [:]
     private var mounts: [MountKey: Mount] = [:]
+    private var clickMonitors: [Any] = []
     private var server: LineServer?
     private var watcher: FileWatcher?
     private var providers: [AnyObject] = []
@@ -97,12 +98,12 @@ final class Shell {
         clock.start()
         battery.start()
 
-        rebuildBars(Trace("start"))
+        rebuildDisplays(Trace("start"))
         sync(Trace("start"))
 
         watcher = FileWatcher(root: Paths.config) { [weak self] paths, trace in self?.filesChanged(paths, trace) }
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
-            self?.rebuildBars(Trace("screens"))
+            self?.rebuildDisplays(Trace("screens"))
         }
         for number in [SIGTERM, SIGINT] {
             signal(number, SIG_IGN)
@@ -130,17 +131,25 @@ final class Shell {
     private func resolve() {
         resolution = config.resolve(catalog)
         for warning in resolution.warnings { log("shell.json: \(warning)") }
-        for id in resolution.enabled {
-            let unsupported = catalog.plugins[id]!.manifest.kinds.filter { $0 != .barWidget && $0 != .panel }
-            if !unsupported.isEmpty { log("plugin \(id): kinds \(unsupported.map(\.rawValue)) are not supported yet") }
-        }
+    }
+
+    private var usesBuiltinBar: Bool {
+        guard let id = resolution.barPlugin else { return true }
+        if case .failed? = slots[SlotKey(id: id, kind: .bar)]?.phase { return true }
+        return false
     }
 
     private func sync(_ trace: Trace) {
+        if usesBuiltinBar == bars.isEmpty { rebuildDisplays(trace) }
         var wanted: [SlotKey: PluginBundle] = [:]
-        for id in resolution.bar.values.joined() { wanted[SlotKey(id: id, kind: .barWidget)] = catalog.plugins[id] }
-        for id in resolution.enabled where catalog.plugins[id]!.manifest.kinds.contains(.panel) {
-            wanted[SlotKey(id: id, kind: .panel)] = catalog.plugins[id]
+        if usesBuiltinBar {
+            for id in resolution.bar.values.joined() { wanted[SlotKey(id: id, kind: .barWidget)] = catalog.plugins[id] }
+        }
+        if let id = resolution.barPlugin { wanted[SlotKey(id: id, kind: .bar)] = catalog.plugins[id] }
+        for id in resolution.enabled {
+            for kind in catalog.plugins[id]!.manifest.kinds where kind.isSurface || kind == .service {
+                wanted[SlotKey(id: id, kind: kind)] = catalog.plugins[id]
+            }
         }
         for (key, slot) in slots where wanted[key] == nil {
             stop(slot)
@@ -154,7 +163,7 @@ final class Shell {
             } else {
                 let slot = PluginSlot(key: key, bundle: bundle)
                 slots[key] = slot
-                if key.kind == .barWidget { load(slot, trace) }
+                if !key.kind.isSurface { load(slot, trace) }
             }
         }
         arrangeBars()
@@ -162,13 +171,15 @@ final class Shell {
     }
 
     private func isLive(_ slot: PluginSlot) -> Bool {
-        slot.key.kind == .barWidget || slot.visible || slot.runtime != nil
+        !slot.key.kind.isSurface || slot.visible || slot.runtime != nil
     }
 
     private func scene(for slot: PluginSlot) -> Scene {
         switch slot.key.kind {
         case .barWidget: return Scene(displays: displays.filter { bars[$0.id] != nil }, shown: true)
-        default: return Scene(displays: displays, shown: slot.visible, focused: slot.focused)
+        case .bar: return Scene(displays: displays, shown: true)
+        case .service: return Scene()
+        case .panel, .overlay, .menu: return Scene(displays: displays, shown: slot.visible, focused: slot.focused)
         }
     }
 
@@ -207,6 +218,7 @@ final class Shell {
             log("plugin \(key): loaded \(slot.bundle.manifest.version)")
             present(slot, output, trace)
             slot.answerWaiters(.ok(slot.visible ? "shown" : "loaded"))
+            if key.kind == .bar { sync(trace) }
         case .output(let output, let trace):
             guard slot.runtime === runtime else { return }
             present(slot, output, trace)
@@ -222,8 +234,9 @@ final class Shell {
             unmount(key)
             slot.visible = false
             slot.answerWaiters(.failure("\(key.id) failed: \(reason)"))
-            commitFrame()
             log("plugin \(key): failed: \(reason)")
+            if key.kind == .bar { sync(Trace("bar-fallback")) }
+            commitFrame()
         }
     }
 
@@ -276,13 +289,24 @@ final class Shell {
             }
             return
         }
-        guard let spec = slot.surface, let display = displays.first(where: { $0.id == key.display }) else { return }
+        guard let display = displays.first(where: { $0.id == key.display }) else { return }
         let window = windows[key] ?? SurfaceWindow()
         let isNew = windows[key] == nil
         windows[key] = window
-        window.setContent(view, theme: theme)
-        window.place(spec, on: display, level: levels.level(spec.layer), theme: theme)
-        if isNew { window.show() }
+        window.setContent(view)
+        if key.slot.kind == .bar {
+            var spec = SurfaceSpec.defaults(for: .bar)
+            spec.anchors = Edges(top: true, bottom: false, left: true, right: true)
+            spec.height = .points(display.band)
+            spec.exclusionMode = .ignore
+            window.place(spec, on: display, level: levels.bar, chrome: (theme.bar.background, 0, 0))
+        } else if let spec = slot.surface {
+            window.place(spec, on: display, level: levels.level(spec.layer), chrome: (theme.panel.background, theme.panel.radius, theme.panel.padding))
+        }
+        if isNew {
+            window.show()
+            watchClicks()
+        }
     }
 
     private func unmount(_ key: MountKey) {
@@ -290,9 +314,35 @@ final class Shell {
         windows.removeValue(forKey: key)?.close()
     }
 
+    private func watchClicks() {
+        let open = windows.keys.contains { $0.slot.kind == .menu }
+        guard open == clickMonitors.isEmpty else { return }
+        if !open {
+            for monitor in clickMonitors { NSEvent.removeMonitor(monitor) }
+            clickMonitors = []
+            return
+        }
+        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        clickMonitors = [
+            NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] _ in self?.clicked(at: NSEvent.mouseLocation) } as Any,
+            NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
+                self?.clicked(at: NSEvent.mouseLocation)
+                return event
+            } as Any,
+        ]
+    }
+
+    private func clicked(at point: NSPoint) {
+        let menus = Set(windows.keys.filter { $0.slot.kind == .menu }.map(\.slot))
+        for menu in menus where !windows.contains(where: { $0.key.slot == menu && $0.value.contains(point) }) {
+            _ = hide(menu.id, Trace("click-outside"))
+        }
+    }
+
     private func unmount(_ slot: SlotKey) {
         for key in mounts.keys where key.slot == slot { unmount(key) }
         if slot.kind == .barWidget { arrangeBars() }
+        watchClicks()
     }
 
     private func arrangeBars() {
@@ -313,12 +363,12 @@ final class Shell {
     }
 
 
-    private func rebuildBars(_ trace: Trace) {
+    private func rebuildDisplays(_ trace: Trace) {
         for bar in bars.values { bar.close() }
         bars = [:]
         for key in mounts.keys where key.slot.kind == .barWidget { mounts[key] = nil }
         displays = NSScreen.screens.enumerated().map { $1.display(index: $0, theme: theme) }
-        for (screen, display) in zip(NSScreen.screens, displays) {
+        for (screen, display) in zip(NSScreen.screens, displays) where usesBuiltinBar {
             let bar = BarWindow(display: display, level: levels.bar)
             bar.layout(on: screen, theme: theme)
             bars[display.id] = bar
@@ -343,7 +393,7 @@ final class Shell {
             theme = next
             renderer = ViewRenderer(theme: theme)
             if bandChanged {
-                rebuildBars(Trace("theme"))
+                rebuildDisplays(Trace("theme"))
             }
             for mount in mounts.values { renderer.restyle(mount.view, mount.node) }
             for key in mounts.keys { place(key) }
@@ -522,7 +572,7 @@ final class Shell {
             let manifest = bundle.manifest
             let states = manifest.kinds.map { kind -> String in
                 guard resolution.enabled.contains(id) else { return "\(kind.rawValue):disabled" }
-                guard let slot = slots[SlotKey(id: id, kind: kind)] else { return "\(kind.rawValue):\(kind == .barWidget ? "not-in-bar" : "unsupported")" }
+                guard let slot = slots[SlotKey(id: id, kind: kind)] else { return "\(kind.rawValue):\(kind == .barWidget ? "not-in-bar" : "inactive")" }
                 switch slot.phase {
                 case .running: return "\(kind.rawValue):\(kind.isSurface && !slot.visible ? "paused" : "running")"
                 case .stopped: return "\(kind.rawValue):stopped"

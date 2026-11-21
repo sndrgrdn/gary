@@ -67,6 +67,15 @@ struct ShellConfigTests {
         ])
     }
 
+    @Test func oneEnabledBarPluginReplacesTheBuiltInBar() throws {
+        #expect(ShellConfig.defaults.resolve(standard).barPlugin == nil)
+        let bars = catalog([("acme.top", .user, [.bar]), ("acme.alt", .user, [.bar, .service]), ("acme.off", .user, [.bar])])
+        let resolution = try config(#"{"bar": {}, "plugins": ["acme.top", "acme.alt"]}"#).resolve(bars)
+        #expect(resolution.barPlugin == id("acme.alt"))
+        #expect(resolution.warnings == ["acme.top is a bar too; acme.alt replaces the built-in bar"])
+        #expect(try config(#"{"plugins": ["acme.top", "acme.alt"], "disabledPlugins": ["acme.alt"]}"#).resolve(bars).barPlugin == id("acme.top"))
+    }
+
     @Test func settingsAreKeptPerPlugin() throws {
         let parsed = try config(#"{"settings": {"gary.clock": {"hour12": true}}}"#)
         #expect(parsed.settings[id("gary.clock")] == .object(["hour12": .bool(true)]))
