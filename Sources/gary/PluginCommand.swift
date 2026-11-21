@@ -199,10 +199,14 @@ private func warnUnsandboxed(_ manifest: PluginManifest) {
     warning: plugins run unsandboxed inside Gary, with your user account's access to files, \
     the network and other programs, and with every macOS permission you granted Gary.
     """)
-    guard !manifest.uses.isEmpty else { return print("\(manifest.id) uses no host capabilities") }
-    print("\(manifest.id) uses:")
-    let width = manifest.uses.map(\.count).max()!
-    for name in manifest.uses {
+    guard !manifest.capabilities.isEmpty else { return print("\(manifest.id) uses no capabilities") }
+    print("\(manifest.id) uses these capabilities in uses and subscribes:")
+    printCapabilities(manifest.capabilities)
+}
+
+private func printCapabilities(_ names: [String]) {
+    let width = names.map(\.count).max() ?? 0
+    for name in names {
         let permissions = Capability.all.first { $0.name == name }?.permissions.map(\.name) ?? []
         print("  \(name.padding(toLength: width, withPad: " ", startingAt: 0))  macOS permission: \(permissions.isEmpty ? "none" : permissions.joined(separator: ", "))")
     }
@@ -240,8 +244,11 @@ private func update(_ arguments: Arguments) throws {
     }
     guard next.id == id else { throw CommandError("not updating \(id): \(upstream.prefix(12)) changes its id to \(next.id)") }
     let current = (try? PluginBundle.load(directory, origin: .user, capabilities: capabilities))?.manifest
-    let added = next.uses.filter { !(current?.uses ?? []).contains($0) }
-    if !added.isEmpty { print("warning: this update also uses \(added.joined(separator: ", "))") }
+    let added = next.capabilities.filter { !(current?.capabilities ?? []).contains($0) }
+    if !added.isEmpty {
+        print("warning: this update also uses:")
+        printCapabilities(added)
+    }
 
     if !arguments.flags.contains("--yes") {
         guard isatty(STDIN_FILENO) != 0 else { throw CommandError("rerun with --yes to apply this update") }

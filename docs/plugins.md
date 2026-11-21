@@ -55,7 +55,7 @@ Put the plugin folder at the root of a git repository and push it. Others instal
 gary plugin add https://github.com/you/gary-hello.git --enable
 ```
 
-`gary plugin add` also takes a local repository path, a `file://` URL, or a plain folder, which it copies. It clones into a staging folder and validates the plugin. It refuses an id that is already installed and any `gary.` id. It then prints a warning that plugins run unsandboxed, lists the capabilities in `uses` with their macOS permissions, and moves the folder to `~/.config/gary/plugins/<id>`. It never runs plugin code.
+`gary plugin add` also takes a local repository path, a `file://` URL, or a plain folder, which it copies. It clones into a staging folder and validates the plugin. It refuses an id that is already installed and any `gary.` id. It then prints a warning that plugins run unsandboxed, lists the capabilities in `uses` and `subscribes` with their macOS permissions, and moves the folder to `~/.config/gary/plugins/<id>`. It never runs plugin code.
 
 | Command | What it does |
 | --- | --- |
