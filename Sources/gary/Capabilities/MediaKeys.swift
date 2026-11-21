@@ -61,7 +61,7 @@ private final class KeyTap {
         thread.qualityOfService = .userInteractive
         thread.start()
         ready.wait()
-        return loop!
+        return loop ?? CFRunLoopGetMain()
     }()
 
     func intercept(_ keys: Set<MediaKey>, for plugin: PluginRuntime) throws -> Bool {

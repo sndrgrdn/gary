@@ -25,7 +25,8 @@ public enum Permission: String, CaseIterable, Sendable {
         case .location: "Privacy_LocationServices"
         case .screenRecording: "Privacy_ScreenCapture"
         }
-        return URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)")!
+        return URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)")
+            ?? URL(filePath: "/System/Applications/System Settings.app")
     }
 }
 
