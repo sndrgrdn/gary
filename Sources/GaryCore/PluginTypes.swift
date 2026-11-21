@@ -5,14 +5,20 @@ public enum PluginTypes {
     public static let schemaFile = "manifest.schema.json"
 
     public static func declarations(capabilities: [String], pluginTopics: [PluginID], theme: JSON?) -> String {
-        func names(_ section: String) -> String {
-            let keys = theme?[section]?.object?.keys.sorted() ?? []
-            return (keys.map { "\"\($0)\"" } + ["(string & {})"]).joined(separator: " | ")
-        }
-        func union(_ values: [String]) -> String {
-            values.map { "\"\($0)\"" }.joined(separator: " | ")
-        }
-        let style = (StyleProps.numbers.map { "\($0.0)?: number;" } + [
+        [coreTypes(theme: theme), stateTypes(pluginTopics: pluginTopics), moduleTypes(capabilities: capabilities)].joined(separator: "\n\n")
+    }
+
+    private static func union(_ values: [String]) -> String {
+        values.map { "\"\($0)\"" }.joined(separator: " | ")
+    }
+
+    private static func names(_ section: String, in theme: JSON?) -> String {
+        let keys = theme?[section]?.object?.keys.sorted() ?? []
+        return (keys.map { "\"\($0)\"" } + ["(string & {})"]).joined(separator: " | ")
+    }
+
+    private static var styleFields: String {
+        (StyleProps.numbers.map { "\($0.0)?: number;" } + [
             "padding?: number | [number, number] | [number, number, number, number];",
         ] + StyleProps.signed.map { "\($0.0)?: number;" } + [
             "align?: \(union(Align.allCases.map(\.rawValue)));", "animation?: \(union(Animation.allCases.map(\.rawValue)));",
@@ -22,12 +28,12 @@ public enum PluginTypes {
             "shadow?: { color: Color; radius?: number; y?: number };", "border?: { color: Color; width?: number };",
         ] + StyleProps.colors.map { "\($0.0)?: Color;" } + ["font?: FontName;"])
             .map { "    \($0)" }.joined(separator: "\n")
+    }
+
+    private static func coreTypes(theme: JSON?) -> String {
         let nodes = Node.Kind.allCases.map { kind in
             "  interface \(typeName(kind.rawValue)) extends Style {\n    type: \"\(kind.rawValue)\";\(fields(kind).map { "\n    \($0)" }.joined())\n  }"
         }.joined(separator: "\n")
-        let modules = PluginKind.allCases.map { "  type \(typeName($0.rawValue)) = \($0 == .service ? "Module" : "Rendered");" }
-            .joined(separator: "\n")
-        let topics = pluginTopics.map { "    \"\($0)\"?: Json;" }.joined(separator: "\n")
         return """
         declare namespace Gary {
           type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
@@ -39,13 +45,13 @@ public enum PluginTypes {
             precise: boolean;
             phase: "began" | "changed" | "ended" | "momentum" | "none";
           }
-          type StyleName = \(names("styles"));
-          type FontName = \(names("fonts"));
-          type ColorName = \(names("colors"));
+          type StyleName = \(names("styles", in: theme));
+          type FontName = \(names("fonts", in: theme));
+          type ColorName = \(names("colors", in: theme));
           type Color = ColorName;
 
           interface StyleProps {
-        \(style)
+        \(styleFields)
           }
           interface Style extends StyleProps {
             key?: string;
@@ -56,7 +62,12 @@ public enum PluginTypes {
           }
         \(nodes)
           type Node = \(Node.Kind.allCases.map { typeName($0.rawValue) }.joined(separator: " | "));
+        """
+    }
 
+    private static func stateTypes(pluginTopics: [PluginID]) -> String {
+        let topics = pluginTopics.map { "    \"\($0)\"?: Json;" }.joined(separator: "\n")
+        return """
           interface Display {
             id: string;
             index: number;
@@ -91,7 +102,13 @@ public enum PluginTypes {
             focusable?: boolean;
             background?: \(union(SurfaceBackground.allCases.map(\.rawValue)));
           }
+        """
+    }
 
+    private static func moduleTypes(capabilities: [String]) -> String {
+        let modules = PluginKind.allCases.map { "  type \(typeName($0.rawValue)) = \($0 == .service ? "Module" : "Rendered");" }
+            .joined(separator: "\n")
+        return """
           type ActionPayload = null | number | string;
           interface Storage {
             get(key: string): Json | undefined;
