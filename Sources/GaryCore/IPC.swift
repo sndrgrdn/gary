@@ -54,7 +54,11 @@ public enum Request: Equatable, Sendable {
         ),
         (
             "call <plugin> <method> [args...]",
-            "Call a method a plugin exports, loading it first if needed. Arguments arrive as strings. Gary waits up to 60 seconds for a method that returns a promise. A result that is not a string prints as JSON, and a thrown error or rejected promise prints its message and exits with status 1.",
+            """
+            Call a method a plugin exports, loading it first if needed. Arguments arrive as strings. \
+            Gary waits up to 60 seconds for a method that returns a promise. \
+            A result that is not a string prints as JSON, and a thrown error or rejected promise prints its message and exits with status 1.
+            """,
             "gary call you.weather forecast 3",
         ),
         (
@@ -70,59 +74,84 @@ public enum Request: Equatable, Sendable {
         verb == "call" ? Self.callTimeout + 1 : 5
     }
 
+    private static let bareVerbs: [String: Request] = [
+        "ping": .ping, "quit": .quit, "rescanPlugins": .rescanPlugins, "reloadConfig": .reloadConfig,
+        "listPlugins": .listPlugins, "doctor": .doctor, "onboarding": .summon(.onboarding),
+    ]
+
+    private static let pluginVerbs: [String: @Sendable (PluginID) -> Request] = [
+        "summon": Request.summon, "hide": Request.hide, "toggle": Request.toggle,
+    ]
+
     public static func parse(verb: String, arguments: [String]) throws -> Request {
-        func fail(_ message: String) -> RequestError {
-            RequestError(description: message)
+        if let request = bareVerbs[verb] {
+            try expect(arguments, count: 0, for: verb)
+            return request
         }
-        func plugin(_ raw: String) throws -> PluginID {
-            guard let id = PluginID(raw) else { throw fail("invalid plugin id \"\(raw)\"") }
-            return id
-        }
-        func exactly(_ count: Int) throws {
-            guard arguments.count == count else { throw fail("\(verb) takes \(count) argument\(count == 1 ? "" : "s")") }
-        }
-        func atMostOne() throws {
-            guard arguments.count <= 1 else { throw fail("\(verb) takes at most 1 argument") }
+        if let request = pluginVerbs[verb] {
+            try expect(arguments, count: 1, for: verb)
+            return try request(plugin(arguments[0]))
         }
         switch verb {
-        case "ping": try exactly(0); return .ping
-        case "quit": try exactly(0); return .quit
-        case "summon": try exactly(1); return try .summon(plugin(arguments[0]))
-        case "hide": try exactly(1); return try .hide(plugin(arguments[0]))
-        case "toggle": try exactly(1); return try .toggle(plugin(arguments[0]))
-        case "reloadPlugins": try atMostOne(); return try .reloadPlugins(arguments.first.map(plugin))
-        case "rescanPlugins": try exactly(0); return .rescanPlugins
-        case "reloadConfig": try exactly(0); return .reloadConfig
+        case "reloadPlugins":
+            try expectAtMostOne(arguments, for: verb)
+            return try .reloadPlugins(arguments.first.map(plugin))
         case "applyTheme":
-            try atMostOne()
-            return try .applyTheme(arguments.first.map { text in
-                guard let json = try? JSON.parse(text), json.object != nil else { throw fail("applyTheme takes a JSON object") }
-                return json
-            })
-        case "listPlugins": try exactly(0); return .listPlugins
-        case "doctor": try exactly(0); return .doctor
-        case "onboarding": try exactly(0); return .summon(.onboarding)
-        case "permissions":
-            if arguments.isEmpty {
-                return .permissions
-            }
-            guard arguments.count == 2,
-                  arguments[0] == "request" else { throw fail("permissions takes no arguments, or request and a permission name") }
-            guard let permission = Permission(rawValue: arguments[1]) else {
-                throw fail("unknown permission \"\(arguments[1])\"; use \(Permission.allCases.map(\.rawValue).joined(separator: ", "))")
-            }
-            return .requestPermission(permission)
-        case "call":
-            guard arguments.count >= 2 else { throw fail("call takes a plugin, a method and optional arguments") }
-            return try .call(plugin(arguments[0]), method: arguments[1], arguments: Array(arguments.dropFirst(2)))
-        case "action":
-            guard (3...4).contains(arguments.count) else { throw fail("action takes a plugin, a kind, an action and an optional payload") }
-            guard let kind = PluginKind(rawValue: arguments[1]) else {
-                throw fail("unknown kind \"\(arguments[1])\"; use \(PluginKind.allCases.map(\.rawValue).joined(separator: ", "))")
-            }
-            return try .action(plugin(arguments[0]), kind: kind, action: arguments[2], payload: arguments.count == 4 ? arguments[3] : nil)
-        default: throw fail("unknown verb \"\(verb)\"")
+            try expectAtMostOne(arguments, for: verb)
+            return try .applyTheme(arguments.first.map(themeOverride))
+        case "permissions": return try permissions(arguments)
+        case "call": return try call(arguments)
+        case "action": return try action(arguments)
+        default: throw RequestError(description: "unknown verb \"\(verb)\"")
         }
+    }
+
+    private static func expect(_ arguments: [String], count: Int, for verb: String) throws {
+        guard arguments.count == count else { throw RequestError(description: "\(verb) takes \(count) argument\(count == 1 ? "" : "s")") }
+    }
+
+    private static func expectAtMostOne(_ arguments: [String], for verb: String) throws {
+        guard arguments.count <= 1 else { throw RequestError(description: "\(verb) takes at most 1 argument") }
+    }
+
+    private static func plugin(_ raw: String) throws -> PluginID {
+        guard let id = PluginID(raw) else { throw RequestError(description: "invalid plugin id \"\(raw)\"") }
+        return id
+    }
+
+    private static func themeOverride(_ text: String) throws -> JSON {
+        guard let json = try? JSON.parse(text), json.object != nil else { throw RequestError(description: "applyTheme takes a JSON object") }
+        return json
+    }
+
+    private static func permissions(_ arguments: [String]) throws -> Request {
+        if arguments.isEmpty {
+            return .permissions
+        }
+        guard arguments.count == 2, arguments[0] == "request" else {
+            throw RequestError(description: "permissions takes no arguments, or request and a permission name")
+        }
+        guard let permission = Permission(rawValue: arguments[1]) else {
+            let names = Permission.allCases.map(\.rawValue).joined(separator: ", ")
+            throw RequestError(description: "unknown permission \"\(arguments[1])\"; use \(names)")
+        }
+        return .requestPermission(permission)
+    }
+
+    private static func call(_ arguments: [String]) throws -> Request {
+        guard arguments.count >= 2 else { throw RequestError(description: "call takes a plugin, a method and optional arguments") }
+        return try .call(plugin(arguments[0]), method: arguments[1], arguments: Array(arguments.dropFirst(2)))
+    }
+
+    private static func action(_ arguments: [String]) throws -> Request {
+        guard (3...4).contains(arguments.count) else {
+            throw RequestError(description: "action takes a plugin, a kind, an action and an optional payload")
+        }
+        guard let kind = PluginKind(rawValue: arguments[1]) else {
+            let kinds = PluginKind.allCases.map(\.rawValue).joined(separator: ", ")
+            throw RequestError(description: "unknown kind \"\(arguments[1])\"; use \(kinds)")
+        }
+        return try .action(plugin(arguments[0]), kind: kind, action: arguments[2], payload: arguments.count == 4 ? arguments[3] : nil)
     }
 
     public var verb: String {
@@ -172,7 +201,7 @@ public enum Request: Equatable, Sendable {
 }
 
 public extension PluginID {
-    static let onboarding = PluginID("gary.onboarding")!
+    static let onboarding = PluginID(builtin: "onboarding")
 }
 
 public enum Response: Equatable, Sendable {

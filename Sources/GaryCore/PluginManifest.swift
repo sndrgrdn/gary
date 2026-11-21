@@ -42,6 +42,10 @@ public struct PluginID: Hashable, Comparable, CustomStringConvertible, Sendable 
         rawValue = raw
     }
 
+    init(builtin name: String) {
+        rawValue = "gary.\(name)"
+    }
+
     public var isReserved: Bool {
         rawValue.hasPrefix("gary.")
     }
@@ -50,8 +54,8 @@ public struct PluginID: Hashable, Comparable, CustomStringConvertible, Sendable 
         rawValue
     }
 
-    public static func < (a: PluginID, b: PluginID) -> Bool {
-        a.rawValue < b.rawValue
+    public static func < (lhs: PluginID, rhs: PluginID) -> Bool {
+        lhs.rawValue < rhs.rawValue
     }
 }
 
@@ -120,37 +124,40 @@ public struct PluginManifest: Equatable, Sendable {
 
     public static func parse(_ data: Data, origin: PluginOrigin, capabilities: CapabilityNames) throws -> PluginManifest {
         guard let json = try? JSON.parse(data), case .object = json else { throw ManifestError.invalidJSON }
+        let fields = ManifestFields(json: json)
 
-        func field<T>(_ name: String, _ read: (JSON) -> T?) throws -> T {
-            guard let value = json[name] else { throw ManifestError.missingField(name) }
-            guard let typed = read(value) else { throw ManifestError.wrongType(name) }
-            return typed
-        }
-        func optional<T>(_ name: String, _ read: (JSON) -> T?, default fallback: T) throws -> T {
-            json[name] == nil ? fallback : try field(name, read)
-        }
-        func strings(_ value: JSON) -> [String]? {
-            value.array.flatMap { items in
-                let strings = items.compactMap(\.string)
-                return strings.count == items.count ? strings : nil
-            }
-        }
-
-        let schema = try field("schemaVersion", \.number)
+        let schema = try fields.required("schemaVersion", \.number)
         guard schema == Double(schemaVersion) else { throw ManifestError.unsupportedSchemaVersion(schema) }
 
-        let rawID = try field("id", \.string)
-        guard let id = PluginID(rawID) else { throw ManifestError.invalidID(rawID) }
+        let id = try parseID(fields.required("id", \.string), origin: origin)
+        let name = try fields.required("name", \.string)
+        let version = try fields.required("version", \.string)
+        let kinds = try parseKinds(fields.strings("kinds"))
+        let entryPoints = try parseEntryPoints(fields.required("entryPoints", \.object), kinds: kinds)
+        let keepLoaded = try fields.optional("keepLoaded", \.bool, default: false)
+        let subscribes = try fields.optionalStrings("subscribes").map { try parseTopic($0, capabilities: capabilities) }
+        let uses = try fields.optionalStrings("uses")
+        if let unknown = uses.first(where: { !capabilities.uses.contains($0) }) {
+            throw ManifestError.unknownService(unknown)
+        }
+        let hotkeys = try parseHotkeys(fields.optional("hotkeys", \.array, default: []))
+
+        return PluginManifest(
+            id: id, name: name, version: version, kinds: kinds, entryPoints: entryPoints,
+            keepLoaded: keepLoaded, subscribes: subscribes, uses: uses, hotkeys: hotkeys,
+        )
+    }
+
+    private static func parseID(_ raw: String, origin: PluginOrigin) throws -> PluginID {
+        guard let id = PluginID(raw) else { throw ManifestError.invalidID(raw) }
         switch origin {
         case .user where id.isReserved: throw ManifestError.reservedID(id)
         case .builtin where !id.isReserved: throw ManifestError.builtinOutsideNamespace(id)
-        default: break
+        default: return id
         }
+    }
 
-        let name = try field("name", \.string)
-        let version = try field("version", \.string)
-
-        let rawKinds = try field("kinds", strings)
+    private static func parseKinds(_ rawKinds: [String]) throws -> [PluginKind] {
         guard !rawKinds.isEmpty else { throw ManifestError.noKinds }
         var kinds: [PluginKind] = []
         for raw in rawKinds {
@@ -158,8 +165,10 @@ public struct PluginManifest: Equatable, Sendable {
             guard !kinds.contains(kind) else { throw ManifestError.duplicateKind(kind) }
             kinds.append(kind)
         }
+        return kinds
+    }
 
-        let rawEntries = try field("entryPoints", \.object)
+    private static func parseEntryPoints(_ rawEntries: [String: JSON], kinds: [PluginKind]) throws -> [PluginKind: String] {
         var entryPoints: [PluginKind: String] = [:]
         for (key, value) in rawEntries {
             guard let kind = PluginKind(rawValue: key), kinds.contains(kind) else { throw ManifestError.entryPointWithoutKind(key) }
@@ -170,33 +179,52 @@ public struct PluginManifest: Equatable, Sendable {
         if let missing = kinds.first(where: { entryPoints[$0] == nil }) {
             throw ManifestError.missingEntryPoint(missing)
         }
+        return entryPoints
+    }
 
-        let keepLoaded = try optional("keepLoaded", \.bool, default: false)
-        let subscribes = try optional("subscribes", strings, default: []).map { raw in
-            if capabilities.topics.contains(raw) {
-                return Topic.capability(raw)
-            }
-            guard let id = PluginID(raw) else { throw ManifestError.unknownTopic(raw) }
-            return .plugin(id)
+    private static func parseTopic(_ raw: String, capabilities: CapabilityNames) throws -> Topic {
+        if capabilities.topics.contains(raw) {
+            return .capability(raw)
         }
-        let uses = try optional("uses", strings, default: [])
-        if let unknown = uses.first(where: { !capabilities.uses.contains($0) }) {
-            throw ManifestError.unknownService(unknown)
-        }
+        guard let id = PluginID(raw) else { throw ManifestError.unknownTopic(raw) }
+        return .plugin(id)
+    }
 
+    private static func parseHotkeys(_ entries: [JSON]) throws -> [Hotkey] {
         var hotkeys: [Hotkey] = []
-        for (index, entry) in try optional("hotkeys", \.array, default: []).enumerated() {
+        for (index, entry) in entries.enumerated() {
             guard let id = entry["id"]?.string, !id.isEmpty,
                   let raw = entry["keys"]?.string else { throw ManifestError.wrongType("hotkeys[\(index)]") }
             guard let keys = KeyCombo.parse(raw) else { throw ManifestError.invalidHotkey(raw) }
             guard !hotkeys.contains(where: { $0.id == id }) else { throw ManifestError.duplicateHotkey(id) }
             hotkeys.append(Hotkey(id: id, keys: keys))
         }
+        return hotkeys
+    }
+}
 
-        return PluginManifest(
-            id: id, name: name, version: version, kinds: kinds, entryPoints: entryPoints,
-            keepLoaded: keepLoaded, subscribes: subscribes, uses: uses, hotkeys: hotkeys,
-        )
+private struct ManifestFields {
+    let json: JSON
+
+    func required<T>(_ name: String, _ read: (JSON) -> T?) throws -> T {
+        guard let value = json[name] else { throw ManifestError.missingField(name) }
+        guard let typed = read(value) else { throw ManifestError.wrongType(name) }
+        return typed
+    }
+
+    func optional<T>(_ name: String, _ read: (JSON) -> T?, default fallback: T) throws -> T {
+        json[name] == nil ? fallback : try required(name, read)
+    }
+
+    func strings(_ name: String) throws -> [String] {
+        try required(name, \.array).map { item in
+            guard let string = item.string else { throw ManifestError.wrongType(name) }
+            return string
+        }
+    }
+
+    func optionalStrings(_ name: String) throws -> [String] {
+        json[name] == nil ? [] : try strings(name)
     }
 }
 

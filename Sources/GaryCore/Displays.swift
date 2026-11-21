@@ -24,10 +24,13 @@ public struct DisplayChange: Equatable, Sendable {
 }
 
 public struct PerDisplay<Surface> {
-    public private(set) var displays: [DisplayInfo] = []
-    public private(set) var surfaces: [String: Surface] = [:]
+    public private(set) var displays: [DisplayInfo]
+    public private(set) var surfaces: [String: Surface]
 
-    public init() {}
+    public init() {
+        displays = []
+        surfaces = [:]
+    }
 
     @discardableResult
     public mutating func sync(

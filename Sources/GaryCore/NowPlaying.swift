@@ -23,9 +23,11 @@ public struct NowPlaying: Equatable, Sendable {
         public let description: String
     }
 
-    private var fields: [String: JSON] = [:]
+    private var fields: [String: JSON]
 
-    public init() {}
+    public init() {
+        fields = [:]
+    }
 
     public mutating func apply(_ line: String) throws {
         guard let json = try? JSON.parse(line) else { throw LineError(description: "adapter printed a line that is not JSON") }

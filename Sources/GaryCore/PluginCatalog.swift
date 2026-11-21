@@ -30,10 +30,13 @@ public struct CatalogProblem: Equatable, Sendable {
 }
 
 public struct PluginCatalog: Equatable, Sendable {
-    public internal(set) var plugins: [PluginID: PluginBundle] = [:]
-    public private(set) var problems: [CatalogProblem] = []
+    public internal(set) var plugins: [PluginID: PluginBundle]
+    public private(set) var problems: [CatalogProblem]
 
-    public init() {}
+    public init() {
+        plugins = [:]
+        problems = []
+    }
 
     public static func scan(builtin: URL?, user: URL?, capabilities: CapabilityNames) -> PluginCatalog {
         var catalog = PluginCatalog()

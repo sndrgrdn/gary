@@ -51,10 +51,10 @@ public struct TrayItem: Equatable, Sendable {
             slots[slot] = element
         }
         var counts: [String: Int] = [:]
-        return slots.keys.sorted().map { slot in
-            let element = slots[slot]!
-            counts[element.app, default: 0] += 1
-            return TrayItem(id: "\(element.app)#\(counts[element.app]!)", element: element)
+        return slots.sorted { $0.key < $1.key }.map { _, element in
+            let count = counts[element.app, default: 0] + 1
+            counts[element.app] = count
+            return TrayItem(id: "\(element.app)#\(count)", element: element)
         }
     }
 
