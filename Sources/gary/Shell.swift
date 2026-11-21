@@ -24,11 +24,13 @@ final class PluginSlot {
         case stopped
         case running(PluginRuntime)
         case failed(String)
+        case disabled(String)
     }
 
     let key: SlotKey
     var bundle: PluginBundle
     var phase = Phase.stopped
+    var failures = RestartBudget(limit: 5, window: 60)
     var candidate: PluginRuntime?
     var visible = false
     var focused: String?
@@ -42,6 +44,11 @@ final class PluginSlot {
 
     var runtime: PluginRuntime? {
         if case .running(let runtime) = phase { return runtime }
+        return nil
+    }
+
+    var disabledReason: String? {
+        if case .disabled(let reason) = phase { return reason }
         return nil
     }
 
@@ -165,14 +172,17 @@ final class Shell {
 
     private func withRuntime(_ slot: PluginSlot, _ trace: Trace, _ body: @escaping (PluginRuntime?) -> Void) {
         if let runtime = slot.runtime { return body(runtime) }
+        if slot.disabledReason != nil { return body(nil) }
         slot.waiters.append { [weak slot] _ in body(slot?.runtime) }
         if slot.candidate == nil { load(slot, trace) }
     }
 
     private var usesBuiltinBar: Bool {
         guard let id = resolution.barPlugin else { return true }
-        if case .failed? = slots[SlotKey(id: id, kind: .bar)]?.phase { return true }
-        return false
+        switch slots[SlotKey(id: id, kind: .bar)]?.phase {
+        case .failed?, .disabled?: return true
+        default: return false
+        }
     }
 
     private func sync(_ trace: Trace) {
@@ -195,7 +205,7 @@ final class Shell {
             if let slot = slots[key] {
                 guard slot.bundle != bundle else { continue }
                 slot.bundle = bundle
-                if isLive(slot) { load(slot, trace) }
+                reload(slot, trace)
             } else {
                 let slot = PluginSlot(key: key, bundle: bundle)
                 slots[key] = slot
@@ -204,6 +214,12 @@ final class Shell {
         }
         arrangeBars()
         commitFrame()
+    }
+
+    private func reload(_ slot: PluginSlot, _ trace: Trace) {
+        slot.failures.reset()
+        if slot.disabledReason != nil { slot.phase = .stopped }
+        if isLive(slot) { load(slot, trace) }
     }
 
     private func isLive(_ slot: PluginSlot) -> Bool {
@@ -280,6 +296,16 @@ final class Shell {
             slot.visible = false
             slot.answerWaiters(.failure("\(key.id) failed: \(reason)"))
             log("plugin \(key): failed: \(reason)")
+            if !slot.failures.allowsRestart(afterFailureAt: now()) {
+                slot.phase = .disabled("\(slot.failures.summary), last: \(reason)")
+                log("plugin \(key): disabled after \(slot.failures.summary); reload it or change its files to try again")
+            } else if !key.kind.isSurface {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self, weak slot] in
+                    guard let self, let slot, slots[key] === slot, case .failed = slot.phase, slot.candidate == nil else { return }
+                    log("plugin \(key): restarting (\(slot.failures.summary))")
+                    load(slot, Trace("restart"))
+                }
+            }
             if key.kind == .bar { sync(Trace("bar-fallback")) }
             commitFrame()
         }
@@ -549,8 +575,8 @@ final class Shell {
         let response = loadConfig()
         guard config != previous else { return response }
         resolve()
-        for slot in slots.values where config.settings[slot.key.id] != previous.settings[slot.key.id] && isLive(slot) {
-            load(slot, trace)
+        for slot in slots.values where config.settings[slot.key.id] != previous.settings[slot.key.id] {
+            reload(slot, trace)
         }
         sync(trace)
         return response
@@ -586,8 +612,8 @@ final class Shell {
             sync(trace)
         }
         for key in reloads {
-            guard let slot = slots[key], isLive(slot) else { continue }
-            load(slot, trace)
+            guard let slot = slots[key] else { continue }
+            reload(slot, trace)
         }
     }
 
@@ -632,9 +658,9 @@ final class Shell {
         case .toggle(let id):
             toggle(id, trace, reply)
         case .reloadPlugins(let id):
-            let live = slots.values.filter { (id == nil || $0.key.id == id) && isLive($0) }
+            let live = slots.values.filter { (id == nil || $0.key.id == id) && (isLive($0) || $0.disabledReason != nil) }
             guard id == nil || !live.isEmpty else { return reply(.failure("\(id!) is not loaded")) }
-            for slot in live { load(slot, trace) }
+            for slot in live { reload(slot, trace) }
             reply(.ok("reloading \(live.count)"))
         case .rescanPlugins:
             scan()
@@ -673,6 +699,7 @@ final class Shell {
 
     private func summon(_ id: PluginID, _ trace: Trace, _ reply: @escaping (Response) -> Void) {
         guard let slot = surfaceSlot(id) else { return reply(.failure("no enabled surface \(id)")) }
+        if let reason = slot.disabledReason { return reply(.failure("\(id) is disabled: \(reason)")) }
         if slot.visible, slot.runtime != nil { return reply(.ok("shown")) }
         slot.visible = true
         slot.focused = pointerDisplay()
@@ -707,8 +734,11 @@ final class Shell {
             }
         }
         let states = slots.values.sorted { $0.key.description < $1.key.description }.map { slot -> (String, String?) in
-            if case .failed(let reason) = slot.phase { return (slot.key.description, "failed: \(reason)") }
-            return (slot.key.description, nil)
+            switch slot.phase {
+            case .failed(let reason): return (slot.key.description, "failed: \(reason)")
+            case .disabled(let reason): return (slot.key.description, "disabled after repeated failures: \(reason)")
+            case .stopped, .running: return (slot.key.description, nil)
+            }
         }
         return DoctorRuntime(pid: getpid(), capabilities: Set(capabilities), pluginStates: states)
     }
@@ -724,6 +754,7 @@ final class Shell {
                 case .running: return "\(kind.rawValue):\(kind.isSurface && !slot.visible ? "paused" : "running")"
                 case .stopped: return "\(kind.rawValue):stopped"
                 case .failed(let reason): return "\(kind.rawValue):failed(\(reason))"
+                case .disabled(let reason): return "\(kind.rawValue):disabled(\(reason))"
                 }
             }
             return [id.rawValue, manifest.version, bundle.origin == .builtin ? "builtin" : "user", states.joined(separator: " ")].joined(separator: "\t")
