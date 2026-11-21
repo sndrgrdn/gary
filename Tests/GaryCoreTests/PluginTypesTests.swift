@@ -54,3 +54,14 @@ struct PluginScaffoldTests {
         }
     }
 }
+
+struct ExamplePluginTests {
+    @Test func everyExamplePassesTheLoadTimeChecks() throws {
+        let examples = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../examples").standardizedFileURL
+        let directories = try FileManager.default.contentsOfDirectory(at: examples, includingPropertiesForKeys: nil).filter(\.hasDirectoryPath)
+        #expect(directories.count >= 3)
+        for directory in directories {
+            #expect(throws: Never.self, "\(directory.lastPathComponent)") { try PluginBundle.load(directory, origin: .user, capabilities: testCapabilities) }
+        }
+    }
+}
