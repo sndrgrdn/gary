@@ -19,11 +19,17 @@ public struct HostCall: Equatable, Sendable {
         self.arguments = arguments
     }
 
-    public var name: String { "host." + (api.map { "\($0)." } ?? "") + method }
+    public var name: String {
+        "host." + (api.map { "\($0)." } ?? "") + method
+    }
 
-    public func fail(_ reason: String) -> ArgumentError { ArgumentError("\(name): \(reason)") }
+    public func fail(_ reason: String) -> ArgumentError {
+        ArgumentError("\(name): \(reason)")
+    }
 
-    public var unknownMethod: ArgumentError { ArgumentError("\(name) is not a method") }
+    public var unknownMethod: ArgumentError {
+        ArgumentError("\(name) is not a method")
+    }
 
     public func string(_ index: Int, _ label: String) throws -> String {
         guard let value = argument(index)?.string else { throw fail("\(label) must be a string") }
@@ -60,7 +66,8 @@ public struct HostCall: Equatable, Sendable {
     }
 
     public func choice<Choice: RawRepresentable & CaseIterable>(_ index: Int, _ label: String, default fallback: Choice) throws -> Choice
-    where Choice.RawValue == String {
+        where Choice.RawValue == String
+    {
         guard let raw = try optionalString(index, label) else { return fallback }
         guard let value = Choice(rawValue: raw) else {
             throw fail("\(label) must be " + Choice.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: " or "))
@@ -92,7 +99,11 @@ public func absolutePath(_ raw: String, home: String) -> String? {
     }
     var parts: [Substring] = []
     for part in expanded.split(separator: "/") where part != "." {
-        if part == ".." { _ = parts.popLast() } else { parts.append(part) }
+        if part == ".." {
+            _ = parts.popLast()
+        } else {
+            parts.append(part)
+        }
     }
     return "/" + parts.joined(separator: "/")
 }

@@ -28,9 +28,9 @@ extension Capability {
     """, permissions: [.accessibility], install: { host, plugin in
         plugin.installAPI(host, "mediakeys", MediaKeysRequest.methods) { [weak plugin] call in
             switch try MediaKeysRequest.parse(call) {
-            case .intercept(let keys):
+            case let .intercept(keys):
                 guard let plugin else { return .now(.bool(false)) }
-                return .now(.bool(try KeyTap.shared.intercept(keys, for: plugin)))
+                return try .now(.bool(KeyTap.shared.intercept(keys, for: plugin)))
             }
         }
     })
@@ -71,7 +71,9 @@ private final class KeyTap {
             listeners[id] = keys.isEmpty ? nil : KeyListener(keys: keys, plugin: plugin)
             return isNew && !keys.isEmpty
         }
-        if isNew { plugin.onStop { [weak self] in self?.remove(id) } }
+        if isNew {
+            plugin.onStop { [weak self] in self?.remove(id) }
+        }
         let intercepting = update()
         guard intercepting || keys.isEmpty else {
             lock.withLock { listeners[id] = nil }
@@ -89,14 +91,21 @@ private final class KeyTap {
         lock.withLock {
             if listeners.isEmpty, let tap {
                 CGEvent.tapEnable(tap: tap, enable: false)
-                if let source { CFRunLoopRemoveSource(runLoop, source, .commonModes) }
+                if let source {
+                    CFRunLoopRemoveSource(runLoop, source, .commonModes)
+                }
                 CFMachPortInvalidate(tap)
                 (self.tap, source) = (nil, nil)
                 log("mediakeys: tap removed")
             } else if !listeners.isEmpty, tap == nil {
-                guard let created = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
-                                                      eventsOfInterest: CGEventMask(1) << CGEventMask(NX_SYSDEFINED),
-                                                      callback: { _, type, event, _ in KeyTap.shared.handle(type, event) }, userInfo: nil) else {
+                guard let created = CGEvent.tapCreate(
+                    tap: .cgSessionEventTap,
+                    place: .headInsertEventTap,
+                    options: .defaultTap,
+                    eventsOfInterest: CGEventMask(1) << CGEventMask(NX_SYSDEFINED),
+                    callback: { _, type, event, _ in KeyTap.shared.handle(type, event) },
+                    userInfo: nil,
+                ) else {
                     log("mediakeys: " + missingGrant(.accessibility, "intercepting keys"))
                     return false
                 }
@@ -112,7 +121,9 @@ private final class KeyTap {
 
     private func handle(_ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let tap = lock.withLock({ tap }) { CGEvent.tapEnable(tap: tap, enable: true) }
+            if let tap = lock.withLock({ tap }) {
+                CGEvent.tapEnable(tap: tap, enable: true)
+            }
             log("mediakeys: tap re-enabled after it was disabled by \(type == .tapDisabledByTimeout ? "a timeout" : "user input")")
             return Unmanaged.passUnretained(event)
         }
@@ -124,13 +135,20 @@ private final class KeyTap {
         }
         guard swallowed else { return Unmanaged.passUnretained(event) }
         if press.down {
-            let modifiers: [(CGEventFlags, String)] = [(.maskShift, "shift"), (.maskControl, "control"), (.maskAlternate, "option"), (.maskCommand, "command")]
+            let modifiers: [(CGEventFlags, String)] = [
+                (.maskShift, "shift"),
+                (.maskControl, "control"),
+                (.maskAlternate, "option"),
+                (.maskCommand, "command"),
+            ]
             let payload = JSON.object([
                 "key": .string(press.key.rawValue),
                 "repeat": .bool(press.isRepeat),
                 "modifiers": .array(modifiers.filter { event.flags.contains($0.0) }.map { .string($0.1) }),
             ])
-            for plugin in targets { plugin.mediaKey(payload) }
+            for plugin in targets {
+                plugin.mediaKey(payload)
+            }
         }
         return nil
     }

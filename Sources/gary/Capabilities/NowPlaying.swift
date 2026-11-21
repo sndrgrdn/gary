@@ -55,7 +55,7 @@ extension Capability {
             case .toggle: try Adapter.run(["send", "2"])
             case .next: try Adapter.run(["send", "4"])
             case .previous: try Adapter.run(["send", "5"])
-            case .seek(let seconds): try Adapter.run(["seek", String(Int64(seconds * 1_000_000))])
+            case let .seek(seconds): try Adapter.run(["seek", String(Int64(seconds * 1_000_000))])
             }
             return .now(.null)
         }
@@ -68,7 +68,9 @@ private enum Adapter {
     static let artwork = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appending(path: "com.sndrgrdn.gary/nowplaying")
 
     static var missing: String? {
-        for url in [script, framework] where !FileManager.default.fileExists(atPath: url.path) { return "\(url.lastPathComponent) is not bundled" }
+        for url in [script, framework] where !FileManager.default.fileExists(atPath: url.path) {
+            return "\(url.lastPathComponent) is not bundled"
+        }
         return nil
     }
 
@@ -81,11 +83,18 @@ private enum Adapter {
     }
 
     static func run(_ arguments: [String]) throws {
-        if let missing { throw HostFailure("now playing is unavailable: \(missing)") }
+        if let missing {
+            throw HostFailure("now playing is unavailable: \(missing)")
+        }
         let process = process(arguments)
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
-        process.terminationHandler = { if $0.terminationStatus != 0 { log("nowplaying: \(arguments.joined(separator: " ")) exited with \($0.terminationStatus)") } }
+        process
+            .terminationHandler = {
+                if $0.terminationStatus != 0 {
+                    log("nowplaying: \(arguments.joined(separator: " ")) exited with \($0.terminationStatus)")
+                }
+            }
         do { try process.run() } catch { throw HostFailure("cannot run the now playing adapter: \(error.localizedDescription)") }
     }
 }
@@ -114,14 +123,24 @@ private final class NowPlayingTopic {
 
     private func start() {
         guard !stopped else { return }
-        if let missing = Adapter.missing { return publish(.object(["available": .bool(false), "reason": .string(missing), "track": .null]), Trace("nowplaying")) }
+        if let missing = Adapter.missing {
+            return publish(
+                .object(["available": .bool(false), "reason": .string(missing), "track": .null]),
+                Trace("nowplaying"),
+            )
+        }
         let process = Adapter.process(["stream", "--micros", "--debounce=50"])
-        let output = Pipe(), errors = Pipe()
+        let output = Pipe()
+        let errors = Pipe()
         process.standardOutput = output
         process.standardError = errors
         output.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
-            if data.isEmpty { handle.readabilityHandler = nil } else { self?.queue.async { self?.received(data) } }
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+            } else {
+                self?.queue.async { self?.received(data) }
+            }
         }
         let started = Date()
         process.terminationHandler = { [weak self] process in
@@ -146,7 +165,10 @@ private final class NowPlayingTopic {
         failures = seconds > 30 ? 1 : failures + 1
         let delay = min(60, pow(2, Double(failures)))
         log("nowplaying: adapter exited with \(status) after \(Int(seconds)) s\(reason.isEmpty ? "" : ": \(reason)"); restarting in \(Int(delay)) s")
-        publish(.object(["available": .bool(false), "reason": .string(reason.isEmpty ? "the adapter exited with \(status)" : reason), "track": .null]), Trace("nowplaying"))
+        publish(
+            .object(["available": .bool(false), "reason": .string(reason.isEmpty ? "the adapter exited with \(status)" : reason), "track": .null]),
+            Trace("nowplaying"),
+        )
         queue.asyncAfter(deadline: .now() + delay) { [weak self] in self?.start() }
     }
 
@@ -163,13 +185,19 @@ private final class NowPlayingTopic {
                 log("nowplaying: \(error)")
             }
         }
-        if changed { publish(snapshot(), Trace("nowplaying")) }
+        if changed {
+            publish(snapshot(), Trace("nowplaying"))
+        }
     }
 
     private func snapshot() -> JSON {
         guard let track = state.track else { return .object(["available": .bool(true), "track": .null]) }
-        func number(_ value: Double?) -> JSON { value.map(JSON.number) ?? .null }
-        func string(_ value: String?) -> JSON { value.map(JSON.string) ?? .null }
+        func number(_ value: Double?) -> JSON {
+            value.map(JSON.number) ?? .null
+        }
+        func string(_ value: String?) -> JSON {
+            value.map(JSON.string) ?? .null
+        }
         return .object([
             "available": .bool(true),
             "track": .object([
@@ -182,7 +210,9 @@ private final class NowPlayingTopic {
 
     private func save(_ artwork: NowPlaying.Artwork) -> String? {
         let digest = SHA256.hash(data: artwork.data).prefix(12).map { String(format: "%02x", $0) }.joined()
-        if let artworkPath, artworkPath.digest == digest { return artworkPath.path }
+        if let artworkPath, artworkPath.digest == digest {
+            return artworkPath.path
+        }
         let fileExtension = artwork.mimeType.split(separator: "/").last.map(String.init) ?? "img"
         let url = Adapter.artwork.appending(path: "\(digest).\(fileExtension)")
         do {
@@ -192,7 +222,9 @@ private final class NowPlayingTopic {
             log("nowplaying: artwork not saved: \(error)")
             return nil
         }
-        if let previous = artworkPath?.path { try? FileManager.default.removeItem(atPath: previous) }
+        if let previous = artworkPath?.path {
+            try? FileManager.default.removeItem(atPath: previous)
+        }
         artworkPath = (digest, url.path)
         return url.path
     }

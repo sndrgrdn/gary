@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 struct PaletteTests {
-    @Test func parsesAnOmarchyColorsTomlAndKeepsUnknownKeys() {
+    @Test func `parses an omarchy colors toml and keeps unknown keys`() throws {
         let file = PaletteFile.parse("""
         # a comment
         mode = "light"
@@ -17,13 +17,15 @@ struct PaletteTests {
         """)
         #expect(file.mode == .light)
         #expect(file.ignored == [])
-        #expect(file.colors == [
-            "accent": RGBA(hex: "#1e66f5")!, "background": RGBA(hex: "#eff1f5")!, "foreground": RGBA(hex: "#4c4f69")!,
-            "selection_background": RGBA(hex: "#dc8a78")!, "color15": RGBA(hex: "#6c6f85")!, "icon_mark": RGBA(hex: "#8839ef80")!,
+        #expect(try file.colors == [
+            "accent": #require(RGBA(hex: "#1e66f5")), "background": #require(RGBA(hex: "#eff1f5")),
+            "foreground": #require(RGBA(hex: "#4c4f69")),
+            "selection_background": #require(RGBA(hex: "#dc8a78")), "color15": #require(RGBA(hex: "#6c6f85")),
+            "icon_mark": #require(RGBA(hex: "#8839ef80")),
         ])
     }
 
-    @Test func ignoresBadLinesAndNamesEach() {
+    @Test func `ignores bad lines and names each`() throws {
         let file = PaletteFile.parse("""
         background = "#101315"
         [colors]
@@ -38,7 +40,7 @@ struct PaletteTests {
         background = "#000000"
         accent = "blue"
         """)
-        #expect(file.colors == ["background": RGBA(hex: "#000000")!, "foreground": RGBA(hex: "#cccccc")!])
+        #expect(try file.colors == ["background": #require(RGBA(hex: "#000000")), "foreground": #require(RGBA(hex: "#cccccc"))])
         #expect(file.mode == nil)
         #expect(file.ignored == [
             "line 2: not key = \"value\"",
@@ -50,7 +52,7 @@ struct PaletteTests {
         ])
     }
 
-    @Test func keepsTheColoursAndModeOfAFullOmarchyPaletteWithAliasesAndNonColourValues() {
+    @Test func `keeps the colours and mode of A full omarchy palette with aliases and non colour values`() {
         let file = PaletteFile.parse("""
         accent = "#798186"
         active_border_color = "#a8adb0"
@@ -121,8 +123,9 @@ struct PaletteTests {
         #expect(file.colors["hyprland_active_border"] == nil && file.colors["theme_type"] == nil && file.colors["mode"] == nil)
     }
 
-    @Test func theModeComesFromTheFileThenItsBackgroundThenTheSystem() {
-        let dark = RGBA(hex: "#101315")!, light = RGBA(hex: "#fffcf0")!
+    @Test func `the mode comes from the file then its background then the system`() throws {
+        let dark = try #require(RGBA(hex: "#101315"))
+        let light = try #require(RGBA(hex: "#fffcf0"))
         #expect(Palette(PaletteFile(mode: .light, colors: ["background": dark], ignored: []), system: .dark).mode == .light)
         #expect(Palette(PaletteFile(mode: nil, colors: ["background": light], ignored: []), system: .dark).mode == .light)
         #expect(Palette(PaletteFile(mode: nil, colors: ["background": dark], ignored: []), system: .light).mode == .dark)
@@ -130,14 +133,19 @@ struct PaletteTests {
         #expect(Palette(PaletteFile(mode: nil, colors: ["accent": dark], ignored: []), system: .dark).mode == .dark)
     }
 
-    @Test func missingBaseKeysComeFromTheBuiltInPaletteOfTheMode() {
-        let accent = RGBA(hex: "#ff8800")!
+    @Test func `missing base keys come from the built in palette of the mode`() throws {
+        let accent = try #require(RGBA(hex: "#ff8800"))
         let palette = Palette(PaletteFile(mode: .light, colors: ["accent": accent, "yellow": accent], ignored: []), system: .dark)
         let builtin = Palette.builtin(.light).colors
-        #expect(palette.colors == ["accent": accent, "yellow": accent, "background": builtin["background"]!, "foreground": builtin["foreground"]!])
+        #expect(try palette.colors == [
+            "accent": accent,
+            "yellow": accent,
+            "background": #require(builtin["background"]),
+            "foreground": #require(builtin["foreground"]),
+        ])
     }
 
-    @Test func withoutAFileThePaletteIsTheBuiltInOneForTheSystemAppearance() {
+    @Test func `without A file the palette is the built in one for the system appearance`() {
         for mode in [Palette.Mode.light, .dark] {
             let palette = Palette(nil, system: mode)
             #expect(palette.mode == mode)
@@ -147,12 +155,14 @@ struct PaletteTests {
         #expect(!Palette(nil, system: .dark).background.isLight)
     }
 
-    @Test func theBuiltInPalettesAreCompleteAndMatchTheirMode() {
+    @Test func `the built in palettes are complete and match their mode`() {
         for mode in [Palette.Mode.light, .dark] {
             let builtin = Palette.builtin(mode)
             #expect(builtin.ignored == [])
             #expect(builtin.mode == mode)
-            for key in Palette.baseKeys { #expect(builtin.colors[key] != nil, "\(mode) \(key)") }
+            for key in Palette.baseKeys {
+                #expect(builtin.colors[key] != nil, "\(mode) \(key)")
+            }
         }
     }
 }
@@ -164,7 +174,7 @@ struct ColorExprTests {
         ColorExpr(text)?.evaluate { names[$0] }
     }
 
-    @Test func evaluatesHexNamesAndFunctions() {
+    @Test func `evaluates hex names and functions`() {
         #expect(evaluate("#ff000080") == RGBA(red: 1, green: 0, blue: 0, alpha: 128.0 / 255))
         #expect(evaluate("fg") == names["fg"])
         #expect(evaluate("mix(fg, bg, 0.25)") == RGBA(red: 0.75, green: 0.75, blue: 0.75))
@@ -174,26 +184,28 @@ struct ColorExprTests {
         #expect(evaluate("alpha(mix(fg, #000000, 0.5), 1)") == RGBA(red: 0.5, green: 0.5, blue: 0.5))
     }
 
-    @Test func anUnknownNameAnywhereLeavesTheWholeColourUnresolved() {
+    @Test func `an unknown name anywhere leaves the whole colour unresolved`() {
         #expect(evaluate("teal") == nil)
         #expect(evaluate("mix(fg, teal, 0.5)") == nil)
     }
 
-    @Test func rejectsMalformedColours() {
+    @Test func `rejects malformed colours`() {
         for bad in ["", "#12", "mix(fg, bg)", "mix(fg, bg, 2)", "alpha(fg, -1)", "blend(fg, bg, 0.5)", "fg bg", "mix(fg, bg, 0.5", "1abc", "fg)"] {
             #expect(ColorExpr(bad) == nil, "\(bad)")
         }
     }
 
-    @Test func rejectsNestingDeeperThanSixteenInsteadOfOverflowingTheStack() {
-        func nested(_ depth: Int) -> String { String(repeating: "contrast(", count: depth) + "fg" + String(repeating: ")", count: depth) }
+    @Test func `rejects nesting deeper than sixteen instead of overflowing the stack`() {
+        func nested(_ depth: Int) -> String {
+            String(repeating: "contrast(", count: depth) + "fg" + String(repeating: ")", count: depth)
+        }
         #expect(evaluate(nested(15)) == RGBA(red: 0, green: 0, blue: 0))
         #expect(ColorExpr(nested(16)) == nil)
         #expect(ColorExpr(nested(100_000)) == nil)
     }
 
-    @Test func formatsHexWithAlphaOnlyWhenTranslucent() {
-        #expect(RGBA(hex: "#7aa2f7")!.hex == "#7aa2f7")
+    @Test func `formats hex with alpha only when translucent`() {
+        #expect(RGBA(hex: "#7aa2f7")?.hex == "#7aa2f7")
         #expect(RGBA(red: 1, green: 0, blue: 0, alpha: 0.25).hex == "#ff000040")
     }
 }

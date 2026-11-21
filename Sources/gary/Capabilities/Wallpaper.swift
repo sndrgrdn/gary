@@ -24,7 +24,7 @@ extension Capability {
         plugin.installAPI(host, "wallpaper", WallpaperRequest.methods) { call in
             let request = try WallpaperRequest.parse(call, home: home)
             return .later(.main) {
-                guard case .set(let path, let display) = request else { return wallpapers() }
+                guard case let .set(path, display) = request else { return wallpapers() }
                 try setWallpaper(path, on: display)
                 return wallpapers(showing: path, on: display)
             }

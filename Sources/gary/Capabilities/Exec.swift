@@ -2,48 +2,55 @@ import Foundation
 import JavaScriptCore
 
 extension Capability {
-    static let exec = Capability(name: "exec", summary: "Run a command off the main thread and get its exit status and output. Gary looks the command up in the PATH of the user's login shell, so commands from Homebrew and `~/.local/bin` need no absolute path.", types: """
-    declare namespace Gary {
-      interface Host { exec(argv: string[], callback: (result: ExecResult) => void): void }
-      interface ExecResult { status: number; stdout: string; stderr: string }
-    }
-    """, example: """
-    let uptime = "…";
-
-    function refresh() {
-      host.exec(["/usr/bin/uptime"], (result) => {
-        uptime = result.status === 0 ? result.stdout.replace(/.*up\\s+([^,]+),.*/s, "$1") : "?";
-      });
-    }
-    refresh();
-    setInterval(refresh, 60_000);
-
-    module.exports = {
-      render() {
-        return { type: "text", text: uptime };
-      },
-    } satisfies Gary.BarWidget;
-    """, install: { host, plugin in
-        let exec: @convention(block) (JSValue, JSValue) -> Void = { [weak plugin] argv, callback in
-            guard let argv = argv.toArray() as? [String], !argv.isEmpty, callback.isObject else {
-                let context = JSContext.current()!
-                context.exception = JSValue(newErrorFromMessage: "host.exec takes an array of strings and a callback", in: context)
-                return
-            }
-            DispatchQueue.global(qos: .userInitiated).async {
-                let result = runProcess(argv)
-                plugin?.queue.async { plugin?.callBack(callback, [result], Trace("exec")) }
-            }
+    static let exec = Capability(
+        name: "exec",
+        summary: "Run a command off the main thread and get its exit status and output. Gary looks the command up in the PATH of the user's login shell, so commands from Homebrew and `~/.local/bin` need no absolute path.",
+        types: """
+        declare namespace Gary {
+          interface Host { exec(argv: string[], callback: (result: ExecResult) => void): void }
+          interface ExecResult { status: number; stdout: string; stderr: string }
         }
-        host.setObject(exec, forKeyedSubscript: "exec" as NSString)
-    })
+        """,
+        example: """
+        let uptime = "…";
+
+        function refresh() {
+          host.exec(["/usr/bin/uptime"], (result) => {
+            uptime = result.status === 0 ? result.stdout.replace(/.*up\\s+([^,]+),.*/s, "$1") : "?";
+          });
+        }
+        refresh();
+        setInterval(refresh, 60_000);
+
+        module.exports = {
+          render() {
+            return { type: "text", text: uptime };
+          },
+        } satisfies Gary.BarWidget;
+        """,
+        install: { host, plugin in
+            let exec: @convention(block) (JSValue, JSValue) -> Void = { [weak plugin] argv, callback in
+                guard let argv = argv.toArray() as? [String], !argv.isEmpty, callback.isObject else {
+                    let context = JSContext.current()!
+                    context.exception = JSValue(newErrorFromMessage: "host.exec takes an array of strings and a callback", in: context)
+                    return
+                }
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let result = runProcess(argv)
+                    plugin?.queue.async { plugin?.callBack(callback, [result], Trace("exec")) }
+                }
+            }
+            host.setObject(exec, forKeyedSubscript: "exec" as NSString)
+        },
+    )
 }
 
 private func runProcess(_ argv: [String]) -> [String: Any] {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
     process.arguments = ["--"] + argv
-    let output = Pipe(), errors = Pipe()
+    let output = Pipe()
+    let errors = Pipe()
     var environment = ProcessInfo.processInfo.environment
     environment["PATH"] = [Bundle.main.executableURL!.deletingLastPathComponent().path, loginPath].joined(separator: ":")
     process.environment = environment

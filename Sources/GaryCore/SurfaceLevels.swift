@@ -5,7 +5,7 @@ public struct SurfaceLevels: Equatable, Sendable {
     public var barAside: Int
     public var layers: [SurfaceLayer: Int]
 
-    private static let desktopIcon = -2147483603
+    private static let desktopIcon = -2_147_483_603
     private static let mainMenu = 24
 
     private static func row(bar: Int) -> SurfaceLevels {
@@ -26,5 +26,7 @@ public struct SurfaceLevels: Equatable, Sendable {
         }!.levels
     }
 
-    public func level(_ layer: SurfaceLayer) -> Int { layers[layer]! }
+    public func level(_ layer: SurfaceLayer) -> Int {
+        layers[layer]!
+    }
 }

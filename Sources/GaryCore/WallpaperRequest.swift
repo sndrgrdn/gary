@@ -8,8 +8,8 @@ public enum WallpaperRequest: Equatable, Sendable {
 
     public static func parse(_ call: HostCall, home: String) throws -> WallpaperRequest {
         switch call.method {
-        case "get": return .get
-        case "set": return .set(path: try call.path(0, home: home), display: try call.optionalString(1, "display"))
+        case "get": .get
+        case "set": try .set(path: call.path(0, home: home), display: call.optionalString(1, "display"))
         default: throw call.unknownMethod
         }
     }

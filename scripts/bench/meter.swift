@@ -21,7 +21,7 @@ func sample(_ pid: Int32) -> Sample? {
     guard result == 0 else { return nil }
     return Sample(
         footprint: info.ri_phys_footprint, cpu: Double(info.ri_user_time + info.ri_system_time) * tick / 1e9,
-        wakeups: info.ri_pkg_idle_wkups + info.ri_interrupt_wkups, time: Date().timeIntervalSince1970
+        wakeups: info.ri_pkg_idle_wkups + info.ri_interrupt_wkups, time: Date().timeIntervalSince1970,
     )
 }
 
@@ -40,7 +40,15 @@ for (index, (name, pid)) in targets.enumerated() {
         continue
     }
     let window = b.time - a.time
-    print(String(format: "%@ pid=%d footprint_start_mb=%.2f footprint_end_mb=%.2f cpu_pct=%.4f cpu_s=%.4f wakeups_per_s=%.2f window_s=%.1f",
-                 name, pid, Double(a.footprint) / 1_048_576, Double(b.footprint) / 1_048_576,
-                 (b.cpu - a.cpu) / window * 100, b.cpu - a.cpu, Double(b.wakeups - a.wakeups) / window, window))
+    print(String(
+        format: "%@ pid=%d footprint_start_mb=%.2f footprint_end_mb=%.2f cpu_pct=%.4f cpu_s=%.4f wakeups_per_s=%.2f window_s=%.1f",
+        name,
+        pid,
+        Double(a.footprint) / 1_048_576,
+        Double(b.footprint) / 1_048_576,
+        (b.cpu - a.cpu) / window * 100,
+        b.cpu - a.cpu,
+        Double(b.wakeups - a.wakeups) / window,
+        window,
+    ))
 }

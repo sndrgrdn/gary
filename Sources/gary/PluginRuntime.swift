@@ -52,10 +52,19 @@ final class PluginRuntime: Subscriber {
     private var scene: Scene
     private var output = RuntimeOutput()
 
-    var id: PluginID { bundle.manifest.id }
+    var id: PluginID {
+        bundle.manifest.id
+    }
 
-    init(bundle: PluginBundle, kind: PluginKind, scene: Scene, settings: JSON, theme: JSON, hub: StateHub,
-         deliver: @escaping (PluginRuntime, RuntimeEvent) -> Void) {
+    init(
+        bundle: PluginBundle,
+        kind: PluginKind,
+        scene: Scene,
+        settings: JSON,
+        theme: JSON,
+        hub: StateHub,
+        deliver: @escaping (PluginRuntime, RuntimeEvent) -> Void,
+    ) {
         self.bundle = bundle
         self.kind = kind
         self.scene = scene
@@ -72,7 +81,9 @@ final class PluginRuntime: Subscriber {
             state = hub.subscribe(self, to: bundle.manifest.subscribes)
             do {
                 try evaluate()
-                for (topic, value) in state.sorted(by: { $0.key.description < $1.key.description }) { try announce(topic, value) }
+                for (topic, value) in state.sorted(by: { $0.key.description < $1.key.description }) {
+                    try announce(topic, value)
+                }
                 output = try renderOutput()
                 deliver(self, .loaded(output, trace))
             } catch {
@@ -142,8 +153,12 @@ final class PluginRuntime: Subscriber {
             guard let functions else { return }
             do {
                 let handled = try invoke(functions.dispatch, [handler, JSON.array(arguments).text, stateText(for: nil)])
-                if !handled.isNull { renderAll(trace) }
-                if !handled.toBool(), let unhandled { DispatchQueue.main.async(execute: unhandled) }
+                if !handled.isNull {
+                    renderAll(trace)
+                }
+                if !handled.toBool(), let unhandled {
+                    DispatchQueue.main.async(execute: unhandled)
+                }
             } catch {
                 fail("\(error)")
             }
@@ -181,11 +196,13 @@ final class PluginRuntime: Subscriber {
         var targets = scene.displays
         if kind.isSurface {
             let text = try invoke(functions!.surface, [stateText(for: nil)]).toString() ?? "null"
-            let surface = try SurfaceSpec.parse(try JSON.parse(text), kind: kind)
+            let surface = try SurfaceSpec.parse(JSON.parse(text), kind: kind)
             targets = surface.screen.select(targets, focused: scene.focused)
             next.surface = surface
         }
-        for display in targets { next.trees[display.id] = try render(display) }
+        for display in targets {
+            next.trees[display.id] = try render(display)
+        }
         return next
     }
 
@@ -196,9 +213,13 @@ final class PluginRuntime: Subscriber {
 
     private func teardown() {
         hub.unsubscribe(self)
-        for timer in timers.values { timer.cancel() }
+        for timer in timers.values {
+            timer.cancel()
+        }
         timers = [:]
-        for stop in stops { stop() }
+        for stop in stops {
+            stop()
+        }
         stops = []
         functions = nil
         context = nil
@@ -209,10 +230,16 @@ final class PluginRuntime: Subscriber {
         nextTimer += 1
         let interval = max(repeats ? 10 : 0, milliseconds.isFinite ? milliseconds : 0) / 1000
         let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + interval, repeating: repeats ? interval : .infinity, leeway: .milliseconds(max(1, min(100, Int(interval * 100)))))
+        timer.schedule(
+            deadline: .now() + interval,
+            repeating: repeats ? interval : .infinity,
+            leeway: .milliseconds(max(1, min(100, Int(interval * 100)))),
+        )
         timer.setEventHandler { [weak self] in
             guard let self, isRunning else { return }
-            if !repeats { timers.removeValue(forKey: id)?.cancel() }
+            if !repeats {
+                timers.removeValue(forKey: id)?.cancel()
+            }
             callBack(callback, [], Trace("timer"))
         }
         timers[id] = timer
@@ -220,7 +247,9 @@ final class PluginRuntime: Subscriber {
         return id
     }
 
-    var isRunning: Bool { functions != nil }
+    var isRunning: Bool {
+        functions != nil
+    }
 
     func onStop(_ stop: @escaping () -> Void) {
         stops.append(stop)
@@ -239,7 +268,9 @@ final class PluginRuntime: Subscriber {
     private func evaluate() throws {
         let url = try bundle.entryPoint(kind)
         var source = try String(contentsOf: url, encoding: .utf8)
-        if url.pathExtension == "ts" { source = try TypeScript.shared.strip(source, file: url.lastPathComponent) }
+        if url.pathExtension == "ts" {
+            source = try TypeScript.shared.strip(source, file: url.lastPathComponent)
+        }
         let context = JSContext()!
         context.name = "\(id)"
         context.exceptionHandler = { [weak self] _, value in self?.exception = value?.toString() ?? "unknown exception" }
@@ -250,7 +281,9 @@ final class PluginRuntime: Subscriber {
             log("plugin \(id): no script time limit on this system")
         }
         let host = makeHost(in: context)
-        for capability in Capability.all where bundle.manifest.uses.contains(capability.name) { capability.install?(host, self) }
+        for capability in Capability.all where bundle.manifest.uses.contains(capability.name) {
+            capability.install?(host, self)
+        }
         context.setObject(host, forKeyedSubscript: "host" as NSString)
         installTimers(in: context)
         context.evaluateScript("var module = { exports: {} }; var exports = module.exports;")
@@ -309,7 +342,7 @@ final class PluginRuntime: Subscriber {
 
     private func makeHost(in context: JSContext) -> JSValue {
         let host = JSValue(newObjectIn: context)!
-        let id = self.id
+        let id = id
         let logBlock: @convention(block) (String) -> Void = { message in log("plugin \(id): \(message)") }
         host.setObject(logBlock, forKeyedSubscript: "log" as NSString)
         let storageURL = Paths.storage.appending(path: "\(id).json")
@@ -360,8 +393,8 @@ final class PluginRuntime: Subscriber {
                 self.deliver(self, .call(method: method, arguments: arguments) { [weak self] response in
                     self?.queue.async {
                         switch response {
-                        case .ok(let text): self?.callBack(resolve!, [text], Trace("host.call"))
-                        case .failure(let message): self?.callBack(reject!, [JSValue(newErrorFromMessage: message, in: context)!], Trace("host.call"))
+                        case let .ok(text): self?.callBack(resolve!, [text], Trace("host.call"))
+                        case let .failure(message): self?.callBack(reject!, [JSValue(newErrorFromMessage: message, in: context)!], Trace("host.call"))
                         }
                     }
                 })
@@ -402,8 +435,12 @@ final class PluginRuntime: Subscriber {
         exception = nil
         watchdog.fired = false
         let result = body()
-        if watchdog.fired { throw RenderError("stopped after running longer than \(Int(Self.timeLimit * 1000)) ms") }
-        if let exception { throw RenderError(exception) }
+        if watchdog.fired {
+            throw RenderError("stopped after running longer than \(Int(Self.timeLimit * 1000)) ms")
+        }
+        if let exception {
+            throw RenderError(exception)
+        }
         guard let result else { throw RenderError("script returned no value") }
         return result
     }
@@ -411,5 +448,7 @@ final class PluginRuntime: Subscriber {
 
 struct RenderError: Error, CustomStringConvertible {
     let description: String
-    init(_ description: String) { self.description = description }
+    init(_ description: String) {
+        self.description = description
+    }
 }

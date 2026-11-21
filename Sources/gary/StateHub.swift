@@ -25,13 +25,17 @@ final class StateHub {
             latest[topic] = value
             return Array(subscribers[topic, default: [:]].values)
         }
-        for subscriber in targets { subscriber.receive(topic, value, trace) }
+        for subscriber in targets {
+            subscriber.receive(topic, value, trace)
+        }
     }
 
     func subscribe(_ subscriber: Subscriber, to topics: [Topic]) -> [Topic: JSON] {
         defer { reconcile(topics) }
         return lock.withLock {
-            for topic in topics { subscribers[topic, default: [:]][ObjectIdentifier(subscriber)] = subscriber }
+            for topic in topics {
+                subscribers[topic, default: [:]][ObjectIdentifier(subscriber)] = subscriber
+            }
             return latest.filter { topics.contains($0.key) }
         }
     }
@@ -50,7 +54,9 @@ final class StateHub {
             for topic in managed {
                 let wanted = lock.withLock {
                     let wanted = !(subscribers[topic]?.isEmpty ?? true)
-                    if wanted { live.insert(topic) }
+                    if wanted {
+                        live.insert(topic)
+                    }
                     return wanted
                 }
                 if wanted, running[topic] == nil {

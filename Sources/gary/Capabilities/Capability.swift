@@ -77,7 +77,9 @@ enum HostResult {
 
 struct HostFailure: Error, CustomStringConvertible {
     let description: String
-    init(_ description: String) { self.description = description }
+    init(_ description: String) {
+        self.description = description
+    }
 }
 
 let home = FileManager.default.homeDirectoryForCurrentUser.path
@@ -88,9 +90,9 @@ func missingGrant(_ permission: Permission, _ api: String) -> String {
 
 private func message(_ error: Error, _ call: HostCall) -> String {
     switch error {
-    case let error as ArgumentError: return error.description
-    case let error as HostFailure: return "\(call.name): \(error)"
-    default: return "\(call.name): \(error.localizedDescription)"
+    case let error as ArgumentError: error.description
+    case let error as HostFailure: "\(call.name): \(error)"
+    default: "\(call.name): \(error.localizedDescription)"
     }
 }
 
@@ -118,8 +120,8 @@ extension PluginRuntime {
             let call = HostCall(api: api, method: method, arguments: (try? JSON.parse(text))?.array ?? [])
             do {
                 switch try handle(call) {
-                case .now(let value): return JSValue(object: value.text, in: context)
-                case .later(let queue, let work): return self?.promise(in: context, on: queue, call: call, work)
+                case let .now(value): return JSValue(object: value.text, in: context)
+                case let .later(queue, work): return self?.promise(in: context, on: queue, call: call, work)
                 }
             } catch {
                 context.exception = JSValue(newErrorFromMessage: message(error, call), in: context)
@@ -145,8 +147,12 @@ extension PluginRuntime {
                 self?.queue.async {
                     guard let self else { return }
                     switch result {
-                    case .success(let value): self.callBack(resolve!, [value.text], Trace(call.name))
-                    case .failure(let error): self.callBack(reject!, [JSValue(newErrorFromMessage: message(error, call), in: context)!], Trace(call.name))
+                    case let .success(value): self.callBack(resolve!, [value.text], Trace(call.name))
+                    case let .failure(error): self.callBack(
+                            reject!,
+                            [JSValue(newErrorFromMessage: message(error, call), in: context)!],
+                            Trace(call.name),
+                        )
                     }
                 }
             }

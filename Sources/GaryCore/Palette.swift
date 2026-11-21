@@ -10,19 +10,23 @@ public struct PaletteFile: Equatable, Sendable {
         let lines = text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
         for (index, raw) in lines.enumerated() {
             let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty || line.hasPrefix("#") { continue }
+            if line.isEmpty || line.hasPrefix("#") {
+                continue
+            }
             switch entry(line) {
-            case .failure(let error):
+            case let .failure(error):
                 file.ignored.append("line \(index + 1): \(error.reason)")
-            case .success(("mode", let value)):
+            case let .success(("mode", value)):
                 guard let mode = Palette.Mode(rawValue: value) else {
                     file.ignored.append("line \(index + 1): mode must be light or dark")
                     continue
                 }
                 file.mode = mode
-            case .success((let key, let value)):
+            case let .success((key, value)):
                 guard let color = RGBA(hex: value) else {
-                    if Palette.baseKeys.contains(key) { file.ignored.append("line \(index + 1): \(key) is not #rgb, #rrggbb or #rrggbbaa") }
+                    if Palette.baseKeys.contains(key) {
+                        file.ignored.append("line \(index + 1): \(key) is not #rgb, #rrggbb or #rrggbbaa")
+                    }
                     continue
                 }
                 file.colors[key] = color
@@ -70,18 +74,25 @@ public struct Palette: Equatable, Sendable {
         let mode = file?.mode ?? file?.colors["background"].map { $0.isLight ? .light : .dark } ?? system
         let builtin = Self.builtin(mode).colors
         var colors = file?.colors ?? builtin
-        for key in Self.baseKeys where colors[key] == nil { colors[key] = builtin[key] }
+        for key in Self.baseKeys where colors[key] == nil {
+            colors[key] = builtin[key]
+        }
         self.mode = mode
         self.colors = colors
     }
 
-    public var background: RGBA { colors["background"]! }
-    public var foreground: RGBA { colors["foreground"]! }
+    public var background: RGBA {
+        colors["background"]!
+    }
+
+    public var foreground: RGBA {
+        colors["foreground"]!
+    }
 
     public static func builtin(_ mode: Mode) -> PaletteFile {
         switch mode {
-        case .dark: return builtinDark
-        case .light: return builtinLight
+        case .dark: builtinDark
+        case .light: builtinLight
         }
     }
 

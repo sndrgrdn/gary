@@ -9,22 +9,21 @@ public enum Permission: String, CaseIterable, Sendable {
 
     public var name: String {
         switch self {
-        case .accessibility: return "Accessibility"
-        case .bluetooth: return "Bluetooth"
-        case .fullDiskAccess: return "Full Disk Access"
-        case .location: return "Location"
-        case .screenRecording: return "Screen Recording"
+        case .accessibility: "Accessibility"
+        case .bluetooth: "Bluetooth"
+        case .fullDiskAccess: "Full Disk Access"
+        case .location: "Location"
+        case .screenRecording: "Screen Recording"
         }
     }
 
     public var settingsPane: URL {
-        let anchor: String
-        switch self {
-        case .accessibility: anchor = "Privacy_Accessibility"
-        case .bluetooth: anchor = "Privacy_Bluetooth"
-        case .fullDiskAccess: anchor = "Privacy_AllFiles"
-        case .location: anchor = "Privacy_LocationServices"
-        case .screenRecording: anchor = "Privacy_ScreenCapture"
+        let anchor = switch self {
+        case .accessibility: "Privacy_Accessibility"
+        case .bluetooth: "Privacy_Bluetooth"
+        case .fullDiskAccess: "Privacy_AllFiles"
+        case .location: "Privacy_LocationServices"
+        case .screenRecording: "Privacy_ScreenCapture"
         }
         return URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)")!
     }
@@ -37,7 +36,9 @@ public enum PermissionsRequest: Equatable, Sendable {
     public static let methods = ["request", "restart"]
 
     public static func parse(_ call: HostCall) throws -> PermissionsRequest {
-        if call.method == "restart" { return .restart }
+        if call.method == "restart" {
+            return .restart
+        }
         guard call.method == "request" else { throw call.unknownMethod }
         let name = try call.string(0, "name")
         guard let permission = Permission(rawValue: name) else {

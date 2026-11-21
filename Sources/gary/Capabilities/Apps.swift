@@ -2,33 +2,40 @@ import AppKit
 import GaryCore
 
 extension Capability {
-    static let apps = Capability(name: "apps", summary: "The frontmost app and the running apps. Launch, activate, and quit apps by bundle id.", types: """
-    declare namespace Gary {
-      interface State { apps?: Apps }
-      interface Apps { frontmost: App | null; running: App[] }
-      interface App { app: string | null; name: string; pid: number; path: string | null; active: boolean; hidden: boolean }
-      interface Host { apps: AppsApi }
-      interface AppsApi {
-        launch(bundle: string): Promise<App>;
-        activate(bundle: string): Promise<App>;
-        quit(bundle: string): Promise<{ asked: number }>;
-      }
-    }
-    """, example: """
-    module.exports = {
-      render(state) {
-        return { type: "text", text: state.apps?.frontmost?.name ?? "", action: "terminal" };
-      },
-      onAction(action) {
-        if (action === "terminal") host.apps.activate("com.apple.Terminal").catch(() => host.apps.launch("com.apple.Terminal"));
-      },
-    } satisfies Gary.BarWidget;
-    """, install: { host, plugin in
-        plugin.installAPI(host, "apps", AppsRequest.methods) { call in
-            let request = try AppsRequest.parse(call)
-            return .later(.global(qos: .userInitiated)) { try perform(request) }
+    static let apps = Capability(
+        name: "apps",
+        summary: "The frontmost app and the running apps. Launch, activate, and quit apps by bundle id.",
+        types: """
+        declare namespace Gary {
+          interface State { apps?: Apps }
+          interface Apps { frontmost: App | null; running: App[] }
+          interface App { app: string | null; name: string; pid: number; path: string | null; active: boolean; hidden: boolean }
+          interface Host { apps: AppsApi }
+          interface AppsApi {
+            launch(bundle: string): Promise<App>;
+            activate(bundle: string): Promise<App>;
+            quit(bundle: string): Promise<{ asked: number }>;
+          }
         }
-    }, topic: { AppsTopic($0) })
+        """,
+        example: """
+        module.exports = {
+          render(state) {
+            return { type: "text", text: state.apps?.frontmost?.name ?? "", action: "terminal" };
+          },
+          onAction(action) {
+            if (action === "terminal") host.apps.activate("com.apple.Terminal").catch(() => host.apps.launch("com.apple.Terminal"));
+          },
+        } satisfies Gary.BarWidget;
+        """,
+        install: { host, plugin in
+            plugin.installAPI(host, "apps", AppsRequest.methods) { call in
+                let request = try AppsRequest.parse(call)
+                return .later(.global(qos: .userInitiated)) { try perform(request) }
+            }
+        },
+        topic: { AppsTopic($0) },
+    )
 }
 
 private func json(_ app: NSRunningApplication) -> JSON {
@@ -44,13 +51,13 @@ private func json(_ app: NSRunningApplication) -> JSON {
 
 private func perform(_ request: AppsRequest) throws -> JSON {
     switch request {
-    case .launch(let bundle):
+    case let .launch(bundle):
         return try launch(bundle)
-    case .activate(let bundle):
+    case let .activate(bundle):
         guard let app = running(bundle).first else { return try launch(bundle) }
         app.activate()
         return json(app)
-    case .quit(let bundle):
+    case let .quit(bundle):
         return .object(["asked": .number(Double(running(bundle).count(where: { $0.terminate() })))])
     }
 }
@@ -64,11 +71,15 @@ private func launch(_ bundle: String) throws -> JSON {
     let done = DispatchSemaphore(value: 0)
     var result: Result<NSRunningApplication, Error> = .failure(HostFailure("\(bundle) did not launch within 10 s"))
     NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { app, error in
-        if let app { result = .success(app) } else if let error { result = .failure(HostFailure(error.localizedDescription)) }
+        if let app {
+            result = .success(app)
+        } else if let error {
+            result = .failure(HostFailure(error.localizedDescription))
+        }
         done.signal()
     }
     _ = done.wait(timeout: .now() + 10)
-    return json(try result.get())
+    return try json(result.get())
 }
 
 private final class AppsTopic {
@@ -78,7 +89,8 @@ private final class AppsTopic {
     init(_ publish: @escaping (JSON, Trace) -> Void) {
         self.publish = publish
         let names: [Notification.Name] = [
-            NSWorkspace.didActivateApplicationNotification, NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification,
+            NSWorkspace.didActivateApplicationNotification, NSWorkspace.didLaunchApplicationNotification,
+            NSWorkspace.didTerminateApplicationNotification,
             NSWorkspace.didHideApplicationNotification, NSWorkspace.didUnhideApplicationNotification,
         ]
         observations = names.map { name in Observation(NSWorkspace.shared.notificationCenter, name) { [weak self] in self?.send(Trace("apps")) } }

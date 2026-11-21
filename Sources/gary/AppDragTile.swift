@@ -60,18 +60,26 @@ final class AppDragTile {
         self.timer = timer
     }
 
-    @objc private func closeClicked() { close() }
+    @objc private func closeClicked() {
+        close()
+    }
 
     private func close() {
         timer?.invalidate()
         panel.close()
-        if Self.current === self { Self.current = nil }
+        if Self.current === self {
+            Self.current = nil
+        }
     }
 
     private func tick() {
         let settings = Self.settingsWindow()
-        if settings != nil { settingsSeen = true }
-        if settingsSeen && settings == nil || Date().timeIntervalSince(opened) > 300 { return close() }
+        if settings != nil {
+            settingsSeen = true
+        }
+        if settingsSeen && settings == nil || Date().timeIntervalSince(opened) > 300 {
+            return close()
+        }
         place(beside: settings)
         guard !probing else { return }
         probing = true
@@ -80,7 +88,9 @@ final class AppDragTile {
             let granted = freshGrants([permission]).contains(permission)
             DispatchQueue.main.async {
                 self?.probing = false
-                if granted { self?.close() }
+                if granted {
+                    self?.close()
+                }
             }
         }
     }
@@ -92,12 +102,16 @@ final class AppDragTile {
         var origin: CGPoint
         if let settings {
             origin = CGPoint(x: settings.midX - size.width / 2, y: settings.minY - size.height - 12)
-            if origin.y < visible.minY { origin.y = settings.minY + 16 }
+            if origin.y < visible.minY {
+                origin.y = settings.minY + 16
+            }
         } else {
             origin = CGPoint(x: visible.midX - size.width / 2, y: visible.minY + 80)
         }
         origin.x = min(max(origin.x, visible.minX), visible.maxX - size.width)
-        if panel.frame.origin != origin { panel.setFrameOrigin(origin) }
+        if panel.frame.origin != origin {
+            panel.setFrameOrigin(origin)
+        }
     }
 
     private static func settingsWindow() -> CGRect? {
@@ -121,10 +135,17 @@ private final class DraggableAppIcon: NSImageView, NSDraggingSource {
         toolTip = Bundle.main.bundlePath
     }
 
-    required init?(coder: NSCoder) { nil }
+    required init?(coder _: NSCoder) {
+        nil
+    }
 
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-    override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
+    override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
+        true
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .openHand)
+    }
 
     override func mouseDown(with event: NSEvent) {
         let item = NSDraggingItem(pasteboardWriter: Bundle.main.bundleURL as NSURL)
@@ -132,7 +153,7 @@ private final class DraggableAppIcon: NSImageView, NSDraggingSource {
         beginDraggingSession(with: [item], event: event, source: self)
     }
 
-    func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+    func draggingSession(_: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
         context == .outsideApplication ? [.copy, .link, .generic] : []
     }
 }

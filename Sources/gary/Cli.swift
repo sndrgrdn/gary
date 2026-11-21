@@ -25,11 +25,15 @@ func runCli(_ verb: String, _ arguments: [String]) -> Int32 {
             line = try requestLine(request.line, path: socketPath, timeout: request.timeout + 5)
         }
         switch try Response.decode(line: line) {
-        case .ok(let result):
-            if request == .quit { return awaitQuit("Gary stopped") }
-            if !result.isEmpty { print(result) }
+        case let .ok(result):
+            if request == .quit {
+                return awaitQuit("Gary stopped")
+            }
+            if !result.isEmpty {
+                print(result)
+            }
             return 0
-        case .failure(let message):
+        case let .failure(message):
             fputs("gary: \(message)\n", stderr)
             return 1
         }
@@ -62,7 +66,9 @@ private func startApp() throws {
     let open = try Process.run(URL(fileURLWithPath: "/usr/bin/open"), arguments: ["-g", Bundle.main.bundlePath])
     open.waitUntilExit()
     for _ in 0..<50 {
-        if (try? requestLine(Request.ping.line, path: socketPath, timeout: 1)) != nil { return }
+        if (try? requestLine(Request.ping.line, path: socketPath, timeout: 1)) != nil {
+            return
+        }
         Thread.sleep(forTimeInterval: 0.2)
     }
     throw SocketError.unreachable(socketPath)
@@ -96,9 +102,13 @@ func runUpdate(_ arguments: [String]) -> Int32 {
 
 func runHelp() -> Int32 {
     print("usage: gary <verb> [args], sent to the running app over \(socketPath)\n")
-    for usage in Request.usage { printUsage(usage) }
+    for usage in Request.usage {
+        printUsage(usage)
+    }
     print("\nThese commands work without the running app:\n")
-    for usage in appUsage + skillUsage + pluginUsage { printUsage(usage) }
+    for usage in appUsage + skillUsage + pluginUsage {
+        printUsage(usage)
+    }
     return 0
 }
 

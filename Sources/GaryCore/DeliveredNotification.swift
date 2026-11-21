@@ -22,7 +22,7 @@ public struct DeliveredNotification: Equatable, Sendable {
               let request = plist["req"] as? [String: Any], let date = plist["date"] as? Double else { return nil }
         self.init(
             id: id, app: plist["app"] as? String ?? appColumn, title: request["titl"] as? String, subtitle: request["subt"] as? String,
-            body: request["body"] as? String, date: (date + Date.timeIntervalBetween1970AndReferenceDate) * 1000
+            body: request["body"] as? String, date: (date + Date.timeIntervalBetween1970AndReferenceDate) * 1000,
         )
     }
 }

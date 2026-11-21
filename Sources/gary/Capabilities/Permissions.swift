@@ -4,51 +4,59 @@ import CoreBluetooth
 import GaryCore
 
 extension Capability {
-    static let permissions = Capability(name: "permissions", summary: "Each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Ask for one, as gary permissions request does, or restart Gary through its crash supervisor so a new Full Disk Access or Screen Recording grant takes effect. After the restart Gary shows the calling plugin's surface again if it was open.", types: """
-    declare namespace Gary {
-      type PermissionName = \(Permission.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: " | "));
-      interface State { permissions?: PermissionStatus[] }
-      interface PermissionStatus {
-        name: PermissionName;
-        title: string;
-        status: "granted" | "notAsked" | "denied" | "notGranted" | "needsRestart";
-        restart: boolean;
-        capabilities: { name: string; summary: string }[];
-        plugins: { id: string; name: string; capabilities: string[] }[];
-      }
-      interface Host { permissions: { request(name: PermissionName): Promise<string>; restart(): Promise<string> } }
-    }
-    """, example: """
-    module.exports = {
-      render(state) {
-        const missing = (state.permissions ?? []).filter((each) => each.plugins.length > 0 && each.status !== "granted");
-        return {
-          type: "column",
-          children: missing.map((each) => ({
-            type: "button", key: each.name, action: each.name,
-            children: [{ type: "text", text: `Grant ${each.title} for ${each.plugins.map((plugin) => plugin.name).join(", ")}` }],
-          })),
-        };
-      },
-      onAction(name, _payload, state) {
-        const permission = state.permissions?.find((each) => each.name === name);
-        if (permission) host.permissions.request(permission.name).then((message) => host.log(message));
-      },
-    } satisfies Gary.Panel;
-    """, install: { host, plugin in
-        plugin.installAPI(host, "permissions", PermissionsRequest.methods) { call in
-            switch try PermissionsRequest.parse(call) {
-            case .request(let permission): return .later(.main) { .string(permission.request()) }
-            case .restart:
-                guard isSupervised else { throw HostFailure("Gary runs without its crash supervisor, as with gary app, so it cannot restart itself") }
-                let id = plugin.id
-                return .later(.main) {
-                    NotificationCenter.default.post(name: .restartGary, object: id)
-                    return .string("restarting Gary")
+    static let permissions = Capability(
+        name: "permissions",
+        summary: "Each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Ask for one, as gary permissions request does, or restart Gary through its crash supervisor so a new Full Disk Access or Screen Recording grant takes effect. After the restart Gary shows the calling plugin's surface again if it was open.",
+        types: """
+        declare namespace Gary {
+          type PermissionName = \(Permission.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: " | "));
+          interface State { permissions?: PermissionStatus[] }
+          interface PermissionStatus {
+            name: PermissionName;
+            title: string;
+            status: "granted" | "notAsked" | "denied" | "notGranted" | "needsRestart";
+            restart: boolean;
+            capabilities: { name: string; summary: string }[];
+            plugins: { id: string; name: string; capabilities: string[] }[];
+          }
+          interface Host { permissions: { request(name: PermissionName): Promise<string>; restart(): Promise<string> } }
+        }
+        """,
+        example: """
+        module.exports = {
+          render(state) {
+            const missing = (state.permissions ?? []).filter((each) => each.plugins.length > 0 && each.status !== "granted");
+            return {
+              type: "column",
+              children: missing.map((each) => ({
+                type: "button", key: each.name, action: each.name,
+                children: [{ type: "text", text: `Grant ${each.title} for ${each.plugins.map((plugin) => plugin.name).join(", ")}` }],
+              })),
+            };
+          },
+          onAction(name, _payload, state) {
+            const permission = state.permissions?.find((each) => each.name === name);
+            if (permission) host.permissions.request(permission.name).then((message) => host.log(message));
+          },
+        } satisfies Gary.Panel;
+        """,
+        install: { host, plugin in
+            plugin.installAPI(host, "permissions", PermissionsRequest.methods) { call in
+                switch try PermissionsRequest.parse(call) {
+                case let .request(permission): return .later(.main) { .string(permission.request()) }
+                case .restart:
+                    guard isSupervised
+                    else { throw HostFailure("Gary runs without its crash supervisor, as with gary app, so it cannot restart itself") }
+                    let id = plugin.id
+                    return .later(.main) {
+                        NotificationCenter.default.post(name: .restartGary, object: id)
+                        return .string("restarting Gary")
+                    }
                 }
             }
-        }
-    }, topic: { PermissionsTopic($0) })
+        },
+        topic: { PermissionsTopic($0) },
+    )
 }
 
 extension Notification.Name {
@@ -109,7 +117,9 @@ func freshGrants(_ permissions: [Permission]) -> Set<Permission> {
 }
 
 func runGrantProbe(_ names: [String]) -> Int32 {
-    for permission in names.compactMap(Permission.init(rawValue:)) where permission.grant == .granted { print(permission.rawValue) }
+    for permission in names.compactMap(Permission.init(rawValue:)) where permission.grant == .granted {
+        print(permission.rawValue)
+    }
     return 0
 }
 
@@ -118,11 +128,11 @@ enum Grant: String {
 
     var description: String {
         switch self {
-        case .granted: return "granted"
-        case .notAsked: return "not asked"
-        case .denied: return "denied"
-        case .notGranted: return "not granted"
-        case .needsRestart: return "granted, takes effect after a restart"
+        case .granted: "granted"
+        case .notAsked: "not asked"
+        case .denied: "denied"
+        case .notGranted: "not granted"
+        case .needsRestart: "granted, takes effect after a restart"
         }
     }
 }
@@ -147,11 +157,14 @@ struct PermissionNeed {
     }
 
     var summary: String {
-        let users = plugins.isEmpty ? "no enabled plugin" : plugins.map { "\($0.manifest.id) (\($0.capabilities.joined(separator: ", ")))" }.joined(separator: ", ")
+        let users = plugins.isEmpty ? "no enabled plugin" : plugins.map { "\($0.manifest.id) (\($0.capabilities.joined(separator: ", ")))" }
+            .joined(separator: ", ")
         return "needed by \(capabilities.joined(separator: ", ")); used by \(users)"
     }
 
-    var isMissing: Bool { grant != .granted && !plugins.isEmpty }
+    var isMissing: Bool {
+        grant != .granted && !plugins.isEmpty
+    }
 
     var json: JSON {
         .object([
@@ -163,14 +176,20 @@ struct PermissionNeed {
                 .object(["name": .string(name), "summary": .string(Capability.all.first { $0.name == name }?.summary ?? "")])
             }),
             "plugins": .array(plugins.map { plugin in
-                .object(["id": .string(plugin.manifest.id.rawValue), "name": .string(plugin.manifest.name), "capabilities": .array(plugin.capabilities.map(JSON.string))])
+                .object([
+                    "id": .string(plugin.manifest.id.rawValue),
+                    "name": .string(plugin.manifest.name),
+                    "capabilities": .array(plugin.capabilities.map(JSON.string)),
+                ])
             }),
         ])
     }
 }
 
 extension Permission {
-    var needsRestart: Bool { self == .screenRecording || self == .fullDiskAccess }
+    var needsRestart: Bool {
+        self == .screenRecording || self == .fullDiskAccess
+    }
 
     private static let preview: [Permission: Grant] = {
         let text = ProcessInfo.processInfo.environment["GARY_PERMISSIONS_PREVIEW"] ?? ""
@@ -181,7 +200,9 @@ extension Permission {
         }) { $1 }
     }()
 
-    var grant: Grant { Self.preview[self] ?? systemGrant }
+    var grant: Grant {
+        Self.preview[self] ?? systemGrant
+    }
 
     private var systemGrant: Grant {
         switch self {
@@ -202,8 +223,12 @@ extension Permission {
             ]
             for probe in probes {
                 let descriptor = open(home.appending(path: probe).path, O_RDONLY)
-                if descriptor >= 0 { close(descriptor); return .granted }
-                if errno == EPERM || errno == EACCES { return .notGranted }
+                if descriptor >= 0 {
+                    close(descriptor); return .granted
+                }
+                if errno == EPERM || errno == EACCES {
+                    return .notGranted
+                }
             }
             return .notGranted
         case .location:
@@ -235,7 +260,11 @@ extension Permission {
                 NSWorkspace.shared.open(settingsPane)
                 return "Gary was refused \(name) before, so macOS shows no prompt. Opened \(pane). Turn Gary on there."
             }
-            if self == .location { LocationAccess.shared.request() } else { BluetoothAccess.shared.request() }
+            if self == .location {
+                LocationAccess.shared.request()
+            } else {
+                BluetoothAccess.shared.request()
+            }
             return "macOS shows its \(name) prompt for Gary. Choose Allow."
         case .fullDiskAccess:
             NSWorkspace.shared.open(settingsPane)
@@ -252,7 +281,8 @@ func launchingProgram() -> String? {
         guard proc_pidpath(pid, &path, UInt32(path.count)) > 0 else { return "pid \(pid)" }
         let program = String(cString: path)
         guard program == Bundle.main.executablePath else { return URL(fileURLWithPath: program).lastPathComponent }
-        var info = kinfo_proc(), size = MemoryLayout<kinfo_proc>.size
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.size
         var name: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
         guard sysctl(&name, 4, &info, &size, nil, 0) == 0 else { return "pid \(pid)" }
         pid = info.kp_eproc.e_ppid
@@ -263,16 +293,25 @@ func launchingProgram() -> String? {
 func permissionReport(enabled manifests: [PluginManifest]) -> String {
     var lines = ["Gary \(Bundle.main.bundleIdentifier ?? "without a bundle id") at \(Bundle.main.bundlePath), pid \(getpid())"]
     if let program = launchingProgram() {
-        lines.append("warning: \(program) started this Gary, so macOS checks that program's permissions instead of Gary's. Start Gary with: open \(Bundle.main.bundlePath)")
+        lines
+            .append(
+                "warning: \(program) started this Gary, so macOS checks that program's permissions instead of Gary's. Start Gary with: open \(Bundle.main.bundlePath)",
+            )
     }
     lines.append("")
     let needs = PermissionNeed.all(enabled: manifests, checkGrants: true)
     let width = Permission.allCases.map(\.rawValue.count).max()!
     for need in needs {
         let grant = need.grant!.description
-        lines.append(need.permission.rawValue.padding(toLength: width + 2, withPad: " ", startingAt: 0) + grant.padding(toLength: 13, withPad: " ", startingAt: 0) + need.summary)
+        lines.append(need.permission.rawValue.padding(toLength: width + 2, withPad: " ", startingAt: 0) + grant.padding(
+            toLength: 13,
+            withPad: " ",
+            startingAt: 0,
+        ) + need.summary)
     }
     let wanted = needs.filter(\.isMissing).map(\.permission.rawValue)
-    if !wanted.isEmpty { lines += ["", "Enabled plugins need: " + wanted.map { "gary permissions request \($0)" }.joined(separator: "; ")] }
+    if !wanted.isEmpty {
+        lines += ["", "Enabled plugins need: " + wanted.map { "gary permissions request \($0)" }.joined(separator: "; ")]
+    }
     return lines.joined(separator: "\n")
 }

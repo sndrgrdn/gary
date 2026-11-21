@@ -14,9 +14,9 @@ public enum AudioRequest: Equatable, Sendable {
     public static func parse(_ call: HostCall) throws -> AudioRequest {
         let scope = { try call.choice(1, "scope", default: AudioScope.output) }
         switch call.method {
-        case "setVolume": return .setVolume(try call.fraction(0, "volume"), try scope())
-        case "setMuted": return .setMuted(try call.bool(0, "muted"), try scope())
-        case "setDefaultDevice": return .setDefaultDevice(id: try call.string(0, "id"), try scope())
+        case "setVolume": return try .setVolume(call.fraction(0, "volume"), scope())
+        case "setMuted": return try .setMuted(call.bool(0, "muted"), scope())
+        case "setDefaultDevice": return try .setDefaultDevice(id: call.string(0, "id"), scope())
         default: throw call.unknownMethod
         }
     }
@@ -29,7 +29,7 @@ public enum BrightnessRequest: Equatable, Sendable {
 
     public static func parse(_ call: HostCall) throws -> BrightnessRequest {
         guard call.method == "set" else { throw call.unknownMethod }
-        return .set(try call.fraction(0, "brightness"), display: try call.optionalString(1, "display"))
+        return try .set(call.fraction(0, "brightness"), display: call.optionalString(1, "display"))
     }
 }
 
@@ -41,7 +41,7 @@ public enum MediaKeysRequest: Equatable, Sendable {
     public static func parse(_ call: HostCall) throws -> MediaKeysRequest {
         guard call.method == "intercept" else { throw call.unknownMethod }
         do {
-            return .intercept(try MediaKey.parse(try call.strings(0, "keys")))
+            return try .intercept(MediaKey.parse(call.strings(0, "keys")))
         } catch let error as MediaKey.UnknownKey {
             throw call.fail(error.description)
         }
@@ -93,10 +93,10 @@ public enum WiFiRequest: Equatable, Sendable {
 
     public static func parse(_ call: HostCall) throws -> WiFiRequest {
         switch call.method {
-        case "setPower": return .setPower(try call.bool(0, "on"))
-        case "scan": return .scan
-        case "join": return .join(ssid: try call.string(0, "ssid"), password: try call.optionalString(1, "password"))
-        case "requestLocation": return .requestLocation
+        case "setPower": try .setPower(call.bool(0, "on"))
+        case "scan": .scan
+        case "join": try .join(ssid: call.string(0, "ssid"), password: call.optionalString(1, "password"))
+        case "requestLocation": .requestLocation
         default: throw call.unknownMethod
         }
     }
@@ -112,10 +112,10 @@ public enum BluetoothRequest: Equatable, Sendable {
 
     public static func parse(_ call: HostCall) throws -> BluetoothRequest {
         switch call.method {
-        case "setPower": return .setPower(try call.bool(0, "on"))
-        case "connect": return .connect(address: try call.string(0, "address"))
-        case "disconnect": return .disconnect(address: try call.string(0, "address"))
-        case "requestAccess": return .requestAccess
+        case "setPower": try .setPower(call.bool(0, "on"))
+        case "connect": try .connect(address: call.string(0, "address"))
+        case "disconnect": try .disconnect(address: call.string(0, "address"))
+        case "requestAccess": .requestAccess
         default: throw call.unknownMethod
         }
     }

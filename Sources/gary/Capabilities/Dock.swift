@@ -45,18 +45,24 @@ private final class Dock {
     private var autohides = Claims<ObjectIdentifier, Bool>()
     private var timer: Timer?
 
-    private var screen: CGSize { CGDisplayBounds(CGMainDisplayID()).size }
+    private var screen: CGSize {
+        CGDisplayBounds(CGMainDisplayID()).size
+    }
 
     func perform(_ request: DockRequest, by owner: ObjectIdentifier) throws -> JSON {
         switch request {
-        case .reserve(let reservation):
-            if let missing = SkyLight.missing(SkyLight.dockSymbols) { throw HostFailure(missing) }
+        case let .reserve(reservation):
+            if let missing = SkyLight.missing(SkyLight.dockSymbols) {
+                throw HostFailure(missing)
+            }
             guard reservation.rect(in: screen) != nil else { throw HostFailure("\(reservation.size) pt is more than half the screen") }
             reservations.claim(reservation, by: owner)
         case .release:
             reservations.release(owner)
         case .hide, .show:
-            if let missing = CoreDock.missing { throw HostFailure(missing) }
+            if let missing = CoreDock.missing {
+                throw HostFailure(missing)
+            }
             autohides.claim(request == .hide, by: owner)
         case .restore:
             autohides.release(owner)
@@ -77,17 +83,24 @@ private final class Dock {
         let rect = SkyLight.dockRect()?.rect
         return .object([
             "autohide": .bool(CoreDock.autohide),
-            "rect": rect.map { .object(["x": .number($0.minX), "y": .number($0.minY), "width": .number($0.width), "height": .number($0.height)]) } ?? .null,
+            "rect": rect
+                .map { .object(["x": .number($0.minX), "y": .number($0.minY), "width": .number($0.width), "height": .number($0.height)]) } ?? .null,
             "reserved": reservations.current?.json ?? .null,
         ])
     }
 
     private func apply() {
         if let wanted = autohides.current {
-            if SystemState.saved.autohide == nil { SystemState.update { $0.autohide = CoreDock.autohide } }
-            if CoreDock.autohide != wanted { CoreDock.setAutohide(wanted) }
+            if SystemState.saved.autohide == nil {
+                SystemState.update { $0.autohide = CoreDock.autohide }
+            }
+            if CoreDock.autohide != wanted {
+                CoreDock.setAutohide(wanted)
+            }
         } else if let original = SystemState.saved.autohide {
-            if CoreDock.autohide != original { CoreDock.setAutohide(original) }
+            if CoreDock.autohide != original {
+                CoreDock.setAutohide(original)
+            }
             SystemState.update { $0.autohide = nil }
         }
         reserve()
@@ -107,14 +120,18 @@ private final class Dock {
         guard let current = SkyLight.dockRect() else { return }
         guard let reservation = reservations.current, let rect = reservation.rect(in: screen) else {
             guard let saved else { return }
-            if current.rect == saved.reserved.rect { SkyLight.setDockRect(saved.own) }
+            if current.rect == saved.reserved.rect {
+                SkyLight.setDockRect(saved.own)
+            }
             SystemState.update { $0.dock = nil }
             log("dock reservation released")
             return
         }
         guard current.rect != rect else { return }
         let own = saved == nil || current.rect != saved!.reserved.rect ? current : saved!.own
-        if saved != nil, own == current { log("dock: the Dock rewrote its rect to \(current.rect); reserving again") }
+        if saved != nil, own == current {
+            log("dock: the Dock rewrote its rect to \(current.rect); reserving again")
+        }
         let reserved = DockRect(rect: rect, reason: own.reason, orientation: reservation.orientation)
         SystemState.update { $0.dock = SavedSystemState.Dock(own: own, reserved: reserved) }
         SkyLight.setDockRect(reserved)

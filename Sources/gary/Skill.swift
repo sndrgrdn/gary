@@ -2,7 +2,11 @@ import Foundation
 import GaryCore
 
 let skillUsage: [(syntax: String, description: String, example: String?)] = [
-    ("skill [status|setup|remove|show]", "Install the gary skill into Claude Code and agents that read ~/.agents/skills, or print the guide it points to.", nil),
+    (
+        "skill [status|setup|remove|show]",
+        "Install the gary skill into Claude Code and agents that read ~/.agents/skills, or print the guide it points to.",
+        nil,
+    ),
 ]
 
 struct BundledExample {
@@ -15,7 +19,8 @@ struct BundledExample {
         let capabilities = try? Capability.names()
         return directories.filter(\.hasDirectoryPath).sorted { $0.lastPathComponent < $1.lastPathComponent }.map { directory in
             let readme = (try? String(contentsOf: directory.appending(path: "README.md"), encoding: .utf8)) ?? ""
-            let paragraph = readme.components(separatedBy: "\n\n").dropFirst().first?.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces) ?? ""
+            let paragraph = readme.components(separatedBy: "\n\n").dropFirst().first?.replacingOccurrences(of: "\n", with: " ")
+                .trimmingCharacters(in: .whitespaces) ?? ""
             let manifest = capabilities.flatMap { try? PluginBundle.load(directory, origin: .user, capabilities: $0).manifest }
             return BundledExample(name: directory.lastPathComponent, summary: paragraph, manifest: manifest)
         }
@@ -328,12 +333,21 @@ enum Skill {
     }
 
     private static var capabilitySection: String {
-        var lines = ["## Capabilities", "", "Each section gives the manifest entry, the macOS permissions, an example entry file, and the declarations that `gary.d.ts` adds."]
+        var lines = [
+            "## Capabilities",
+            "",
+            "Each section gives the manifest entry, the macOS permissions, an example entry file, and the declarations that `gary.d.ts` adds.",
+        ]
         for capability in Capability.all {
             var entry: [String] = []
-            if capability.install != nil { entry.append("`\"uses\": [\"\(capability.name)\"]` for the functions") }
-            if capability.topic != nil { entry.append("`\"subscribes\": [\"\(capability.name)\"]` for `state.\(capability.name)`") }
-            let permissions = capability.permissions.isEmpty ? "none" : capability.permissions.map { "\($0.name) (`\($0.rawValue)`)" }.joined(separator: ", ")
+            if capability.install != nil {
+                entry.append("`\"uses\": [\"\(capability.name)\"]` for the functions")
+            }
+            if capability.topic != nil {
+                entry.append("`\"subscribes\": [\"\(capability.name)\"]` for `state.\(capability.name)`")
+            }
+            let permissions = capability.permissions.isEmpty ? "none" : capability.permissions.map { "\($0.name) (`\($0.rawValue)`)" }
+                .joined(separator: ", ")
             lines += [
                 "", "### \(capability.name)", "", capability.summary, "",
                 "- Manifest: \(entry.joined(separator: ", and "))",
@@ -356,12 +370,11 @@ enum Skill {
         ]
         for permission in Permission.allCases {
             let users = Capability.all.filter { $0.permissions.contains(permission) }.map { "`\($0.name)`" }
-            let asks: String
-            switch permission {
-            case .accessibility: asks = "the macOS prompt, which offers to open the Settings pane"
-            case .bluetooth, .location: asks = "the macOS prompt, or the Settings pane after a refusal"
-            case .screenRecording: asks = "the macOS prompt the first time, and the Settings pane"
-            case .fullDiskAccess: asks = "the Settings pane, since macOS has no prompt"
+            let asks = switch permission {
+            case .accessibility: "the macOS prompt, which offers to open the Settings pane"
+            case .bluetooth, .location: "the macOS prompt, or the Settings pane after a refusal"
+            case .screenRecording: "the macOS prompt the first time, and the Settings pane"
+            case .fullDiskAccess: "the Settings pane, since macOS has no prompt"
             }
             lines.append("| `\(permission.rawValue)` | \(permission.name) | \(users.joined(separator: ", ")) | \(asks) |")
         }
@@ -386,7 +399,8 @@ enum Skill {
     }
 
     private static func exampleSection(_ examples: [BundledExample]) -> String {
-        guard !examples.isEmpty else { return "## Examples\n\nThis binary has no bundled examples. Scaffold with `gary plugin new <id> --kind <kind>`." }
+        guard !examples.isEmpty
+        else { return "## Examples\n\nThis binary has no bundled examples. Scaffold with `gary plugin new <id> --kind <kind>`." }
         let rows = examples.map { example -> String in
             let manifest = example.manifest
             let details = [
@@ -407,24 +421,26 @@ enum Skill {
 
     private static let stubVersion = "1"
     private static let stub = """
-        ---
-        name: gary
-        description: Build, install, debug, and verify plugins for Gary, the macOS shell runtime with a bar, panels, overlays, menus, and services in TypeScript. Use the gary CLI to control the running shell.
-        metadata:
-          gary-stub: "\(stubVersion)"
-        ---
-        <!-- Installed by "gary skill setup". Remove it with "gary skill remove". -->
+    ---
+    name: gary
+    description: Build, install, debug, and verify plugins for Gary, the macOS shell runtime with a bar, panels, overlays, menus, and services in TypeScript. Use the gary CLI to control the running shell.
+    metadata:
+      gary-stub: "\(stubVersion)"
+    ---
+    <!-- Installed by "gary skill setup". Remove it with "gary skill remove". -->
 
-        Run `gary skill show` and follow the guide it prints. The guide comes from the installed Gary, so it matches that version.
+    Run `gary skill show` and follow the guide it prints. The guide comes from the installed Gary, so it matches that version.
 
-        """
+    """
 
     private static let destinations: [(agents: String, homes: [String], folder: URL)] = [
         ("Claude Code", [".claude"], homeURL.appending(path: ".claude/skills/gary")),
         ("Codex, OpenCode, and pi", [".agents", ".codex", ".config/opencode", ".pi"], homeURL.appending(path: ".agents/skills/gary")),
     ]
 
-    private static var homeURL: URL { FileManager.default.homeDirectoryForCurrentUser }
+    private static var homeURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+    }
 
     private enum State: String {
         case current, outdated, missing, foreign
@@ -465,7 +481,9 @@ enum Skill {
             }
         case [], ["status"]:
             for (agents, homes, folder) in destinations {
-                print("\(agents): " + (found(homes) ? "\(state(of: folder).rawValue.padding(toLength: 9, withPad: " ", startingAt: 0)) \(display(folder))" : "not found"))
+                print("\(agents): " +
+                    (found(homes) ? "\(state(of: folder).rawValue.padding(toLength: 9, withPad: " ", startingAt: 0)) \(display(folder))" :
+                        "not found"))
             }
         default:
             fputs("usage: gary \(skillUsage[0].syntax)\n", stderr)
@@ -482,7 +500,9 @@ enum Skill {
         guard let text = try? String(contentsOf: folder.appending(path: "SKILL.md"), encoding: .utf8) else {
             return FileManager.default.fileExists(atPath: folder.path) ? .foreign : .missing
         }
-        if text == stub { return .current }
+        if text == stub {
+            return .current
+        }
         return text.contains("gary-stub:") ? .outdated : .foreign
     }
 

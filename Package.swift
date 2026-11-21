@@ -9,10 +9,11 @@ let package = Package(
         .library(name: "MediaRemoteAdapter", type: .dynamic, targets: ["MediaRemoteAdapter"]),
     ],
     targets: [
-        // Every private symbol Gary uses, listed in one table and resolved with dlsym, so a missing one turns its feature off and shows in the self-test. Objective-C.
+        // Every private symbol Gary uses, listed in one table and resolved with dlsym, so a missing one turns its feature off and shows in the
+        // self-test. Objective-C.
         .target(
             name: "GaryPrivate",
-            linkerSettings: [.linkedFramework("JavaScriptCore")]
+            linkerSettings: [.linkedFramework("JavaScriptCore")],
         ),
         // ungive/mediaremote-adapter at 6571499 (BSD-3-Clause), loaded by Apple's /usr/bin/perl to read and control now playing. Objective-C.
         .target(
@@ -22,40 +23,41 @@ let package = Package(
             sources: ["src/adapter", "src/private", "src/utility"],
             publicHeadersPath: "include",
             cSettings: [.headerSearchPath("src")],
-            linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("UniformTypeIdentifiers"), .linkedFramework("ImageIO")]
+            linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("UniformTypeIdentifiers"), .linkedFramework("ImageIO")],
         ),
-        // Pure shell model: manifests, node trees, reconcile, theme, shell config, surfaces, IPC messages, and parsers for the data capabilities read. Foundation and CoreGraphics geometry only. Unit tested.
+        // Pure shell model: manifests, node trees, reconcile, theme, shell config, surfaces, IPC messages, and parsers for the data capabilities
+        // read. Foundation and CoreGraphics geometry only. Unit tested.
         .target(
             name: "GaryCore",
-            swiftSettings: [.swiftLanguageMode(.v6)]
+            swiftSettings: [.swiftLanguageMode(.v6)],
         ),
         .testTarget(
             name: "GaryCoreTests",
             dependencies: ["GaryCore"],
-            swiftSettings: [.swiftLanguageMode(.v6)]
+            swiftSettings: [.swiftLanguageMode(.v6)],
         ),
         // Unix socket server and client for Gary's NDJSON IPC lines. Unit tested.
         .target(
             name: "GarySocket",
-            swiftSettings: [.swiftLanguageMode(.v6)]
+            swiftSettings: [.swiftLanguageMode(.v6)],
         ),
         .testTarget(
             name: "GarySocketTests",
             dependencies: ["GarySocket"],
-            swiftSettings: [.swiftLanguageMode(.v6)]
+            swiftSettings: [.swiftLanguageMode(.v6)],
         ),
         // The app and CLI.
         .executableTarget(
             name: "gary",
             dependencies: ["GaryCore", "GarySocket", "GaryPrivate"],
             swiftSettings: [.swiftLanguageMode(.v5)],
-            linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("JavaScriptCore"), .linkedFramework("IOKit"), .linkedFramework("Carbon")]
+            linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("JavaScriptCore"), .linkedFramework("IOKit"), .linkedFramework("Carbon")],
         ),
         // Checks of the app target against its capability registry, such as the agent guide covering every capability.
         .testTarget(
             name: "GaryTests",
             dependencies: ["gary"],
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            swiftSettings: [.swiftLanguageMode(.v5)],
         ),
-    ]
+    ],
 )

@@ -11,13 +11,13 @@ public enum SocketError: Error, Equatable, CustomStringConvertible {
 
     public var description: String {
         switch self {
-        case .unreachable(let path): return "nothing is listening on \(path)"
-        case .inUse(let path): return "another process is listening on \(path)"
-        case .timedOut: return "socket timed out"
-        case .tooLarge: return "message exceeds \(maxMessageBytes) bytes"
-        case .closed: return "connection closed before a full line"
-        case .invalidUTF8: return "message is not valid UTF-8"
-        case .system(let code): return "socket: \(String(cString: strerror(code)))"
+        case let .unreachable(path): "nothing is listening on \(path)"
+        case let .inUse(path): "another process is listening on \(path)"
+        case .timedOut: "socket timed out"
+        case .tooLarge: "message exceeds \(maxMessageBytes) bytes"
+        case .closed: "connection closed before a full line"
+        case .invalidUTF8: "message is not valid UTF-8"
+        case let .system(code): "socket: \(String(cString: strerror(code)))"
         }
     }
 }
@@ -86,7 +86,9 @@ public final class LineServer {
         source.resume()
     }
 
-    public func stop() { source.cancel() }
+    public func stop() {
+        source.cancel()
+    }
 }
 
 private final class ClientCount: @unchecked Sendable {
@@ -101,7 +103,9 @@ private final class ClientCount: @unchecked Sendable {
         }
     }
 
-    func leave() { lock.withLock { count -= 1 } }
+    func leave() {
+        lock.withLock { count -= 1 }
+    }
 }
 
 private func serve(_ client: Int32, _ handle: (String) -> String) {
@@ -111,7 +115,9 @@ private func serve(_ client: Int32, _ handle: (String) -> String) {
     var chunk = [UInt8](repeating: 0, count: 4096)
     while true {
         let count = recv(client, &chunk, chunk.count, 0)
-        if count < 0, errno == EINTR { continue }
+        if count < 0, errno == EINTR {
+            continue
+        }
         guard count > 0, let lines = try? buffer.append(chunk[..<count]) else { return }
         for line in lines where !line.isEmpty {
             guard (try? writeAll(client, handle(line) + "\n")) != nil else { return }
@@ -128,10 +134,16 @@ public func requestLine(_ line: String, path: String, timeout: TimeInterval) thr
     var chunk = [UInt8](repeating: 0, count: 4096)
     while true {
         let count = recv(fd, &chunk, chunk.count, 0)
-        if count < 0, errno == EINTR { continue }
-        if count < 0 { throw errno == EAGAIN ? SocketError.timedOut : SocketError.system(errno) }
+        if count < 0, errno == EINTR {
+            continue
+        }
+        if count < 0 {
+            throw errno == EAGAIN ? SocketError.timedOut : SocketError.system(errno)
+        }
         guard count > 0 else { throw SocketError.closed }
-        if let reply = try buffer.append(chunk[..<count]).first { return reply }
+        if let reply = try buffer.append(chunk[..<count]).first {
+            return reply
+        }
     }
 }
 
@@ -151,7 +163,9 @@ func writeAll(_ fd: Int32, _ string: String) throws {
     var bytes = Array(string.utf8)[...]
     while !bytes.isEmpty {
         let count = bytes.withUnsafeBytes { send(fd, $0.baseAddress, $0.count, MSG_NOSIGNAL) }
-        if count < 0, errno == EINTR { continue }
+        if count < 0, errno == EINTR {
+            continue
+        }
         guard count > 0 else { throw errno == EAGAIN ? SocketError.timedOut : SocketError.system(errno) }
         bytes = bytes.dropFirst(count)
     }

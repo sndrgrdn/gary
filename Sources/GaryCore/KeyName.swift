@@ -3,7 +3,9 @@ import Foundation
 public enum KeyName {
     public struct Modifiers: OptionSet, Sendable {
         public let rawValue: Int
-        public init(rawValue: Int) { self.rawValue = rawValue }
+        public init(rawValue: Int) {
+            self.rawValue = rawValue
+        }
 
         public static let control = Modifiers(rawValue: 1)
         public static let option = Modifiers(rawValue: 2)
@@ -22,13 +24,15 @@ public enum KeyName {
         if let name = named[keyCode] {
             base = name
         } else if let text = chord.isEmpty ? characters : ignoringModifiers?.lowercased(), text.count == 1,
-                  let scalar = text.unicodeScalars.first, scalar.value >= 32, scalar.value != 127, !(0xF700...0xF8FF).contains(scalar.value) {
+                  let scalar = text.unicodeScalars.first, scalar.value >= 32, scalar.value != 127, !(0xF700...0xF8FF).contains(scalar.value)
+        {
             base = text
         } else {
             return nil
         }
         let shown = named[keyCode] == nil ? chord : modifiers
-        let prefix = [(Modifiers.control, "ctrl"), (.option, "alt"), (.shift, "shift"), (.command, "cmd")].filter { shown.contains($0.0) }.map { $0.1 + "+" }
+        let prefix = [(Modifiers.control, "ctrl"), (.option, "alt"), (.shift, "shift"), (.command, "cmd")].filter { shown.contains($0.0) }
+            .map { $0.1 + "+" }
         return prefix.joined() + base
     }
 }

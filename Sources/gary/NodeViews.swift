@@ -28,20 +28,32 @@ final class TreeHostingView: NSHostingView<TreeView> {
     }
 
     @available(*, unavailable)
-    required init(rootView: TreeView) { fatalError() }
+    required init(rootView _: TreeView) {
+        fatalError()
+    }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError() }
+    required init?(coder _: NSCoder) {
+        fatalError()
+    }
 
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
+        true
+    }
 
     func fit(_ fit: Fit) {
-        if tree.fit != fit { tree.fit = fit }
+        if tree.fit != fit {
+            tree.fit = fit
+        }
     }
 
     func paint(_ card: Card?, backdrop: Bool) {
-        if tree.card != card { tree.card = card }
-        if tree.backdrop != backdrop { tree.backdrop = backdrop }
+        if tree.card != card {
+            tree.card = card
+        }
+        if tree.backdrop != backdrop {
+            tree.backdrop = backdrop
+        }
     }
 }
 
@@ -76,17 +88,18 @@ struct Card: Equatable {
 }
 
 struct Fit: Layout, Equatable {
-    var width, height: Double?
+    var width: Double?
+    var height: Double?
     var limit: CGSize
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    func sizeThatFits(proposal _: ProposedViewSize, subviews: Subviews, cache _: inout ()) -> CGSize {
         guard let content = subviews.first else { return .zero }
         let width = width ?? min(content.sizeThatFits(.unspecified).width, limit.width)
         let height = height ?? min(content.sizeThatFits(ProposedViewSize(width: width, height: nil)).height, limit.height)
         return CGSize(width: width, height: height)
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    func placeSubviews(in bounds: CGRect, proposal _: ProposedViewSize, subviews: Subviews, cache _: inout ()) {
         subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
     }
 }
@@ -94,13 +107,13 @@ struct Fit: Layout, Equatable {
 private struct ScrollFit: Layout {
     var maxHeight: Double?
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache _: inout ()) -> CGSize {
         guard let scroll = subviews.first else { return .zero }
         let content = scroll.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil))
         return CGSize(width: proposal.width ?? content.width, height: min(content.height, maxHeight ?? .infinity, proposal.height ?? .infinity))
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    func placeSubviews(in bounds: CGRect, proposal _: ProposedViewSize, subviews: Subviews, cache _: inout ()) {
         subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
     }
 }
@@ -131,7 +144,9 @@ private struct Child: Identifiable {
 }
 
 private extension Node {
-    var identifiedChildren: [Child] { zip(childIDs, children).map(Child.init) }
+    var identifiedChildren: [Child] {
+        zip(childIDs, children).map(Child.init)
+    }
 }
 
 struct NodeView: View {
@@ -144,15 +159,27 @@ struct NodeView: View {
 
     var body: some View {
         var props = node.props
-        if hovering.wrappedValue, let hovered = node.hovered { props = hovered.over(props) }
-        if pressing.wrappedValue, let pressed = node.pressed { props = pressed.over(props) }
+        if hovering.wrappedValue, let hovered = node.hovered {
+            props = hovered.over(props)
+        }
+        if pressing.wrappedValue, let pressed = node.pressed {
+            props = pressed.over(props)
+        }
         var hover: String?
-        if hovering.wrappedValue, case .button(_, let style) = node.content { hover = style ?? "hover" }
+        if hovering.wrappedValue, case let .button(_, style) = node.content {
+            hover = style ?? "hover"
+        }
         let look = theme!.resolve(node.style, props, hover: hover)
         let tracksHover = node.hovered != nil || node.kind == .button
         let fade: SwiftUI.Animation? = reduceMotion || node.kind == .button ? nil : .easeOut(duration: 0.15)
-        return content(look).box(look, node, perform, reduceMotion: reduceMotion,
-                                 hovering: tracksHover ? animated(hovering, fade) : nil, pressing: node.pressed != nil ? animated(pressing, fade) : nil)
+        return content(look).box(
+            look,
+            node,
+            perform,
+            reduceMotion: reduceMotion,
+            hovering: tracksHover ? animated(hovering, fade) : nil,
+            pressing: node.pressed != nil ? animated(pressing, fade) : nil,
+        )
     }
 
     private func animated(_ state: State<Bool>, _ animation: SwiftUI.Animation?) -> Binding<Bool> {
@@ -170,22 +197,26 @@ struct NodeView: View {
             ZStack(alignment: .topLeading) { Children(node: node) }
         case .scroll:
             ScrollNode(node: node, gap: gap, padding: look.padding ?? Insets(0), maxHeight: look.height)
-        case .text(let text):
+        case let .text(text):
             Text(verbatim: text).font(Font(nsFont(look.font) as CTFont)).foregroundStyle(Color(look.color))
                 .multilineTextAlignment(TextAlignment(look.align ?? .leading)).fixedSize(horizontal: look.width != nil, vertical: true)
-        case .icon(let symbol):
+        case let .icon(symbol):
             Image(systemName: symbol).font(.system(size: look.font.size, weight: .init(look.font.weight))).foregroundStyle(Color(look.color))
-        case .image(let path):
-            ImageNode(path: path, fit: look.fit ?? .fit, size: CGSize(width: look.width ?? look.height ?? 16, height: look.height ?? look.width ?? 16),
-                      arrival: reduceMotion ? nil : look.animation.flatMap { SwiftUI.Animation($0, duration: look.duration) },
-                      transition: AnyTransition(look.transition ?? .opacity))
-        case .slider(let value):
+        case let .image(path):
+            ImageNode(
+                path: path,
+                fit: look.fit ?? .fit,
+                size: CGSize(width: look.width ?? look.height ?? 16, height: look.height ?? look.width ?? 16),
+                arrival: reduceMotion ? nil : look.animation.flatMap { SwiftUI.Animation($0, duration: look.duration) },
+                transition: AnyTransition(look.transition ?? .opacity),
+            )
+        case let .slider(value):
             SliderNode(value: value, action: node.action, tint: node.props.color == nil ? nil : Color(look.color))
-        case .progress(let value):
+        case let .progress(value):
             let shape = RoundedRectangle(cornerRadius: look.radius ?? 3)
             shape.fill(Color(look.background ?? RGBA(red: look.color.red, green: look.color.green, blue: look.color.blue, alpha: 0.25)))
                 .overlay(alignment: .leading) { GeometryReader { area in shape.fill(Color(look.color)).frame(width: area.size.width * value) } }
-        case .input(let input):
+        case let .input(input):
             InputNode(input: input, font: nsFont(look.font), color: Color(look.color))
         case .spacer:
             Spacer(minLength: 0)
@@ -204,10 +235,21 @@ private struct Children: View {
 }
 
 private extension View {
-    func box(_ look: ResolvedStyle, _ node: Node, _ perform: @escaping ActionHandler, reduceMotion: Bool,
-             hovering: Binding<Bool>?, pressing: Binding<Bool>?) -> some View {
-        var width = look.width, height = look.height, padding = look.padding ?? Insets(0), background = look.background
-        var clickable = node.action, vertical = VerticalAlignment.center, horizontal = HorizontalAlignment(look.align ?? .leading)
+    func box(
+        _ look: ResolvedStyle,
+        _ node: Node,
+        _ perform: @escaping ActionHandler,
+        reduceMotion: Bool,
+        hovering: Binding<Bool>?,
+        pressing: Binding<Bool>?,
+    ) -> some View {
+        var width = look.width
+        var height = look.height
+        var padding = look.padding ?? Insets(0)
+        var background = look.background
+        var clickable = node.action
+        var vertical = VerticalAlignment.center
+        var horizontal = HorizontalAlignment(look.align ?? .leading)
         var clip = look.clip == true
         switch node.content {
         case .column, .stack: vertical = .top
@@ -224,13 +266,25 @@ private extension View {
         let shape = RoundedRectangle(cornerRadius: look.radius ?? 0, style: .continuous)
         return self
             .padding(EdgeInsets(padding))
-            .frame(width: width.map { CGFloat($0) }, height: height.map { CGFloat($0) }, alignment: Alignment(horizontal: horizontal, vertical: vertical))
+            .frame(
+                width: width.map { CGFloat($0) },
+                height: height.map { CGFloat($0) },
+                alignment: Alignment(horizontal: horizontal, vertical: vertical),
+            )
             .frame(minWidth: look.minWidth.map { CGFloat($0) }, alignment: Alignment(horizontal: horizontal, vertical: vertical))
-            .background { if let background { shape.fill(Color(background)) } }
+            .background {
+                if let background {
+                    shape.fill(Color(background))
+                }
+            }
             .material(look.material, radius: look.radius ?? 0)
             .appearance(look.colorScheme)
             .clipped(to: clip ? shape : nil)
-            .overlay { if let border = look.border, let color = look.borderColor { shape.strokeBorder(Color(color), lineWidth: border.width) } }
+            .overlay {
+                if let border = look.border, let color = look.borderColor {
+                    shape.strokeBorder(Color(color), lineWidth: border.width)
+                }
+            }
             .interactive(clickable, hovering: hovering, pressing: pressing) { perform($0, .null) }
             .dropShadow(look.shadow, look.shadowColor)
             .scaleEffect(look.scale ?? 1)
@@ -246,15 +300,27 @@ private extension View {
     }
 
     @ViewBuilder func dropShadow(_ shadow: Shadow?, _ color: RGBA?) -> some View {
-        if let shadow, let color { self.shadow(color: Color(color), radius: shadow.radius, y: shadow.y) } else { self }
+        if let shadow, let color {
+            self.shadow(color: Color(color), radius: shadow.radius, y: shadow.y)
+        } else {
+            self
+        }
     }
 
     @ViewBuilder func appearance(_ scheme: GaryCore.ColorScheme?) -> some View {
-        if let scheme { environment(\.colorScheme, scheme == .dark ? .dark : .light) } else { self }
+        if let scheme {
+            environment(\.colorScheme, scheme == .dark ? .dark : .light)
+        } else {
+            self
+        }
     }
 
     @ViewBuilder func clipped(to shape: RoundedRectangle?) -> some View {
-        if let shape { clipShape(shape) } else { self }
+        if let shape {
+            clipShape(shape)
+        } else {
+            self
+        }
     }
 
     @ViewBuilder func material(_ material: GaryCore.Material?, radius: Double) -> some View {
@@ -268,16 +334,29 @@ private extension View {
     @ViewBuilder func card(_ card: Card?) -> some View {
         if let card {
             let shape = RoundedRectangle(cornerRadius: card.radius)
-            background { if let background = card.look.background { shape.fill(Color(background)) } }
-                .material(card.look.material, radius: card.radius)
-                .clipShape(shape)
-                .overlay { if let border = card.border { shape.strokeBorder(Color(border), lineWidth: 1) } }
+            background {
+                if let background = card.look.background {
+                    shape.fill(Color(background))
+                }
+            }
+            .material(card.look.material, radius: card.radius)
+            .clipShape(shape)
+            .overlay {
+                if let border = card.border {
+                    shape.strokeBorder(Color(border), lineWidth: 1)
+                }
+            }
         } else {
             self
         }
     }
 
-    @ViewBuilder func interactive(_ action: String?, hovering: Binding<Bool>?, pressing: Binding<Bool>?, _ perform: @escaping (String) -> Void) -> some View {
+    @ViewBuilder func interactive(
+        _ action: String?,
+        hovering: Binding<Bool>?,
+        pressing: Binding<Bool>?,
+        _ perform: @escaping (String) -> Void,
+    ) -> some View {
         if action == nil, hovering == nil {
             self
         } else {
@@ -286,7 +365,9 @@ private extension View {
                 .onLongPressGesture(minimumDuration: 0, perform: {}, onPressingChanged: { down in
                     guard let action else { return }
                     pressing?.wrappedValue = down
-                    if down { perform(action) }
+                    if down {
+                        perform(action)
+                    }
                 })
         }
     }
@@ -341,7 +422,7 @@ private struct ScrollNode: View {
 private struct Vibrancy: NSViewRepresentable {
     let radius: Double
 
-    func makeNSView(context: Context) -> NSVisualEffectView {
+    func makeNSView(context _: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.material = .popover
         view.blendingMode = .behindWindow
@@ -376,10 +457,12 @@ private struct SliderNode: View {
     var body: some View {
         Slider(value: Binding(get: { shown.wrappedValue }, set: { next in
             shown.wrappedValue = next
-            if let action { perform(action, .number(next)) }
+            if let action {
+                perform(action, .number(next))
+            }
         }), in: 0...1)
-        .tint(tint)
-        .onChange(of: value, initial: true) { _, next in shown.wrappedValue = next }
+            .tint(tint)
+            .onChange(of: value, initial: true) { _, next in shown.wrappedValue = next }
     }
 }
 
@@ -400,7 +483,11 @@ private struct InputNode: View {
             .font(Font(font as CTFont))
             .foregroundStyle(color)
             .onSubmit {
-                if let submit = input.submit { perform(submit, .string(text.wrappedValue)) } else { pressKey("enter") }
+                if let submit = input.submit {
+                    perform(submit, .string(text.wrappedValue))
+                } else {
+                    pressKey("enter")
+                }
             }
             .onKeyPress(keys: Set(Self.keys.keys)) { press in
                 pressKey(Self.keys[press.key]!)
@@ -412,7 +499,9 @@ private struct InputNode: View {
                     return
                 }
                 sent.wrappedValue = []
-                if text.wrappedValue != value { text.wrappedValue = value }
+                if text.wrappedValue != value {
+                    text.wrappedValue = value
+                }
             }
     }
 
@@ -502,7 +591,9 @@ extension NSFont.Weight {
 private var fonts: [FontToken: NSFont] = [:]
 
 private func nsFont(_ token: FontToken) -> NSFont {
-    if let cached = fonts[token] { return cached }
+    if let cached = fonts[token] {
+        return cached
+    }
     let weight = NSFont.Weight(token.weight)
     let size = CGFloat(token.size)
     let font: NSFont
@@ -511,7 +602,7 @@ private func nsFont(_ token: FontToken) -> NSFont {
         font = .systemFont(ofSize: size, weight: weight)
     case .monospaced:
         font = .monospacedSystemFont(ofSize: size, weight: weight)
-    case .named(let family):
+    case let .named(family):
         let descriptor = NSFontDescriptor(fontAttributes: [.family: family, .traits: [NSFontDescriptor.TraitKey.weight: weight]])
         font = NSFont(descriptor: descriptor, size: size).flatMap { $0.familyName == family ? $0 : nil }
             ?? NSFont(name: family, size: size)
@@ -558,9 +649,13 @@ private final class Cancellation: @unchecked Sendable {
     private let lock = NSLock()
     private var cancelled = false
 
-    var isCancelled: Bool { lock.withLock { cancelled } }
+    var isCancelled: Bool {
+        lock.withLock { cancelled }
+    }
 
-    func cancel() { lock.withLock { cancelled = true } }
+    func cancel() {
+        lock.withLock { cancelled = true }
+    }
 }
 
 private func decode(_ path: String, _ pixels: CGSize, _ fit: ImageFit, _ key: NSString) async -> NSImage? {
@@ -589,7 +684,9 @@ private func decoded(_ path: String, _ pixels: CGSize, _ fit: ImageFit, _ key: N
 
 private func load(_ path: String, _ pixels: CGSize, _ fit: ImageFit) -> NSImage? {
     let expanded = (path as NSString).expandingTildeInPath
-    if expanded.hasSuffix(".app") { return NSWorkspace.shared.icon(forFile: expanded) }
+    if expanded.hasSuffix(".app") {
+        return NSWorkspace.shared.icon(forFile: expanded)
+    }
     let url = URL(fileURLWithPath: expanded)
     guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
           let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],

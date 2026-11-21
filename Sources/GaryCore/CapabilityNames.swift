@@ -7,9 +7,9 @@ public enum CapabilityError: Error, Equatable, CustomStringConvertible {
 
     public var description: String {
         switch self {
-        case .invalidName(let name): return "capability name \"\(name)\" must be a lowercase letter followed by lowercase letters, digits or hyphens"
-        case .duplicateName(let name): return "capability \(name) is registered twice"
-        case .noEffect(let name): return "capability \(name) neither installs an API nor publishes a topic"
+        case let .invalidName(name): "capability name \"\(name)\" must be a lowercase letter followed by lowercase letters, digits or hyphens"
+        case let .duplicateName(name): "capability \(name) is registered twice"
+        case let .noEffect(name): "capability \(name) neither installs an API nor publishes a topic"
         }
     }
 }

@@ -22,8 +22,12 @@ final class TypeScript {
             let context = transform.context!
             context.exception = nil
             let result = transform.call(withArguments: [source])
-            if tracing { log(String(format: "typescript file=%@ loaded=%@ ms=%.3f", file, loaded ? "warm" : "cold", (now() - started) * 1000)) }
-            if let exception = context.exception { throw RenderError("\(file): \(exception)") }
+            if tracing {
+                log(String(format: "typescript file=%@ loaded=%@ ms=%.3f", file, loaded ? "warm" : "cold", (now() - started) * 1000))
+            }
+            if let exception = context.exception {
+                throw RenderError("\(file): \(exception)")
+            }
             return result?.toString() ?? ""
         }
     }
@@ -31,7 +35,7 @@ final class TypeScript {
     private func load() throws -> JSValue {
         let url = Bundle.main.resourceURL!.appending(path: "sucrase.js")
         let context = JSContext()!
-        context.evaluateScript(try String(contentsOf: url, encoding: .utf8), withSourceURL: url)
+        try context.evaluateScript(String(contentsOf: url, encoding: .utf8), withSourceURL: url)
         guard context.exception == nil, let transform = context.evaluateScript("""
         (function (source) {
           return Sucrase.transform(source, { transforms: ["typescript"], disableESTransforms: true }).code;

@@ -30,22 +30,50 @@ public enum Request: Equatable, Sendable {
         ("reloadPlugins [plugin]", "Reload one plugin, or every loaded plugin, from disk.", nil),
         ("rescanPlugins", "Find added and removed plugin directories.", nil),
         ("reloadConfig", "Re-read ~/.config/gary/shell.json.", nil),
-        ("applyTheme [json]", "Apply a theme override payload, or re-read the theme files.", ##"gary applyTheme '{"colors": {"accent": "#ff8800"}}'"##),
+        (
+            "applyTheme [json]",
+            "Apply a theme override payload, or re-read the theme files.",
+            ##"gary applyTheme '{"colors": {"accent": "#ff8800"}}'"##,
+        ),
         ("listPlugins", "List every plugin with its state.", nil),
         ("doctor", "Report the version, window levels, private API, permissions, plugin and config problems.", nil),
-        ("onboarding", "Show the permissions window, which lists what the enabled plugins need, with a Grant button for each. Starts Gary if needed.", nil),
-        ("permissions", "List each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Starts Gary if needed.", nil),
-        ("permissions request <name>", "Show the macOS prompt for a permission, or open its System Settings pane where macOS has no prompt.", "gary permissions request screen-recording"),
-        ("call <plugin> <method> [args...]", "Call a method a plugin exports, loading it first if needed. Arguments arrive as strings. Gary waits up to 60 seconds for a method that returns a promise. A result that is not a string prints as JSON, and a thrown error or rejected promise prints its message and exits with status 1.", "gary call you.weather forecast 3"),
-        ("action <plugin> <kind> <action> [payload]", "Send onAction to a running kind of a plugin, as a click, slider or input would, with an optional number or text payload.", "gary action you.music panel volume 0.5"),
+        (
+            "onboarding",
+            "Show the permissions window, which lists what the enabled plugins need, with a Grant button for each. Starts Gary if needed.",
+            nil,
+        ),
+        (
+            "permissions",
+            "List each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Starts Gary if needed.",
+            nil,
+        ),
+        (
+            "permissions request <name>",
+            "Show the macOS prompt for a permission, or open its System Settings pane where macOS has no prompt.",
+            "gary permissions request screen-recording",
+        ),
+        (
+            "call <plugin> <method> [args...]",
+            "Call a method a plugin exports, loading it first if needed. Arguments arrive as strings. Gary waits up to 60 seconds for a method that returns a promise. A result that is not a string prints as JSON, and a thrown error or rejected promise prints its message and exits with status 1.",
+            "gary call you.weather forecast 3",
+        ),
+        (
+            "action <plugin> <kind> <action> [payload]",
+            "Send onAction to a running kind of a plugin, as a click, slider or input would, with an optional number or text payload.",
+            "gary action you.music panel volume 0.5",
+        ),
     ]
 
     public static let callTimeout: TimeInterval = 60
 
-    public var timeout: TimeInterval { verb == "call" ? Self.callTimeout + 1 : 5 }
+    public var timeout: TimeInterval {
+        verb == "call" ? Self.callTimeout + 1 : 5
+    }
 
     public static func parse(verb: String, arguments: [String]) throws -> Request {
-        func fail(_ message: String) -> RequestError { RequestError(description: message) }
+        func fail(_ message: String) -> RequestError {
+            RequestError(description: message)
+        }
         func plugin(_ raw: String) throws -> PluginID {
             guard let id = PluginID(raw) else { throw fail("invalid plugin id \"\(raw)\"") }
             return id
@@ -59,15 +87,15 @@ public enum Request: Equatable, Sendable {
         switch verb {
         case "ping": try exactly(0); return .ping
         case "quit": try exactly(0); return .quit
-        case "summon": try exactly(1); return .summon(try plugin(arguments[0]))
-        case "hide": try exactly(1); return .hide(try plugin(arguments[0]))
-        case "toggle": try exactly(1); return .toggle(try plugin(arguments[0]))
-        case "reloadPlugins": try atMostOne(); return .reloadPlugins(try arguments.first.map(plugin))
+        case "summon": try exactly(1); return try .summon(plugin(arguments[0]))
+        case "hide": try exactly(1); return try .hide(plugin(arguments[0]))
+        case "toggle": try exactly(1); return try .toggle(plugin(arguments[0]))
+        case "reloadPlugins": try atMostOne(); return try .reloadPlugins(arguments.first.map(plugin))
         case "rescanPlugins": try exactly(0); return .rescanPlugins
         case "reloadConfig": try exactly(0); return .reloadConfig
         case "applyTheme":
             try atMostOne()
-            return .applyTheme(try arguments.first.map { text in
+            return try .applyTheme(arguments.first.map { text in
                 guard let json = try? JSON.parse(text), json.object != nil else { throw fail("applyTheme takes a JSON object") }
                 return json
             })
@@ -75,53 +103,56 @@ public enum Request: Equatable, Sendable {
         case "doctor": try exactly(0); return .doctor
         case "onboarding": try exactly(0); return .summon(.onboarding)
         case "permissions":
-            if arguments.isEmpty { return .permissions }
-            guard arguments.count == 2, arguments[0] == "request" else { throw fail("permissions takes no arguments, or request and a permission name") }
+            if arguments.isEmpty {
+                return .permissions
+            }
+            guard arguments.count == 2,
+                  arguments[0] == "request" else { throw fail("permissions takes no arguments, or request and a permission name") }
             guard let permission = Permission(rawValue: arguments[1]) else {
                 throw fail("unknown permission \"\(arguments[1])\"; use \(Permission.allCases.map(\.rawValue).joined(separator: ", "))")
             }
             return .requestPermission(permission)
         case "call":
             guard arguments.count >= 2 else { throw fail("call takes a plugin, a method and optional arguments") }
-            return .call(try plugin(arguments[0]), method: arguments[1], arguments: Array(arguments.dropFirst(2)))
+            return try .call(plugin(arguments[0]), method: arguments[1], arguments: Array(arguments.dropFirst(2)))
         case "action":
             guard (3...4).contains(arguments.count) else { throw fail("action takes a plugin, a kind, an action and an optional payload") }
             guard let kind = PluginKind(rawValue: arguments[1]) else {
                 throw fail("unknown kind \"\(arguments[1])\"; use \(PluginKind.allCases.map(\.rawValue).joined(separator: ", "))")
             }
-            return .action(try plugin(arguments[0]), kind: kind, action: arguments[2], payload: arguments.count == 4 ? arguments[3] : nil)
+            return try .action(plugin(arguments[0]), kind: kind, action: arguments[2], payload: arguments.count == 4 ? arguments[3] : nil)
         default: throw fail("unknown verb \"\(verb)\"")
         }
     }
 
     public var verb: String {
         switch self {
-        case .ping: return "ping"
-        case .quit: return "quit"
-        case .summon: return "summon"
-        case .hide: return "hide"
-        case .toggle: return "toggle"
-        case .reloadPlugins: return "reloadPlugins"
-        case .rescanPlugins: return "rescanPlugins"
-        case .reloadConfig: return "reloadConfig"
-        case .applyTheme: return "applyTheme"
-        case .listPlugins: return "listPlugins"
-        case .doctor: return "doctor"
-        case .permissions, .requestPermission: return "permissions"
-        case .call: return "call"
-        case .action: return "action"
+        case .ping: "ping"
+        case .quit: "quit"
+        case .summon: "summon"
+        case .hide: "hide"
+        case .toggle: "toggle"
+        case .reloadPlugins: "reloadPlugins"
+        case .rescanPlugins: "rescanPlugins"
+        case .reloadConfig: "reloadConfig"
+        case .applyTheme: "applyTheme"
+        case .listPlugins: "listPlugins"
+        case .doctor: "doctor"
+        case .permissions, .requestPermission: "permissions"
+        case .call: "call"
+        case .action: "action"
         }
     }
 
     public var arguments: [String] {
         switch self {
-        case .ping, .quit, .rescanPlugins, .reloadConfig, .listPlugins, .doctor, .permissions: return []
-        case .requestPermission(let permission): return ["request", permission.rawValue]
-        case .summon(let id), .hide(let id), .toggle(let id): return [id.rawValue]
-        case .reloadPlugins(let id): return id.map { [$0.rawValue] } ?? []
-        case .applyTheme(let payload): return payload.map { [$0.text] } ?? []
-        case .call(let id, let method, let arguments): return [id.rawValue, method] + arguments
-        case .action(let id, let kind, let action, let payload): return [id.rawValue, kind.rawValue, action] + (payload.map { [$0] } ?? [])
+        case .ping, .quit, .rescanPlugins, .reloadConfig, .listPlugins, .doctor, .permissions: []
+        case let .requestPermission(permission): ["request", permission.rawValue]
+        case let .summon(id), let .hide(id), let .toggle(id): [id.rawValue]
+        case let .reloadPlugins(id): id.map { [$0.rawValue] } ?? []
+        case let .applyTheme(payload): payload.map { [$0.text] } ?? []
+        case let .call(id, method, arguments): [id.rawValue, method] + arguments
+        case let .action(id, kind, action, payload): [id.rawValue, kind.rawValue, action] + (payload.map { [$0] } ?? [])
         }
     }
 
@@ -140,8 +171,8 @@ public enum Request: Equatable, Sendable {
     }
 }
 
-extension PluginID {
-    public static let onboarding = PluginID("gary.onboarding")!
+public extension PluginID {
+    static let onboarding = PluginID("gary.onboarding")!
 }
 
 public enum Response: Equatable, Sendable {
@@ -150,8 +181,8 @@ public enum Response: Equatable, Sendable {
 
     public var line: String {
         switch self {
-        case .ok(let result): return JSON.object(["ok": .bool(true), "result": .string(result)]).text
-        case .failure(let message): return JSON.object(["ok": .bool(false), "error": .string(message)]).text
+        case let .ok(result): JSON.object(["ok": .bool(true), "result": .string(result)]).text
+        case let .failure(message): JSON.object(["ok": .bool(false), "error": .string(message)]).text
         }
     }
 

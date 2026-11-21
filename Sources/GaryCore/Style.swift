@@ -2,7 +2,10 @@ import CoreGraphics
 import Foundation
 
 public struct Insets: Equatable, Sendable {
-    public var top, right, bottom, left: Double
+    public var top: Double
+    public var right: Double
+    public var bottom: Double
+    public var left: Double
 
     public init(top: Double, right: Double, bottom: Double, left: Double) {
         self.top = top
@@ -56,7 +59,8 @@ public enum ImageFit: String, CaseIterable, Sendable {
     public func pixelSize(source: CGSize, frame: CGSize) -> Int {
         let longest = max(source.width, source.height)
         guard source.width > 0, source.height > 0 else { return Int(max(frame.width, frame.height).rounded(.up)) }
-        let widthRatio = frame.width / source.width, heightRatio = frame.height / source.height
+        let widthRatio = frame.width / source.width
+        let heightRatio = frame.height / source.height
         let ratio = self == .fill ? max(widthRatio, heightRatio) : min(widthRatio, heightRatio)
         return max(1, Int((longest * min(1, ratio)).rounded(.up)))
     }
@@ -85,8 +89,19 @@ public struct Border: Equatable, Sendable {
 }
 
 public struct StyleProps: Equatable, Sendable {
-    public var width, height, minWidth, gap, radius, fontSize, opacity, scale, duration: Double?
-    public var offset, x, y, zIndex: Double?
+    public var width: Double?
+    public var height: Double?
+    public var minWidth: Double?
+    public var gap: Double?
+    public var radius: Double?
+    public var fontSize: Double?
+    public var opacity: Double?
+    public var scale: Double?
+    public var duration: Double?
+    public var offset: Double?
+    public var x: Double?
+    public var y: Double?
+    public var zIndex: Double?
     public var padding: Insets?
     public var align: Align?
     public var animation: Animation?
@@ -97,14 +112,38 @@ public struct StyleProps: Equatable, Sendable {
     public var clip: Bool?
     public var shadow: Shadow?
     public var border: Border?
-    public var background, color, font: String?
+    public var background: String?
+    public var color: String?
+    public var font: String?
 
-    public init(width: Double? = nil, height: Double? = nil, minWidth: Double? = nil, padding: Insets? = nil, gap: Double? = nil, radius: Double? = nil,
-                fontSize: Double? = nil, opacity: Double? = nil, offset: Double? = nil, align: Align? = nil, animation: Animation? = nil,
-                material: Material? = nil, background: String? = nil, color: String? = nil, font: String? = nil,
-                x: Double? = nil, y: Double? = nil, zIndex: Double? = nil, scale: Double? = nil, duration: Double? = nil,
-                transition: Transition? = nil, fit: ImageFit? = nil, clip: Bool? = nil, shadow: Shadow? = nil, border: Border? = nil,
-                colorScheme: ColorScheme? = nil) {
+    public init(
+        width: Double? = nil,
+        height: Double? = nil,
+        minWidth: Double? = nil,
+        padding: Insets? = nil,
+        gap: Double? = nil,
+        radius: Double? = nil,
+        fontSize: Double? = nil,
+        opacity: Double? = nil,
+        offset: Double? = nil,
+        align: Align? = nil,
+        animation: Animation? = nil,
+        material: Material? = nil,
+        background: String? = nil,
+        color: String? = nil,
+        font: String? = nil,
+        x: Double? = nil,
+        y: Double? = nil,
+        zIndex: Double? = nil,
+        scale: Double? = nil,
+        duration: Double? = nil,
+        transition: Transition? = nil,
+        fit: ImageFit? = nil,
+        clip: Bool? = nil,
+        shadow: Shadow? = nil,
+        border: Border? = nil,
+        colorScheme: ColorScheme? = nil,
+    ) {
         self.width = width
         self.height = height
         self.minWidth = minWidth
@@ -137,7 +176,12 @@ public struct StyleProps: Equatable, Sendable {
         ("width", \.width), ("height", \.height), ("minWidth", \.minWidth), ("gap", \.gap),
         ("radius", \.radius), ("fontSize", \.fontSize), ("opacity", \.opacity), ("scale", \.scale), ("duration", \.duration),
     ]
-    public static let signed: [(String, WritableKeyPath<StyleProps, Double?> & Sendable)] = [("offset", \.offset), ("x", \.x), ("y", \.y), ("zIndex", \.zIndex)]
+    public static let signed: [(String, WritableKeyPath<StyleProps, Double?> & Sendable)] = [
+        ("offset", \.offset),
+        ("x", \.x),
+        ("y", \.y),
+        ("zIndex", \.zIndex),
+    ]
     public static let colors: [(String, WritableKeyPath<StyleProps, String?> & Sendable)] = [("background", \.background), ("color", \.color)]
     public static let names = numbers.map(\.0) + ["padding"] + signed.map(\.0)
         + ["align", "animation", "material", "colorScheme", "transition", "fit", "clip", "shadow", "border"] + colors.map(\.0) + ["font"]
@@ -147,7 +191,9 @@ public struct StyleProps: Equatable, Sendable {
         for (name, path) in numbers {
             guard let value = fields[name], value != .null else { continue }
             guard let number = value.number, number.isFinite, number >= 0 else { throw fail(name, "must be a non-negative number") }
-            if name == "opacity", number > 1 { throw fail(name, "must be between 0 and 1") }
+            if name == "opacity", number > 1 {
+                throw fail(name, "must be between 0 and 1")
+            }
             props[keyPath: path] = number
         }
         for (name, path) in signed {
@@ -193,11 +239,14 @@ public struct StyleProps: Equatable, Sendable {
             return number
         }
         try object("shadow", "an object with color, radius and y") { shadow in
-            props.shadow = Shadow(color: try color(shadow["color"], "shadow.color"), radius: try number(shadow["radius"], "shadow.radius") ?? 0,
-                                  y: try number(shadow["y"], "shadow.y", signed: true) ?? 0)
+            props.shadow = try Shadow(
+                color: color(shadow["color"], "shadow.color"),
+                radius: number(shadow["radius"], "shadow.radius") ?? 0,
+                y: number(shadow["y"], "shadow.y", signed: true) ?? 0,
+            )
         }
         try object("border", "an object with color and width") { border in
-            props.border = Border(color: try color(border["color"], "border.color"), width: try number(border["width"], "border.width") ?? 1)
+            props.border = try Border(color: color(border["color"], "border.color"), width: number(border["width"], "border.width") ?? 1)
         }
         for (name, path) in colors {
             guard let value = fields[name], value != .null else { continue }
@@ -212,8 +261,12 @@ public struct StyleProps: Equatable, Sendable {
 
     public func over(_ base: StyleProps) -> StyleProps {
         var merged = base
-        for (_, path) in Self.numbers + Self.signed where self[keyPath: path] != nil { merged[keyPath: path] = self[keyPath: path] }
-        for (_, path) in Self.colors where self[keyPath: path] != nil { merged[keyPath: path] = self[keyPath: path] }
+        for (_, path) in Self.numbers + Self.signed where self[keyPath: path] != nil {
+            merged[keyPath: path] = self[keyPath: path]
+        }
+        for (_, path) in Self.colors where self[keyPath: path] != nil {
+            merged[keyPath: path] = self[keyPath: path]
+        }
         merged.padding = padding ?? base.padding
         merged.align = align ?? base.align
         merged.animation = animation ?? base.animation
@@ -238,5 +291,7 @@ public struct ResolvedStyle: Equatable, Sendable {
     public var shadowColor: RGBA?
     public var borderColor: RGBA?
 
-    public subscript<Value>(dynamicMember path: KeyPath<StyleProps, Value>) -> Value { props[keyPath: path] }
+    public subscript<Value>(dynamicMember path: KeyPath<StyleProps, Value>) -> Value {
+        props[keyPath: path]
+    }
 }

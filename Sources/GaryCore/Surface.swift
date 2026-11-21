@@ -39,10 +39,10 @@ public enum ScreenSelector: Equatable, Sendable {
 
     public func select(_ displays: [DisplayInfo], focused: String?) -> [DisplayInfo] {
         switch self {
-        case .all: return displays
-        case .main: return Array(displays.prefix(1))
-        case .focused: return [displays.first { $0.id == focused } ?? displays.first].compactMap(\.self)
-        case .index(let index): return [displays.first { $0.index == index } ?? displays.first].compactMap(\.self)
+        case .all: displays
+        case .main: Array(displays.prefix(1))
+        case .focused: [displays.first { $0.id == focused } ?? displays.first].compactMap(\.self)
+        case let .index(index): [displays.first { $0.index == index } ?? displays.first].compactMap(\.self)
         }
     }
 }
@@ -61,7 +61,10 @@ public enum SurfaceBackground: String, CaseIterable, Sendable {
 }
 
 public struct Edges<Value: Equatable & Sendable>: Equatable, Sendable {
-    public var top, bottom, left, right: Value
+    public var top: Value
+    public var bottom: Value
+    public var left: Value
+    public var right: Value
 
     public init(top: Value, bottom: Value, left: Value, right: Value) {
         self.top = top
@@ -74,7 +77,9 @@ public struct Edges<Value: Equatable & Sendable>: Equatable, Sendable {
 public struct SurfaceError: Error, Equatable, CustomStringConvertible {
     public let path: String
     public let reason: String
-    public var description: String { "\(path): \(reason)" }
+    public var description: String {
+        "\(path): \(reason)"
+    }
 }
 
 public struct SurfaceSpec: Equatable, Sendable {
@@ -96,7 +101,7 @@ public struct SurfaceSpec: Equatable, Sendable {
         var spec = SurfaceSpec(
             screen: .focused, anchors: none, width: .fit, height: .fit,
             margins: Edges(top: 0, bottom: 0, left: 0, right: 0),
-            layer: .top, exclusionMode: .normal, clickThrough: false, focusable: false, background: .solid
+            layer: .top, exclusionMode: .normal, clickThrough: false, focusable: false, background: .solid,
         )
         switch kind {
         case .overlay:
@@ -116,8 +121,12 @@ public struct SurfaceSpec: Equatable, Sendable {
 
     public static func parse(_ json: JSON, kind: PluginKind) throws -> SurfaceSpec {
         var spec = defaults(for: kind)
-        if json == .null { return spec }
-        func fail(_ path: String, _ reason: String) -> SurfaceError { SurfaceError(path: "surface\(path)", reason: reason) }
+        if json == .null {
+            return spec
+        }
+        func fail(_ path: String, _ reason: String) -> SurfaceError {
+            SurfaceError(path: "surface\(path)", reason: reason)
+        }
         guard let fields = json.object else { throw fail("", "must be an object") }
         func bool(_ value: JSON, _ path: String) throws -> Bool {
             guard let flag = value.bool else { throw fail(path, "must be true or false") }
@@ -128,7 +137,9 @@ public struct SurfaceSpec: Equatable, Sendable {
             return number
         }
         func dimension(_ value: JSON, _ path: String) throws -> Dimension {
-            if value.string == "fit" { return .fit }
+            if value.string == "fit" {
+                return .fit
+            }
             guard let number = value.number, number > 0, number.isFinite else { throw fail(path, "must be a positive number or \"fit\"") }
             return .points(number)
         }
@@ -137,8 +148,10 @@ public struct SurfaceSpec: Equatable, Sendable {
             if let unknown = sides.keys.sorted().first(where: { !["top", "bottom", "left", "right"].contains($0) }) {
                 throw fail("\(path).\(unknown)", "is not top, bottom, left or right")
             }
-            func side(_ name: String) throws -> Value { try sides[name].map { try read($0, "\(path).\(name)") } ?? absent }
-            return Edges(top: try side("top"), bottom: try side("bottom"), left: try side("left"), right: try side("right"))
+            func side(_ name: String) throws -> Value {
+                try sides[name].map { try read($0, "\(path).\(name)") } ?? absent
+            }
+            return try Edges(top: side("top"), bottom: side("bottom"), left: side("left"), right: side("right"))
         }
 
         for (name, value) in fields.sorted(by: { $0.key < $1.key }) {
@@ -149,7 +162,7 @@ public struct SurfaceSpec: Equatable, Sendable {
                 case .string("main"): spec.screen = .main
                 case .string("focused"): spec.screen = .focused
                 case .string("all"): spec.screen = .all
-                case .number(let index) where index >= 0 && index == index.rounded() && index < 64: spec.screen = .index(Int(index))
+                case let .number(index) where index >= 0 && index == index.rounded() && index < 64: spec.screen = .index(Int(index))
                 default: throw fail(path, "must be \"main\", \"focused\", \"all\" or a display index")
                 }
             case "anchors": spec.anchors = try edges(value, path, absent: false, bool)
@@ -185,34 +198,45 @@ public struct SurfaceSpec: Equatable, Sendable {
 
     public func area(on display: DisplayInfo) -> CGRect {
         var area = display.frame
-        if exclusionMode == .normal { area.size.height -= display.band }
+        if exclusionMode == .normal {
+            area.size.height -= display.band
+        }
         return area
     }
 
     public func frame(on display: DisplayInfo, fitting: (_ width: Double?, _ height: Double?, _ limit: CGSize) -> CGSize) -> CGRect {
         let area = area(on: display)
         func forced(_ dimension: Dimension, _ low: Bool, _ high: Bool, _ span: Double, _ lowMargin: Double, _ highMargin: Double) -> Double? {
-            if low, high { return max(0, span - lowMargin - highMargin) }
-            if case .points(let value) = dimension { return value }
+            if low, high {
+                return max(0, span - lowMargin - highMargin)
+            }
+            if case let .points(value) = dimension {
+                return value
+            }
             return nil
         }
         let limit = CGSize(
             width: max(0, area.width - (anchors.left ? margins.left : 0) - (anchors.right ? margins.right : 0)),
-            height: max(0, area.height - (anchors.bottom ? margins.bottom : 0) - (anchors.top ? margins.top : 0))
+            height: max(0, area.height - (anchors.bottom ? margins.bottom : 0) - (anchors.top ? margins.top : 0)),
         )
-        let width = forced(self.width, anchors.left, anchors.right, area.width, margins.left, margins.right)
-        let height = forced(self.height, anchors.bottom, anchors.top, area.height, margins.bottom, margins.top)
+        let width = forced(width, anchors.left, anchors.right, area.width, margins.left, margins.right)
+        let height = forced(height, anchors.bottom, anchors.top, area.height, margins.bottom, margins.top)
         let fitted = width == nil || height == nil ? fitting(width.map { min($0, limit.width) }, height.map { min($0, limit.height) }, limit) : .zero
         let size = CGSize(width: min(width ?? fitted.width, limit.width), height: min(height ?? fitted.height, limit.height))
         func origin(_ low: Bool, _ high: Bool, _ min: Double, _ max: Double, _ length: Double, _ lowMargin: Double, _ highMargin: Double) -> Double {
-            let start: Double
-            if low { start = min + lowMargin } else if high { start = max - highMargin - length } else { start = ((min + max - length) / 2).rounded() }
+            let start: Double = if low {
+                min + lowMargin
+            } else if high {
+                max - highMargin - length
+            } else {
+                ((min + max - length) / 2).rounded()
+            }
             return Swift.min(Swift.max(start, min), max - length)
         }
         return CGRect(
             x: origin(anchors.left, anchors.right, area.minX, area.maxX, size.width, margins.left, margins.right),
             y: origin(anchors.bottom, anchors.top, area.minY, area.maxY, size.height, margins.bottom, margins.top),
-            width: size.width, height: size.height
+            width: size.width, height: size.height,
         )
     }
 }

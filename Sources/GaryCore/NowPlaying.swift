@@ -32,21 +32,27 @@ public struct NowPlaying: Equatable, Sendable {
         guard json["type"]?.string == "data", let diff = json["diff"]?.bool, let payload = json["payload"]?.object else {
             throw LineError(description: "adapter printed an object without type, diff and payload")
         }
-        if !diff { fields = [:] }
-        for (key, value) in payload { fields[key] = value == .null ? nil : value }
+        if !diff {
+            fields = [:]
+        }
+        for (key, value) in payload {
+            fields[key] = value == .null ? nil : value
+        }
     }
 
     public var track: Track? {
         guard let title = fields["title"]?.string, let playing = fields["playing"]?.bool else { return nil }
         let app = fields["parentApplicationBundleIdentifier"]?.string ?? fields["bundleIdentifier"]?.string
-        func seconds(_ key: String) -> Double? { fields[key]?.number.map { $0 / 1_000_000 } }
+        func seconds(_ key: String) -> Double? {
+            fields[key]?.number.map { $0 / 1_000_000 }
+        }
         return Track(
             app: app, title: title, artist: fields["artist"]?.string, album: fields["album"]?.string, playing: playing,
             duration: seconds("durationMicros"), elapsed: seconds("elapsedTimeMicros"),
             elapsedAt: fields["timestampEpochMicros"]?.number.map { $0 / 1000 }, rate: fields["playbackRate"]?.number,
             artwork: fields["artworkData"]?.string.flatMap { Data(base64Encoded: $0) }.map {
                 Artwork(mimeType: fields["artworkMimeType"]?.string ?? "image/jpeg", data: $0)
-            }
+            },
         )
     }
 }

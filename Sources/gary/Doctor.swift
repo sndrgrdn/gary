@@ -14,7 +14,7 @@ struct PrivateSymbolCheck {
             let entry = gary_private_symbol(index)
             return PrivateSymbolCheck(
                 library: String(cString: entry.library), symbol: String(cString: entry.symbol),
-                feature: String(cString: entry.feature), resolved: gary_private_resolve(index) != nil
+                feature: String(cString: entry.feature), resolved: gary_private_resolve(index) != nil,
             )
         }
     }
@@ -22,7 +22,8 @@ struct PrivateSymbolCheck {
     static func summary() -> String {
         let checks = all()
         let missing = checks.filter { !$0.resolved }.map { "\($0.symbol) (\($0.feature))" }
-        return "private api: \(checks.count - missing.count) of \(checks.count) symbols resolved" + (missing.isEmpty ? "" : "; missing " + missing.joined(separator: ", "))
+        return "private api: \(checks.count - missing.count) of \(checks.count) symbols resolved" +
+            (missing.isEmpty ? "" : "; missing " + missing.joined(separator: ", "))
     }
 }
 
@@ -36,9 +37,18 @@ struct Doctor {
     private var lines: [String] = []
     private var problems = 0
 
-    private mutating func section(_ title: String) { lines.append("\n\(title)") }
-    private mutating func ok(_ text: String) { lines.append("  ok    \(text)") }
-    private mutating func info(_ text: String) { lines.append("  -     \(text)") }
+    private mutating func section(_ title: String) {
+        lines.append("\n\(title)")
+    }
+
+    private mutating func ok(_ text: String) {
+        lines.append("  ok    \(text)")
+    }
+
+    private mutating func info(_ text: String) {
+        lines.append("  -     \(text)")
+    }
+
     private mutating func fail(_ text: String) {
         problems += 1
         lines.append("  FAIL  \(text)")
@@ -53,35 +63,63 @@ struct Doctor {
     private mutating func build(_ runtime: DoctorRuntime?) {
         let bundle = Bundle.main.infoDictionary
         let version = ProcessInfo.processInfo.operatingSystemVersion
-        lines.append("Gary \(bundle?["CFBundleShortVersionString"] as? String ?? "dev") (\(bundle?["CFBundleVersion"] as? String ?? "0")) at \(Bundle.main.bundlePath)")
-        lines.append("macOS \(version.majorVersion).\(version.minorVersion).\(version.patchVersion) (\(ProcessInfo.processInfo.operatingSystemVersionString))")
+        lines
+            .append(
+                "Gary \(bundle?["CFBundleShortVersionString"] as? String ?? "dev") (\(bundle?["CFBundleVersion"] as? String ?? "0")) at \(Bundle.main.bundlePath)",
+            )
+        lines
+            .append(
+                "macOS \(version.majorVersion).\(version.minorVersion).\(version.patchVersion) (\(ProcessInfo.processInfo.operatingSystemVersionString))",
+            )
         lines.append(runtime.map { "running as pid \($0.pid)" } ?? "not running; checks below read the files on disk")
 
         section("Window levels")
         let levels = SurfaceLevels.forSystem(version)
         info("bar \(levels.bar), and \(levels.barAside) while the macOS menu bar is revealed")
-        for layer in SurfaceLayer.allCases { info("\(layer.rawValue) \(levels.level(layer))") }
+        for layer in SurfaceLayer.allCases {
+            info("\(layer.rawValue) \(levels.level(layer))")
+        }
 
         section("Private API")
         for check in PrivateSymbolCheck.all() {
-            if check.resolved { ok("\(check.symbol) for \(check.feature)") } else { fail("\(check.symbol) missing from \(check.library); \(check.feature) is off") }
+            if check.resolved {
+                ok("\(check.symbol) for \(check.feature)")
+            } else {
+                fail("\(check.symbol) missing from \(check.library); \(check.feature) is off")
+            }
         }
 
         section("Permissions")
-        if runtime == nil { info("grants unknown: macOS answers for the process that asks, so run Gary and ask again") }
-        if runtime != nil, let program = launchingProgram() { fail("\(program) started Gary, so macOS checks \(program)'s permissions instead of Gary's") }
+        if runtime == nil {
+            info("grants unknown: macOS answers for the process that asks, so run Gary and ask again")
+        }
+        if runtime != nil,
+           let program = launchingProgram()
+        {
+            fail("\(program) started Gary, so macOS checks \(program)'s permissions instead of Gary's")
+        }
         for need in PermissionNeed.all(enabled: runtime?.enabled ?? [], checkGrants: runtime != nil) {
             let line = "\(need.permission.name)" + (need.grant.map { " \($0.description)" } ?? "") + "; \(need.summary)"
-            if need.plugins.isEmpty || need.grant == nil { info(line) } else if need.grant == .granted { ok(line) } else { fail(line + "; run gary permissions request \(need.permission.rawValue)") }
+            if need.plugins.isEmpty || need.grant == nil {
+                info(line)
+            } else if need.grant == .granted {
+                ok(line)
+            } else {
+                fail(line + "; run gary permissions request \(need.permission.rawValue)")
+            }
         }
 
         section("Plugins")
         guard let capabilities = try? Capability.names() else { return fail("the capability registry is invalid") }
         let catalog = PluginCatalog.scan(builtin: Paths.builtinPlugins, user: Paths.userPlugins, capabilities: capabilities)
         ok("\(catalog.plugins.count) found")
-        for problem in catalog.problems { fail("\(problem.directory.path): \(problem.reason)") }
+        for problem in catalog.problems {
+            fail("\(problem.directory.path): \(problem.reason)")
+        }
         for state in runtime?.pluginStates ?? [] {
-            if let problem = state.problem { fail("\(state.plugin): \(problem)") }
+            if let problem = state.problem {
+                fail("\(state.plugin): \(problem)")
+            }
         }
 
         section("Config")
@@ -94,10 +132,14 @@ struct Doctor {
     private mutating func checkConfig(_ catalog: PluginCatalog) {
         guard FileManager.default.fileExists(atPath: Paths.shellConfig.path) else { return info("no shell.json; using defaults") }
         do {
-            let config = try ShellConfig.parse(try JSON.parse(Data(contentsOf: Paths.shellConfig)))
+            let config = try ShellConfig.parse(JSON.parse(Data(contentsOf: Paths.shellConfig)))
             let warnings = config.resolve(catalog).warnings
-            if warnings.isEmpty { ok("shell.json") }
-            for warning in warnings { fail("shell.json: \(warning)") }
+            if warnings.isEmpty {
+                ok("shell.json")
+            }
+            for warning in warnings {
+                fail("shell.json: \(warning)")
+            }
         } catch {
             fail("shell.json: \(error)")
         }
@@ -107,9 +149,13 @@ struct Doctor {
         var file: PaletteFile?
         if FileManager.default.fileExists(atPath: Paths.palette.path) {
             do {
-                file = PaletteFile.parse(try String(contentsOf: Paths.palette, encoding: .utf8))
-                if file!.ignored.isEmpty { ok("palette.toml") }
-                for problem in file!.ignored { fail("palette.toml: \(problem)") }
+                file = try PaletteFile.parse(String(contentsOf: Paths.palette, encoding: .utf8))
+                if file!.ignored.isEmpty {
+                    ok("palette.toml")
+                }
+                for problem in file!.ignored {
+                    fail("palette.toml: \(problem)")
+                }
             } catch {
                 fail("palette.toml: \(error)")
             }
@@ -118,9 +164,13 @@ struct Doctor {
         }
         do {
             let override = FileManager.default.fileExists(atPath: Paths.userTheme.path) ? try JSON.parse(Data(contentsOf: Paths.userTheme)) : nil
-            let theme = try Theme.parse(try JSON.parse(Data(contentsOf: Paths.defaultTheme)), override: override, palette: Palette(file, system: .dark))
-            if theme.warnings.isEmpty { ok(override == nil ? "built-in theme" : "theme.json") }
-            for warning in theme.warnings { fail("theme: \(warning)") }
+            let theme = try Theme.parse(JSON.parse(Data(contentsOf: Paths.defaultTheme)), override: override, palette: Palette(file, system: .dark))
+            if theme.warnings.isEmpty {
+                ok(override == nil ? "built-in theme" : "theme.json")
+            }
+            for warning in theme.warnings {
+                fail("theme: \(warning)")
+            }
         } catch {
             fail("theme: \(error)")
         }
@@ -129,9 +179,9 @@ struct Doctor {
 
 func runDoctor() -> Int32 {
     do {
-        switch try Response.decode(line: try requestLine(Request.doctor.line, path: socketPath, timeout: 10)) {
-        case .ok(let report): print(report)
-        case .failure(let message): print("gary: \(message)")
+        switch try Response.decode(line: requestLine(Request.doctor.line, path: socketPath, timeout: 10)) {
+        case let .ok(report): print(report)
+        case let .failure(message): print("gary: \(message)")
         }
     } catch SocketError.unreachable {
         print(Doctor.report(nil))

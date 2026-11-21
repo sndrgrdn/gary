@@ -10,9 +10,9 @@ public struct DockReservation: Equatable, Sendable {
 
     public var orientation: Int32 {
         switch edge {
-        case .bottom: return 2
-        case .left: return 3
-        case .right: return 4
+        case .bottom: 2
+        case .left: 3
+        case .right: 4
         }
     }
 
@@ -30,7 +30,9 @@ public struct DockReservation: Equatable, Sendable {
         }
     }
 
-    public var json: JSON { .object(["edge": .string(edge.rawValue), "size": .number(size)]) }
+    public var json: JSON {
+        .object(["edge": .string(edge.rawValue), "size": .number(size)])
+    }
 }
 
 public enum DockRequest: Equatable, Sendable {
@@ -64,7 +66,9 @@ public struct Claims<Owner: Hashable, Value: Equatable> {
 
     public init() {}
 
-    public var current: Value? { entries.last?.value }
+    public var current: Value? {
+        entries.last?.value
+    }
 
     public mutating func claim(_ value: Value, by owner: Owner) {
         entries.removeAll { $0.owner == owner }

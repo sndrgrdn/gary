@@ -53,7 +53,7 @@ private let hostileValues: [JSON] = [
 
 private func mutate(_ json: JSON, _ random: inout SeededRandom) -> JSON {
     switch json {
-    case .object(var fields) where !fields.isEmpty && random.next(4) != 0:
+    case var .object(fields) where !fields.isEmpty && random.next(4) != 0:
         let keys = fields.keys.sorted()
         let key = keys[random.next(keys.count)]
         switch random.next(5) {
@@ -63,7 +63,7 @@ private func mutate(_ json: JSON, _ random: inout SeededRandom) -> JSON {
         default: fields[key] = mutate(fields[key]!, &random)
         }
         return .object(fields)
-    case .array(var items) where !items.isEmpty && random.next(4) != 0:
+    case var .array(items) where !items.isEmpty && random.next(4) != 0:
         let index = random.next(items.count)
         switch random.next(4) {
         case 0: items.remove(at: index)
@@ -85,7 +85,9 @@ private func mutatedTexts(_ sample: String, count: Int, seed: UInt64) -> [String
     for _ in 0..<count {
         if let json, random.next(3) != 0 {
             var value = json
-            for _ in 0...random.next(4) { value = mutate(value, &random) }
+            for _ in 0...random.next(4) {
+                value = mutate(value, &random)
+            }
             texts.append(value.text)
         } else {
             var bytes = Array(sample.utf8)
@@ -105,7 +107,7 @@ private func mutatedTexts(_ sample: String, count: Int, seed: UInt64) -> [String
 }
 
 struct MalformedInputTests {
-    @Test func malformedShellConfigsAreRejectedOrResolvedWithoutCrashing() {
+    @Test func `malformed shell configs are rejected or resolved without crashing`() {
         var catalog = PluginCatalog()
         for text in mutatedTexts(manifestSample, count: 50, seed: 7) {
             if let manifest = try? PluginManifest.parse(Data(text.utf8), origin: .user, capabilities: capabilities) {
@@ -118,7 +120,7 @@ struct MalformedInputTests {
         }
     }
 
-    @Test func malformedThemesAreRejectedOrParsedWithoutCrashing() {
+    @Test func `malformed themes are rejected or parsed without crashing`() {
         let palettes = [Palette(nil, system: .dark), Palette(PaletteFile.parse(paletteSample), system: .light)]
         for (index, text) in mutatedTexts(themeSample, count: 3000, seed: 2).enumerated() {
             guard let json = try? JSON.parse(text) else { continue }
@@ -132,7 +134,7 @@ struct MalformedInputTests {
         }
     }
 
-    @Test func malformedPalettesKeepTheGoodLinesWithoutCrashing() {
+    @Test func `malformed palettes keep the good lines without crashing`() {
         var texts = mutatedTexts(paletteSample, count: 3000, seed: 4)
         texts += hostileStrings.map { "accent = \"\($0)\"" } + hostileStrings
         for text in texts {
@@ -143,14 +145,20 @@ struct MalformedInputTests {
         }
     }
 
-    @Test func malformedManifestsNodesSurfacesAndRequestsAreRejectedWithoutCrashing() {
+    @Test func `malformed manifests nodes surfaces and requests are rejected without crashing`() {
         for text in mutatedTexts(manifestSample, count: 3000, seed: 5) {
-            for origin in [PluginOrigin.user, .builtin] { _ = try? PluginManifest.parse(Data(text.utf8), origin: origin, capabilities: capabilities) }
+            for origin in [PluginOrigin.user, .builtin] {
+                _ = try? PluginManifest.parse(Data(text.utf8), origin: origin, capabilities: capabilities)
+            }
         }
-        for text in mutatedTexts(nodeSample, count: 3000, seed: 6) { _ = try? Node.parse(Data(text.utf8)) }
+        for text in mutatedTexts(nodeSample, count: 3000, seed: 6) {
+            _ = try? Node.parse(Data(text.utf8))
+        }
         for text in mutatedTexts(surfaceSample, count: 3000, seed: 8) {
             guard let json = try? JSON.parse(text) else { continue }
-            for kind in PluginKind.allCases { _ = try? SurfaceSpec.parse(json, kind: kind) }
+            for kind in PluginKind.allCases {
+                _ = try? SurfaceSpec.parse(json, kind: kind)
+            }
         }
         for text in mutatedTexts(#"{"verb": "call", "args": ["demo.counter", "add", "1"]}"#, count: 3000, seed: 9) {
             _ = try? Request.decode(line: text)

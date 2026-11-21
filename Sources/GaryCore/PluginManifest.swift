@@ -4,9 +4,13 @@ public enum PluginKind: String, CaseIterable, Sendable {
     case barWidget = "bar-widget"
     case bar, panel, overlay, menu, service
 
-    public var isSurface: Bool { self == .panel || self == .overlay || self == .menu }
+    public var isSurface: Bool {
+        self == .panel || self == .overlay || self == .menu
+    }
 
-    public func hides(onUnhandled key: String) -> Bool { key == "escape" && (self == .menu || self == .overlay) }
+    public func hides(onUnhandled key: String) -> Bool {
+        key == "escape" && (self == .menu || self == .overlay)
+    }
 }
 
 public enum Topic: Hashable, Sendable, CustomStringConvertible {
@@ -15,8 +19,8 @@ public enum Topic: Hashable, Sendable, CustomStringConvertible {
 
     public var description: String {
         switch self {
-        case .capability(let name): return name
-        case .plugin(let id): return id.rawValue
+        case let .capability(name): name
+        case let .plugin(id): id.rawValue
         }
     }
 }
@@ -38,9 +42,17 @@ public struct PluginID: Hashable, Comparable, CustomStringConvertible, Sendable 
         rawValue = raw
     }
 
-    public var isReserved: Bool { rawValue.hasPrefix("gary.") }
-    public var description: String { rawValue }
-    public static func < (a: PluginID, b: PluginID) -> Bool { a.rawValue < b.rawValue }
+    public var isReserved: Bool {
+        rawValue.hasPrefix("gary.")
+    }
+
+    public var description: String {
+        rawValue
+    }
+
+    public static func < (a: PluginID, b: PluginID) -> Bool {
+        a.rawValue < b.rawValue
+    }
 }
 
 public enum ManifestError: Error, Equatable, CustomStringConvertible {
@@ -64,23 +76,23 @@ public enum ManifestError: Error, Equatable, CustomStringConvertible {
 
     public var description: String {
         switch self {
-        case .invalidJSON: return "manifest is not a JSON object"
-        case .missingField(let field): return "missing field \(field)"
-        case .wrongType(let field): return "field \(field) has the wrong type"
-        case .unsupportedSchemaVersion(let version): return "unsupported schemaVersion \(JSON.number(version).text)"
-        case .invalidID(let id): return "invalid id \"\(id)\""
-        case .reservedID(let id): return "id \(id) uses the reserved gary. namespace"
-        case .builtinOutsideNamespace(let id): return "built-in id \(id) is outside the gary. namespace"
-        case .noKinds: return "kinds is empty"
-        case .unknownKind(let kind): return "unknown kind \(kind)"
-        case .duplicateKind(let kind): return "kind \(kind.rawValue) is listed twice"
-        case .missingEntryPoint(let kind): return "no entry point for kind \(kind.rawValue)"
-        case .entryPointWithoutKind(let key): return "entry point \(key) has no matching kind"
-        case .unsafeEntryPoint(let path): return "entry point \(path) must be a relative .js or .ts path inside the plugin"
-        case .unknownTopic(let topic): return "unknown subscription \(topic)"
-        case .unknownService(let service): return "unknown host service \(service)"
-        case .invalidHotkey(let keys): return "hotkey \"\(keys)\" must be modifiers and a key, such as ctrl+alt+space"
-        case .duplicateHotkey(let id): return "hotkey id \(id) is listed twice"
+        case .invalidJSON: "manifest is not a JSON object"
+        case let .missingField(field): "missing field \(field)"
+        case let .wrongType(field): "field \(field) has the wrong type"
+        case let .unsupportedSchemaVersion(version): "unsupported schemaVersion \(JSON.number(version).text)"
+        case let .invalidID(id): "invalid id \"\(id)\""
+        case let .reservedID(id): "id \(id) uses the reserved gary. namespace"
+        case let .builtinOutsideNamespace(id): "built-in id \(id) is outside the gary. namespace"
+        case .noKinds: "kinds is empty"
+        case let .unknownKind(kind): "unknown kind \(kind)"
+        case let .duplicateKind(kind): "kind \(kind.rawValue) is listed twice"
+        case let .missingEntryPoint(kind): "no entry point for kind \(kind.rawValue)"
+        case let .entryPointWithoutKind(key): "entry point \(key) has no matching kind"
+        case let .unsafeEntryPoint(path): "entry point \(path) must be a relative .js or .ts path inside the plugin"
+        case let .unknownTopic(topic): "unknown subscription \(topic)"
+        case let .unknownService(service): "unknown host service \(service)"
+        case let .invalidHotkey(keys): "hotkey \"\(keys)\" must be modifiers and a key, such as ctrl+alt+space"
+        case let .duplicateHotkey(id): "hotkey id \(id) is listed twice"
         }
     }
 }
@@ -100,7 +112,9 @@ public struct PluginManifest: Equatable, Sendable {
 
     public var capabilities: [String] {
         var names = uses
-        for case .capability(let name) in subscribes where !names.contains(name) { names.append(name) }
+        for case let .capability(name) in subscribes where !names.contains(name) {
+            names.append(name)
+        }
         return names
     }
 
@@ -153,20 +167,27 @@ public struct PluginManifest: Equatable, Sendable {
             guard isSafeRelativeScriptPath(path) else { throw ManifestError.unsafeEntryPoint(path) }
             entryPoints[kind] = path
         }
-        if let missing = kinds.first(where: { entryPoints[$0] == nil }) { throw ManifestError.missingEntryPoint(missing) }
+        if let missing = kinds.first(where: { entryPoints[$0] == nil }) {
+            throw ManifestError.missingEntryPoint(missing)
+        }
 
         let keepLoaded = try optional("keepLoaded", \.bool, default: false)
         let subscribes = try optional("subscribes", strings, default: []).map { raw in
-            if capabilities.topics.contains(raw) { return Topic.capability(raw) }
+            if capabilities.topics.contains(raw) {
+                return Topic.capability(raw)
+            }
             guard let id = PluginID(raw) else { throw ManifestError.unknownTopic(raw) }
             return .plugin(id)
         }
         let uses = try optional("uses", strings, default: [])
-        if let unknown = uses.first(where: { !capabilities.uses.contains($0) }) { throw ManifestError.unknownService(unknown) }
+        if let unknown = uses.first(where: { !capabilities.uses.contains($0) }) {
+            throw ManifestError.unknownService(unknown)
+        }
 
         var hotkeys: [Hotkey] = []
         for (index, entry) in try optional("hotkeys", \.array, default: []).enumerated() {
-            guard let id = entry["id"]?.string, !id.isEmpty, let raw = entry["keys"]?.string else { throw ManifestError.wrongType("hotkeys[\(index)]") }
+            guard let id = entry["id"]?.string, !id.isEmpty,
+                  let raw = entry["keys"]?.string else { throw ManifestError.wrongType("hotkeys[\(index)]") }
             guard let keys = KeyCombo.parse(raw) else { throw ManifestError.invalidHotkey(raw) }
             guard !hotkeys.contains(where: { $0.id == id }) else { throw ManifestError.duplicateHotkey(id) }
             hotkeys.append(Hotkey(id: id, keys: keys))
@@ -174,7 +195,7 @@ public struct PluginManifest: Equatable, Sendable {
 
         return PluginManifest(
             id: id, name: name, version: version, kinds: kinds, entryPoints: entryPoints,
-            keepLoaded: keepLoaded, subscribes: subscribes, uses: uses, hotkeys: hotkeys
+            keepLoaded: keepLoaded, subscribes: subscribes, uses: uses, hotkeys: hotkeys,
         )
     }
 }

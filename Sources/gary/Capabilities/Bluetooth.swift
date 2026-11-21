@@ -5,68 +5,79 @@ import IOBluetooth
 import IOKit
 
 extension Capability {
-    static let bluetooth = Capability(name: "bluetooth", summary: "Bluetooth power and paired devices with their battery levels. Turn Bluetooth on or off, and connect or disconnect a device.", types: """
-    declare namespace Gary {
-      interface State { bluetooth?: Bluetooth }
-      interface Bluetooth {
-        available: boolean;
-        permission: "allowed" | "denied" | "restricted" | "notDetermined";
-        power: boolean | null;
-        devices: BluetoothDevice[];
-        missing: string[];
-      }
-      interface BluetoothDevice { address: string; name: string | null; connected: boolean; battery: number | null }
-      interface Host { bluetooth: BluetoothApi }
-      interface BluetoothApi {
-        setPower(on: boolean): null;
-        connect(address: string): Promise<"connected">;
-        disconnect(address: string): Promise<"disconnected">;
-        requestAccess(): Promise<string>;
-      }
-    }
-    """, example: """
-    module.exports = {
-      render(state) {
-        if (state.bluetooth?.permission === "notDetermined") return { type: "button", action: "allow", children: [{ type: "text", text: "Allow Bluetooth" }] };
-        return {
-          type: "column",
-          children: (state.bluetooth?.devices ?? []).map((device) => ({
-            type: "text", key: device.address, action: device.address, style: device.connected ? "bright" : "dim",
-            text: `${device.name ?? device.address}${device.battery === null ? "" : ` ${device.battery}%`}`,
-          })),
-        };
-      },
-      onAction(action, _payload, state) {
-        if (action === "allow") return void host.bluetooth.requestAccess();
-        const device = state.bluetooth?.devices.find((each) => each.address === action);
-        if (device) (device.connected ? host.bluetooth.disconnect(action) : host.bluetooth.connect(action)).catch((error) => host.log(String(error)));
-      },
-    } satisfies Gary.Panel;
-    """, permissions: [.bluetooth], install: { host, plugin in
-        plugin.installAPI(host, "bluetooth", BluetoothRequest.methods) { call in
-            switch try BluetoothRequest.parse(call) {
-            case .setPower(let on):
-                guard CBManager.authorization == .allowedAlways else { throw HostFailure(missingGrant(.bluetooth, "bluetooth")) }
-                guard let set = BluetoothPower.set else { throw HostFailure("IOBluetoothPreferenceSetControllerPowerState is missing on this macOS") }
-                set(on ? 1 : 0)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { BluetoothTopic.current?.send(Trace("bluetooth-power")) }
-                return .now(.null)
-            case .connect(let address):
-                return .later(.global(qos: .userInitiated)) { try connection(address, open: true) }
-            case .disconnect(let address):
-                return .later(.global(qos: .userInitiated)) { try connection(address, open: false) }
-            case .requestAccess:
-                return .later(.main) { .string(Permission.bluetooth.request()) }
-            }
+    static let bluetooth = Capability(
+        name: "bluetooth",
+        summary: "Bluetooth power and paired devices with their battery levels. Turn Bluetooth on or off, and connect or disconnect a device.",
+        types: """
+        declare namespace Gary {
+          interface State { bluetooth?: Bluetooth }
+          interface Bluetooth {
+            available: boolean;
+            permission: "allowed" | "denied" | "restricted" | "notDetermined";
+            power: boolean | null;
+            devices: BluetoothDevice[];
+            missing: string[];
+          }
+          interface BluetoothDevice { address: string; name: string | null; connected: boolean; battery: number | null }
+          interface Host { bluetooth: BluetoothApi }
+          interface BluetoothApi {
+            setPower(on: boolean): null;
+            connect(address: string): Promise<"connected">;
+            disconnect(address: string): Promise<"disconnected">;
+            requestAccess(): Promise<string>;
+          }
         }
-    }, topic: { BluetoothTopic($0) })
+        """,
+        example: """
+        module.exports = {
+          render(state) {
+            if (state.bluetooth?.permission === "notDetermined") return { type: "button", action: "allow", children: [{ type: "text", text: "Allow Bluetooth" }] };
+            return {
+              type: "column",
+              children: (state.bluetooth?.devices ?? []).map((device) => ({
+                type: "text", key: device.address, action: device.address, style: device.connected ? "bright" : "dim",
+                text: `${device.name ?? device.address}${device.battery === null ? "" : ` ${device.battery}%`}`,
+              })),
+            };
+          },
+          onAction(action, _payload, state) {
+            if (action === "allow") return void host.bluetooth.requestAccess();
+            const device = state.bluetooth?.devices.find((each) => each.address === action);
+            if (device) (device.connected ? host.bluetooth.disconnect(action) : host.bluetooth.connect(action)).catch((error) => host.log(String(error)));
+          },
+        } satisfies Gary.Panel;
+        """,
+        permissions: [.bluetooth],
+        install: { host, plugin in
+            plugin.installAPI(host, "bluetooth", BluetoothRequest.methods) { call in
+                switch try BluetoothRequest.parse(call) {
+                case let .setPower(on):
+                    guard CBManager.authorization == .allowedAlways else { throw HostFailure(missingGrant(.bluetooth, "bluetooth")) }
+                    guard let set = BluetoothPower.set
+                    else { throw HostFailure("IOBluetoothPreferenceSetControllerPowerState is missing on this macOS") }
+                    set(on ? 1 : 0)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { BluetoothTopic.current?.send(Trace("bluetooth-power")) }
+                    return .now(.null)
+                case let .connect(address):
+                    return .later(.global(qos: .userInitiated)) { try connection(address, open: true) }
+                case let .disconnect(address):
+                    return .later(.global(qos: .userInitiated)) { try connection(address, open: false) }
+                case .requestAccess:
+                    return .later(.main) { .string(Permission.bluetooth.request()) }
+                }
+            }
+        },
+        topic: { BluetoothTopic($0) },
+    )
 }
 
 private enum BluetoothPower {
     typealias Set = @convention(c) (Int32) -> Void
     static let set = privateSymbol(.bluetoothSetPower, as: Set.self)
 
-    static var missing: [String] { missingSymbols([.bluetoothSetPower]) }
+    static var missing: [String] {
+        missingSymbols([.bluetoothSetPower])
+    }
 }
 
 private func connection(_ address: String, open: Bool) throws -> JSON {
@@ -86,8 +97,11 @@ private func connection(_ address: String, open: Bool) throws -> JSON {
             finish(status == kIOReturnSuccess ? nil : "cannot disconnect \(device.name ?? address) (\(status))")
         }
     }
-    guard done.wait(timeout: .now() + 20) == .success else { throw HostFailure("\(open ? "connecting" : "disconnecting") \(address) took longer than 20 s") }
-    if let failure { throw HostFailure(failure) }
+    guard done.wait(timeout: .now() + 20) == .success
+    else { throw HostFailure("\(open ? "connecting" : "disconnecting") \(address) took longer than 20 s") }
+    if let failure {
+        throw HostFailure(failure)
+    }
     return .string(open ? "connected" : "disconnected")
 }
 
@@ -100,7 +114,9 @@ private final class Connector: NSObject {
     }
 
     static func open(_ device: IOBluetoothDevice, _ done: @escaping (String?) -> Void) {
-        if device.isConnected() { return done(nil) }
+        if device.isConnected() {
+            return done(nil)
+        }
         let connector = Connector(done)
         let status = device.openConnection(connector, withPageTimeout: 0x2000, authenticationRequired: false)
         guard status == kIOReturnSuccess else { return done("cannot connect \(device.name ?? device.addressString ?? "") (\(status))") }
@@ -118,10 +134,12 @@ final class BluetoothAccess: NSObject, CBCentralManagerDelegate {
     private var manager: CBCentralManager?
 
     func request() {
-        if manager == nil { manager = CBCentralManager(delegate: self, queue: .main) }
+        if manager == nil {
+            manager = CBCentralManager(delegate: self, queue: .main)
+        }
     }
 
-    func centralManagerDidUpdateState(_ central: CBCentralManager) {
+    func centralManagerDidUpdateState(_: CBCentralManager) {
         BluetoothTopic.current?.restart()
     }
 }
@@ -140,7 +158,9 @@ private final class BluetoothTopic: NSObject {
     }
 
     deinit {
-        for notification in notifications { notification.unregister() }
+        for notification in notifications {
+            notification.unregister()
+        }
     }
 
     func restart() {
@@ -153,14 +173,22 @@ private final class BluetoothTopic: NSObject {
         RunLoop.main.add(timer, forMode: .common)
         observations = [
             Observation { timer.invalidate() },
-            Observation(.default, NSNotification.Name("IOBluetoothHostControllerPoweredOnNotification")) { [weak self] in self?.send(Trace("bluetooth-power")) },
-            Observation(.default, NSNotification.Name("IOBluetoothHostControllerPoweredOffNotification")) { [weak self] in self?.send(Trace("bluetooth-power")) },
+            Observation(.default, NSNotification.Name("IOBluetoothHostControllerPoweredOnNotification")) { [weak self] in
+                self?.send(Trace("bluetooth-power"))
+            },
+            Observation(.default, NSNotification.Name("IOBluetoothHostControllerPoweredOffNotification")) { [weak self] in
+                self?.send(Trace("bluetooth-power"))
+            },
         ]
         send(Trace("bluetooth-start"))
     }
 
     @objc private func connected(_: IOBluetoothUserNotification, device: IOBluetoothDevice) {
-        if let disconnect = device.register(forDisconnectNotification: self, selector: #selector(disconnected(_:device:))) { notifications.append(disconnect) }
+        if let disconnect = device
+            .register(forDisconnectNotification: self, selector: #selector(disconnected(_:device:)))
+        {
+            notifications.append(disconnect)
+        }
         send(Trace("bluetooth-connect"))
     }
 
@@ -171,15 +199,17 @@ private final class BluetoothTopic: NSObject {
     }
 
     func send(_ trace: Trace) {
-        let permission: String
-        switch CBManager.authorization {
-        case .allowedAlways: permission = "allowed"
-        case .denied: permission = "denied"
-        case .restricted: permission = "restricted"
-        default: permission = "notDetermined"
+        let permission = switch CBManager.authorization {
+        case .allowedAlways: "allowed"
+        case .denied: "denied"
+        case .restricted: "restricted"
+        default: "notDetermined"
         }
         guard permission == "allowed" else {
-            return publish(.object(["available": .bool(false), "permission": .string(permission), "power": .null, "devices": .array([]), "missing": .array([])]), trace)
+            return publish(
+                .object(["available": .bool(false), "permission": .string(permission), "power": .null, "devices": .array([]), "missing": .array([])]),
+                trace,
+            )
         }
         let batteries = hidBatteries()
         let devices = (IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []).compactMap { device -> JSON? in
@@ -201,7 +231,8 @@ private final class BluetoothTopic: NSObject {
 
     private func battery(_ device: IOBluetoothDevice) -> Int? {
         let levels = ["batteryPercentSingle", "batteryPercentCombined", "batteryPercentLeft", "batteryPercentRight"].compactMap { key -> Int? in
-            guard device.responds(to: NSSelectorFromString(key)), let value = device.value(forKey: key) as? NSNumber, value.intValue > 0 else { return nil }
+            guard device.responds(to: NSSelectorFromString(key)), let value = device.value(forKey: key) as? NSNumber,
+                  value.intValue > 0 else { return nil }
             return value.intValue
         }
         return levels.first
@@ -209,13 +240,15 @@ private final class BluetoothTopic: NSObject {
 
     private func hidBatteries() -> [String: Int] {
         var iterator = io_iterator_t()
-        guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("AppleDeviceManagementHIDEventService"), &iterator) == KERN_SUCCESS else { return [:] }
+        guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("AppleDeviceManagementHIDEventService"), &iterator) == KERN_SUCCESS
+        else { return [:] }
         defer { IOObjectRelease(iterator) }
         var levels: [String: Int] = [:]
         while case let service = IOIteratorNext(iterator), service != 0 {
             defer { IOObjectRelease(service) }
             guard let address = IORegistryEntryCreateCFProperty(service, "DeviceAddress" as CFString, nil, 0)?.takeRetainedValue() as? String,
-                  let percent = IORegistryEntryCreateCFProperty(service, "BatteryPercent" as CFString, nil, 0)?.takeRetainedValue() as? Int else { continue }
+                  let percent = IORegistryEntryCreateCFProperty(service, "BatteryPercent" as CFString, nil, 0)?.takeRetainedValue() as? Int
+            else { continue }
             levels[address.lowercased().replacingOccurrences(of: ":", with: "-")] = percent
         }
         return levels

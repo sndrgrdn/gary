@@ -8,8 +8,8 @@ public enum TrayRequest: Equatable, Sendable {
 
     public static func parse(_ call: HostCall) throws -> TrayRequest {
         switch call.method {
-        case "items": return .items
-        case "press": return .press(id: try call.string(0, "id"))
+        case "items": .items
+        case "press": try .press(id: call.string(0, "id"))
         default: throw call.unknownMethod
         }
     }
@@ -32,7 +32,9 @@ public struct TrayElement: Equatable, Sendable {
         self.detail = detail?.isEmpty == true ? nil : detail
     }
 
-    var labels: Int { (title == nil ? 0 : 1) + (detail == nil ? 0 : 1) }
+    var labels: Int {
+        (title == nil ? 0 : 1) + (detail == nil ? 0 : 1)
+    }
 }
 
 public struct TrayItem: Equatable, Sendable {
@@ -43,7 +45,9 @@ public struct TrayItem: Equatable, Sendable {
         var slots: [Int: TrayElement] = [:]
         for element in elements {
             let slot = Int(element.frame.minX.rounded())
-            if let kept = slots[slot], kept.labels >= element.labels { continue }
+            if let kept = slots[slot], kept.labels >= element.labels {
+                continue
+            }
             slots[slot] = element
         }
         var counts: [String: Int] = [:]

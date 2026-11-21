@@ -20,7 +20,9 @@ public enum JSON: Equatable, Sendable {
         }
     }
 
-    public static func parse(_ text: String) throws -> JSON { try parse(Data(text.utf8)) }
+    public static func parse(_ text: String) throws -> JSON {
+        try parse(Data(text.utf8))
+    }
 
     public func encoded() -> Data {
         let encoder = JSONEncoder()
@@ -28,7 +30,9 @@ public enum JSON: Equatable, Sendable {
         return try! encoder.encode(self)
     }
 
-    public var text: String { String(decoding: encoded(), as: UTF8.self) }
+    public var text: String {
+        String(decoding: encoded(), as: UTF8.self)
+    }
 
     public var prettyText: String {
         let encoder = JSONEncoder()
@@ -37,18 +41,44 @@ public enum JSON: Equatable, Sendable {
     }
 
     public subscript(key: String) -> JSON? {
-        if case .object(let fields) = self { return fields[key] }
+        if case let .object(fields) = self {
+            return fields[key]
+        }
         return nil
     }
 
-    public var string: String? { if case .string(let s) = self { return s }; return nil }
-    public var number: Double? { if case .number(let n) = self { return n }; return nil }
-    public var bool: Bool? { if case .bool(let b) = self { return b }; return nil }
-    public var array: [JSON]? { if case .array(let a) = self { return a }; return nil }
-    public var object: [String: JSON]? { if case .object(let o) = self { return o }; return nil }
+    public var string: String? {
+        if case let .string(s) = self {
+            return s
+        }; return nil
+    }
+
+    public var number: Double? {
+        if case let .number(n) = self {
+            return n
+        }; return nil
+    }
+
+    public var bool: Bool? {
+        if case let .bool(b) = self {
+            return b
+        }; return nil
+    }
+
+    public var array: [JSON]? {
+        if case let .array(a) = self {
+            return a
+        }; return nil
+    }
+
+    public var object: [String: JSON]? {
+        if case let .object(o) = self {
+            return o
+        }; return nil
+    }
 
     public func merging(_ override: JSON) -> JSON {
-        guard case .object(var base) = self, case .object(let top) = override else { return override }
+        guard case var .object(base) = self, case let .object(top) = override else { return override }
         for (key, value) in top {
             base[key] = base[key].map { $0.merging(value) } ?? value
         }
@@ -70,7 +100,7 @@ extension JSON: Codable {
         } else if let value = try? container.decode([JSON].self) {
             self = .array(value)
         } else {
-            self = .object(try container.decode([String: JSON].self))
+            self = try .object(container.decode([String: JSON].self))
         }
     }
 
@@ -78,12 +108,12 @@ extension JSON: Codable {
         var container = encoder.singleValueContainer()
         switch self {
         case .null: try container.encodeNil()
-        case .bool(let value): try container.encode(value)
-        case .number(let value) where !value.isFinite: try container.encodeNil()
-        case .number(let value): try container.encode(value)
-        case .string(let value): try container.encode(value)
-        case .array(let value): try container.encode(value)
-        case .object(let value): try container.encode(value)
+        case let .bool(value): try container.encode(value)
+        case let .number(value) where !value.isFinite: try container.encodeNil()
+        case let .number(value): try container.encode(value)
+        case let .string(value): try container.encode(value)
+        case let .array(value): try container.encode(value)
+        case let .object(value): try container.encode(value)
         }
     }
 }

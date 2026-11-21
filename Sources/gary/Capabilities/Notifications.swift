@@ -3,49 +3,58 @@ import GaryCore
 import SQLite3
 
 extension Capability {
-    static let notifications = Capability(name: "notifications", summary: "Notifications that Notification Center delivered. Open the app that sent one.", types: """
-    declare namespace Gary {
-      interface State { notifications?: Notifications }
-      interface Notifications { available: boolean; reason?: string; items: DeliveredNotification[] }
-      interface DeliveredNotification {
-        id: number;
-        app: string;
-        appName: string | null;
-        title: string | null;
-        subtitle: string | null;
-        body: string | null;
-        date: number;
-      }
-      interface Host { notifications: { open(id: number): null } }
-    }
-    """, example: """
-    module.exports = {
-      render(state) {
-        const notifications = state.notifications;
-        if (!notifications?.available) return { type: "text", text: notifications?.reason ?? "…", style: "dim" };
-        return {
-          type: "column",
-          children: notifications.items.slice(0, 5).map((item) => (
-            { type: "text", key: String(item.id), action: String(item.id), text: `${item.appName ?? item.app}: ${item.title ?? item.body ?? ""}` }
-          )),
-        };
-      },
-      onAction(id) {
-        host.notifications.open(Number(id));
-      },
-    } satisfies Gary.Panel;
-    """, permissions: [.fullDiskAccess], install: { host, plugin in
-        plugin.installAPI(host, "notifications", NotificationsRequest.methods) { call in
-            switch try NotificationsRequest.parse(call) {
-            case .open(let id):
-                let records = try NotificationStore.read("WHERE r.rec_id = \(id)").mapError { HostFailure($0.reason) }.get()
-                guard let record = records.first else { throw HostFailure("no delivered notification \(id)") }
-                guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: record.app) else { throw HostFailure("\(record.app) is not installed") }
-                DispatchQueue.main.async { NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) }
-                return .now(.null)
-            }
+    static let notifications = Capability(
+        name: "notifications",
+        summary: "Notifications that Notification Center delivered. Open the app that sent one.",
+        types: """
+        declare namespace Gary {
+          interface State { notifications?: Notifications }
+          interface Notifications { available: boolean; reason?: string; items: DeliveredNotification[] }
+          interface DeliveredNotification {
+            id: number;
+            app: string;
+            appName: string | null;
+            title: string | null;
+            subtitle: string | null;
+            body: string | null;
+            date: number;
+          }
+          interface Host { notifications: { open(id: number): null } }
         }
-    }, topic: { NotificationsTopic($0) })
+        """,
+        example: """
+        module.exports = {
+          render(state) {
+            const notifications = state.notifications;
+            if (!notifications?.available) return { type: "text", text: notifications?.reason ?? "…", style: "dim" };
+            return {
+              type: "column",
+              children: notifications.items.slice(0, 5).map((item) => (
+                { type: "text", key: String(item.id), action: String(item.id), text: `${item.appName ?? item.app}: ${item.title ?? item.body ?? ""}` }
+              )),
+            };
+          },
+          onAction(id) {
+            host.notifications.open(Number(id));
+          },
+        } satisfies Gary.Panel;
+        """,
+        permissions: [.fullDiskAccess],
+        install: { host, plugin in
+            plugin.installAPI(host, "notifications", NotificationsRequest.methods) { call in
+                switch try NotificationsRequest.parse(call) {
+                case let .open(id):
+                    let records = try NotificationStore.read("WHERE r.rec_id = \(id)").mapError { HostFailure($0.reason) }.get()
+                    guard let record = records.first else { throw HostFailure("no delivered notification \(id)") }
+                    guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: record.app)
+                    else { throw HostFailure("\(record.app) is not installed") }
+                    DispatchQueue.main.async { NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) }
+                    return .now(.null)
+                }
+            }
+        },
+        topic: { NotificationsTopic($0) },
+    )
 }
 
 private enum NotificationStore {
@@ -61,7 +70,8 @@ private enum NotificationStore {
         let opened = sqlite3_open_v2(directory.appending(path: "db").path, &db, SQLITE_OPEN_READONLY, nil)
         guard opened == SQLITE_OK, sqlite3_exec(db, "PRAGMA query_only = 1", nil, nil, nil) == SQLITE_OK else {
             let denied = opened == SQLITE_AUTH || opened == SQLITE_CANTOPEN || opened == SQLITE_PERM
-            return .failure(Failure(reason: denied ? missingGrant(.fullDiskAccess, "notifications") : "cannot open the notification database (\(opened))"))
+            return .failure(Failure(reason: denied ? missingGrant(.fullDiskAccess, "notifications") :
+                    "cannot open the notification database (\(opened))"))
         }
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
@@ -100,16 +110,18 @@ private final class NotificationsTopic {
         queue.async { [weak self] in
             guard let self else { return }
             switch NotificationStore.read() {
-            case .failure(let failure):
+            case let .failure(failure):
                 publish(.object(["available": .bool(false), "reason": .string(failure.reason), "items": .array([])]), trace)
-            case .success(let records):
+            case let .success(records):
                 publish(.object(["available": .bool(true), "items": .array(records.map(json))]), trace)
             }
         }
     }
 
     private func json(_ record: DeliveredNotification) -> JSON {
-        func text(_ value: String?) -> JSON { value.map(JSON.string) ?? .null }
+        func text(_ value: String?) -> JSON {
+            value.map(JSON.string) ?? .null
+        }
         return .object([
             "id": .number(Double(record.id)), "app": .string(record.app), "appName": text(name(record.app)),
             "title": text(record.title), "subtitle": text(record.subtitle), "body": text(record.body), "date": .number(record.date.rounded()),
@@ -117,7 +129,9 @@ private final class NotificationsTopic {
     }
 
     private func name(_ app: String) -> String? {
-        if let name = names[app] { return name }
+        if let name = names[app] {
+            return name
+        }
         guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app) else { return nil }
         let name = FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
         names[app] = name

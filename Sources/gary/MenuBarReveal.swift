@@ -3,15 +3,21 @@ import AppKit
 private final class TopEdgeView: NSView {
     var onEnter: () -> Void = {}
 
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override func hitTest(_: NSPoint) -> NSView? {
+        nil
+    }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        for area in trackingAreas { removeTrackingArea(area) }
+        for area in trackingAreas {
+            removeTrackingArea(area)
+        }
         addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self))
     }
 
-    override func mouseEntered(with event: NSEvent) { onEnter() }
+    override func mouseEntered(with _: NSEvent) {
+        onEnter()
+    }
 }
 
 func watchTopEdge(of view: NSView, _ onEnter: @escaping () -> Void) {

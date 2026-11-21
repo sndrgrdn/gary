@@ -64,10 +64,10 @@ extension Capability {
                         "items": .array(items.map { $0.json(icon: icons.paths[$0.id]) }),
                         "iconError": icons.error.map(JSON.string) ?? .null,
                     ])
-                case .press(let id):
+                case let .press(id):
                     guard let item = try scan().first(where: { $0.id == id }) else { throw HostFailure("no tray item \(id)") }
-                    guard case .object(var fields) = item.json(icon: nil) else { return .null }
-                    fields["opened"] = .bool(try click(item.element.frame))
+                    guard case var .object(fields) = item.json(icon: nil) else { return .null }
+                    fields["opened"] = try .bool(click(item.element.frame))
                     return .object(fields)
                 }
             }
@@ -85,9 +85,14 @@ private func children(_ element: AXUIElement, _ name: String = kAXChildrenAttrib
 }
 
 private func frame(_ element: AXUIElement) -> CGRect {
-    var origin = CGPoint.zero, size = CGSize.zero
-    if let value = attribute(element, kAXPositionAttribute) { AXValueGetValue(value as! AXValue, .cgPoint, &origin) }
-    if let value = attribute(element, kAXSizeAttribute) { AXValueGetValue(value as! AXValue, .cgSize, &size) }
+    var origin = CGPoint.zero
+    var size = CGSize.zero
+    if let value = attribute(element, kAXPositionAttribute) {
+        AXValueGetValue(value as! AXValue, .cgPoint, &origin)
+    }
+    if let value = attribute(element, kAXSizeAttribute) {
+        AXValueGetValue(value as! AXValue, .cgSize, &size)
+    }
     return CGRect(origin: origin, size: size)
 }
 
@@ -108,7 +113,7 @@ private func scan() throws -> [TrayItem] {
             elements.append(TrayElement(
                 frame: frame(group), app: owner?.bundleIdentifier ?? "pid:\(pid)", name: owner?.localizedName ?? "", pid: pid,
                 title: button ? attribute(child, kAXTitleAttribute) as? String : nil,
-                detail: button ? attribute(child, kAXDescriptionAttribute) as? String : nil
+                detail: button ? attribute(child, kAXDescriptionAttribute) as? String : nil,
             ))
         }
     }
@@ -130,19 +135,24 @@ private func click(_ frame: CGRect) throws -> Bool {
     }
     post(.leftMouseDown, at: point)
     post(.leftMouseUp, at: point)
-    if let pointer { CGWarpMouseCursorPosition(pointer) }
+    if let pointer {
+        CGWarpMouseCursorPosition(pointer)
+    }
     return wait(for: { !Set(popups()).subtracting(before).isEmpty })
 }
 
 private func post(_ type: CGEventType, at point: CGPoint) {
-    CGEvent(mouseEventSource: CGEventSource(stateID: .hidSystemState), mouseType: type, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
-    usleep(20_000)
+    CGEvent(mouseEventSource: CGEventSource(stateID: .hidSystemState), mouseType: type, mouseCursorPosition: point, mouseButton: .left)?
+        .post(tap: .cghidEventTap)
+    usleep(20000)
 }
 
 private func wait(for condition: () -> Bool) -> Bool {
     for _ in 0..<20 {
-        if condition() { return true }
-        usleep(50_000)
+        if condition() {
+            return true
+        }
+        usleep(50000)
     }
     return false
 }
@@ -150,8 +160,12 @@ private func wait(for condition: () -> Bool) -> Bool {
 private func passClicks(at point: CGPoint) -> () -> Void {
     let flipped = CGPoint(x: point.x, y: (NSScreen.screens.first?.frame.height ?? 0) - point.y)
     let windows = NSApp.windows.filter { $0.isVisible && !$0.ignoresMouseEvents && $0.frame.contains(flipped) }
-    for window in windows { window.ignoresMouseEvents = true }
-    return { for window in windows { window.ignoresMouseEvents = false } }
+    for window in windows {
+        window.ignoresMouseEvents = true
+    }
+    return { for window in windows {
+        window.ignoresMouseEvents = false
+    } }
 }
 
 private func windowList(_ options: CGWindowListOption) -> [[String: Any]] {
@@ -173,8 +187,15 @@ private let createImage = privateSymbol(.windowListCreateImage, as: CreateImage.
 private func capture(_ items: [TrayItem]) -> (paths: [String: String], error: String?) {
     guard CGPreflightScreenCaptureAccess() else { return ([:], missingGrant(.screenRecording, "tray icons")) }
     guard let createImage else { return ([:], "SLWindowListCreateImageFromArray is missing from SkyLight on this macOS") }
-    guard let agent = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MenuBarAgent").first?.processIdentifier else { return ([:], "MenuBarAgent is not running") }
-    let windows = (CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { info -> (id: CGWindowID, bounds: CGRect)? in
+    guard let agent = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MenuBarAgent").first?.processIdentifier
+    else { return (
+        [:],
+        "MenuBarAgent is not running",
+    ) }
+    let windows = (CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { info -> (
+        id: CGWindowID,
+        bounds: CGRect
+    )? in
         guard info[kCGWindowOwnerPID as String] as? pid_t == agent,
               info[kCGWindowLayer as String] as? Int == Int(CGWindowLevelForKey(.mainMenuWindow)),
               let id = info[kCGWindowNumber as String] as? CGWindowID,

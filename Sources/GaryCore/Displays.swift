@@ -18,7 +18,9 @@ public struct DisplayChange: Equatable, Sendable {
         removed = old.map(\.id).filter { !after.contains($0) }
     }
 
-    public var isEmpty: Bool { added.isEmpty && removed.isEmpty && changed.isEmpty }
+    public var isEmpty: Bool {
+        added.isEmpty && removed.isEmpty && changed.isEmpty
+    }
 }
 
 public struct PerDisplay<Surface> {
@@ -29,13 +31,15 @@ public struct PerDisplay<Surface> {
 
     @discardableResult
     public mutating func sync(
-        _ next: [DisplayInfo], open: (DisplayInfo) -> Surface, update: (Surface, DisplayInfo) -> Void, close: (Surface) -> Void
+        _ next: [DisplayInfo], open: (DisplayInfo) -> Surface, update: (Surface, DisplayInfo) -> Void, close: (Surface) -> Void,
     ) -> DisplayChange {
         var seen = Set<String>()
         let next = next.filter { seen.insert($0.id).inserted }
         let change = DisplayChange(from: displays, to: next)
         for id in change.removed {
-            if let surface = surfaces.removeValue(forKey: id) { close(surface) }
+            if let surface = surfaces.removeValue(forKey: id) {
+                close(surface)
+            }
         }
         for display in next {
             if change.added.contains(display.id) {
@@ -48,5 +52,7 @@ public struct PerDisplay<Surface> {
         return change
     }
 
-    public subscript(id: String) -> Surface? { surfaces[id] }
+    public subscript(id: String) -> Surface? {
+        surfaces[id]
+    }
 }

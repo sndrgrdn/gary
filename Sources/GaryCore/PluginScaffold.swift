@@ -2,7 +2,8 @@ import Foundation
 
 public enum PluginScaffold {
     public static func files(id: PluginID, kinds: [PluginKind]) -> [String: String] {
-        let name = id.rawValue.split(separator: ".").last!.split(separator: "-").map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
+        let name = id.rawValue.split(separator: ".").last!.split(separator: "-").map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
         let entries = kinds.map { "\"\($0.rawValue)\": \"\(entryFile($0))\"" }.joined(separator: ", ")
         var files = [
             "manifest.json": """
@@ -51,21 +52,23 @@ public enum PluginScaffold {
 
             """,
         ]
-        for kind in kinds { files[entryFile(kind)] = source(kind, name: name) }
+        for kind in kinds {
+            files[entryFile(kind)] = source(kind, name: name)
+        }
         return files
     }
 
     public static func entryFile(_ kind: PluginKind) -> String {
         switch kind {
-        case .barWidget: return "widget.ts"
-        case .bar, .panel, .overlay, .menu, .service: return "\(kind.rawValue).ts"
+        case .barWidget: "widget.ts"
+        case .bar, .panel, .overlay, .menu, .service: "\(kind.rawValue).ts"
         }
     }
 
     private static func source(_ kind: PluginKind, name: String) -> String {
         switch kind {
         case .barWidget:
-            return """
+            """
             let clicks = 0;
 
             module.exports = {
@@ -79,7 +82,7 @@ public enum PluginScaffold {
 
             """
         case .bar:
-            return """
+            """
             module.exports = {
               render(state) {
                 return {
@@ -96,7 +99,7 @@ public enum PluginScaffold {
 
             """
         case .panel:
-            return """
+            """
             let count = 0;
 
             module.exports = {
@@ -128,7 +131,7 @@ public enum PluginScaffold {
 
             """
         case .overlay:
-            return """
+            """
             module.exports = {
               render() {
                 return {
@@ -150,7 +153,7 @@ public enum PluginScaffold {
 
             """
         case .menu:
-            return """
+            """
             const choices = ["One", "Two", "Three"];
             let selected = 0;
 
@@ -187,7 +190,7 @@ public enum PluginScaffold {
 
             """
         case .service:
-            return """
+            """
             let ticks = 0;
 
             setInterval(() => {

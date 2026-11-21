@@ -9,7 +9,9 @@ public enum PluginTypes {
             let keys = theme?[section]?.object?.keys.sorted() ?? []
             return (keys.map { "\"\($0)\"" } + ["(string & {})"]).joined(separator: " | ")
         }
-        func union(_ values: [String]) -> String { values.map { "\"\($0)\"" }.joined(separator: " | ") }
+        func union(_ values: [String]) -> String {
+            values.map { "\"\($0)\"" }.joined(separator: " | ")
+        }
         let style = (StyleProps.numbers.map { "\($0.0)?: number;" } + [
             "padding?: number | [number, number] | [number, number, number, number];",
         ] + StyleProps.signed.map { "\($0.0)?: number;" } + [
@@ -23,7 +25,8 @@ public enum PluginTypes {
         let nodes = Node.Kind.allCases.map { kind in
             "  interface \(typeName(kind.rawValue)) extends Style {\n    type: \"\(kind.rawValue)\";\(fields(kind).map { "\n    \($0)" }.joined())\n  }"
         }.joined(separator: "\n")
-        let modules = PluginKind.allCases.map { "  type \(typeName($0.rawValue)) = \($0 == .service ? "Module" : "Rendered");" }.joined(separator: "\n")
+        let modules = PluginKind.allCases.map { "  type \(typeName($0.rawValue)) = \($0 == .service ? "Module" : "Rendered");" }
+            .joined(separator: "\n")
         let topics = pluginTopics.map { "    \"\($0)\"?: Json;" }.joined(separator: "\n")
         return """
         declare namespace Gary {
@@ -132,7 +135,9 @@ public enum PluginTypes {
     }
 
     public static func manifestSchema(_ capabilities: CapabilityNames) -> JSON {
-        func strings(_ values: [String]) -> String { JSON.array(values.map(JSON.string)).text }
+        func strings(_ values: [String]) -> String {
+            JSON.array(values.map(JSON.string)).text
+        }
         let kinds = strings(PluginKind.allCases.map(\.rawValue))
         return try! JSON.parse(#"""
         {
@@ -183,15 +188,15 @@ public enum PluginTypes {
 
     private static func fields(_ kind: Node.Kind) -> [String] {
         switch kind {
-        case .row, .column, .stack: return ["children?: Node[];"]
-        case .scroll: return ["children?: Node[];", "reveal?: string;"]
-        case .button: return ["children?: Node[];", "hover?: StyleName;"]
-        case .text: return ["text: string | number;"]
-        case .icon: return ["symbol: string;"]
-        case .image: return ["path: string;"]
-        case .slider, .progress: return ["value: number;"]
-        case .input: return ["value?: string | number;", "placeholder?: string;", "change?: string;", "submit?: string;"]
-        case .spacer: return []
+        case .row, .column, .stack: ["children?: Node[];"]
+        case .scroll: ["children?: Node[];", "reveal?: string;"]
+        case .button: ["children?: Node[];", "hover?: StyleName;"]
+        case .text: ["text: string | number;"]
+        case .icon: ["symbol: string;"]
+        case .image: ["path: string;"]
+        case .slider, .progress: ["value: number;"]
+        case .input: ["value?: string | number;", "placeholder?: string;", "change?: string;", "submit?: string;"]
+        case .spacer: []
         }
     }
 }
