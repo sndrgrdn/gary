@@ -139,6 +139,7 @@ final class SurfaceWindow {
     private var size: [NSLayoutConstraint] = []
 
     init() {
+        card.wantsLayer = true
         panel.contentView = card
     }
 
@@ -181,12 +182,12 @@ final class SurfaceWindow {
     }
 
     func show(fade: Double) {
-        panel.alphaValue = 0
+        card.alphaValue = 0
         panel.orderFrontRegardless()
-        let panel = panel
+        let card = card
         NSAnimationContext.runAnimationGroup { context in
             context.duration = fade
-            panel.animator().alphaValue = 1
+            card.animator().alphaValue = 1
         }
     }
 
