@@ -20,6 +20,7 @@ struct Capability {
         .clock,
         .exec,
         .files,
+        .focus,
         .mediakeys,
         .network,
         .notifications,
