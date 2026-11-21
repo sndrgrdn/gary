@@ -300,10 +300,10 @@ private func package(holding directory: URL, in packages: [PackageSource]) -> Pa
 }
 
 private func removePackage(_ source: PackageSource) throws {
-    let capabilities = try Capability.names()
-    let ids = PluginCatalog.pluginDirectories(inPackage: PackageStore.directory(source)).compactMap {
-        try? PluginBundle.load($0, origin: .user, capabilities: capabilities).manifest.id
-    }
+    let config = try shellConfig()
+    let ids = try installed(config.packages).plugins.values
+        .filter { package(holding: $0.directory, in: config.packages)?.identity == source.identity }
+        .map(\.manifest.id).sorted()
     try editShellConfig([.undeclare(source.identity)] + ids.map { .remove($0) })
     try PackageStore.remove(source)
     print("removed \(source.declaration)" + (ids.isEmpty ? "" : " and dropped \(ids.map(\.rawValue).joined(separator: ", ")) from shell.json"))
