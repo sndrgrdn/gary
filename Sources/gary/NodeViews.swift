@@ -59,7 +59,7 @@ struct TreeView: View {
         if let fit = tree.fit, tree.backdrop {
             fit {
                 ZStack {
-                    Color.black.opacity(0.005).onTapGesture(perform: onDismiss)
+                    Color.black.opacity(0.005).onTapGesture(perform: onDismiss).accessibilityAddTraits(.isButton)
                     root
                 }
             }
@@ -313,13 +313,15 @@ private extension View {
         } else {
             contentShape(Rectangle())
                 .onHover { inside in hovering?.wrappedValue = inside }
-                .onLongPressGesture(minimumDuration: 0, perform: {}, onPressingChanged: { down in
-                    guard let action else { return }
-                    pressing?.wrappedValue = down
-                    if down {
+                .onLongPressGesture(minimumDuration: 0) {
+                    if let action {
                         perform(action)
                     }
-                })
+                } onPressingChanged: { down in
+                    if action != nil {
+                        pressing?.wrappedValue = down
+                    }
+                }
         }
     }
 }

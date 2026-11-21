@@ -79,7 +79,7 @@ private func load(_ path: String, _ pixels: CGSize, _ fit: ImageFit) -> NSImage?
     }
     let url = URL(fileURLWithPath: expanded)
     guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
-          let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+          let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as NSDictionary?,
           let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue,
           let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue,
           let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [

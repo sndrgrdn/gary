@@ -73,7 +73,8 @@ struct InputNode: View {
                 }
             }
             .onKeyPress(keys: Set(Self.keys.keys)) { press in
-                pressKey(Self.keys[press.key]!)
+                guard let key = Self.keys[press.key] else { return .ignored }
+                pressKey(key)
                 return .handled
             }
             .onChange(of: input.value, initial: true) { _, value in
