@@ -299,6 +299,7 @@ final class ViewRenderer {
         case (let button as ButtonNodeView, .button(_, let hover)):
             button.spacing = look.gap ?? theme.spacing.item
             button.edgeInsets = insets(look.padding)
+            button.setHuggingPriority(width == nil ? .required : .defaultLow, for: .horizontal)
             button.looks = (look, theme.resolve(node.style, node.props, hover: hover ?? "hover"))
         case (let scroll as ScrollNodeView, _):
             scroll.stack.spacing = look.gap ?? theme.spacing.item
@@ -314,6 +315,8 @@ final class ViewRenderer {
         case (let stack as StackNodeView, _):
             stack.spacing = look.gap ?? theme.spacing.item
             stack.edgeInsets = insets(look.padding)
+            let sized = stack.orientation == .horizontal ? width : height
+            stack.setHuggingPriority(sized == nil ? .required : .defaultLow, for: stack.orientation == .horizontal ? .horizontal : .vertical)
         case (let slider as SliderNodeView, .slider(let value)):
             slider.doubleValue = value
             slider.trackFillColor = node.props.color == nil ? nil : NSColor(look.color)

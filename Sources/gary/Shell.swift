@@ -373,6 +373,11 @@ final class Shell {
         NSApp.deactivate()
         if NSWorkspace.shared.frontmostApplication?.processIdentifier == getpid() { previousApp?.activate() }
         previousApp = nil
+        if tracing {
+            DispatchQueue.main.async {
+                log("focus returned active=\(NSApp.isActive) key=\(NSApp.keyWindow != nil) front=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "none")")
+            }
+        }
     }
 
     private func fade(_ slot: SlotKey) -> Double { slot.kind.isSurface ? theme.motion.fade : 0 }

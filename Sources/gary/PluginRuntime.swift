@@ -279,9 +279,9 @@ final class PluginRuntime: Subscriber {
         context.evaluateScript("var module = { exports: {} }; var exports = module.exports;")
         try check { context.evaluateScript(source, withSourceURL: url) }
         let wrappers = try check { context.evaluateScript("""
-        (function (m) {
+        (function (m, headless) {
           var e = function () { return m.exports; };
-          if (typeof e().render !== "function") throw new Error("module.exports.render is not a function");
+          if (!headless && typeof e().render !== "function") throw new Error("module.exports.render is not a function");
           return [
             function (state) { return JSON.stringify(e().render(JSON.parse(state))); },
             function (name, args, state) {
@@ -300,8 +300,8 @@ final class PluginRuntime: Subscriber {
               return JSON.stringify(s === undefined ? null : s);
             }
           ];
-        })(module)
-        """) }
+        })
+        """)?.call(withArguments: [context.objectForKeyedSubscript("module")!, kind == .service]) }
         self.context = context
         functions = (wrappers.atIndex(0), wrappers.atIndex(1), wrappers.atIndex(2), wrappers.atIndex(3))
     }
@@ -465,6 +465,9 @@ private func runProcess(_ argv: [String]) -> [String: Any] {
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
     process.arguments = ["--"] + argv
     let output = Pipe(), errors = Pipe()
+    var environment = ProcessInfo.processInfo.environment
+    environment["PATH"] = [Bundle.main.executableURL!.deletingLastPathComponent().path, environment["PATH"] ?? "/usr/bin:/bin"].joined(separator: ":")
+    process.environment = environment
     process.standardInput = FileHandle.nullDevice
     process.standardOutput = output
     process.standardError = errors
