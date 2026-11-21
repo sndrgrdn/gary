@@ -29,20 +29,6 @@ private final class Watchdog {
     var fired = false
 }
 
-private final class FileWatch {
-    let path: String
-    let callback: JSValue
-    var source: DispatchSourceFileSystemObject?
-    var pending: DispatchWorkItem?
-
-    init(path: String, callback: JSValue) {
-        self.path = path
-        self.callback = callback
-    }
-}
-
-private let fetchSession = URLSession(configuration: .ephemeral)
-
 final class PluginRuntime: Subscriber {
     static let timeLimit = 0.1
 
@@ -51,15 +37,15 @@ final class PluginRuntime: Subscriber {
     private let hub: StateHub
     private let settings: JSON
     private let deliver: (PluginRuntime, RuntimeEvent) -> Void
-    private let queue: DispatchQueue
+    let queue: DispatchQueue
     private let watchdog = Watchdog()
     private var context: JSContext?
-    private var functions: (render: JSValue, dispatch: JSValue, call: JSValue, surface: JSValue)?
+    var functions: (render: JSValue, dispatch: JSValue, call: JSValue, surface: JSValue)?
     private var exception: String?
     private var state: [Topic: JSON] = [:]
     private var theme: JSON
     private var timers: [Int: DispatchSourceTimer] = [:]
-    private var watches: [FileWatch] = []
+    var watches: [FileWatch] = []
     private var nextTimer = 1
     let initialScene: Scene
     private var scene: Scene
@@ -216,59 +202,13 @@ final class PluginRuntime: Subscriber {
         return id
     }
 
-    private func callBack(_ callback: JSValue, _ arguments: [Any], _ trace: Trace) {
+    func callBack(_ callback: JSValue, _ arguments: [Any], _ trace: Trace) {
         do {
             try invoke(callback, arguments)
             renderAll(trace)
         } catch {
             fail("\(error)")
         }
-    }
-
-    private func fetch(_ url: URL, _ resolve: JSValue, _ reject: JSValue) {
-        fetchSession.dataTask(with: URLRequest(url: url, timeoutInterval: 15)) { [weak self] data, response, error in
-            self?.queue.async { [weak self] in
-                guard let self, functions != nil else { return }
-                if let error {
-                    callBack(reject, [JSValue(newErrorFromMessage: "fetch failed: \(error.localizedDescription)", in: resolve.context)!], Trace("fetch"))
-                } else {
-                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                    callBack(resolve, [["status": status, "text": String(decoding: data ?? Data(), as: UTF8.self)]], Trace("fetch"))
-                }
-            }
-        }.resume()
-    }
-
-    private func arm(_ watch: FileWatch, attempts: Int) {
-        let descriptor = open(watch.path, O_EVTONLY)
-        guard descriptor >= 0 else {
-            if attempts > 0 {
-                queue.asyncAfter(deadline: .now() + 0.5) { [weak self, weak watch] in
-                    guard let self, let watch, functions != nil else { return }
-                    arm(watch, attempts: attempts - 1)
-                }
-            }
-            return
-        }
-        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: descriptor, eventMask: [.write, .extend, .delete, .rename, .attrib], queue: queue)
-        source.setEventHandler { [weak self, weak watch, weak source] in
-            guard let self, let watch, let source else { return }
-            if !source.data.isDisjoint(with: [.delete, .rename]) {
-                source.cancel()
-                arm(watch, attempts: 10)
-            }
-            watch.pending?.cancel()
-            let work = DispatchWorkItem { [weak self, weak watch] in
-                guard let self, let watch, functions != nil else { return }
-                let text = try? String(contentsOfFile: watch.path, encoding: .utf8)
-                callBack(watch.callback, [text ?? NSNull()], Trace("file"))
-            }
-            watch.pending = work
-            queue.asyncAfter(deadline: .now() + 0.02, execute: work)
-        }
-        source.setCancelHandler { close(descriptor) }
-        watch.source = source
-        source.resume()
     }
 
     private func evaluate() throws {
@@ -283,7 +223,10 @@ final class PluginRuntime: Subscriber {
         }, Unmanaged.passUnretained(watchdog).toOpaque()) {
             log("plugin \(id): no script time limit on this system")
         }
-        context.setObject(makeHost(in: context), forKeyedSubscript: "host" as NSString)
+        let host = makeHost(in: context)
+        if bundle.manifest.uses.contains(.files) { installFiles(on: host) }
+        if bundle.manifest.uses.contains(.exec) { installExec(on: host) }
+        context.setObject(host, forKeyedSubscript: "host" as NSString)
         installTimers(in: context)
         if bundle.manifest.uses.contains(.network) { installFetch(in: context) }
         context.evaluateScript("var module = { exports: {} }; var exports = module.exports;")
@@ -337,20 +280,6 @@ final class PluginRuntime: Subscriber {
         """).call(withArguments: [context.globalObject!, add, clear])
     }
 
-    private func installFetch(in context: JSContext) {
-        let fetch: @convention(block) (String) -> JSValue = { [weak self] address in
-            let context = JSContext.current()!
-            return JSValue(newPromiseIn: context) { resolve, reject in
-                guard let url = URL(string: address), ["http", "https"].contains(url.scheme?.lowercased()) else {
-                    reject?.call(withArguments: [JSValue(newErrorFromMessage: "fetch takes an http or https URL", in: context)!])
-                    return
-                }
-                self?.fetch(url, resolve!, reject!)
-            }
-        }
-        context.setObject(fetch, forKeyedSubscript: "fetch" as NSString)
-    }
-
     private func makeHost(in context: JSContext) -> JSValue {
         let host = JSValue(newObjectIn: context)!
         let id = self.id
@@ -384,25 +313,6 @@ final class PluginRuntime: Subscriber {
           };
         })
         """).call(withArguments: [read, write]), forKeyedSubscript: "storage" as NSString)
-        if bundle.manifest.uses.contains(.files) {
-            let readFile: @convention(block) (String) -> String? = { path in
-                let expanded = (path as NSString).expandingTildeInPath
-                guard let text = try? String(contentsOfFile: expanded, encoding: .utf8) else {
-                    let context = JSContext.current()!
-                    context.exception = JSValue(newErrorFromMessage: "cannot read \(path)", in: context)
-                    return nil
-                }
-                return text
-            }
-            host.setObject(readFile, forKeyedSubscript: "readFile" as NSString)
-            let watchFile: @convention(block) (String, JSValue) -> Void = { [weak self] path, callback in
-                guard let self, callback.isObject else { return }
-                let watch = FileWatch(path: (path as NSString).expandingTildeInPath, callback: callback)
-                watches.append(watch)
-                arm(watch, attempts: 10)
-            }
-            host.setObject(watchFile, forKeyedSubscript: "watchFile" as NSString)
-        }
         let publishBlock: @convention(block) (JSValue) -> Void = { [weak self] value in
             guard let self, let text = value.context.objectForKeyedSubscript("JSON").invokeMethod("stringify", withArguments: [value]).toString(),
                   let json = try? JSON.parse(text) else { return }
@@ -416,28 +326,7 @@ final class PluginRuntime: Subscriber {
             }
             host.setObject(block, forKeyedSubscript: request.rawValue as NSString)
         }
-        if bundle.manifest.uses.contains(.exec) {
-            let execBlock: @convention(block) (JSValue, JSValue) -> Void = { [weak self] argv, callback in
-                guard let argv = argv.toArray() as? [String], !argv.isEmpty, callback.isObject else {
-                    let context = JSContext.current()!
-                    context.exception = JSValue(newErrorFromMessage: "host.exec takes an array of strings and a callback", in: context)
-                    return
-                }
-                self?.exec(argv, callback)
-            }
-            host.setObject(execBlock, forKeyedSubscript: "exec" as NSString)
-        }
         return host
-    }
-
-    private func exec(_ argv: [String], _ callback: JSValue) {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let result = runProcess(argv)
-            self?.queue.async { [weak self] in
-                guard let self, functions != nil else { return }
-                callBack(callback, [result], Trace("exec"))
-            }
-        }
     }
 
     private func render(_ display: DisplayInfo) throws -> Node {
@@ -469,35 +358,6 @@ final class PluginRuntime: Subscriber {
         guard let result else { throw RenderError("script returned no value") }
         return result
     }
-}
-
-private func runProcess(_ argv: [String]) -> [String: Any] {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = ["--"] + argv
-    let output = Pipe(), errors = Pipe()
-    var environment = ProcessInfo.processInfo.environment
-    environment["PATH"] = [Bundle.main.executableURL!.deletingLastPathComponent().path, environment["PATH"] ?? "/usr/bin:/bin"].joined(separator: ":")
-    process.environment = environment
-    process.standardInput = FileHandle.nullDevice
-    process.standardOutput = output
-    process.standardError = errors
-    do {
-        try process.run()
-    } catch {
-        return ["status": -1, "stdout": "", "stderr": "\(error)"]
-    }
-    var errorData = Data()
-    let reading = DispatchGroup()
-    DispatchQueue.global(qos: .userInitiated).async(group: reading) { errorData = errors.fileHandleForReading.readDataToEndOfFile() }
-    let outputData = output.fileHandleForReading.readDataToEndOfFile()
-    reading.wait()
-    process.waitUntilExit()
-    return [
-        "status": Int(process.terminationStatus),
-        "stdout": String(decoding: outputData, as: UTF8.self),
-        "stderr": String(decoding: errorData, as: UTF8.self),
-    ]
 }
 
 struct RenderError: Error, CustomStringConvertible {
