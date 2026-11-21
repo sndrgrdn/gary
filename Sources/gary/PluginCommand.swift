@@ -187,6 +187,9 @@ private func add(_ arguments: Arguments) throws {
     try FileManager.default.createDirectory(at: Paths.userPlugins, withIntermediateDirectories: true)
     try FileManager.default.moveItem(at: checkout, to: target)
     print("installed \(manifest.id) \(manifest.version) in \(target.path)")
+    if Capability.all.contains(where: { manifest.capabilities.contains($0.name) && !$0.permissions.isEmpty }) {
+        print("when it is enabled, Gary's permissions window asks for what it needs; open it any time with: gary onboarding")
+    }
     if arguments.flags.contains("--enable") {
         try enable(manifest.id)
     } else {

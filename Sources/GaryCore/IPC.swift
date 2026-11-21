@@ -33,6 +33,7 @@ public enum Request: Equatable, Sendable {
         ("applyTheme [json]", "Apply a theme override payload, or re-read the theme files.", ##"gary applyTheme '{"colors": {"accent": "#ff8800"}}'"##),
         ("listPlugins", "List every plugin with its state.", nil),
         ("doctor", "Report the version, window levels, private API, permissions, plugin and config problems.", nil),
+        ("onboarding", "Show the permissions window, which lists what the enabled plugins need, with a Grant button for each. Starts Gary if needed.", nil),
         ("permissions", "List each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Starts Gary if needed.", nil),
         ("permissions request <name>", "Show the macOS prompt for a permission, or open its System Settings pane where macOS has no prompt.", "gary permissions request screen-recording"),
         ("call <plugin> <method> [args...]", "Call a method a plugin exports, loading it first if needed. Arguments arrive as strings, and a result that is not a string prints as JSON.", "gary call you.weather forecast 3"),
@@ -68,6 +69,7 @@ public enum Request: Equatable, Sendable {
             })
         case "listPlugins": try exactly(0); return .listPlugins
         case "doctor": try exactly(0); return .doctor
+        case "onboarding": try exactly(0); return .summon(.onboarding)
         case "permissions":
             if arguments.isEmpty { return .permissions }
             guard arguments.count == 2, arguments[0] == "request" else { throw fail("permissions takes no arguments, or request and a permission name") }
@@ -132,6 +134,10 @@ public enum Request: Equatable, Sendable {
         guard arguments.count == raw.count else { throw RequestError(description: "args must be strings") }
         return try parse(verb: verb, arguments: arguments)
     }
+}
+
+extension PluginID {
+    public static let onboarding = PluginID("gary.onboarding")!
 }
 
 public enum Response: Equatable, Sendable {

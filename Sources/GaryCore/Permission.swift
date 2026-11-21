@@ -29,3 +29,18 @@ public enum Permission: String, CaseIterable, Sendable {
         return URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)")!
     }
 }
+
+public enum PermissionsRequest: Equatable, Sendable {
+    case request(Permission)
+
+    public static let methods = ["request"]
+
+    public static func parse(_ call: HostCall) throws -> PermissionsRequest {
+        guard call.method == "request" else { throw call.unknownMethod }
+        let name = try call.string(0, "name")
+        guard let permission = Permission(rawValue: name) else {
+            throw call.fail("name must be " + Permission.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: ", "))
+        }
+        return .request(permission)
+    }
+}

@@ -3,41 +3,126 @@ import ApplicationServices
 import CoreBluetooth
 import GaryCore
 
+extension Capability {
+    static let permissions = Capability(name: "permissions", summary: "Each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Ask for one, as gary permissions request does.", types: """
+    declare namespace Gary {
+      type PermissionName = \(Permission.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: " | "));
+      interface State { permissions?: PermissionStatus[] }
+      interface PermissionStatus {
+        name: PermissionName;
+        title: string;
+        status: "granted" | "notAsked" | "denied" | "notGranted";
+        restart: boolean;
+        capabilities: { name: string; summary: string }[];
+        plugins: { id: string; name: string; capabilities: string[] }[];
+      }
+      interface Host { permissions: { request(name: PermissionName): Promise<string> } }
+    }
+    """, example: """
+    module.exports = {
+      render(state) {
+        const missing = (state.permissions ?? []).filter((each) => each.plugins.length > 0 && each.status !== "granted");
+        return {
+          type: "column",
+          children: missing.map((each) => ({
+            type: "button", key: each.name, action: each.name,
+            children: [{ type: "text", text: `Grant ${each.title} for ${each.plugins.map((plugin) => plugin.name).join(", ")}` }],
+          })),
+        };
+      },
+      onAction(name, _payload, state) {
+        const permission = state.permissions?.find((each) => each.name === name);
+        if (permission) host.permissions.request(permission.name).then((message) => host.log(message));
+      },
+    } satisfies Gary.Panel;
+    """, install: { host, plugin in
+        plugin.installAPI(host, "permissions", PermissionsRequest.methods) { call in
+            switch try PermissionsRequest.parse(call) {
+            case .request(let permission): return .later(.main) { .string(permission.request()) }
+            }
+        }
+    }, topic: { PermissionsTopic($0) })
+}
+
+private final class PermissionsTopic {
+    private let publish: (JSON, Trace) -> Void
+    private var observation: Observation?
+
+    init(_ publish: @escaping (JSON, Trace) -> Void) {
+        self.publish = publish
+        send(Trace("permissions-start"))
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.send(Trace("permissions")) }
+        RunLoop.main.add(timer, forMode: .common)
+        observation = Observation { timer.invalidate() }
+    }
+
+    private func send(_ trace: Trace) {
+        publish(.array(PermissionNeed.all(enabled: PermissionNeed.enabledPlugins, checkGrants: true).map(\.json)), trace)
+    }
+}
+
 enum Grant: String {
-    case granted
-    case notAsked = "not asked"
-    case denied
-    case missing = "not granted"
+    case granted, notAsked, denied, notGranted
+
+    var description: String {
+        switch self {
+        case .granted: return "granted"
+        case .notAsked: return "not asked"
+        case .denied: return "denied"
+        case .notGranted: return "not granted"
+        }
+    }
 }
 
 struct PermissionNeed {
+    static var enabledPlugins: [PluginManifest] = []
+
     let permission: Permission
     let grant: Grant?
     let capabilities: [String]
-    let plugins: [(id: PluginID, capabilities: [String])]
+    let plugins: [(manifest: PluginManifest, capabilities: [String])]
 
     static func all(enabled manifests: [PluginManifest], checkGrants: Bool) -> [PermissionNeed] {
         Permission.allCases.map { permission in
             let capabilities = Capability.all.filter { $0.permissions.contains(permission) }.map(\.name)
-            let plugins = manifests.sorted { $0.id < $1.id }.compactMap { manifest -> (PluginID, [String])? in
+            let plugins = manifests.sorted { $0.id < $1.id }.compactMap { manifest -> (PluginManifest, [String])? in
                 let needing = manifest.capabilities.filter(capabilities.contains)
-                return needing.isEmpty ? nil : (manifest.id, needing)
+                return needing.isEmpty ? nil : (manifest, needing)
             }
             return PermissionNeed(permission: permission, grant: checkGrants ? permission.grant : nil, capabilities: capabilities, plugins: plugins)
         }
     }
 
     var summary: String {
-        let users = plugins.isEmpty ? "no enabled plugin" : plugins.map { "\($0.id) (\($0.capabilities.joined(separator: ", ")))" }.joined(separator: ", ")
+        let users = plugins.isEmpty ? "no enabled plugin" : plugins.map { "\($0.manifest.id) (\($0.capabilities.joined(separator: ", ")))" }.joined(separator: ", ")
         return "needed by \(capabilities.joined(separator: ", ")); used by \(users)"
+    }
+
+    var isMissing: Bool { grant != .granted && !plugins.isEmpty }
+
+    var json: JSON {
+        .object([
+            "name": .string(permission.rawValue),
+            "title": .string(permission.name),
+            "status": .string((grant ?? .notAsked).rawValue),
+            "restart": .bool(permission.needsRestart),
+            "capabilities": .array(capabilities.map { name in
+                .object(["name": .string(name), "summary": .string(Capability.all.first { $0.name == name }?.summary ?? "")])
+            }),
+            "plugins": .array(plugins.map { plugin in
+                .object(["id": .string(plugin.manifest.id.rawValue), "name": .string(plugin.manifest.name), "capabilities": .array(plugin.capabilities.map(JSON.string))])
+            }),
+        ])
     }
 }
 
 extension Permission {
+    var needsRestart: Bool { self == .screenRecording || self == .fullDiskAccess }
+
     var grant: Grant {
         switch self {
         case .accessibility:
-            return AXIsProcessTrusted() ? .granted : .missing
+            return AXIsProcessTrusted() ? .granted : .notGranted
         case .bluetooth:
             switch CBManager.authorization {
             case .allowedAlways: return .granted
@@ -47,7 +132,7 @@ extension Permission {
         case .fullDiskAccess:
             let descriptor = open(FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Application Support/com.apple.TCC/TCC.db").path, O_RDONLY)
             defer { if descriptor >= 0 { close(descriptor) } }
-            return descriptor >= 0 ? .granted : .missing
+            return descriptor >= 0 ? .granted : .notGranted
         case .location:
             switch LocationAccess.shared.status {
             case "authorized": return .granted
@@ -55,7 +140,7 @@ extension Permission {
             default: return .denied
             }
         case .screenRecording:
-            return CGPreflightScreenCaptureAccess() ? .granted : .missing
+            return CGPreflightScreenCaptureAccess() ? .granted : .notGranted
         }
     }
 
@@ -109,10 +194,10 @@ func permissionReport(enabled manifests: [PluginManifest]) -> String {
     let needs = PermissionNeed.all(enabled: manifests, checkGrants: true)
     let width = Permission.allCases.map(\.rawValue.count).max()!
     for need in needs {
-        let grant = need.grant!.rawValue
+        let grant = need.grant!.description
         lines.append(need.permission.rawValue.padding(toLength: width + 2, withPad: " ", startingAt: 0) + grant.padding(toLength: 13, withPad: " ", startingAt: 0) + need.summary)
     }
-    let wanted = needs.filter { $0.grant != .granted && !$0.plugins.isEmpty }.map(\.permission.rawValue)
+    let wanted = needs.filter(\.isMissing).map(\.permission.rawValue)
     if !wanted.isEmpty { lines += ["", "Enabled plugins need: " + wanted.map { "gary permissions request \($0)" }.joined(separator: "; ")] }
     return lines.joined(separator: "\n")
 }

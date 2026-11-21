@@ -62,6 +62,14 @@ struct ClipboardRequestTests {
     }
 }
 
+struct PermissionsRequestTests {
+    @Test func requestTakesAPermissionName() throws {
+        #expect(try PermissionsRequest.parse(call("permissions", "request", .string("screen-recording"))) == .request(.screenRecording))
+        #expect(throws: ArgumentError.self) { try PermissionsRequest.parse(call("permissions", "request", .string("camera"))) }
+        #expect(throws: ArgumentError("host.permissions.grant is not a method")) { try PermissionsRequest.parse(call("permissions", "grant")) }
+    }
+}
+
 struct WallpaperRequestTests {
     @Test func setTakesAnImagePathAndAnOptionalDisplay() throws {
         #expect(try WallpaperRequest.parse(call("wallpaper", "get"), home: home) == .get)

@@ -13,6 +13,7 @@ enum Paths {
     static let defaultTheme = Bundle.main.resourceURL!.appending(path: "theme.json")
     static let storage = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appending(path: "Gary/storage")
     static let systemRestore = storage.deletingLastPathComponent().appending(path: "restore.json")
+    static let onboarding = storage.deletingLastPathComponent().appending(path: "onboarding.json")
 }
 
 struct SlotKey: Hashable, CustomStringConvertible {
@@ -117,6 +118,7 @@ final class Shell {
         resolve()
         refreshDisplays(Trace("start"))
         sync(Trace("start"))
+        offerOnboarding(Trace("start"))
 
         watcher = FileWatcher(root: Paths.config) { [weak self] paths, trace in self?.filesChanged(paths, trace) }
         appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] app, _ in
@@ -154,6 +156,7 @@ final class Shell {
 
     private func resolve() {
         resolution = config.resolve(catalog)
+        PermissionNeed.enabledPlugins = enabledManifests
         for warning in resolution.warnings { log("shell.json: \(warning)") }
         hotkeys?.update(resolution.enabled.sorted().flatMap { id in
             catalog.plugins[id]!.manifest.hotkeys.map { HotkeyBinding(owner: id, hotkey: $0) }
@@ -630,7 +633,30 @@ final class Shell {
             reload(slot, trace)
         }
         sync(trace)
+        offerOnboarding(trace)
         return response
+    }
+
+    private var missingPermissions: [String] {
+        PermissionNeed.all(enabled: enabledManifests, checkGrants: true).filter(\.isMissing).map(\.permission.rawValue)
+    }
+
+    private func offerOnboarding(_ trace: Trace) {
+        guard surfaceSlot(.onboarding)?.visible == false else { return }
+        let missing = missingPermissions
+        let dismissed = (try? JSON.parse(Data(contentsOf: Paths.onboarding)))?["missing"]?.array?.compactMap(\.string)
+        if let dismissed, Set(missing).isSubset(of: dismissed) { return }
+        log("onboarding: shown, " + (dismissed == nil ? "first launch" : "missing \(missing.joined(separator: ", "))"))
+        summon(.onboarding, trace) { _ in }
+    }
+
+    private func recordOnboardingDismissed() {
+        do {
+            try FileManager.default.createDirectory(at: Paths.onboarding.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(JSON.object(["missing": .array(missingPermissions.map(JSON.string))]).text.utf8).write(to: Paths.onboarding, options: .atomic)
+        } catch {
+            log("onboarding: not recorded: \(error)")
+        }
     }
 
     private func filesChanged(_ paths: Set<String>, _ trace: Trace) {
@@ -774,6 +800,7 @@ final class Shell {
         guard let slot = surfaceSlot(id) else { return .failure("no enabled surface \(id)") }
         guard slot.visible else { return .ok("hidden") }
         slot.visible = false
+        if id == .onboarding { recordOnboardingDismissed() }
         if slot.bundle.manifest.keepLoaded, let runtime = slot.runtime {
             unmount(slot.key)
             runtime.setScene(scene(for: slot), trace)

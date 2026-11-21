@@ -23,6 +23,7 @@ struct IPCTests {
     @Test func theWireFormatIsAVerbAndStringArgs() throws {
         #expect(Request.toggle(today).line == #"{"args":["gary.today"],"verb":"toggle"}"#)
         #expect(try Request.decode(line: #"{"verb":"ping"}"#) == .ping)
+        #expect(try Request.parse(verb: "onboarding", arguments: []) == .summon(.onboarding))
     }
 
     @Test func cliArgumentsParseLikeTheWire() throws {

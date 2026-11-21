@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "gary.onboarding",
+  "name": "Permissions",
+  "version": "0.1.0",
+  "kinds": ["panel"],
+  "entryPoints": { "panel": "panel.ts" },
+  "subscribes": ["permissions"],
+  "uses": ["permissions"]
+}

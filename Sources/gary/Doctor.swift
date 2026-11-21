@@ -71,7 +71,7 @@ struct Doctor {
         if runtime == nil { info("grants unknown: macOS answers for the process that asks, so run Gary and ask again") }
         if runtime != nil, let program = launchingProgram() { fail("\(program) started Gary, so macOS checks \(program)'s permissions instead of Gary's") }
         for need in PermissionNeed.all(enabled: runtime?.enabled ?? [], checkGrants: runtime != nil) {
-            let line = "\(need.permission.name)" + (need.grant.map { " \($0.rawValue)" } ?? "") + "; \(need.summary)"
+            let line = "\(need.permission.name)" + (need.grant.map { " \($0.description)" } ?? "") + "; \(need.summary)"
             if need.plugins.isEmpty || need.grant == nil { info(line) } else if need.grant == .granted { ok(line) } else { fail(line + "; run gary permissions request \(need.permission.rawValue)") }
         }
 

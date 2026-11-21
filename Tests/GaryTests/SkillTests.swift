@@ -29,7 +29,7 @@ struct SkillTests {
         }
     }
 
-    @Test(.enabled(if: deno != nil, "deno is not installed")) func everyCapabilityExampleTypeChecks() throws {
+    @Test(.enabled(if: deno != nil, "deno is not installed")) func everyCapabilityExampleAndBuiltInPluginTypeChecks() throws {
         let folder = FileManager.default.temporaryDirectory.appending(path: "gary-examples-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -37,11 +37,19 @@ struct SkillTests {
         try Data(declarations.utf8).write(to: folder.appending(path: "gary.d.ts"))
         let tsconfig = PluginScaffold.files(id: PluginID("you.examples")!, kinds: [.service])["tsconfig.json"]!
         try Data(tsconfig.utf8).write(to: folder.appending(path: "tsconfig.json"))
+        var files = Capability.all.map { "\($0.name).ts" }
         for capability in Capability.all { try Data(capability.example.utf8).write(to: folder.appending(path: "\(capability.name).ts")) }
+        let builtins = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../../Resources/plugins").standardizedFileURL
+        for plugin in try FileManager.default.contentsOfDirectory(atPath: builtins.path) {
+            for entry in try FileManager.default.contentsOfDirectory(atPath: builtins.appending(path: plugin).path) where entry.hasSuffix(".ts") {
+                files.append("builtin-\(plugin)-\(entry)")
+                try FileManager.default.copyItem(at: builtins.appending(path: "\(plugin)/\(entry)"), to: folder.appending(path: files.last!))
+            }
+        }
         let check = Process()
         check.executableURL = deno
         check.currentDirectoryURL = folder
-        check.arguments = ["check", "--quiet", "--config", "tsconfig.json", "gary.d.ts"] + Capability.all.map { "\($0.name).ts" }
+        check.arguments = ["check", "--quiet", "--config", "tsconfig.json", "gary.d.ts"] + files
         let output = Pipe()
         check.standardOutput = output
         check.standardError = output
