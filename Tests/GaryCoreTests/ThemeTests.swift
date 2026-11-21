@@ -47,6 +47,17 @@ struct ThemeTests {
         #expect(colors["hover"] == RGBA(red: foreground.red, green: foreground.green, blue: foreground.blue, alpha: 0.1))
     }
 
+    @Test(arguments: [Palette.Mode.light, .dark])
+    func theBuiltInPalettesReadOnTheirOwnBackground(_ mode: Palette.Mode) throws {
+        let theme = try Theme.parse(Self.bundled, palette: Palette(nil, system: mode))
+        #expect(theme.mode == mode && theme.warnings == [])
+        for token in Self.tokens { #expect(theme.colors[token] != nil, "\(token)") }
+        for token in ["foreground", "bright", "good", "bad", "accent"] {
+            #expect(contrast(theme.colors[token]!, theme.bar.background) >= 3, "\(token)")
+        }
+        #expect(contrast(theme.colors["dim"]!, theme.bar.background) >= 2.5)
+    }
+
     @Test func thePaletteKeysTheThemeNamesWinOverItsMixes() throws {
         let theme = try theme(palette: """
         background = "#101315"
