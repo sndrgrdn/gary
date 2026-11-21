@@ -41,7 +41,7 @@ enum Skill {
     private static let introduction = """
     # Gary
 
-    Gary is a macOS shell runtime, like Quickshell. It draws a bar along the top of each display, and panels, overlays, and menus, from plugins written in TypeScript or JavaScript. Each plugin returns a tree of nodes, and Gary draws the tree with native views.
+    Gary is a macOS shell runtime, like Quickshell. It draws a bar along the top of each display, and panels, overlays, and menus, from plugins written in TypeScript or JavaScript. Each plugin returns a tree of nodes, and Gary draws the tree with SwiftUI.
 
     Use this guide to build, install, debug, and verify a Gary plugin. It comes from the installed `gary` command, so it matches that version.
 
@@ -294,6 +294,8 @@ enum Skill {
         ## Theme
 
         Name a style with `style`, and a color with `color` or `background`. The user's `palette.toml` sets the palette colors, such as `accent`, `foreground`, `background`, `green`, and `red`, and `theme.json` maps them to the theme colors below. A color value that is a list uses the first entry that resolves.
+
+        A style holds any of the node style properties. The `surface` style paints panels, overlays, and menus whose `background` is `"solid"`, so a `material` in that style gives every surface that material.
 
         Styles:
 

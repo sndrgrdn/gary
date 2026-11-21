@@ -47,6 +47,38 @@ Gary strips types with a bundled copy of [sucrase](https://github.com/alangpierc
 - Add `satisfies Gary.BarWidget`, `Gary.Panel`, `Gary.Service`, or the type for your kind. TypeScript then types `state` and checks the tree you return.
 - After you change `uses` or `subscribes`, run `gary plugin types <folder>`. `gary.d.ts` declares only the `host` functions and `state` fields that your manifest asks for.
 
+## Lay out nodes
+
+Gary draws each node tree with SwiftUI. A `row` is a horizontal stack, a `column` is a vertical stack, and a `spacer` takes the free space. Every node takes these style properties, as does every style in `theme.json`:
+
+| Property | Value |
+| --- | --- |
+| `padding` | One number for every side, `[vertical, horizontal]`, or `[top, right, bottom, left]`. |
+| `width`, `height` | The exact size in points, padding included. |
+| `minWidth` | The smallest width in points. |
+| `align` | `"leading"`, `"center"`, or `"trailing"`: where the content sits in a node wider than its content, and how wrapped lines align. |
+| `offset` | Points to move the node down, or up when negative, without moving its siblings. |
+| `animation` | `"smooth"`, `"spring"`, or `"none"`: how the node animates what changes inside it between renders. |
+| `material` | `"vibrant"`, `"glass"`, or `"none"`: a material behind the node, inside its `radius`. |
+
+A `text` node is exactly as wide as its text, with no padding of its own. This row centers each workspace number in a 20-point cell and moves it down 1 point:
+
+```ts
+{
+	type: "row",
+	gap: 1,
+	children: [1, 2, 3].map((n): Gary.Node => ({ type: "text", key: String(n), text: n, width: 20, align: "center", offset: 1 })),
+}
+```
+
+To give every panel, overlay, and menu a material, set it on the `surface` style in `~/.config/gary/theme.json`, with a translucent background:
+
+```json
+{ "styles": { "surface": { "material": "glass", "background": "alpha(panel, 0.4)" } } }
+```
+
+`host.exec` finds commands in the PATH of your login shell, so `["dinky", "workspace", "2"]` runs `/opt/homebrew/bin/dinky`. Subscribe to `session` to act when the screen is locked or unlocked.
+
 ## Share a plugin
 
 Put the plugin folder at the root of a git repository and push it. Others install it with:
