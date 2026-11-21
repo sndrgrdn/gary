@@ -136,32 +136,25 @@ final class SurfaceWindow {
     let panel = makeSurfacePanel(level: 0)
     private let card = NSView()
     private var blur: NSVisualEffectView?
-    private var content: NSView?
-    private var edges: [NSLayoutConstraint] = []
-    private var size: [NSLayoutConstraint] = []
+    private var content: TreeHostingView?
 
     init() {
         card.wantsLayer = true
         panel.contentView = card
     }
 
-    func setContent(_ view: NSView) {
+    func setContent(_ view: TreeHostingView) {
         guard view !== content else { return }
         content?.removeFromSuperview()
         content = view
-        view.translatesAutoresizingMaskIntoConstraints = false
+        view.translatesAutoresizingMaskIntoConstraints = true
+        view.autoresizingMask = [.width, .height]
+        view.frame = card.bounds
+        for orientation in [NSLayoutConstraint.Orientation.horizontal, .vertical] {
+            view.setContentHuggingPriority(.init(1), for: orientation)
+            view.setContentCompressionResistancePriority(.init(1), for: orientation)
+        }
         card.addSubview(view)
-        edges = [
-            view.leadingAnchor.constraint(equalTo: card.leadingAnchor),
-            view.topAnchor.constraint(equalTo: card.topAnchor),
-            card.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            card.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-        ]
-        for edge in edges.suffix(2) { edge.priority = .init(490) }
-        let within = card.trailingAnchor.constraint(greaterThanOrEqualTo: view.trailingAnchor)
-        within.priority = .init(998)
-        edges.append(within)
-        NSLayoutConstraint.activate(edges)
     }
 
     func place(_ spec: SurfaceSpec, on display: DisplayInfo, level: Int, theme: Theme) {
@@ -169,13 +162,10 @@ final class SurfaceWindow {
         panel.level = NSWindow.Level(rawValue: level)
         panel.ignoresMouseEvents = spec.clickThrough
         panel.focusable = spec.focusable
-        NSLayoutConstraint.deactivate(size)
         let frame = spec.frame(on: display) { width, height, limit in
-            fit(width, height, limit)
+            measure(Fit(width: width, height: height, limit: limit))
         }
-        size = [card.widthAnchor.constraint(equalToConstant: frame.width), card.heightAnchor.constraint(equalToConstant: frame.height)]
-        for constraint in size { constraint.priority = .init(999) }
-        NSLayoutConstraint.activate(size)
+        content?.fit(Fit(width: frame.width, height: frame.height, limit: frame.size))
         panel.setFrame(frame, display: false)
         if panel.hasShadow { panel.invalidateShadow() }
     }
@@ -219,23 +209,11 @@ final class SurfaceWindow {
         return image
     }
 
-    private func fit(_ width: Double?, _ height: Double?, _ limit: CGSize) -> CGSize {
-        let constraints = [
-            width.map { card.widthAnchor.constraint(equalToConstant: $0) } ?? card.widthAnchor.constraint(lessThanOrEqualToConstant: limit.width),
-            height.map { card.heightAnchor.constraint(equalToConstant: $0) } ?? card.heightAnchor.constraint(lessThanOrEqualToConstant: limit.height),
-        ]
-        for constraint in constraints { constraint.priority = .init(999) }
-        NSLayoutConstraint.activate(constraints)
-        defer { NSLayoutConstraint.deactivate(constraints) }
-        var size = card.fittingSize
-        for _ in 0..<4 {
-            card.setFrameSize(size)
-            card.layoutSubtreeIfNeeded()
-            let next = card.fittingSize
-            if next == size { break }
-            size = next
-        }
-        return size
+    private func measure(_ fit: Fit) -> CGSize {
+        guard let content else { return .zero }
+        content.fit(fit)
+        content.layoutSubtreeIfNeeded()
+        return content.intrinsicContentSize
     }
 
     func show(fade: Double) {
@@ -250,10 +228,10 @@ final class SurfaceWindow {
 
     func focus() {
         panel.makeKey()
-        var queue = content.map { [$0] } ?? []
+        var queue: [NSView] = content.map { [$0] } ?? []
         while !queue.isEmpty {
             let view = queue.removeFirst()
-            if view is InputNodeView {
+            if view is NSTextField {
                 panel.makeFirstResponder(view)
                 return
             }

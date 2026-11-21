@@ -82,22 +82,18 @@ public struct Node: Equatable, Sendable {
         return node
     }
 
-    public var own: Node { with(children: []) }
-
-    public enum Axis: Sendable {
-        case horizontal, vertical
+    public enum ChildID: Hashable, Sendable {
+        case key(String)
+        case position(Int)
     }
 
-    public func grows(along axis: Axis) -> Bool {
-        if axis == .horizontal ? props.width != nil : props.height != nil { return false }
-        let children: [Node], stackAxis: Axis
-        switch content {
-        case .spacer: return true
-        case .row(let items): (children, stackAxis) = (items, .horizontal)
-        case .column(let items): (children, stackAxis) = (items, .vertical)
-        case .scroll, .button, .text, .icon, .image, .slider, .progress, .input: return false
+    public var childIDs: [ChildID] {
+        var position = 0
+        return children.map { child in
+            if let key = child.key { return .key(key) }
+            defer { position += 1 }
+            return .position(position)
         }
-        return children.contains { $0.kind == .spacer ? axis == stackAxis : $0.grows(along: axis) }
     }
 
     public func resolvingImages(against folder: URL) -> Node {

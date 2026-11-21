@@ -68,17 +68,11 @@ private struct MountKey: Hashable {
     let display: String
 }
 
-private struct Mount {
-    var node: Node
-    var view: NSView
-}
-
 final class Shell {
     private let hub = StateHub(sources: Capability.topics)
     private let capabilities: CapabilityNames
     private let levels = SurfaceLevels.forSystem(ProcessInfo.processInfo.operatingSystemVersion)
     private var theme: Theme
-    private var renderers: (bar: ViewRenderer, surface: ViewRenderer)
     private var themePayload: JSON?
     private var paletteFile: PaletteFile?
     private var systemMode = Palette.Mode(NSApp.effectiveAppearance)
@@ -92,7 +86,7 @@ final class Shell {
     private var windows: [MountKey: SurfaceWindow] = [:]
     private var barsAside: [String: Bool] = [:]
     private var asideTimer: Timer?
-    private var mounts: [MountKey: Mount] = [:]
+    private var mounts: [MountKey: TreeHostingView] = [:]
     private var clickMonitors: [Any] = []
     private var hotkeys: HotkeyCenter?
     private var previousApp: NSRunningApplication?
@@ -103,7 +97,6 @@ final class Shell {
     init() throws {
         capabilities = try Capability.names()
         theme = try Theme.parse(try JSON.parse(Data(contentsOf: Paths.defaultTheme)), palette: Palette(nil, system: systemMode))
-        renderers = (ViewRenderer(theme: theme.inBar), ViewRenderer(theme: theme))
         resolution = config.resolve(catalog)
     }
 
@@ -356,38 +349,32 @@ final class Shell {
         let slotKey = slot.key
         let onAction: ActionHandler = { [weak self] action, payload in self?.perform(action, payload, slotKey) }
         let started = now()
-        let renderer = renderer(slot.key.kind)
-        let mutations: Int
-        if let mounted = mounts[key] {
-            if let patch = reconcile(mounted.node, tree) {
-                let (view, count) = renderer.apply(patch, to: mounted.view, node: tree, onAction: onAction)
-                mounts[key] = Mount(node: tree, view: view)
-                mutations = count
-            } else {
-                mutations = 0
-            }
+        let changed: Bool
+        if let view = mounts[key] {
+            changed = view.tree.root != tree
+            if changed { view.tree.root = tree }
         } else {
-            mounts[key] = Mount(node: tree, view: renderer.build(tree, onAction: onAction))
-            mutations = -1
+            mounts[key] = TreeHostingView(tree: MountedTree(root: tree, theme: theme(for: slot.key.kind)), onAction: onAction)
+            changed = true
         }
         place(key)
         if tracing {
             let end = now()
-            log(String(format: "commit plugin=%@ display=%@ cause=%@ since_ms=%.3f apply_ms=%.3f mut=%d tree=%@",
-                       slot.key.id.rawValue, display, trace.cause, (end - trace.start) * 1000, (end - started) * 1000, mutations, tree.summary))
+            log(String(format: "commit plugin=%@ display=%@ cause=%@ since_ms=%.3f apply_ms=%.3f changed=%d tree=%@",
+                       slot.key.id.rawValue, display, trace.cause, (end - trace.start) * 1000, (end - started) * 1000, changed ? 1 : 0, tree.summary))
         }
     }
 
-    private func renderer(_ kind: PluginKind) -> ViewRenderer {
-        kind == .bar || kind == .barWidget ? renderers.bar : renderers.surface
+    private func theme(for kind: PluginKind) -> Theme {
+        kind == .bar || kind == .barWidget ? theme.inBar : theme
     }
 
     private func place(_ key: MountKey) {
-        guard let view = mounts[key]?.view, let slot = slots[key.slot] else { return }
+        guard let view = mounts[key], let slot = slots[key.slot] else { return }
         if key.slot.kind == .barWidget {
             guard let bar = bars[key.display] else { return }
             for (section, ids) in resolution.bar where ids.contains(key.slot.id) {
-                bar.setSection(section, ids.compactMap { mounts[MountKey(slot: SlotKey(id: $0, kind: .barWidget), display: key.display)]?.view })
+                bar.setSection(section, ids.compactMap { mounts[MountKey(slot: SlotKey(id: $0, kind: .barWidget), display: key.display)] })
             }
             return
         }
@@ -435,7 +422,7 @@ final class Shell {
             mounts[key] = nil
             if hadFocus { returnFocus() }
         } else {
-            mounts.removeValue(forKey: key)?.view.removeFromSuperview()
+            mounts.removeValue(forKey: key)?.removeFromSuperview()
         }
     }
 
@@ -487,7 +474,7 @@ final class Shell {
     private func arrangeBars() {
         for bar in bars.surfaces.values {
             for (section, ids) in resolution.bar {
-                bar.setSection(section, ids.compactMap { mounts[MountKey(slot: SlotKey(id: $0, kind: .barWidget), display: bar.display.id)]?.view })
+                bar.setSection(section, ids.compactMap { mounts[MountKey(slot: SlotKey(id: $0, kind: .barWidget), display: bar.display.id)] })
             }
         }
     }
@@ -612,11 +599,10 @@ final class Shell {
             theme = next
             AppDragTile.theme = theme
             for warning in theme.warnings { log("theme \(warning)") }
-            renderers = (ViewRenderer(theme: theme.inBar), ViewRenderer(theme: theme))
             for panel in panels { panel.appearance = appearance }
             refreshDisplays(trace)
             for bar in bars.surfaces.values { bar.layout(theme: theme) }
-            for (key, mount) in mounts { renderer(key.slot.kind).restyle(mount.view, mount.node) }
+            for (key, view) in mounts { view.tree.theme = theme(for: key.slot.kind) }
             for key in mounts.keys { place(key) }
             commitFrame()
             let json = theme.json
