@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "ignorePatterns": [
+    "Resources/vendor/**",
+    "**/gary.d.ts",
+    "**/manifest.schema.json",
+    "build/**",
+    ".build/**",
+    "tmp/**",
+    "Vendor/**",
+    "package-lock.json",
+    ".swiftlint-baseline.json"
+  ]
+}

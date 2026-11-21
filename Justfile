@@ -30,18 +30,24 @@ kill:
     pkill -f "Gary.app/Contents/MacOS/gary" || true
 
 format:
+    swiftlint --fix --quiet
     swiftformat .
+    npx oxfmt
 
 lint:
     swiftformat --lint .
+    swiftlint lint --quiet --strict --baseline .swiftlint-baseline.json
+    npx oxlint --deny-warnings
+    npx oxfmt --check
 
-check-examples: build
+typecheck: build
     #!/usr/bin/env bash
     set -euo pipefail
     gary="$(swift build --show-bin-path)/gary"
-    for dir in examples/*/; do
+    for config in examples/*/tsconfig.json Resources/plugins/*/tsconfig.json; do
+        dir="$(dirname "$config")"
         "$gary" plugin types "$dir" >/dev/null
-        npx --yes -p typescript@5 tsc -p "$dir"
+        npx tsc -p "$dir"
     done
 
 dead-code:

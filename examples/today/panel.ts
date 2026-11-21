@@ -11,10 +11,19 @@ module.exports = {
 
   render(state) {
     const date = new Date(state.clock ? state.clock.epoch : Date.now());
-    const day = date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+    const day = date.toLocaleDateString("en-GB", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
     const lines: Gary.Node[] = [
       { type: "text", key: "title", text: day, style: "title" },
-      { type: "text", key: "time", text: pad(date.getHours()) + ":" + pad(date.getMinutes()) + "  ·  week " + week(date), style: "bright" },
+      {
+        type: "text",
+        key: "time",
+        text: `${pad(date.getHours())}:${pad(date.getMinutes())}  ·  week ${week(date)}`,
+        style: "bright",
+      },
     ];
     const battery = state.battery;
     if (battery && battery.present) {
@@ -22,8 +31,16 @@ module.exports = {
         type: "row",
         key: "battery",
         children: [
-          { type: "icon", symbol: battery.charging ? "bolt.fill" : "battery.75percent", style: "dim" },
-          { type: "text", text: battery.percent + "% " + (battery.source === "ac" ? "on power" : "on battery"), style: "dim" },
+          {
+            type: "icon",
+            symbol: battery.charging ? "bolt.fill" : "battery.75percent",
+            style: "dim",
+          },
+          {
+            type: "text",
+            text: `${battery.percent}% ${battery.source === "ac" ? "on power" : "on battery"}`,
+            style: "dim",
+          },
         ],
       });
     }
