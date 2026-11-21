@@ -6,7 +6,12 @@ import GaryCore
 extension Capability {
     static let permissions = Capability(
         name: "permissions",
-        summary: "Each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Ask for one, as gary permissions request does, or restart Gary through its crash supervisor so a new Full Disk Access or Screen Recording grant takes effect. After the restart Gary shows the calling plugin's surface again if it was open.",
+        summary: """
+        Each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. \
+        Ask for one, as gary permissions request does, or restart Gary through its crash supervisor \
+        so a new Full Disk Access or Screen Recording grant takes effect. \
+        After the restart Gary shows the calling plugin's surface again if it was open.
+        """,
         types: """
         declare namespace Gary {
           type PermissionName = \(Permission.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: " | "));
@@ -113,7 +118,8 @@ func freshGrants(_ permissions: [Permission]) -> Set<Permission> {
     guard (try? process.run()) != nil else { return [] }
     let data = output.fileHandleForReading.readDataToEndOfFile()
     process.waitUntilExit()
-    return Set(String(decoding: data, as: UTF8.self).split(separator: "\n").compactMap { Permission(rawValue: String($0)) })
+    let names = String(bytes: data, encoding: .utf8)?.split(separator: "\n") ?? []
+    return Set(names.compactMap { Permission(rawValue: String($0)) })
 }
 
 func runGrantProbe(_ names: [String]) -> Int32 {
@@ -300,9 +306,9 @@ func permissionReport(enabled manifests: [PluginManifest]) -> String {
     }
     lines.append("")
     let needs = PermissionNeed.all(enabled: manifests, checkGrants: true)
-    let width = Permission.allCases.map(\.rawValue.count).max()!
+    let width = needs.map(\.permission.rawValue.count).max() ?? 0
     for need in needs {
-        let grant = need.grant!.description
+        let grant = (need.grant ?? .notAsked).description
         lines.append(need.permission.rawValue.padding(toLength: width + 2, withPad: " ", startingAt: 0) + grant.padding(
             toLength: 13,
             withPad: " ",
