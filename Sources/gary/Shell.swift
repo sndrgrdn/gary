@@ -101,6 +101,7 @@ final class Shell {
     private var server: LineServer?
     private var watcher: FileWatcher?
     private var signals: [DispatchSourceSignal] = []
+    private var observers: [NSObjectProtocol] = []
 
     init() throws {
         capabilities = try Capability.names()
@@ -128,16 +129,18 @@ final class Shell {
             let mode = Palette.Mode(app.effectiveAppearance)
             DispatchQueue.main.async { self?.systemAppearanceChanged(mode) }
         }
-        NotificationCenter.default
-            .addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+        let center = NotificationCenter.default
+        observers = [
+            center.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
                 self?.refreshDisplays(Trace("screens"))
-            }
-        NotificationCenter.default.addObserver(forName: .restartGary, object: nil, queue: .main) { [weak self] note in
-            self?.restart(reopening: note.object as? PluginID)
-        }
-        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
-            SystemState.restore(SystemState.saved)
-        }
+            },
+            center.addObserver(forName: .restartGary, object: nil, queue: .main) { [weak self] note in
+                self?.restart(reopening: note.object as? PluginID)
+            },
+            center.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
+                SystemState.restore(SystemState.saved)
+            },
+        ]
         for number in [SIGTERM, SIGINT] {
             signal(number, SIG_IGN)
             let source = DispatchSource.makeSignalSource(signal: number, queue: .main)
@@ -543,12 +546,12 @@ final class Shell {
         }
         let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         clickMonitors = [
-            NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] _ in self?.clicked(at: NSEvent.mouseLocation) } as Any,
+            NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] _ in self?.clicked(at: NSEvent.mouseLocation) },
             NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
                 self?.clicked(at: NSEvent.mouseLocation)
                 return event
-            } as Any,
-        ]
+            },
+        ].compactMap(\.self)
     }
 
     private func clicked(at point: NSPoint) {
