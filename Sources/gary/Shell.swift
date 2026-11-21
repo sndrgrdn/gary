@@ -8,9 +8,10 @@ enum Paths {
     static let shellConfig = config.appending(path: "shell.json")
     static let userTheme = config.appending(path: "theme.json")
     static let palette = config.appending(path: "palette.toml")
-    static let builtinPlugins = Bundle.main.resourceURL!.appending(path: "plugins")
-    static let examples = Bundle.main.resourceURL!.appending(path: "examples")
-    static let defaultTheme = Bundle.main.resourceURL!.appending(path: "theme.json")
+    private static let resources = Bundle.main.resourceURL ?? Bundle.main.bundleURL
+    static let builtinPlugins = resources.appending(path: "plugins")
+    static let examples = resources.appending(path: "examples")
+    static let defaultTheme = resources.appending(path: "theme.json")
     static let storage = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appending(path: "Gary/storage")
     static let systemRestore = storage.deletingLastPathComponent().appending(path: "restore.json")
     static let onboarding = storage.deletingLastPathComponent().appending(path: "onboarding.json")
@@ -190,8 +191,8 @@ final class Shell {
         for warning in resolution.warnings {
             log("shell.json: \(warning)")
         }
-        hotkeys?.update(resolution.enabled.sorted().flatMap { id in
-            catalog.plugins[id]!.manifest.hotkeys.map { HotkeyBinding(owner: id, hotkey: $0) }
+        hotkeys?.update(resolution.enabled.sorted().compactMap { catalog.plugins[$0]?.manifest }.flatMap { manifest in
+            manifest.hotkeys.map { HotkeyBinding(owner: manifest.id, hotkey: $0) }
         })
     }
 
@@ -243,9 +244,9 @@ final class Shell {
         if let id = resolution.barPlugin {
             wanted[SlotKey(id: id, kind: .bar)] = catalog.plugins[id]
         }
-        for id in resolution.enabled {
-            for kind in catalog.plugins[id]!.manifest.kinds where kind.isSurface || kind == .service {
-                wanted[SlotKey(id: id, kind: kind)] = catalog.plugins[id]
+        for bundle in resolution.enabled.compactMap({ catalog.plugins[$0] }) {
+            for kind in bundle.manifest.kinds where kind.isSurface || kind == .service {
+                wanted[SlotKey(id: bundle.manifest.id, kind: kind)] = bundle
             }
         }
         for (key, slot) in slots where wanted[key] == nil {
@@ -898,7 +899,8 @@ final class Shell {
             toggle(id, trace, reply)
         case let .reloadPlugins(id):
             let live = slots.values.filter { (id == nil || $0.key.id == id) && (isLive($0) || $0.disabledReason != nil) }
-            guard id == nil || !live.isEmpty else { reply(.failure("\(id!) is not loaded"))
+            if let id, live.isEmpty {
+                reply(.failure("\(id) is not loaded"))
                 return
             }
             for slot in live {
@@ -1028,9 +1030,9 @@ final class Shell {
     }
 
     private func listing() -> String {
-        var lines = catalog.sortedIDs.map { id -> String in
-            let bundle = catalog.plugins[id]!
+        var lines = catalog.sortedIDs.compactMap { catalog.plugins[$0] }.map { bundle -> String in
             let manifest = bundle.manifest
+            let id = manifest.id
             let states = manifest.kinds.map { kind -> String in
                 guard resolution.enabled.contains(id) else { return "\(kind.rawValue):disabled" }
                 guard let slot = slots[SlotKey(id: id, kind: kind)]
