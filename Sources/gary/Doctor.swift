@@ -61,8 +61,30 @@ struct Doctor {
     }
 
     private mutating func build(_ runtime: DoctorRuntime?) {
-        let bundle = Bundle.main.infoDictionary
         let version = ProcessInfo.processInfo.operatingSystemVersion
+        describeBuild(version, runtime)
+
+        section("Window levels")
+        listWindowLevels(version)
+
+        section("Private API")
+        checkPrivateSymbols()
+
+        section("Permissions")
+        checkPermissions(runtime)
+
+        section("Plugins")
+        guard let catalog = checkPlugins(runtime) else { return }
+
+        section("Config")
+        checkConfig(catalog)
+        checkTheme()
+
+        lines.append("\n\(problems == 0 ? "no problems" : "\(problems) problem\(problems == 1 ? "" : "s")")")
+    }
+
+    private mutating func describeBuild(_ version: OperatingSystemVersion, _ runtime: DoctorRuntime?) {
+        let bundle = Bundle.main.infoDictionary
         lines
             .append(
                 "Gary \(bundle?["CFBundleShortVersionString"] as? String ?? "dev") (\(bundle?["CFBundleVersion"] as? String ?? "0")) at \(Bundle.main.bundlePath)",
@@ -72,15 +94,17 @@ struct Doctor {
                 "macOS \(version.majorVersion).\(version.minorVersion).\(version.patchVersion) (\(ProcessInfo.processInfo.operatingSystemVersionString))",
             )
         lines.append(runtime.map { "running as pid \($0.pid)" } ?? "not running; checks below read the files on disk")
+    }
 
-        section("Window levels")
+    private mutating func listWindowLevels(_ version: OperatingSystemVersion) {
         let levels = SurfaceLevels.forSystem(version)
         info("bar \(levels.bar), and \(levels.barAside) while the macOS menu bar is revealed")
         for layer in SurfaceLayer.allCases {
             info("\(layer.rawValue) \(levels.level(layer))")
         }
+    }
 
-        section("Private API")
+    private mutating func checkPrivateSymbols() {
         for check in PrivateSymbolCheck.all() {
             if check.resolved {
                 ok("\(check.symbol) for \(check.feature)")
@@ -88,8 +112,9 @@ struct Doctor {
                 fail("\(check.symbol) missing from \(check.library); \(check.feature) is off")
             }
         }
+    }
 
-        section("Permissions")
+    private mutating func checkPermissions(_ runtime: DoctorRuntime?) {
         if runtime == nil {
             info("grants unknown: macOS answers for the process that asks, so run Gary and ask again")
         }
@@ -108,10 +133,11 @@ struct Doctor {
                 fail(line + "; run gary permissions request \(need.permission.rawValue)")
             }
         }
+    }
 
-        section("Plugins")
+    private mutating func checkPlugins(_ runtime: DoctorRuntime?) -> PluginCatalog? {
         guard let capabilities = try? Capability.names() else { fail("the capability registry is invalid")
-            return
+            return nil
         }
         let catalog = PluginCatalog.scan(builtin: Paths.builtinPlugins, user: Paths.userPlugins, capabilities: capabilities)
         ok("\(catalog.plugins.count) found")
@@ -123,12 +149,7 @@ struct Doctor {
                 fail("\(state.plugin): \(problem)")
             }
         }
-
-        section("Config")
-        checkConfig(catalog)
-        checkTheme()
-
-        lines.append("\n\(problems == 0 ? "no problems" : "\(problems) problem\(problems == 1 ? "" : "s")")")
+        return catalog
     }
 
     private mutating func checkConfig(_ catalog: PluginCatalog) {
@@ -149,23 +170,28 @@ struct Doctor {
         }
     }
 
-    private mutating func checkTheme() {
-        var file: PaletteFile?
-        if FileManager.default.fileExists(atPath: Paths.palette.path) {
-            do {
-                file = try PaletteFile.parse(String(contentsOf: Paths.palette, encoding: .utf8))
-                if file!.ignored.isEmpty {
-                    ok("palette.toml")
-                }
-                for problem in file!.ignored {
-                    fail("palette.toml: \(problem)")
-                }
-            } catch {
-                fail("palette.toml: \(error)")
-            }
-        } else {
+    private mutating func checkPalette() -> PaletteFile? {
+        guard FileManager.default.fileExists(atPath: Paths.palette.path) else {
             info("no palette.toml; following the system appearance")
+            return nil
         }
+        do {
+            let file = try PaletteFile.parse(String(contentsOf: Paths.palette, encoding: .utf8))
+            if file.ignored.isEmpty {
+                ok("palette.toml")
+            }
+            for problem in file.ignored {
+                fail("palette.toml: \(problem)")
+            }
+            return file
+        } catch {
+            fail("palette.toml: \(error)")
+            return nil
+        }
+    }
+
+    private mutating func checkTheme() {
+        let file = checkPalette()
         do {
             let override = FileManager.default.fileExists(atPath: Paths.userTheme.path) ? try JSON.parse(Data(contentsOf: Paths.userTheme)) : nil
             let theme = try Theme.parse(JSON.parse(Data(contentsOf: Paths.defaultTheme)), override: override, palette: Palette(file, system: .dark))

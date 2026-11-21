@@ -17,6 +17,7 @@ final class HotkeyCenter {
         self.onPress = onPress
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         InstallEventHandler(GetEventDispatcherTarget(), { _, event, info in
+            guard let info else { return OSStatus(eventNotHandledErr) }
             var id = EventHotKeyID()
             GetEventParameter(
                 event,
@@ -27,7 +28,7 @@ final class HotkeyCenter {
                 nil,
                 &id,
             )
-            let center = Unmanaged<HotkeyCenter>.fromOpaque(info!).takeUnretainedValue()
+            let center = Unmanaged<HotkeyCenter>.fromOpaque(info).takeUnretainedValue()
             if let binding = center.owners[id.id] {
                 center.onPress(binding)
             }

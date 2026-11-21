@@ -1,7 +1,16 @@
 import AppKit
 
 private final class TopEdgeView: NSView {
-    var onEnter: () -> Void = {}
+    private let onEnter: () -> Void
+
+    init(onEnter: @escaping () -> Void) {
+        self.onEnter = onEnter
+        super.init(frame: .zero)
+    }
+
+    required init?(coder _: NSCoder) {
+        nil
+    }
 
     override func hitTest(_: NSPoint) -> NSView? {
         nil
@@ -21,8 +30,7 @@ private final class TopEdgeView: NSView {
 }
 
 func watchTopEdge(of view: NSView, _ onEnter: @escaping () -> Void) {
-    let edge = TopEdgeView()
-    edge.onEnter = onEnter
+    let edge = TopEdgeView(onEnter: onEnter)
     edge.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(edge)
     NSLayoutConstraint.activate([
@@ -36,11 +44,9 @@ func watchTopEdge(of view: NSView, _ onEnter: @escaping () -> Void) {
 enum NativeMenuBar {
     static func revealed(on frame: CGRect) -> Bool {
         let top = (NSScreen.screens.first?.frame.maxY ?? 0) - frame.maxY
-        let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[CFString: Any]] ?? []
-        return windows.contains { window in
-            guard window[kCGWindowOwnerName] as? String == "Window Server",
-                  window[kCGWindowLayer] as? Int == Int(CGWindowLevelForKey(.mainMenuWindow)),
-                  let bounds = (window[kCGWindowBounds] as? NSDictionary).flatMap({ CGRect(dictionaryRepresentation: $0) }) else { return false }
+        return OnScreenWindow.list(.optionOnScreenOnly).contains { window in
+            guard window.ownerName == "Window Server", window.layer == Int(CGWindowLevelForKey(.mainMenuWindow)), let bounds = window.bounds
+            else { return false }
             return abs(bounds.minX - frame.minX) < 1 && bounds.maxY > top + 1
         }
     }

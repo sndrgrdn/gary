@@ -33,7 +33,9 @@ final class AppDragTile {
         label.font = .systemFont(ofSize: 13)
         label.textColor = theme.map { NSColor($0.resolve(nil).color) } ?? .labelColor
         label.preferredMaxLayoutWidth = 190
-        let close = NSButton(image: NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close")!, target: nil, action: nil)
+        let close = NSButton(title: "", target: nil, action: nil)
+        close.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close")
+        close.imagePosition = .imageOnly
         close.isBordered = false
         close.contentTintColor = theme?.color("dim").map { NSColor($0) } ?? .secondaryLabelColor
         let row = NSStackView(views: [icon, label, close])
@@ -116,12 +118,11 @@ final class AppDragTile {
     }
 
     private static func settingsWindow() -> CGRect? {
-        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
         let mainHeight = NSScreen.screens.first?.frame.height ?? 0
         let settings = Set(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.systempreferences").map(\.processIdentifier))
-        return windows.lazy
-            .filter { ($0[kCGWindowOwnerPID as String] as? pid_t).map(settings.contains) == true && $0[kCGWindowLayer as String] as? Int == 0 }
-            .compactMap { ($0[kCGWindowBounds as String] as? NSDictionary).flatMap { CGRect(dictionaryRepresentation: $0) } }
+        return OnScreenWindow.list([.optionOnScreenOnly, .excludeDesktopElements]).lazy
+            .filter { $0.ownerPID.map(settings.contains) == true && $0.layer == 0 }
+            .compactMap(\.bounds)
             .filter { $0.width > 200 && $0.height > 200 }
             .map { CGRect(x: $0.minX, y: mainHeight - $0.maxY, width: $0.width, height: $0.height) }
             .first
