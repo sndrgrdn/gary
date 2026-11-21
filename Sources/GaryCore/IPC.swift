@@ -18,6 +18,7 @@ public enum Request: Equatable, Sendable {
     case permissions
     case requestPermission(Permission)
     case call(PluginID, method: String, arguments: [String])
+    case action(PluginID, kind: PluginKind, action: String, payload: String?)
 
     public static let usage: [(syntax: String, description: String)] = [
         ("ping", "Check that Gary is running."),
@@ -33,6 +34,7 @@ public enum Request: Equatable, Sendable {
         ("permissions", "List each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Starts Gary if needed."),
         ("permissions request <name>", "Show the macOS prompt for a permission, or open its System Settings pane where macOS has no prompt."),
         ("call <plugin> <method> [args...]", "Call a method a plugin exports, loading it first if needed."),
+        ("action <plugin> <kind> <action> [payload]", "Send onAction to a running kind of a plugin, as a click, slider or input would, with an optional number or text payload."),
     ]
 
     public static func parse(verb: String, arguments: [String]) throws -> Request {
@@ -73,6 +75,12 @@ public enum Request: Equatable, Sendable {
         case "call":
             guard arguments.count >= 2 else { throw fail("call takes a plugin, a method and optional arguments") }
             return .call(try plugin(arguments[0]), method: arguments[1], arguments: Array(arguments.dropFirst(2)))
+        case "action":
+            guard (3...4).contains(arguments.count) else { throw fail("action takes a plugin, a kind, an action and an optional payload") }
+            guard let kind = PluginKind(rawValue: arguments[1]) else {
+                throw fail("unknown kind \"\(arguments[1])\"; use \(PluginKind.allCases.map(\.rawValue).joined(separator: ", "))")
+            }
+            return .action(try plugin(arguments[0]), kind: kind, action: arguments[2], payload: arguments.count == 4 ? arguments[3] : nil)
         default: throw fail("unknown verb \"\(verb)\"")
         }
     }
@@ -91,6 +99,7 @@ public enum Request: Equatable, Sendable {
         case .doctor: return "doctor"
         case .permissions, .requestPermission: return "permissions"
         case .call: return "call"
+        case .action: return "action"
         }
     }
 
@@ -102,6 +111,7 @@ public enum Request: Equatable, Sendable {
         case .reloadPlugins(let id): return id.map { [$0.rawValue] } ?? []
         case .applyTheme(let payload): return payload.map { [$0.text] } ?? []
         case .call(let id, let method, let arguments): return [id.rawValue, method] + arguments
+        case .action(let id, let kind, let action, let payload): return [id.rawValue, kind.rawValue, action] + (payload.map { [$0] } ?? [])
         }
     }
 

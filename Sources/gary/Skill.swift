@@ -57,7 +57,7 @@ enum Skill {
 
     A **plugin** is a folder with a `manifest.json` and one entry file per kind. Its id has two or more dot-separated segments of lowercase letters, digits, and hyphens, such as `you.weather`. The `gary.` namespace is reserved for the built-in plugins.
 
-    A plugin has one or more **kinds**. Each kind runs in its own JavaScriptCore context from its own entry file:
+    A plugin has one or more **kinds**. Each kind runs in its own JavaScriptCore context from its own entry file, so kinds share no variables. They share the manifest, so `uses` and `subscribes` apply to every kind. To share values between kinds, publish them from one kind with `host.publish` and subscribe to the plugin's own id, or keep them in `host.storage`:
 
     | Kind | Runs as |
     | --- | --- |
@@ -68,7 +68,7 @@ enum Skill {
     | `menu` | A focusable panel that takes keys and hides when the user clicks outside it. |
     | `service` | A script with no view. It publishes values for other plugins and answers `gary call`. |
 
-    A **surface** is the window of a panel, overlay, or menu. The module's `surface` export places it. Gary loads a surface plugin when it is shown and stops it when it is hidden, unless the manifest sets `keepLoaded`.
+    A **surface** is the window of a panel, overlay, or menu. The module's `surface` export places it. Gary loads a surface when it is shown and stops it when it is hidden, unless the manifest sets `keepLoaded`. `host.show()`, `host.hide()`, and `host.toggle()` act on the plugin's surface from any of its kinds, so a bar widget opens its own plugin's panel with `host.toggle()`.
 
     A **topic** is a value that Gary keeps in the plugin's `state`. A capability topic, such as `clock` or `battery`, runs only while a plugin subscribes to it. A plugin topic is the last value that another plugin passed to `host.publish`, under that plugin's id. The manifest lists topics in `subscribes`.
 
@@ -76,7 +76,7 @@ enum Skill {
 
     The **theme** comes from Gary's built-in `theme.json`, the user's `~/.config/gary/theme.json`, and the palette in `~/.config/gary/palette.toml`. Nodes name theme styles and colors, and `state.theme` holds the resolved colors.
 
-    **Lifecycle.** Gary loads a plugin, runs the entry file once, delivers each subscribed topic to `onTopic`, and calls `render(state)` once per display. After each handler, timer, host callback, and topic change, Gary calls `render` again and redraws only what changed. Saving any file in the plugin folder reloads the plugin within about 40 ms. A reload that fails keeps the running version and logs the reason. A call that runs longer than 100 ms stops the plugin. A failed bar widget, bar, or service restarts after 1 second, and a failed surface loads again when it is next shown. After 5 failures in 60 seconds, Gary disables the plugin until its files change.
+    **Lifecycle.** Gary loads a plugin, runs the entry file once, delivers the current value of each subscribed topic to `onTopic`, and calls `render(state)` once per display, so a surface shows current values on its first render. After each handler, timer, host callback, and topic change, Gary calls `render` again and redraws only what changed. Saving any file in the plugin folder reloads the plugin within about 40 ms. A reload that fails keeps the running version and logs the reason. A call that runs longer than 100 ms stops the plugin. A failed bar widget, bar, or service restarts after 1 second, and a failed surface loads again when it is next shown. After 5 failures in 60 seconds, Gary disables the plugin until its files change.
     """
 
     private static let developLoop = """
@@ -87,9 +87,10 @@ enum Skill {
     	```sh
     	gary plugin new you.weather --from load --enable
     	gary plugin new you.launcher --kind menu --enable
+    	gary plugin new you.music --kind bar-widget,panel --enable
     	```
 
-    	Gary writes `~/.config/gary/plugins/<id>/` with `manifest.json`, the entry files, `gary.d.ts`, `manifest.schema.json`, `tsconfig.json`, and `README.md`. `--enable` turns the plugin on in `~/.config/gary/shell.json`, and a bar widget goes to the right of the bar.
+    	Gary writes `~/.config/gary/plugins/<id>/` with `manifest.json`, one entry file per kind, `gary.d.ts`, `manifest.schema.json`, `tsconfig.json`, and `README.md`. `--enable` turns the plugin on in `~/.config/gary/shell.json`, and a bar widget goes to the right of the bar. Develop in that folder, because Gary loads and reloads plugins only from `~/.config/gary/plugins`. A folder elsewhere, such as one that `--dir <folder>` creates, runs only after `gary plugin add <folder>` copies it there. Edit the installed copy after that.
     2. Edit `manifest.json`. Add the capabilities you call to `uses` and the topics you read to `subscribes`.
     3. Refresh the types after each change to `uses` or `subscribes`:
 
@@ -105,6 +106,8 @@ enum Skill {
     	gary plugin validate ~/.config/gary/plugins/you.weather
     	```
 
+    	Without `npx`, run `deno check gary.d.ts *.ts` in the plugin folder. Deno ignores `tsconfig.json`, so name `gary.d.ts` first.
+
     6. Save. Gary reloads the plugin. Verify it as the next section describes.
 
     ### Write entry files
@@ -118,14 +121,24 @@ enum Skill {
 
     ### Verify and debug
 
-    - `gary listPlugins` prints one line per plugin: id, version, `builtin` or `user`, and one state per kind. States are `running`, `paused` (a hidden surface that `keepLoaded` keeps), `inactive` (a surface that is not shown), `not-in-bar`, `stopped`, `disabled`, `failed(reason)`, or `disabled(reason)` after repeated failures.
+    - `gary listPlugins` prints one line per plugin: id, version, `builtin` or `user`, and one state per kind, such as `bar-widget:running panel:hidden`. The states are:
+    	- `running`: a bar widget, bar, or service that runs.
+    	- `stopped`: a bar widget, bar, or service between a failure and its restart.
+    	- `shown`: a panel, overlay, or menu on screen.
+    	- `hidden`: a panel, overlay, or menu that is not loaded. `gary summon` or `host.show()` loads it.
+    	- `paused`: a hidden surface that `keepLoaded` keeps running.
+    	- `not-in-bar`: an enabled bar widget that no `bar` section in `shell.json` names.
+    	- `inactive`: a bar that another enabled bar replaces.
+    	- `disabled`: the plugin is not enabled in `shell.json`.
+    	- `failed(reason)`, or `disabled(reason)` after 5 failures in 60 seconds.
     - The log is `~/Library/Logs/gary.log` when Gary runs as an app. Plugin lines start with `plugin <id>/<kind>:` for loads and failures, and `plugin <id>:` for `host.log`. Run `grep 'plugin you.weather' ~/Library/Logs/gary.log | tail -n 20` after each save.
     - `gary call <id> <method> [args...]` runs a function from the module's `methods`, loading the plugin first if needed. It prints a string result as is and anything else as JSON. Add a `methods` entry that returns internal state when you need to inspect it.
-    - `gary summon <id>`, `gary hide <id>`, and `gary toggle <id>` show and hide a panel, overlay, or menu.
+    - `gary summon <id>`, `gary hide <id>`, and `gary toggle <id>` show and hide a panel, overlay, or menu, as `host.show()`, `host.hide()`, and `host.toggle()` do.
+    - `gary action <id> <kind> <action> [payload]` sends `onAction` to a running kind, as a click on a node with that `action` would, and Gary renders again. Pass a number for a slider value or text for an input. Use it to test clicks instead of synthesizing mouse events, which need Accessibility for your terminal. For example, `gary action you.music bar-widget toggle` runs the widget's click handler, and `gary listPlugins` then shows `panel:shown`.
     - `gary reloadPlugins <id>` reloads a plugin from disk. `gary rescanPlugins` finds added and removed plugin folders.
     - `gary doctor` reports private API, permission, plugin, `shell.json`, and theme problems.
     - `gary permissions` shows which macOS permissions Gary has and which enabled plugins need them. A capability that lacks a permission says so in its error or topic value, with the `gary permissions request <name>` command that asks for it.
-    - Take a screenshot to check the result. `screencapture -x /tmp/gary.png` captures the main display, and `screencapture -x -R 0,0,1728,40 /tmp/bar.png` captures a rectangle in points from the top left, such as the bar. The bar is `theme.bar.height` points tall, 32 by default. Summon a surface first. The screenshot needs Screen Recording for the program that runs `screencapture`, not for Gary.
+    - Take a screenshot to check the result. Capture only the rectangle you need with `-R x,y,width,height`, because a full-screen capture includes the user's other windows. `screencapture -x -R 0,0,1728,40 /tmp/bar.png` captures the bar of a display 1728 points wide. The `screens` line in the log gives each display's size in points. Rectangles are in points from the top left of the main display. A Retina PNG has two pixels per point, so halve PNG pixel positions to get points. The bar is `theme.bar.height` points tall, 32 by default. Summon a surface before you capture it, and capture the corner its `anchors` and `margins` place it in. The screenshot needs Screen Recording for the program that runs `screencapture`, not for Gary.
     - When `gary` prints `not running`, start Gary with `open ~/Applications/Gary.app`. To restart Gary, for example after the user grants Screen Recording, run `pkill -f Gary.app/Contents/MacOS/gary` and then `open ~/Applications/Gary.app`.
     """
 
@@ -193,7 +206,24 @@ enum Skill {
     | `<capability>` | The value of a subscribed capability topic. The capability sections below give its shape. |
     | `<plugin id>` | The last value that the plugin published. |
 
-    A topic field is `undefined` until its first value arrives, so check it before you use it.
+    A topic field is `undefined` until its first value arrives, so check it before you use it. After that it always has the declared shape. A topic with `available: false` cannot read its data and gives the cause in `reason`, such as a missing permission. A nullable field is `null` when there is nothing to show. For example, `state.nowplaying.track` is `null` when nothing is playing.
+
+    ## Open a panel from a bar widget
+
+    Give one plugin both kinds, and toggle the panel from the widget in `widget.ts`:
+
+    ```ts
+    module.exports = {
+      render(state) {
+        return { type: "text", text: state.nowplaying?.track?.title ?? "Nothing playing", action: "open" };
+      },
+      onAction(action) {
+        if (action === "open") host.toggle();
+      },
+    } satisfies Gary.BarWidget;
+    ```
+
+    The manifest has `"kinds": ["bar-widget", "panel"]`, an entry point for each, and `"subscribes": ["nowplaying"]`, so the panel's `panel.ts` reads `state.nowplaying` too.
 
     ## host
 

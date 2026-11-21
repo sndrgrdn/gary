@@ -2,8 +2,8 @@ import Foundation
 import GaryCore
 
 let pluginUsage: [(syntax: String, description: String)] = [
-    ("plugin new <id> [--kind <kind,...> | --from <example>] [--dir <path>] [--enable]",
-     "Scaffold a TypeScript plugin, or copy a bundled example under a new id, in ~/.config/gary/plugins/<id> or in <path>."),
+    ("plugin new <id> [--kind <kind,...> | --from <example>] [--dir <folder>] [--enable]",
+     "Scaffold a TypeScript plugin with one or more kinds, or copy a bundled example under a new id, into ~/.config/gary/plugins/<id>, or into <folder>, which must not exist yet and which Gary does not load until gary plugin add copies it."),
     ("plugin validate <path>", "Check a plugin folder with the checks Gary runs when it loads plugins."),
     ("plugin add <git-url|path> [--enable]", "Install a plugin from a git repository or a folder without running any of it."),
     ("plugin update <id> [--yes]", "Show what changed upstream, then fast-forward the plugin's checkout."),

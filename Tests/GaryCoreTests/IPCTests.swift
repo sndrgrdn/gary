@@ -11,6 +11,7 @@ struct IPCTests {
             .rescanPlugins, .reloadConfig, .applyTheme(nil), .applyTheme(.object(["colors": .object(["accent": .string("#ff0000")])])),
             .listPlugins, .call(today, method: "refresh", arguments: ["a b", "line\nbreak"]),
             .doctor, .permissions, .requestPermission(.fullDiskAccess),
+            .action(today, kind: .barWidget, action: "toggle", payload: nil), .action(today, kind: .panel, action: "volume", payload: "0.5"),
         ]
         for request in requests {
             #expect(!request.line.contains("\n"))
@@ -41,6 +42,8 @@ struct IPCTests {
             ("call", ["gary.today"], "call takes a plugin, a method and optional arguments"),
             ("permissions", ["accessibility"], "permissions takes no arguments, or request and a permission name"),
             ("permissions", ["request", "camera"], "unknown permission \"camera\"; use accessibility, bluetooth, full-disk-access, location, screen-recording"),
+            ("action", ["gary.today", "widget", "toggle"], "unknown kind \"widget\"; use bar-widget, bar, panel, overlay, menu, service"),
+            ("action", ["gary.today", "panel"], "action takes a plugin, a kind, an action and an optional payload"),
             ("reboot", [], "unknown verb \"reboot\""),
         ]
         for (verb, arguments, message) in cases {
