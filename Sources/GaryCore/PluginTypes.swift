@@ -10,7 +10,10 @@ public enum PluginTypes {
             return (keys.map { "\"\($0)\"" } + ["(string & {})"]).joined(separator: " | ")
         }
         func union(_ values: [String]) -> String { values.map { "\"\($0)\"" }.joined(separator: " | ") }
-        let style = (StyleProps.numbers.map { "\($0.0)?: number;" } + StyleProps.colors.map { "\($0.0)?: Color;" } + ["font?: FontName;"])
+        let style = (StyleProps.numbers.map { "\($0.0)?: number;" } + [
+            "padding?: number | [number, number] | [number, number, number, number];", "offset?: number;",
+            "align?: \(union(Align.allCases.map(\.rawValue)));",
+        ] + StyleProps.colors.map { "\($0.0)?: Color;" } + ["font?: FontName;"])
             .map { "    \($0)" }.joined(separator: "\n")
         let nodes = Node.Kind.allCases.map { kind in
             "  interface \(typeName(kind.rawValue)) extends Style {\n    type: \"\(kind.rawValue)\";\(fields(kind).map { "\n    \($0)" }.joined())\n  }"

@@ -39,8 +39,22 @@ struct NodeTests {
             Node(.progress(1), props: StyleProps(opacity: 0.5, color: "accent")),
             Node(.input(Node.Input(value: "saf", placeholder: "Search", change: "query", submit: "run")), props: StyleProps(fontSize: 16)),
             Node(.scroll([Node(.text("a"))], reveal: "a"), props: StyleProps(height: 200)),
-        ]), style: "panel", props: StyleProps(padding: 8, gap: 4, background: "#000000")))
+        ]), style: "panel", props: StyleProps(padding: Insets(8), gap: 4, background: "#000000")))
         #expect(try parse(#"{"type":"input"}"#) == Node(.input(Node.Input(value: ""))))
+    }
+
+    @Test func parsesPaddingPerSideASignedOffsetAndAlignment() throws {
+        func props(_ fields: String) throws -> StyleProps { try parse(#"{"type":"text","text":"a",\#(fields)}"#).props }
+        #expect(try props(#""padding":4"#).padding == Insets(4))
+        #expect(try props(#""padding":[2,6]"#).padding == Insets(top: 2, right: 6, bottom: 2, left: 6))
+        #expect(try props(#""padding":[1,2,3,4]"#).padding == Insets(top: 1, right: 2, bottom: 3, left: 4))
+        #expect(try props(#""offset":-1.5,"align":"center","minWidth":51"#) == StyleProps(minWidth: 51, offset: -1.5, align: .center))
+        let reason = "padding must be \(Insets.syntax)"
+        for bad in [#""padding":[1,2,3]"#, #""padding":[1,-2]"#, #""padding":"4""#] {
+            #expect(throws: NodeError(path: "root", reason: reason), "\(bad)") { try props(bad) }
+        }
+        #expect(throws: NodeError(path: "root", reason: "align must be \"leading\", \"center\" or \"trailing\"")) { try props(#""align":"left""#) }
+        #expect(throws: NodeError(path: "root", reason: "offset must be a number")) { try props(#""offset":"1""#) }
     }
 
     @Test func aScrollRevealsTheChildItNamesOrElseTheFirstSelectedOne() throws {

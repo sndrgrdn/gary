@@ -1,28 +1,68 @@
 import Foundation
 
+public struct Insets: Equatable, Sendable {
+    public var top, right, bottom, left: Double
+
+    public init(top: Double, right: Double, bottom: Double, left: Double) {
+        self.top = top
+        self.right = right
+        self.bottom = bottom
+        self.left = left
+    }
+
+    public init(_ all: Double) {
+        self.init(top: all, right: all, bottom: all, left: all)
+    }
+
+    public static let syntax = "a non-negative number, [vertical, horizontal], or [top, right, bottom, left]"
+
+    static func parse(_ value: JSON) -> Insets? {
+        let sides = value.array ?? [value]
+        let numbers = sides.compactMap(\.number)
+        guard numbers.count == sides.count, numbers.allSatisfy({ $0.isFinite && $0 >= 0 }) else { return nil }
+        switch numbers.count {
+        case 1: return Insets(numbers[0])
+        case 2: return Insets(top: numbers[0], right: numbers[1], bottom: numbers[0], left: numbers[1])
+        case 4: return Insets(top: numbers[0], right: numbers[1], bottom: numbers[2], left: numbers[3])
+        default: return nil
+        }
+    }
+}
+
+public enum Align: String, CaseIterable, Sendable {
+    case leading, center, trailing
+}
+
 public struct StyleProps: Equatable, Sendable {
-    public var width, height, padding, gap, radius, fontSize, opacity: Double?
+    public var width, height, minWidth, gap, radius, fontSize, opacity, offset: Double?
+    public var padding: Insets?
+    public var align: Align?
     public var background, color, font: String?
 
-    public init(width: Double? = nil, height: Double? = nil, padding: Double? = nil, gap: Double? = nil, radius: Double? = nil,
-                fontSize: Double? = nil, opacity: Double? = nil, background: String? = nil, color: String? = nil, font: String? = nil) {
+    public init(width: Double? = nil, height: Double? = nil, minWidth: Double? = nil, padding: Insets? = nil, gap: Double? = nil, radius: Double? = nil,
+                fontSize: Double? = nil, opacity: Double? = nil, offset: Double? = nil, align: Align? = nil,
+                background: String? = nil, color: String? = nil, font: String? = nil) {
         self.width = width
         self.height = height
+        self.minWidth = minWidth
         self.padding = padding
         self.gap = gap
         self.radius = radius
         self.fontSize = fontSize
         self.opacity = opacity
+        self.offset = offset
+        self.align = align
         self.background = background
         self.color = color
         self.font = font
     }
 
     public static let numbers: [(String, WritableKeyPath<StyleProps, Double?>)] = [
-        ("width", \.width), ("height", \.height), ("padding", \.padding), ("gap", \.gap),
+        ("width", \.width), ("height", \.height), ("minWidth", \.minWidth), ("gap", \.gap),
         ("radius", \.radius), ("fontSize", \.fontSize), ("opacity", \.opacity),
     ]
     public static let colors: [(String, WritableKeyPath<StyleProps, String?>)] = [("background", \.background), ("color", \.color)]
+    public static let names = numbers.map(\.0) + ["padding", "offset", "align"] + colors.map(\.0) + ["font"]
 
     public static func parse(_ fields: [String: JSON], fail: (String, String) -> Error) throws -> StyleProps {
         var props = StyleProps()
@@ -31,6 +71,18 @@ public struct StyleProps: Equatable, Sendable {
             guard let number = value.number, number.isFinite, number >= 0 else { throw fail(name, "must be a non-negative number") }
             if name == "opacity" && number > 1 { throw fail(name, "must be between 0 and 1") }
             props[keyPath: path] = number
+        }
+        if let value = fields["padding"], value != .null {
+            guard let padding = Insets.parse(value) else { throw fail("padding", "must be \(Insets.syntax)") }
+            props.padding = padding
+        }
+        if let value = fields["offset"], value != .null {
+            guard let offset = value.number, offset.isFinite else { throw fail("offset", "must be a number") }
+            props.offset = offset
+        }
+        if let value = fields["align"], value != .null {
+            guard let align = value.string.flatMap(Align.init(rawValue:)) else { throw fail("align", "must be \"leading\", \"center\" or \"trailing\"") }
+            props.align = align
         }
         for (name, path) in colors {
             guard let value = fields[name], value != .null else { continue }
@@ -48,7 +100,10 @@ public struct StyleProps: Equatable, Sendable {
         var merged = base
         for (_, path) in Self.numbers where self[keyPath: path] != nil { merged[keyPath: path] = self[keyPath: path] }
         for (_, path) in Self.colors where self[keyPath: path] != nil { merged[keyPath: path] = self[keyPath: path] }
-        if font != nil { merged.font = font }
+        merged.padding = padding ?? base.padding
+        merged.offset = offset ?? base.offset
+        merged.align = align ?? base.align
+        merged.font = font ?? base.font
         return merged
     }
 }
@@ -57,5 +112,7 @@ public struct ResolvedStyle: Equatable, Sendable {
     public var color: RGBA
     public var font: FontToken
     public var background: RGBA?
-    public var width, height, padding, gap, radius, opacity: Double?
+    public var width, height, minWidth, gap, radius, opacity, offset: Double?
+    public var padding: Insets?
+    public var align: Align?
 }

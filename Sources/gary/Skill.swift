@@ -241,7 +241,7 @@ enum Skill {
 
     ## Nodes
 
-    `render` returns a node: a plain object with a `type`. Every node takes `key`, `style`, `action`, and the style properties \((StyleProps.numbers.map(\.0) + StyleProps.colors.map(\.0) + ["font"]).map { "`\($0)`" }.joined(separator: ", ")). Numbers are points, except `opacity` from 0 to 1. A property on the node overrides the same property in its `style`.
+    `render` returns a node: a plain object with a `type`. Every node takes `key`, `style`, `action`, and the style properties \(StyleProps.names.map { "`\($0)`" }.joined(separator: ", ")). Numbers are points, except `opacity` from 0 to 1. A property on the node overrides the same property in its `style`.
 
     | `type` | Own fields | `onAction` payload |
     | --- | --- | --- |
@@ -256,7 +256,12 @@ enum Skill {
     | `input` | `value`, `placeholder`, `change`, and `submit` | the text. `change` and `submit` name the actions. |
     | `spacer` | none. It fills the free space in a row or column, and a row with a spacer spans the width of its column, so the items after the spacer line up at the trailing edge. | `null` |
 
-    - Give siblings unique `key` values so Gary can patch views in place.
+    - `width` and `height` give a node exactly that size, padding included, and `minWidth` keeps it at least that wide. A `scroll` grows with its content up to its `height`.
+    - `padding` is one number for every side, `[vertical, horizontal]`, or `[top, right, bottom, left]`.
+    - `align` places the content of a node that is wider than its content, such as text with a `width`: `"leading"`, `"center"`, or `"trailing"`. It also aligns the lines of wrapped text. A node aligns to `"leading"`, and an icon to `"center"`.
+    - `offset` moves a node down by that many points, or up when it is negative, without moving its siblings.
+    - A `text` node is exactly as wide as its text and as tall as its lines, with no padding of its own.
+    - Give siblings unique `key` values so Gary keeps each child's view, and its state such as hover or typed text, when the order changes.
     - A node with `action` is clickable. Gary calls `onAction(action, payload)`.
     - An `image` path that does not start with `/` or `~` is relative to the plugin folder, so a plugin can ship its own images. A path that ends in `.app` shows that app's icon.
     - Text wraps when its surface is narrower than the text, such as a surface with a fixed `width` or one at the display's edge. Text in a `button` stays on one line.

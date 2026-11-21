@@ -136,29 +136,22 @@ struct NodeView: View {
         case .column:
             VStack(alignment: .leading, spacing: gap) { Children(node: node) }
         case .scroll:
-            ScrollNode(node: node, gap: gap, padding: look.padding ?? 0, maxHeight: look.height)
+            ScrollNode(node: node, gap: gap, padding: look.padding ?? Insets(0), maxHeight: look.height)
         case .text(let text):
             Text(verbatim: text).font(Font(nsFont(look.font) as CTFont)).foregroundStyle(Color(look.color))
-                .fixedSize(horizontal: false, vertical: true).padding(.trailing, 4)
+                .multilineTextAlignment(TextAlignment(look.align ?? .leading)).fixedSize(horizontal: false, vertical: true)
         case .icon(let symbol):
             Image(systemName: symbol).font(.system(size: look.font.size, weight: .init(look.font.weight))).foregroundStyle(Color(look.color))
         case .image(let path):
-            let width = look.width ?? look.height ?? 16
-            if let image = image(path) {
-                Image(nsImage: image).resizable().aspectRatio(contentMode: .fit).frame(width: width, height: look.height ?? width)
-            } else {
-                Color.clear.frame(width: width, height: look.height ?? width)
-            }
+            if let image = image(path) { Image(nsImage: image).resizable().aspectRatio(contentMode: .fit) } else { Color.clear }
         case .slider(let value):
-            SliderNode(value: value, action: node.action, tint: node.props.color == nil ? nil : Color(look.color)).frame(width: look.width ?? 120)
+            SliderNode(value: value, action: node.action, tint: node.props.color == nil ? nil : Color(look.color))
         case .progress(let value):
-            let width = look.width ?? 120, height = look.height ?? 6
             let shape = RoundedRectangle(cornerRadius: look.radius ?? 3)
             shape.fill(Color(look.background ?? RGBA(red: look.color.red, green: look.color.green, blue: look.color.blue, alpha: 0.25)))
-                .overlay(alignment: .leading) { shape.fill(Color(look.color)).frame(width: width * value) }
-                .frame(width: width, height: height)
+                .overlay(alignment: .leading) { GeometryReader { area in shape.fill(Color(look.color)).frame(width: area.size.width * value) } }
         case .input(let input):
-            InputNode(input: input, font: nsFont(look.font), color: Color(look.color)).frame(width: look.width ?? 240)
+            InputNode(input: input, font: nsFont(look.font), color: Color(look.color))
         case .spacer:
             Spacer(minLength: 0)
         case .button:
@@ -177,23 +170,25 @@ private struct Children: View {
 
 private extension View {
     func box(_ look: ResolvedStyle, _ node: Node, _ perform: @escaping ActionHandler) -> some View {
-        var width = look.width, height = look.height, padding = 0.0, alignment = Alignment.leading, background = look.background
-        var clickable = node.action
+        var width = look.width, height = look.height, padding = look.padding ?? Insets(0), background = look.background
+        var clickable = node.action, vertical = VerticalAlignment.center, horizontal = HorizontalAlignment(look.align ?? .leading)
         switch node.content {
-        case .row: padding = look.padding ?? 0
-        case .column, .button: (padding, alignment) = (look.padding ?? 0, .topLeading)
-        case .scroll: (height, clickable) = (nil, nil)
-        case .image: (width, height) = (nil, nil)
-        case .slider, .input: (width, height, clickable) = (nil, nil, nil)
-        case .progress: (width, height, background) = (nil, nil, nil)
-        case .icon: alignment = .center
-        case .text, .spacer: break
+        case .column: vertical = .top
+        case .scroll: (height, padding, clickable, vertical) = (nil, Insets(0), nil, .top)
+        case .image: (width, height) = (width ?? height ?? 16, height ?? width ?? 16)
+        case .slider: (width, clickable) = (width ?? 120, nil)
+        case .input: (width, clickable) = (width ?? 240, nil)
+        case .progress: (width, height, background) = (width ?? 120, height ?? 6, nil)
+        case .icon: horizontal = look.align.map(HorizontalAlignment.init) ?? .center
+        case .row, .button, .text, .spacer: break
         }
         return self
-            .padding(padding)
-            .frame(width: width.map { CGFloat($0) }, height: height.map { CGFloat($0) }, alignment: alignment)
+            .padding(EdgeInsets(padding))
+            .frame(width: width.map { CGFloat($0) }, height: height.map { CGFloat($0) }, alignment: Alignment(horizontal: horizontal, vertical: vertical))
+            .frame(minWidth: look.minWidth.map { CGFloat($0) }, alignment: Alignment(horizontal: horizontal, vertical: vertical))
             .background { if let background { RoundedRectangle(cornerRadius: look.radius ?? 0).fill(Color(background)) } }
             .opacity(look.opacity ?? 1)
+            .offset(y: look.offset ?? 0)
             .pressable(clickable) { perform($0, .null) }
             .layoutPriority(node.kind == .spacer ? -1 : 0)
     }
@@ -226,7 +221,7 @@ private struct ButtonNode: View {
 private struct ScrollNode: View {
     let node: Node
     let gap: Double
-    let padding: Double
+    let padding: Insets
     let maxHeight: Double?
 
     var body: some View {
@@ -237,7 +232,7 @@ private struct ScrollNode: View {
                     VStack(alignment: .leading, spacing: gap) {
                         ForEach(node.identifiedChildren) { child in NodeView(node: child.node).id(child.id) }
                     }
-                    .padding(padding)
+                    .padding(EdgeInsets(padding))
                 }
                 .scrollBounceBehavior(.basedOnSize)
                 .onChange(of: revealed, initial: true) { _, id in
@@ -320,6 +315,32 @@ extension Color {
 extension NSColor {
     convenience init(_ rgba: RGBA) {
         self.init(srgbRed: rgba.red, green: rgba.green, blue: rgba.blue, alpha: rgba.alpha)
+    }
+}
+
+extension EdgeInsets {
+    init(_ insets: Insets) {
+        self.init(top: insets.top, leading: insets.left, bottom: insets.bottom, trailing: insets.right)
+    }
+}
+
+extension HorizontalAlignment {
+    init(_ align: Align) {
+        switch align {
+        case .leading: self = .leading
+        case .center: self = .center
+        case .trailing: self = .trailing
+        }
+    }
+}
+
+extension TextAlignment {
+    init(_ align: Align) {
+        switch align {
+        case .leading: self = .leading
+        case .center: self = .center
+        case .trailing: self = .trailing
+        }
     }
 }
 

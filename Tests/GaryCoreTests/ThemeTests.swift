@@ -173,9 +173,9 @@ struct ThemeTests {
 
     @Test func nodePropertiesOverrideTheNamedStyleAndHoverOverridesBoth() throws {
         let theme = try theme()
-        let props = StyleProps(padding: 4, fontSize: 20, background: "accent", color: "#ff0000")
+        let props = StyleProps(padding: Insets(4), fontSize: 20, background: "accent", color: "#ff0000")
         let resolved = theme.resolve("panel", props)
-        #expect(resolved.padding == 4 && resolved.radius == 12)
+        #expect(resolved.padding == Insets(4) && resolved.radius == 12)
         #expect(resolved.background == RGBA(hex: "#7aa2f7"))
         #expect(resolved.color == RGBA(hex: "#ff0000"))
         #expect(resolved.font == FontToken(family: .system, size: 20, weight: .regular))

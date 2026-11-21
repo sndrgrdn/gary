@@ -70,7 +70,8 @@ public struct Theme: Equatable, Sendable {
         if let size = merged.fontSize { font.size = size }
         return ResolvedStyle(
             color: color(merged.color) ?? color(fallback.color) ?? palette.foreground, font: font, background: color(merged.background),
-            width: merged.width, height: merged.height, padding: merged.padding, gap: merged.gap, radius: merged.radius, opacity: merged.opacity
+            width: merged.width, height: merged.height, minWidth: merged.minWidth, gap: merged.gap, radius: merged.radius, opacity: merged.opacity,
+            offset: merged.offset, padding: merged.padding, align: merged.align
         )
     }
 
