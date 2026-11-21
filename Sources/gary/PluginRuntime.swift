@@ -3,26 +3,20 @@ import GaryCore
 import GaryPrivate
 import JavaScriptCore
 
-struct DisplayInfo: Hashable {
-    let id: String
-    let notched: Bool
+struct Scene: Equatable {
+    var displays: [DisplayInfo] = []
+    var shown = false
+    var focused: String?
 }
 
-enum Target: Hashable, CustomStringConvertible {
-    case bar(DisplayInfo)
-    case panel
-
-    var description: String {
-        switch self {
-        case .bar(let display): return "bar:\(display.id)"
-        case .panel: return "panel"
-        }
-    }
+struct RuntimeOutput: Equatable {
+    var surface: SurfaceSpec?
+    var trees: [String: Node] = [:]
 }
 
 enum RuntimeEvent {
-    case loaded([Target: Node], Trace)
-    case tree(Target, Node, Trace)
+    case loaded(RuntimeOutput, Trace)
+    case output(RuntimeOutput, Trace)
     case failed(String)
 }
 
@@ -41,18 +35,18 @@ final class PluginRuntime: Subscriber {
     private let queue: DispatchQueue
     private let watchdog = Watchdog()
     private var context: JSContext?
-    private var functions: (render: JSValue, action: JSValue, call: JSValue)?
+    private var functions: (render: JSValue, action: JSValue, call: JSValue, surface: JSValue)?
     private var exception: String?
     private var state: [Topic: JSON] = [:]
-    private var targets: [Target]
-    private var trees: [Target: Node] = [:]
+    private var scene: Scene
+    private var output = RuntimeOutput()
 
     var id: PluginID { bundle.manifest.id }
 
-    init(bundle: PluginBundle, kind: PluginKind, targets: [Target], settings: JSON, hub: StateHub, deliver: @escaping (PluginRuntime, RuntimeEvent) -> Void) {
+    init(bundle: PluginBundle, kind: PluginKind, scene: Scene, settings: JSON, hub: StateHub, deliver: @escaping (PluginRuntime, RuntimeEvent) -> Void) {
         self.bundle = bundle
         self.kind = kind
-        self.targets = targets
+        self.scene = scene
         self.settings = settings
         self.hub = hub
         self.deliver = deliver
@@ -64,10 +58,8 @@ final class PluginRuntime: Subscriber {
             state = hub.subscribe(self, to: bundle.manifest.subscribes)
             do {
                 try evaluate()
-                var rendered: [Target: Node] = [:]
-                for target in targets { rendered[target] = try render(target) }
-                trees = rendered
-                deliver(self, .loaded(rendered, trace))
+                output = try renderOutput()
+                deliver(self, .loaded(output, trace))
             } catch {
                 teardown()
                 deliver(self, .failed("\(error)"))
@@ -79,11 +71,10 @@ final class PluginRuntime: Subscriber {
         queue.async { [self] in teardown() }
     }
 
-    func setTargets(_ targets: [Target], _ trace: Trace) {
+    func setScene(_ scene: Scene, _ trace: Trace) {
         queue.async { [self] in
-            self.targets = targets
-            trees = [:]
-            renderAll(trace)
+            self.scene = scene
+            renderAll(trace, always: true)
         }
     }
 
@@ -98,7 +89,7 @@ final class PluginRuntime: Subscriber {
         queue.async { [self] in
             guard let functions else { return }
             do {
-                try invoke(functions.action, [action, stateText(for: targets.first)])
+                try invoke(functions.action, [action, stateText(for: nil)])
                 renderAll(Trace("action"))
             } catch {
                 fail("\(error)")
@@ -119,18 +110,30 @@ final class PluginRuntime: Subscriber {
         }
     }
 
-    private func renderAll(_ trace: Trace) {
+    private func renderAll(_ trace: Trace, always: Bool = false) {
         guard functions != nil else { return }
         do {
-            for target in targets {
-                let tree = try render(target)
-                guard trees[target] != tree else { continue }
-                trees[target] = tree
-                deliver(self, .tree(target, tree, trace))
-            }
+            let next = try renderOutput()
+            guard always || next != output else { return }
+            output = next
+            deliver(self, .output(next, trace))
         } catch {
             fail("\(error)")
         }
+    }
+
+    private func renderOutput() throws -> RuntimeOutput {
+        guard scene.shown else { return RuntimeOutput() }
+        var next = RuntimeOutput()
+        var targets = scene.displays
+        if kind.isSurface {
+            let text = try invoke(functions!.surface, [stateText(for: nil)]).toString() ?? "null"
+            let surface = try SurfaceSpec.parse(try JSON.parse(text), kind: kind)
+            targets = surface.screen.select(targets, focused: scene.focused)
+            next.surface = surface
+        }
+        for display in targets { next.trees[display.id] = try render(display) }
+        return next
     }
 
     private func fail(_ reason: String) {
@@ -171,12 +174,17 @@ final class PluginRuntime: Subscriber {
               if (typeof f !== "function") throw new Error("no method " + method);
               var r = f.apply(null, JSON.parse(args));
               return r === undefined ? "" : typeof r === "string" ? r : JSON.stringify(r);
+            },
+            function (state) {
+              var s = e().surface;
+              if (typeof s === "function") s = s(JSON.parse(state));
+              return JSON.stringify(s === undefined ? null : s);
             }
           ];
         })(module)
         """) }
         self.context = context
-        functions = (wrappers.atIndex(0), wrappers.atIndex(1), wrappers.atIndex(2))
+        functions = (wrappers.atIndex(0), wrappers.atIndex(1), wrappers.atIndex(2), wrappers.atIndex(3))
     }
 
     private func makeHost(in context: JSContext) -> JSValue {
@@ -213,18 +221,16 @@ final class PluginRuntime: Subscriber {
         }
     }
 
-    private func render(_ target: Target) throws -> Node {
-        let text = try invoke(functions!.render, [stateText(for: target)])
+    private func render(_ display: DisplayInfo) throws -> Node {
+        let text = try invoke(functions!.render, [stateText(for: display)])
         guard text.isString, let json = text.toString() else { throw RenderError("render returned nothing") }
         return try Node.parse(Data(json.utf8))
     }
 
-    private func stateText(for target: Target?) -> String {
+    private func stateText(for display: DisplayInfo?) -> String {
         var fields = Dictionary(uniqueKeysWithValues: state.map { ($0.key.rawValue, $0.value) })
         fields["settings"] = settings
-        if case .bar(let display)? = target {
-            fields["display"] = .object(["id": .string(display.id), "notched": .bool(display.notched)])
-        }
+        fields["display"] = display?.json
         return JSON.object(fields).text
     }
 

@@ -3,6 +3,8 @@ import Foundation
 public enum PluginKind: String, CaseIterable, Sendable {
     case barWidget = "bar-widget"
     case bar, panel, overlay, menu, service
+
+    public var isSurface: Bool { self == .panel || self == .overlay || self == .menu }
 }
 
 public enum Topic: String, CaseIterable, Sendable {

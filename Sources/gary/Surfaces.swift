@@ -1,8 +1,13 @@
 import AppKit
 import GaryCore
 
-func makeSurfacePanel(level: Int) -> NSPanel {
-    let panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+final class SurfacePanel: NSPanel {
+    var focusable = false
+    override var canBecomeKey: Bool { focusable }
+}
+
+func makeSurfacePanel(level: Int) -> SurfacePanel {
+    let panel = SurfacePanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
     panel.level = NSWindow.Level(rawValue: level)
     panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
     panel.isOpaque = false
@@ -21,9 +26,15 @@ extension NSScreen {
         return CFUUIDCreateString(nil, uuid) as String
     }
 
-    var notched: Bool { safeAreaInsets.top > 0 && auxiliaryTopLeftArea != nil && auxiliaryTopRightArea != nil }
+    var notch: ClosedRange<Double>? {
+        guard safeAreaInsets.top > 0, let left = auxiliaryTopLeftArea, let right = auxiliaryTopRightArea else { return nil }
+        return (left.maxX - frame.minX)...(right.minX - frame.minX)
+    }
 
-    func barHeight(_ theme: Theme) -> CGFloat { notched ? safeAreaInsets.top : theme.bar.height }
+    func display(index: Int, theme: Theme) -> DisplayInfo {
+        let notch = notch
+        return DisplayInfo(id: uuid, index: index, frame: frame, band: notch != nil ? safeAreaInsets.top : theme.bar.height, notch: notch)
+    }
 }
 
 extension NSStackView {
@@ -50,8 +61,8 @@ final class BarWindow {
     private let sections: [BarSection: NSStackView]
     private var constraints: [NSLayoutConstraint] = []
 
-    init(screen: NSScreen, level: Int) {
-        display = DisplayInfo(id: screen.uuid, notched: screen.notched)
+    init(display: DisplayInfo, level: Int) {
+        self.display = display
         panel = makeSurfacePanel(level: level)
         let content = NSView()
         content.wantsLayer = true
@@ -68,7 +79,7 @@ final class BarWindow {
 
     func layout(on screen: NSScreen, theme: Theme) {
         let frame = screen.frame
-        let height = screen.barHeight(theme)
+        let height = display.band
         panel.setFrame(NSRect(x: frame.minX, y: frame.maxY - height, width: frame.width, height: height), display: false)
         let content = panel.contentView!
         content.layer?.backgroundColor = NSColor(theme.bar.background).cgColor
@@ -82,7 +93,7 @@ final class BarWindow {
             right.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -edge),
             right.leadingAnchor.constraint(greaterThanOrEqualTo: center.trailingAnchor, constant: gap),
         ]
-        if display.notched, let beforeNotch = screen.auxiliaryTopLeftArea, let afterNotch = screen.auxiliaryTopRightArea {
+        if display.notch != nil, let beforeNotch = screen.auxiliaryTopLeftArea, let afterNotch = screen.auxiliaryTopRightArea {
             constraints += [
                 left.trailingAnchor.constraint(lessThanOrEqualTo: content.leadingAnchor, constant: beforeNotch.maxX - frame.minX - edge),
                 center.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: afterNotch.minX - frame.minX + edge),
@@ -106,18 +117,15 @@ final class BarWindow {
     }
 }
 
-final class PanelWindow {
-    let panel: NSPanel
+final class SurfaceWindow {
+    let panel = makeSurfacePanel(level: 0)
     private let card = NSView()
     private var content: NSView?
 
-    init(level: Int) {
-        panel = makeSurfacePanel(level: level)
+    init() {
         card.wantsLayer = true
         panel.contentView = card
     }
-
-    var isVisible: Bool { panel.isVisible }
 
     func setContent(_ view: NSView, theme: Theme) {
         guard view !== content else { return }
@@ -134,17 +142,23 @@ final class PanelWindow {
         ])
     }
 
-    func fit(theme: Theme) {
+    func place(_ spec: SurfaceSpec, on display: DisplayInfo, level: Int, theme: Theme) {
         card.layer?.backgroundColor = NSColor(theme.panel.background).cgColor
         card.layer?.cornerRadius = theme.panel.radius
-        let pointer = NSEvent.mouseLocation
-        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(pointer, $0.frame, false) }) ?? NSScreen.main else { return }
-        let size = card.fittingSize
-        let frame = screen.frame
-        let origin = NSPoint(x: frame.maxX - theme.spacing.edge - size.width, y: frame.maxY - screen.barHeight(theme) - 8 - size.height)
-        panel.setFrame(NSRect(origin: origin, size: size), display: false)
+        panel.level = NSWindow.Level(rawValue: level)
+        panel.ignoresMouseEvents = spec.clickThrough
+        panel.focusable = spec.focusable
+        let card = card
+        let frame = spec.frame(on: display) { width, height in
+            let forced = [width.map { card.widthAnchor.constraint(equalToConstant: $0) }, height.map { card.heightAnchor.constraint(equalToConstant: $0) }].compactMap { $0 }
+            for constraint in forced { constraint.priority = .init(999) }
+            NSLayoutConstraint.activate(forced)
+            defer { NSLayoutConstraint.deactivate(forced) }
+            return card.fittingSize
+        }
+        panel.setFrame(frame, display: false)
     }
 
     func show() { panel.orderFrontRegardless() }
-    func hide() { panel.orderOut(nil) }
+    func close() { panel.orderOut(nil) }
 }

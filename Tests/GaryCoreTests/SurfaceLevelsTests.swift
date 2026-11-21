@@ -12,6 +12,16 @@ struct SurfaceLevelsTests {
         #expect(levels(27, 2, 1).bar == 26)
         #expect(levels(28, 0).bar == 26)
         #expect(levels(27, 1, 9).bar == 25)
-        #expect(levels(27, 2).panel == 101)
+    }
+
+    @Test func everyLayerHasALevelAndTheyStackInOrder() {
+        for version in [levels(27, 2), levels(26, 0)] {
+            let stack = [SurfaceLayer.desktop, .below, .normal, .top].map(version.level)
+            #expect(stack == stack.sorted())
+            #expect(version.level(.notch) > version.bar)
+            #expect(version.level(.overlay) > version.level(.notch))
+        }
+        #expect(levels(27, 2).level(.overlay) == 101)
+        #expect(levels(27, 2).level(.desktop) == -2147483604)
     }
 }

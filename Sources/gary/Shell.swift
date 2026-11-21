@@ -29,6 +29,8 @@ final class PluginSlot {
     var phase = Phase.stopped
     var candidate: PluginRuntime?
     var visible = false
+    var focused: String?
+    var surface: SurfaceSpec?
     var waiters: [(Response) -> Void] = []
 
     init(key: SlotKey, bundle: PluginBundle) {
@@ -50,7 +52,7 @@ final class PluginSlot {
 
 private struct MountKey: Hashable {
     let slot: SlotKey
-    let target: Target
+    let display: String
 }
 
 private struct Mount {
@@ -68,8 +70,9 @@ final class Shell {
     private var catalog = PluginCatalog()
     private var resolution: ShellConfig.Resolution
     private var slots: [SlotKey: PluginSlot] = [:]
+    private var displays: [DisplayInfo] = []
     private var bars: [String: BarWindow] = [:]
-    private var panels: [PluginID: PanelWindow] = [:]
+    private var windows: [MountKey: SurfaceWindow] = [:]
     private var mounts: [MountKey: Mount] = [:]
     private var server: LineServer?
     private var watcher: FileWatcher?
@@ -108,7 +111,7 @@ final class Shell {
             source.resume()
             signals.append(source)
         }
-        log("ready pid=\(getpid()) levels=bar:\(levels.bar),panel:\(levels.panel) plugins=\(catalog.sortedIDs.map(\.rawValue).joined(separator: ","))")
+        log("ready pid=\(getpid()) levels=bar:\(levels.bar),\(SurfaceLayer.allCases.map { "\($0.rawValue):\(levels.level($0))" }.joined(separator: ",")) plugins=\(catalog.sortedIDs.map(\.rawValue).joined(separator: ","))")
     }
 
     private func quit() {
@@ -162,15 +165,18 @@ final class Shell {
         slot.key.kind == .barWidget || slot.visible || slot.runtime != nil
     }
 
-    private func targets(for slot: PluginSlot) -> [Target] {
-        slot.key.kind == .panel ? [.panel] : bars.values.map { .bar($0.display) }
+    private func scene(for slot: PluginSlot) -> Scene {
+        switch slot.key.kind {
+        case .barWidget: return Scene(displays: displays.filter { bars[$0.id] != nil }, shown: true)
+        default: return Scene(displays: displays, shown: slot.visible, focused: slot.focused)
+        }
     }
 
     private func load(_ slot: PluginSlot, _ trace: Trace) {
         slot.candidate?.stop()
         let key = slot.key
         let runtime = PluginRuntime(
-            bundle: slot.bundle, kind: key.kind, targets: targets(for: slot),
+            bundle: slot.bundle, kind: key.kind, scene: scene(for: slot),
             settings: config.settings[key.id] ?? .object([:]), hub: hub
         ) { [weak self] runtime, event in
             DispatchQueue.main.async { self?.handle(event, from: runtime, key) }
@@ -185,7 +191,6 @@ final class Shell {
         slot.runtime?.stop()
         slot.phase = .stopped
         unmount(slot.key)
-        if slot.key.kind == .panel { panels[slot.key.id]?.hide() }
         slot.answerWaiters(.failure("\(slot.key.id) was stopped"))
     }
 
@@ -195,16 +200,16 @@ final class Shell {
             return
         }
         switch event {
-        case .loaded(let trees, let trace):
+        case .loaded(let output, let trace):
             slot.candidate = nil
             slot.runtime?.stop()
             slot.phase = .running(runtime)
             log("plugin \(key): loaded \(slot.bundle.manifest.version)")
-            for (target, tree) in trees { mount(slot, target, tree, trace) }
-            if key.kind == .panel { slot.answerWaiters(.ok("shown")) }
-        case .tree(let target, let tree, let trace):
+            present(slot, output, trace)
+            slot.answerWaiters(.ok(slot.visible ? "shown" : "loaded"))
+        case .output(let output, let trace):
             guard slot.runtime === runtime else { return }
-            mount(slot, target, tree, trace)
+            present(slot, output, trace)
         case .failed(let reason):
             if slot.candidate === runtime {
                 slot.candidate = nil
@@ -215,10 +220,7 @@ final class Shell {
             }
             slot.phase = .failed(reason)
             unmount(key)
-            if key.kind == .panel {
-                panels[key.id]?.hide()
-                slot.visible = false
-            }
+            slot.visible = false
             slot.answerWaiters(.failure("\(key.id) failed: \(reason)"))
             commitFrame()
             log("plugin \(key): failed: \(reason)")
@@ -231,74 +233,81 @@ final class Shell {
     }
 
 
-    private func mount(_ slot: PluginSlot, _ target: Target, _ tree: Node, _ trace: Trace) {
-        let key = MountKey(slot: slot.key, target: target)
+    private func present(_ slot: PluginSlot, _ output: RuntimeOutput, _ trace: Trace) {
+        if slot.key.kind.isSurface && !slot.visible { return }
+        slot.surface = output.surface
+        for (display, tree) in output.trees { mount(slot, display, tree, trace) }
+        for key in mounts.keys where key.slot == slot.key && output.trees[key.display] == nil { unmount(key) }
+        commitFrame()
+    }
+
+    private func mount(_ slot: PluginSlot, _ display: String, _ tree: Node, _ trace: Trace) {
+        let key = MountKey(slot: slot.key, display: display)
         let slotKey = slot.key
         let onAction: (String) -> Void = { [weak self] action in self?.perform(action, slotKey) }
         let started = now()
         let mutations: Int
         if let mounted = mounts[key] {
-            guard let patch = reconcile(mounted.node, tree) else { return }
-            let (view, count) = renderer.apply(patch, to: mounted.view, onAction: onAction)
-            mounts[key] = Mount(node: tree, view: view)
-            mutations = count
-            if view !== mounted.view { place(slot, target) }
+            if let patch = reconcile(mounted.node, tree) {
+                let (view, count) = renderer.apply(patch, to: mounted.view, onAction: onAction)
+                mounts[key] = Mount(node: tree, view: view)
+                mutations = count
+            } else {
+                mutations = 0
+            }
         } else {
             mounts[key] = Mount(node: tree, view: renderer.build(tree, onAction: onAction))
             mutations = -1
-            place(slot, target)
         }
-        if case .panel = target, slot.visible, let panel = panels[slot.key.id] {
-            panel.fit(theme: theme)
-            if !panel.isVisible { panel.show() }
-        }
-        commitFrame()
+        place(key)
         if tracing {
             let end = now()
-            log(String(format: "commit plugin=%@ target=%@ cause=%@ since_ms=%.3f apply_ms=%.3f mut=%d tree=%@",
-                       slot.key.id.rawValue, target.description, trace.cause, (end - trace.start) * 1000, (end - started) * 1000, mutations, tree.summary))
+            log(String(format: "commit plugin=%@ display=%@ cause=%@ since_ms=%.3f apply_ms=%.3f mut=%d tree=%@",
+                       slot.key.id.rawValue, display, trace.cause, (end - trace.start) * 1000, (end - started) * 1000, mutations, tree.summary))
         }
     }
 
-    private func place(_ slot: PluginSlot, _ target: Target) {
-        switch target {
-        case .bar(let display):
-            guard let bar = bars[display.id] else { return }
-            for (section, ids) in resolution.bar where ids.contains(slot.key.id) {
-                bar.setSection(section, ids.compactMap { mounts[MountKey(slot: SlotKey(id: $0, kind: .barWidget), target: target)]?.view })
+    private func place(_ key: MountKey) {
+        guard let view = mounts[key]?.view, let slot = slots[key.slot] else { return }
+        if key.slot.kind == .barWidget {
+            guard let bar = bars[key.display] else { return }
+            for (section, ids) in resolution.bar where ids.contains(key.slot.id) {
+                bar.setSection(section, ids.compactMap { mounts[MountKey(slot: SlotKey(id: $0, kind: .barWidget), display: key.display)]?.view })
             }
-        case .panel:
-            guard let view = mounts[MountKey(slot: slot.key, target: .panel)]?.view else { return }
-            let panel = panels[slot.key.id] ?? PanelWindow(level: levels.panel)
-            panels[slot.key.id] = panel
-            panel.setContent(view, theme: theme)
+            return
         }
+        guard let spec = slot.surface, let display = displays.first(where: { $0.id == key.display }) else { return }
+        let window = windows[key] ?? SurfaceWindow()
+        let isNew = windows[key] == nil
+        windows[key] = window
+        window.setContent(view, theme: theme)
+        window.place(spec, on: display, level: levels.level(spec.layer), theme: theme)
+        if isNew { window.show() }
     }
 
-    private func unmount(_ key: SlotKey) {
-        let removed = mounts.keys.filter { $0.slot == key }
-        for mountKey in removed { mounts[mountKey]?.view.removeFromSuperview() }
-        for mountKey in removed { mounts[mountKey] = nil }
-        if key.kind == .barWidget { arrangeBars() }
+    private func unmount(_ key: MountKey) {
+        mounts.removeValue(forKey: key)?.view.removeFromSuperview()
+        windows.removeValue(forKey: key)?.close()
+    }
+
+    private func unmount(_ slot: SlotKey) {
+        for key in mounts.keys where key.slot == slot { unmount(key) }
+        if slot.kind == .barWidget { arrangeBars() }
     }
 
     private func arrangeBars() {
         for bar in bars.values {
-            let target = Target.bar(bar.display)
             for (section, ids) in resolution.bar {
-                bar.setSection(section, ids.compactMap { mounts[MountKey(slot: SlotKey(id: $0, kind: .barWidget), target: target)]?.view })
+                bar.setSection(section, ids.compactMap { mounts[MountKey(slot: SlotKey(id: $0, kind: .barWidget), display: bar.display.id)]?.view })
             }
         }
     }
 
     private func commitFrame() {
-        for bar in bars.values {
-            bar.panel.contentView?.layoutSubtreeIfNeeded()
-            bar.panel.displayIfNeeded()
-        }
-        for panel in panels.values where panel.isVisible {
-            panel.panel.contentView?.layoutSubtreeIfNeeded()
-            panel.panel.displayIfNeeded()
+        let panels = bars.values.map(\.panel) + windows.values.map(\.panel)
+        for panel in panels where panel.isVisible {
+            panel.contentView?.layoutSubtreeIfNeeded()
+            panel.displayIfNeeded()
         }
         CATransaction.flush()
     }
@@ -307,17 +316,18 @@ final class Shell {
     private func rebuildBars(_ trace: Trace) {
         for bar in bars.values { bar.close() }
         bars = [:]
-        for key in mounts.keys where key.target != .panel { mounts[key] = nil }
-        for screen in NSScreen.screens {
-            let bar = BarWindow(screen: screen, level: levels.bar)
+        for key in mounts.keys where key.slot.kind == .barWidget { mounts[key] = nil }
+        displays = NSScreen.screens.enumerated().map { $1.display(index: $0, theme: theme) }
+        for (screen, display) in zip(NSScreen.screens, displays) {
+            let bar = BarWindow(display: display, level: levels.bar)
             bar.layout(on: screen, theme: theme)
-            bars[bar.display.id] = bar
+            bars[display.id] = bar
         }
-        for slot in slots.values where slot.key.kind == .barWidget {
+        for slot in slots.values {
             if slot.candidate != nil { load(slot, trace) }
-            slot.runtime?.setTargets(targets(for: slot), trace)
+            slot.runtime?.setScene(scene(for: slot), trace)
         }
-        log("screens: " + NSScreen.screens.map { "\($0.localizedName) \(Int($0.frame.width))x\(Int($0.frame.height)) notch=\($0.notched)" }.joined(separator: "; "))
+        log("screens: " + NSScreen.screens.map { "\($0.localizedName) \(Int($0.frame.width))x\(Int($0.frame.height)) notch=\($0.notch != nil)" }.joined(separator: "; "))
     }
 
     @discardableResult
@@ -329,11 +339,14 @@ final class Shell {
             }
             let next = try Theme.parse(try JSON.parse(Data(contentsOf: Paths.defaultTheme)), override: override)
             guard next != theme else { return .ok("theme unchanged") }
+            let bandChanged = next.bar.height != theme.bar.height
             theme = next
             renderer = ViewRenderer(theme: theme)
-            for screen in NSScreen.screens { bars[screen.uuid]?.layout(on: screen, theme: theme) }
+            if bandChanged {
+                rebuildBars(Trace("theme"))
+            }
             for mount in mounts.values { renderer.restyle(mount.view, mount.node) }
-            for panel in panels.values where panel.isVisible { panel.fit(theme: theme) }
+            for key in mounts.keys { place(key) }
             commitFrame()
             log("theme applied")
             return .ok("theme applied")
@@ -441,7 +454,7 @@ final class Shell {
         case .hide(let id):
             reply(hide(id, trace))
         case .toggle(let id):
-            if slots[SlotKey(id: id, kind: .panel)]?.visible == true { reply(hide(id, trace)) } else { summon(id, trace, reply) }
+            if surfaceSlot(id)?.visible == true { reply(hide(id, trace)) } else { summon(id, trace, reply) }
         case .reloadPlugins(let id):
             let live = slots.values.filter { (id == nil || $0.key.id == id) && isLive($0) }
             guard id == nil || !live.isEmpty else { return reply(.failure("\(id!) is not loaded")) }
@@ -466,13 +479,23 @@ final class Shell {
         }
     }
 
+    private func surfaceSlot(_ id: PluginID) -> PluginSlot? {
+        catalog.plugins[id]?.manifest.kinds.lazy.filter(\.isSurface).compactMap { self.slots[SlotKey(id: id, kind: $0)] }.first
+    }
+
+    private func pointerDisplay() -> String? {
+        let pointer = NSEvent.mouseLocation
+        return displays.first { NSMouseInRect(pointer, $0.frame, false) }?.id
+    }
+
     private func summon(_ id: PluginID, _ trace: Trace, _ reply: @escaping (Response) -> Void) {
-        guard let slot = slots[SlotKey(id: id, kind: .panel)] else { return reply(.failure("no enabled panel \(id)")) }
+        guard let slot = surfaceSlot(id) else { return reply(.failure("no enabled surface \(id)")) }
         if slot.visible, slot.runtime != nil { return reply(.ok("shown")) }
         slot.visible = true
+        slot.focused = pointerDisplay()
         slot.waiters.append(reply)
         if let runtime = slot.runtime {
-            runtime.setTargets([.panel], trace)
+            runtime.setScene(scene(for: slot), trace)
             slot.answerWaiters(.ok("shown"))
         } else if slot.candidate == nil {
             load(slot, trace)
@@ -480,13 +503,12 @@ final class Shell {
     }
 
     private func hide(_ id: PluginID, _ trace: Trace) -> Response {
-        guard let slot = slots[SlotKey(id: id, kind: .panel)] else { return .failure("no enabled panel \(id)") }
+        guard let slot = surfaceSlot(id) else { return .failure("no enabled surface \(id)") }
         guard slot.visible else { return .ok("hidden") }
         slot.visible = false
-        panels[id]?.hide()
         if slot.bundle.manifest.keepLoaded, let runtime = slot.runtime {
             unmount(slot.key)
-            runtime.setTargets([], trace)
+            runtime.setScene(scene(for: slot), trace)
         } else {
             stop(slot)
         }
@@ -502,7 +524,7 @@ final class Shell {
                 guard resolution.enabled.contains(id) else { return "\(kind.rawValue):disabled" }
                 guard let slot = slots[SlotKey(id: id, kind: kind)] else { return "\(kind.rawValue):\(kind == .barWidget ? "not-in-bar" : "unsupported")" }
                 switch slot.phase {
-                case .running: return "\(kind.rawValue):\(kind == .panel && !slot.visible ? "paused" : "running")"
+                case .running: return "\(kind.rawValue):\(kind.isSurface && !slot.visible ? "paused" : "running")"
                 case .stopped: return "\(kind.rawValue):stopped"
                 case .failed(let reason): return "\(kind.rawValue):failed(\(reason))"
                 }

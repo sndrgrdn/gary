@@ -7,6 +7,8 @@ const week = (date) => {
 };
 
 module.exports = {
+  surface: { anchors: { top: true, right: true }, margins: { top: 8, right: 16 } },
+
   render(state) {
     const date = new Date(state.clock ? state.clock.epoch : Date.now());
     const day = date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });

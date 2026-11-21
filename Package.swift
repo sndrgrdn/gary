@@ -10,7 +10,7 @@ let package = Package(
             name: "GaryPrivate",
             linkerSettings: [.linkedFramework("JavaScriptCore")]
         ),
-        // Pure shell model: manifests, node trees, reconcile, theme, shell config, IPC messages. Foundation only. Unit tested.
+        // Pure shell model: manifests, node trees, reconcile, theme, shell config, surfaces, IPC messages. Foundation and CoreGraphics geometry only. Unit tested.
         .target(
             name: "GaryCore",
             swiftSettings: [.swiftLanguageMode(.v5)]
