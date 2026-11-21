@@ -130,9 +130,18 @@ extension Permission {
             default: return .denied
             }
         case .fullDiskAccess:
-            let descriptor = open(FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Application Support/com.apple.TCC/TCC.db").path, O_RDONLY)
-            defer { if descriptor >= 0 { close(descriptor) } }
-            return descriptor >= 0 ? .granted : .notGranted
+            let home = FileManager.default.homeDirectoryForCurrentUser
+            let probes = [
+                "Library/Group Containers/group.com.apple.usernoted/db2/db",
+                "Library/Safari/Bookmarks.plist",
+                "Library/Application Support/com.apple.TCC/TCC.db",
+            ]
+            for probe in probes {
+                let descriptor = open(home.appending(path: probe).path, O_RDONLY)
+                if descriptor >= 0 { close(descriptor); return .granted }
+                if errno == EPERM || errno == EACCES { return .notGranted }
+            }
+            return .notGranted
         case .location:
             switch LocationAccess.shared.status {
             case "authorized": return .granted
