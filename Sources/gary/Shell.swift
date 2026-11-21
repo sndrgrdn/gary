@@ -453,10 +453,7 @@ final class Shell {
     private func place(_ key: MountKey) {
         guard let view = mounts[key], let slot = slots[key.slot] else { return }
         if key.slot.kind == .barWidget {
-            guard let bar = bars[key.display] else { return }
-            for (section, ids) in resolution.bar where ids.contains(key.slot.id) {
-                bar.setSection(section, ids.compactMap { mounts[MountKey(slot: SlotKey(id: $0, kind: .barWidget), display: key.display)] })
-            }
+            placeInBar(key)
             return
         }
         guard let display = displays.first(where: { $0.id == key.display }) else { return }
@@ -477,19 +474,30 @@ final class Shell {
             window.place(spec, on: display, level: levels.level(spec.layer), theme: theme)
         }
         if isNew {
-            if key.slot.kind == .bar {
-                watchTopEdge(of: window.card) { [weak self] in self?.pointerReachedTop(key.display) }
-            }
-            window.show(fade: fade(key.slot))
-            if key.slot.kind.isSurface {
-                let slotKey = key.slot
-                window.panel.onScroll = { [weak self] event in self?.slots[slotKey]?.runtime?.scroll(event) }
-            }
-            if key.slot.kind.isSurface, slot.surface?.focusable == true {
-                focus(window, key.slot)
-            }
-            watchClicks()
+            open(window, key, slot)
         }
+    }
+
+    private func placeInBar(_ key: MountKey) {
+        guard let bar = bars[key.display] else { return }
+        for (section, ids) in resolution.bar where ids.contains(key.slot.id) {
+            bar.setSection(section, ids.compactMap { mounts[MountKey(slot: SlotKey(id: $0, kind: .barWidget), display: key.display)] })
+        }
+    }
+
+    private func open(_ window: SurfaceWindow, _ key: MountKey, _ slot: PluginSlot) {
+        if key.slot.kind == .bar {
+            watchTopEdge(of: window.card) { [weak self] in self?.pointerReachedTop(key.display) }
+        }
+        window.show(fade: fade(key.slot))
+        if key.slot.kind.isSurface {
+            let slotKey = key.slot
+            window.panel.onScroll = { [weak self] event in self?.slots[slotKey]?.runtime?.scroll(event) }
+        }
+        if key.slot.kind.isSurface, slot.surface?.focusable == true {
+            focus(window, key.slot)
+        }
+        watchClicks()
     }
 
     private func focus(_ window: SurfaceWindow, _ slot: SlotKey) {
