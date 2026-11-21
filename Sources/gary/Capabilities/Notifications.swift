@@ -1,6 +1,5 @@
 import AppKit
 import GaryCore
-import JavaScriptCore
 import SQLite3
 
 extension Capability {
@@ -17,16 +16,19 @@ extension Capability {
         body: string | null;
         date: number;
       }
-      interface Host { notifications: { open(id: number): void } }
+      interface Host { notifications: { open(id: number): null } }
     }
-    """, permissions: [.fullDiskAccess], install: { host, _ in
-        let open: @convention(block) (Int) -> Void = { id in
-            let found: Result<[DeliveredNotification], NotificationStore.Failure> = NotificationStore.read("WHERE r.rec_id = \(id)")
-            guard case .success(let records) = found, let record = records.first else { return JSValue.fail("no delivered notification \(id)") }
-            guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: record.app) else { return JSValue.fail("\(record.app) is not installed") }
-            DispatchQueue.main.async { NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) }
+    """, permissions: [.fullDiskAccess], install: { host, plugin in
+        plugin.installAPI(host, "notifications", NotificationsRequest.methods) { call in
+            switch try NotificationsRequest.parse(call) {
+            case .open(let id):
+                let records = try NotificationStore.read("WHERE r.rec_id = \(id)").mapError { HostFailure($0.reason) }.get()
+                guard let record = records.first else { throw HostFailure("no delivered notification \(id)") }
+                guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: record.app) else { throw HostFailure("\(record.app) is not installed") }
+                DispatchQueue.main.async { NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) }
+                return .now(.null)
+            }
         }
-        JSValue.namespace(["open": open], in: host, as: "notifications")
     }, topic: { NotificationsTopic($0) })
 }
 

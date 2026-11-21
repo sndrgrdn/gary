@@ -3,7 +3,6 @@ import GaryCore
 import GaryPrivate
 import IOBluetooth
 import IOKit
-import JavaScriptCore
 
 extension Capability {
     static let bluetooth = Capability(name: "bluetooth", summary: "Bluetooth power and paired devices with their battery levels. Turn Bluetooth on or off, and connect or disconnect a device.", types: """
@@ -19,23 +18,29 @@ extension Capability {
       interface BluetoothDevice { address: string; name: string | null; connected: boolean; battery: number | null }
       interface Host { bluetooth: BluetoothApi }
       interface BluetoothApi {
-        setPower(on: boolean): void;
+        setPower(on: boolean): null;
         connect(address: string): Promise<"connected">;
         disconnect(address: string): Promise<"disconnected">;
-        requestAccess(): void;
+        requestAccess(): Promise<string>;
       }
     }
     """, permissions: [.bluetooth], install: { host, plugin in
-        let setPower: @convention(block) (Bool) -> Void = { on in
-            guard CBManager.authorization == .allowedAlways else { return JSValue.fail("Gary needs Bluetooth permission") }
-            guard let set = BluetoothPower.set else { return JSValue.fail("IOBluetoothPreferenceSetControllerPowerState is missing on this macOS") }
-            set(on ? 1 : 0)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { BluetoothTopic.current?.send(Trace("bluetooth-power")) }
+        plugin.installAPI(host, "bluetooth", BluetoothRequest.methods) { call in
+            switch try BluetoothRequest.parse(call) {
+            case .setPower(let on):
+                guard CBManager.authorization == .allowedAlways else { throw HostFailure(missingGrant(.bluetooth, "bluetooth")) }
+                guard let set = BluetoothPower.set else { throw HostFailure("IOBluetoothPreferenceSetControllerPowerState is missing on this macOS") }
+                set(on ? 1 : 0)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { BluetoothTopic.current?.send(Trace("bluetooth-power")) }
+                return .now(.null)
+            case .connect(let address):
+                return .later(.global(qos: .userInitiated)) { try connection(address, open: true) }
+            case .disconnect(let address):
+                return .later(.global(qos: .userInitiated)) { try connection(address, open: false) }
+            case .requestAccess:
+                return .later(.main) { .string(Permission.bluetooth.request()) }
+            }
         }
-        let connect: @convention(block) (String) -> JSValue = { [weak plugin] address in connection(plugin, address, open: true) }
-        let disconnect: @convention(block) (String) -> JSValue = { [weak plugin] address in connection(plugin, address, open: false) }
-        let requestAccess: @convention(block) () -> Void = { DispatchQueue.main.async { BluetoothAccess.shared.request() } }
-        JSValue.namespace(["setPower": setPower, "connect": connect, "disconnect": disconnect, "requestAccess": requestAccess], in: host, as: "bluetooth")
     }, topic: { BluetoothTopic($0) })
 }
 
@@ -48,29 +53,26 @@ private enum BluetoothPower {
     static var missing: [String] { missingSymbols([.bluetoothGetPower, .bluetoothSetPower]) }
 }
 
-private func connection(_ plugin: PluginRuntime?, _ address: String, open: Bool) -> JSValue {
-    let context = JSContext.current()!
-    return JSValue(newPromiseIn: context) { resolve, reject in
-        DispatchQueue.main.async {
-            let finish: (String?) -> Void = { failure in
-                plugin?.queue.async {
-                    if let failure {
-                        plugin?.callBack(reject!, [JSValue(newErrorFromMessage: failure, in: context)!], Trace("bluetooth"))
-                    } else {
-                        plugin?.callBack(resolve!, [open ? "connected" : "disconnected"], Trace("bluetooth"))
-                    }
-                }
-            }
-            guard CBManager.authorization == .allowedAlways else { return finish("Gary needs Bluetooth permission") }
-            guard let device = IOBluetoothDevice(addressString: address), device.isPaired() else { return finish("\(address) is not a paired device") }
-            if open {
-                Connector.open(device, finish)
-            } else {
-                let status = device.closeConnection()
-                finish(status == kIOReturnSuccess ? nil : "cannot disconnect \(device.name ?? address) (\(status))")
-            }
+private func connection(_ address: String, open: Bool) throws -> JSON {
+    let done = DispatchSemaphore(value: 0)
+    nonisolated(unsafe) var failure: String?
+    DispatchQueue.main.async {
+        let finish: (String?) -> Void = { reason in
+            failure = reason
+            done.signal()
+        }
+        guard CBManager.authorization == .allowedAlways else { return finish(missingGrant(.bluetooth, "bluetooth")) }
+        guard let device = IOBluetoothDevice(addressString: address), device.isPaired() else { return finish("\(address) is not a paired device") }
+        if open {
+            Connector.open(device, finish)
+        } else {
+            let status = device.closeConnection()
+            finish(status == kIOReturnSuccess ? nil : "cannot disconnect \(device.name ?? address) (\(status))")
         }
     }
+    guard done.wait(timeout: .now() + 20) == .success else { throw HostFailure("\(open ? "connecting" : "disconnecting") \(address) took longer than 20 s") }
+    if let failure { throw HostFailure(failure) }
+    return .string(open ? "connected" : "disconnected")
 }
 
 private final class Connector: NSObject {

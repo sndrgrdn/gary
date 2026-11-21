@@ -41,6 +41,33 @@ public struct HostCall: Equatable, Sendable {
         return value
     }
 
+    public func fraction(_ index: Int, _ label: String) throws -> Double {
+        let value = try number(index, label)
+        guard (0...1).contains(value) else { throw fail("\(label) must be a number from 0 to 1") }
+        return value
+    }
+
+    public func bool(_ index: Int, _ label: String) throws -> Bool {
+        guard let value = argument(index)?.bool else { throw fail("\(label) must be true or false") }
+        return value
+    }
+
+    public func strings(_ index: Int, _ label: String) throws -> [String] {
+        guard let items = argument(index)?.array, case let strings = items.compactMap(\.string), strings.count == items.count else {
+            throw fail("\(label) must be an array of strings")
+        }
+        return strings
+    }
+
+    public func choice<Choice: RawRepresentable & CaseIterable>(_ index: Int, _ label: String, default fallback: Choice) throws -> Choice
+    where Choice.RawValue == String {
+        guard let raw = try optionalString(index, label) else { return fallback }
+        guard let value = Choice(rawValue: raw) else {
+            throw fail("\(label) must be " + Choice.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: " or "))
+        }
+        return value
+    }
+
     public func path(_ index: Int, home: String) throws -> String {
         let raw = try string(index, "path")
         guard let path = absolutePath(raw, home: home) else { throw fail("path \"\(raw)\" must be absolute or start with ~/") }

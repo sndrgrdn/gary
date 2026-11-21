@@ -1,7 +1,6 @@
 import CryptoKit
 import Foundation
 import GaryCore
-import JavaScriptCore
 
 extension Capability {
     static let nowplaying = Capability(name: "nowplaying", summary: "The track that any app is playing. Play, pause, skip, and seek.", types: """
@@ -22,26 +21,26 @@ extension Capability {
       }
       interface Host { nowplaying: NowPlayingApi }
       interface NowPlayingApi {
-        play(): void;
-        pause(): void;
-        toggle(): void;
-        next(): void;
-        previous(): void;
-        seek(seconds: number): void;
+        play(): null;
+        pause(): null;
+        toggle(): null;
+        next(): null;
+        previous(): null;
+        seek(seconds: number): null;
       }
     }
-    """, install: { host, _ in
-        var functions: [String: Any] = [:]
-        for (name, command) in [("play", 0), ("pause", 1), ("toggle", 2), ("next", 4), ("previous", 5)] {
-            let send: @convention(block) () -> Void = { Adapter.run(["send", String(command)]) }
-            functions[name] = send
+    """, install: { host, plugin in
+        plugin.installAPI(host, "nowplaying", NowPlayingRequest.methods) { call in
+            switch try NowPlayingRequest.parse(call) {
+            case .play: try Adapter.run(["send", "0"])
+            case .pause: try Adapter.run(["send", "1"])
+            case .toggle: try Adapter.run(["send", "2"])
+            case .next: try Adapter.run(["send", "4"])
+            case .previous: try Adapter.run(["send", "5"])
+            case .seek(let seconds): try Adapter.run(["seek", String(Int64(seconds * 1_000_000))])
+            }
+            return .now(.null)
         }
-        let seek: @convention(block) (Double) -> Void = { seconds in
-            guard seconds.isFinite, seconds >= 0 else { return JSValue.fail("nowplaying.seek takes a position in seconds") }
-            Adapter.run(["seek", String(Int64(seconds * 1_000_000))])
-        }
-        functions["seek"] = seek
-        JSValue.namespace(functions, in: host, as: "nowplaying")
     }, topic: { NowPlayingTopic($0) })
 }
 
@@ -63,13 +62,13 @@ private enum Adapter {
         return process
     }
 
-    static func run(_ arguments: [String]) {
-        guard missing == nil else { return JSValue.fail("now playing is unavailable: \(missing!)") }
+    static func run(_ arguments: [String]) throws {
+        if let missing { throw HostFailure("now playing is unavailable: \(missing)") }
         let process = process(arguments)
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         process.terminationHandler = { if $0.terminationStatus != 0 { log("nowplaying: \(arguments.joined(separator: " ")) exited with \($0.terminationStatus)") } }
-        do { try process.run() } catch { log("nowplaying: cannot run the adapter: \(error)") }
+        do { try process.run() } catch { throw HostFailure("cannot run the now playing adapter: \(error.localizedDescription)") }
     }
 }
 

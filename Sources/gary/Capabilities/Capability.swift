@@ -67,21 +67,6 @@ final class Observation {
     deinit { cancel() }
 }
 
-extension JSValue {
-    static func fail(_ message: String) {
-        let context = JSContext.current()!
-        context.exception = JSValue(newErrorFromMessage: message, in: context)
-    }
-
-    static func namespace(_ functions: [String: Any], in host: JSValue, as name: String) {
-        let object = JSValue(newObjectIn: host.context)!
-        for (key, function) in functions { object.setObject(function, forKeyedSubscript: key as NSString) }
-        host.setObject(object, forKeyedSubscript: name as NSString)
-    }
-
-    var optionalString: String? { isUndefined || isNull ? nil : toString() }
-}
-
 enum HostResult {
     case now(JSON)
     case later(DispatchQueue, () throws -> JSON)
@@ -99,7 +84,11 @@ func missingGrant(_ permission: Permission, _ api: String) -> String {
 }
 
 private func message(_ error: Error, _ call: HostCall) -> String {
-    error is ArgumentError ? "\(error)" : "\(call.name): \(error)"
+    switch error {
+    case let error as ArgumentError: return error.description
+    case let error as HostFailure: return "\(call.name): \(error)"
+    default: return "\(call.name): \(error.localizedDescription)"
+    }
 }
 
 func savePNG(_ data: Data, in folder: String) throws -> String {

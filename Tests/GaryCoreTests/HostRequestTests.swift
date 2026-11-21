@@ -192,3 +192,56 @@ struct AppsRequestTests {
         #expect(throws: ArgumentError("host.apps.hide is not a method")) { try AppsRequest.parse(call("apps", "hide", .string("com.apple.Calculator"))) }
     }
 }
+
+struct DeviceRequestTests {
+    @Test func audioTakesAFractionOrFlagAndAnOptionalScope() throws {
+        #expect(try AudioRequest.parse(call("audio", "setVolume", .number(0.4))) == .setVolume(0.4, .output))
+        #expect(try AudioRequest.parse(call("audio", "setMuted", .bool(true), .string("input"))) == .setMuted(true, .input))
+        #expect(try AudioRequest.parse(call("audio", "setDefaultDevice", .string("BuiltInSpeakerDevice"), .null)) == .setDefaultDevice(id: "BuiltInSpeakerDevice", .output))
+        #expect(throws: ArgumentError("host.audio.setVolume: volume must be a number from 0 to 1")) { try AudioRequest.parse(call("audio", "setVolume", .number(1.5))) }
+        #expect(throws: ArgumentError("host.audio.setMuted: scope must be \"output\" or \"input\"")) {
+            try AudioRequest.parse(call("audio", "setMuted", .bool(false), .string("both")))
+        }
+        #expect(throws: ArgumentError("host.audio.setMuted: muted must be true or false")) { try AudioRequest.parse(call("audio", "setMuted", .number(1))) }
+    }
+
+    @Test func brightnessTakesAFractionAndAnOptionalDisplay() throws {
+        #expect(try BrightnessRequest.parse(call("brightness", "set", .number(0.5))) == .set(0.5, display: nil))
+        #expect(try BrightnessRequest.parse(call("brightness", "set", .number(0), .string("37D8"))) == .set(0, display: "37D8"))
+        #expect(throws: ArgumentError.self) { try BrightnessRequest.parse(call("brightness", "set", .number(-0.1))) }
+        #expect(throws: ArgumentError("host.brightness.get is not a method")) { try BrightnessRequest.parse(call("brightness", "get")) }
+    }
+
+    @Test func mediaKeysTakeAnArrayOfKnownKeyNames() throws {
+        #expect(try MediaKeysRequest.parse(call("mediakeys", "intercept", .array([.string("mute"), .string("volume-up")]))) == .intercept([.mute, .volumeUp]))
+        #expect(try MediaKeysRequest.parse(call("mediakeys", "intercept", .array([]))) == .intercept([]))
+        #expect(throws: ArgumentError("host.mediakeys.intercept: keys must be an array of strings")) { try MediaKeysRequest.parse(call("mediakeys", "intercept", .string("mute"))) }
+        #expect(throws: ArgumentError.self) { try MediaKeysRequest.parse(call("mediakeys", "intercept", .array([.string("play")]))) }
+    }
+
+    @Test func nowPlayingSeeksToAPositionAndOtherwiseTakesNoArguments() throws {
+        #expect(try ["play", "pause", "toggle", "next", "previous"].map { try NowPlayingRequest.parse(call("nowplaying", $0)) } == [.play, .pause, .toggle, .next, .previous])
+        #expect(try NowPlayingRequest.parse(call("nowplaying", "seek", .number(42.5))) == .seek(seconds: 42.5))
+        #expect(throws: ArgumentError.self) { try NowPlayingRequest.parse(call("nowplaying", "seek", .number(-1))) }
+        #expect(throws: ArgumentError.self) { try NowPlayingRequest.parse(call("nowplaying", "seek")) }
+    }
+
+    @Test func notificationsOpenTakesAWholeID() throws {
+        #expect(try NotificationsRequest.parse(call("notifications", "open", .number(812))) == .open(id: 812))
+        for value in [JSON.number(1.5), .number(-1), .string("812"), .null] {
+            #expect(throws: ArgumentError.self) { try NotificationsRequest.parse(call("notifications", "open", value)) }
+        }
+    }
+
+    @Test func wifiAndBluetoothTakeFlagsNamesAndAddresses() throws {
+        #expect(try WiFiRequest.parse(call("wifi", "setPower", .bool(false))) == .setPower(false))
+        #expect(try WiFiRequest.parse(call("wifi", "join", .string("Home"))) == .join(ssid: "Home", password: nil))
+        #expect(try WiFiRequest.parse(call("wifi", "join", .string("Home"), .string("secret"))) == .join(ssid: "Home", password: "secret"))
+        #expect(try ["scan", "requestLocation"].map { try WiFiRequest.parse(call("wifi", $0)) } == [.scan, .requestLocation])
+        #expect(throws: ArgumentError.self) { try WiFiRequest.parse(call("wifi", "join")) }
+        #expect(try BluetoothRequest.parse(call("bluetooth", "connect", .string("aa-bb-cc-dd-ee-ff"))) == .connect(address: "aa-bb-cc-dd-ee-ff"))
+        #expect(try BluetoothRequest.parse(call("bluetooth", "setPower", .bool(true))) == .setPower(true))
+        #expect(throws: ArgumentError("host.bluetooth.setPower: on must be true or false")) { try BluetoothRequest.parse(call("bluetooth", "setPower", .string("on"))) }
+        #expect(throws: ArgumentError("host.bluetooth.pair is not a method")) { try BluetoothRequest.parse(call("bluetooth", "pair", .string("aa"))) }
+    }
+}

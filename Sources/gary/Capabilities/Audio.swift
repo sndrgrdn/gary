@@ -2,7 +2,6 @@ import AppKit
 import AudioToolbox
 import CoreAudio
 import GaryCore
-import JavaScriptCore
 
 extension Capability {
     static let audio = Capability(name: "audio", summary: "Audio devices, volume, mute, and the apps that use the microphone. Set the volume, mute, and the default device.", types: """
@@ -19,55 +18,37 @@ extension Capability {
       interface AudioDeviceState { id: string; name: string; transport: string; volume: number | null; muted: boolean | null }
       interface Host { audio: AudioApi }
       interface AudioApi {
-        setVolume(volume: number, scope?: AudioScope): void;
-        setMuted(muted: boolean, scope?: AudioScope): void;
-        setDefaultDevice(id: string, scope?: AudioScope): void;
+        setVolume(volume: number, scope?: AudioScope): null;
+        setMuted(muted: boolean, scope?: AudioScope): null;
+        setDefaultDevice(id: string, scope?: AudioScope): null;
       }
     }
-    """, install: { host, _ in
-        let setVolume: @convention(block) (Double, JSValue) -> Void = { volume, scope in
-            guard volume.isFinite else { return JSValue.fail("audio.setVolume takes a number from 0 to 1") }
-            apply(scope, "volume") { device, scope in
-                setProperty(device, address(kAudioHardwareServiceDeviceProperty_VirtualMainVolume, scope.scope), Float32(min(1, max(0, volume))))
+    """, install: { host, plugin in
+        plugin.installAPI(host, "audio", AudioRequest.methods) { call in
+            switch try AudioRequest.parse(call) {
+            case .setVolume(let volume, let scope):
+                try apply(scope, "volume") { setProperty($0, address(kAudioHardwareServiceDeviceProperty_VirtualMainVolume, scope.scope), Float32(volume)) }
+            case .setMuted(let muted, let scope):
+                try apply(scope, "mute") { setProperty($0, address(kAudioDevicePropertyMute, scope.scope), UInt32(muted ? 1 : 0)) }
+            case .setDefaultDevice(let id, let scope):
+                guard let device = AudioDevice.all().first(where: { $0.uid == id && $0.has(scope) }) else { throw HostFailure("no \(scope.rawValue) device \(id)") }
+                let status = setProperty(AudioObjectID(kAudioObjectSystemObject), address(scope.defaultSelector), device.id) ?? kAudioHardwareUnsupportedOperationError
+                guard status == noErr else { throw HostFailure("cannot make \(device.name) the default \(scope.rawValue) device (\(status))") }
             }
+            return .now(.null)
         }
-        let setMuted: @convention(block) (Bool, JSValue) -> Void = { muted, scope in
-            apply(scope, "mute") { device, scope in
-                setProperty(device, address(kAudioDevicePropertyMute, scope.scope), UInt32(muted ? 1 : 0))
-            }
-        }
-        let setDefaultDevice: @convention(block) (String, JSValue) -> Void = { id, scope in
-            guard let scope = AudioScope(scope) else { return JSValue.fail("audio scope must be \"output\" or \"input\"") }
-            guard let device = AudioDevice.all().first(where: { $0.uid == id && $0.has(scope) }) else {
-                return JSValue.fail("no \(scope.rawValue) device \(id)")
-            }
-            let status = setProperty(AudioObjectID(kAudioObjectSystemObject), address(scope.defaultSelector), device.id) ?? kAudioHardwareUnsupportedOperationError
-            if status != noErr { JSValue.fail("cannot make \(device.name) the default \(scope.rawValue) device (\(status))") }
-        }
-        JSValue.namespace(["setVolume": setVolume, "setMuted": setMuted, "setDefaultDevice": setDefaultDevice], in: host, as: "audio")
     }, topic: { AudioTopic($0) })
 }
 
-private enum AudioScope: String, CaseIterable {
-    case output, input
-
-    init?(_ value: JSValue) {
-        guard let raw = value.optionalString else {
-            self = .output
-            return
-        }
-        self.init(rawValue: raw)
-    }
-
+extension AudioScope {
     var scope: AudioObjectPropertyScope { self == .output ? kAudioDevicePropertyScopeOutput : kAudioDevicePropertyScopeInput }
     var defaultSelector: AudioObjectPropertySelector { self == .output ? kAudioHardwarePropertyDefaultOutputDevice : kAudioHardwarePropertyDefaultInputDevice }
 }
 
-private func apply(_ scope: JSValue, _ what: String, _ write: (AudioObjectID, AudioScope) -> OSStatus?) {
-    guard let scope = AudioScope(scope) else { return JSValue.fail("audio scope must be \"output\" or \"input\"") }
-    guard let device = defaultDevice(scope) else { return JSValue.fail("there is no default \(scope.rawValue) device") }
-    guard let status = write(device, scope) else { return JSValue.fail("\(AudioDevice(device)?.name ?? "the device") has no \(what) control") }
-    if status != noErr { JSValue.fail("cannot set \(what) (\(status))") }
+private func apply(_ scope: AudioScope, _ what: String, _ write: (AudioObjectID) -> OSStatus?) throws {
+    guard let device = defaultDevice(scope) else { throw HostFailure("there is no default \(scope.rawValue) device") }
+    guard let status = write(device) else { throw HostFailure("\(AudioDevice(device)?.name ?? "the device") has no \(what) control") }
+    guard status == noErr else { throw HostFailure("cannot set \(what) (\(status))") }
 }
 
 private func address(_ selector: AudioObjectPropertySelector, _ scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal) -> AudioObjectPropertyAddress {

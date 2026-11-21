@@ -1,6 +1,5 @@
 import AppKit
 import GaryCore
-import JavaScriptCore
 
 extension Capability {
     static let mediakeys = Capability(name: "mediakeys", summary: "Take over the volume, mute, and brightness keys.", types: """
@@ -11,20 +10,13 @@ extension Capability {
       interface Host { mediakeys: { intercept(keys: MediaKeyName[]): boolean } }
     }
     """, permissions: [.accessibility], install: { host, plugin in
-        let intercept: @convention(block) (JSValue) -> Bool = { [weak plugin] names in
-            guard let plugin else { return false }
-            guard let raw = names.toArray() as? [String] else {
-                JSValue.fail("mediakeys.intercept takes an array of key names")
-                return false
-            }
-            do {
-                return KeyTap.shared.intercept(try MediaKey.parse(raw), for: plugin)
-            } catch {
-                JSValue.fail("\(error)")
-                return false
+        plugin.installAPI(host, "mediakeys", MediaKeysRequest.methods) { [weak plugin] call in
+            switch try MediaKeysRequest.parse(call) {
+            case .intercept(let keys):
+                guard let plugin else { return .now(.bool(false)) }
+                return .now(.bool(try KeyTap.shared.intercept(keys, for: plugin)))
             }
         }
-        JSValue.namespace(["intercept": intercept], in: host, as: "mediakeys")
     })
 }
 
@@ -56,7 +48,7 @@ private final class KeyTap {
         return loop!
     }()
 
-    func intercept(_ keys: Set<MediaKey>, for plugin: PluginRuntime) -> Bool {
+    func intercept(_ keys: Set<MediaKey>, for plugin: PluginRuntime) throws -> Bool {
         let id = ObjectIdentifier(plugin)
         let isNew = lock.withLock {
             let isNew = listeners[id] == nil
@@ -64,7 +56,12 @@ private final class KeyTap {
             return isNew && !keys.isEmpty
         }
         if isNew { plugin.onStop { [weak self] in self?.remove(id) } }
-        return update()
+        let intercepting = update()
+        guard intercepting || keys.isEmpty else {
+            lock.withLock { listeners[id] = nil }
+            throw HostFailure(missingGrant(.accessibility, "mediakeys"))
+        }
+        return intercepting
     }
 
     private func remove(_ id: ObjectIdentifier) {
@@ -84,7 +81,7 @@ private final class KeyTap {
                 guard let created = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
                                                       eventsOfInterest: CGEventMask(1) << CGEventMask(NX_SYSDEFINED),
                                                       callback: { _, type, event, _ in KeyTap.shared.handle(type, event) }, userInfo: nil) else {
-                    log("mediakeys: cannot intercept keys; Gary needs Accessibility permission")
+                    log("mediakeys: " + missingGrant(.accessibility, "intercepting keys"))
                     return false
                 }
                 let source = CFMachPortCreateRunLoopSource(nil, created, 0)

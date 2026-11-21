@@ -2,7 +2,6 @@ import AppKit
 import GaryCore
 import GaryPrivate
 import IOKit
-import JavaScriptCore
 
 extension Capability {
     static let brightness = Capability(name: "brightness", summary: "Brightness of the built-in display and of external displays that support DDC. Set it.", types: """
@@ -11,22 +10,19 @@ extension Capability {
       interface Brightness { displays: BrightnessDisplay[]; missing: string[] }
       interface BrightnessDisplay { id: string; name: string | null; builtin: boolean; brightness: number | null; control: "displayservices" | "ddc" | null }
       interface Host { brightness: BrightnessApi }
-      interface BrightnessApi { set(value: number, display?: string): void }
+      interface BrightnessApi { set(value: number, display?: string | null): null }
     }
-    """, install: { host, _ in
-        let set: @convention(block) (Double, JSValue) -> Void = { value, display in
-            guard value.isFinite else { return JSValue.fail("brightness.set takes a number from 0 to 1") }
-            let displays = Display.online()
-            let target: Display?
-            if let id = display.optionalString {
-                target = displays.first { $0.uuid == id }
-            } else {
-                target = displays.first(where: \.builtin) ?? displays.first
+    """, install: { host, plugin in
+        plugin.installAPI(host, "brightness", BrightnessRequest.methods) { call in
+            switch try BrightnessRequest.parse(call) {
+            case .set(let value, let id):
+                let displays = Display.online()
+                let target = id == nil ? displays.first(where: \.builtin) ?? displays.first : displays.first { $0.uuid == id }
+                guard let target else { throw HostFailure("no display \(id ?? "")") }
+                if let error = Panel.shared.set(value, on: target) { throw HostFailure(error) }
+                return .now(.null)
             }
-            guard let target else { return JSValue.fail("no display \(display.optionalString ?? "")") }
-            if let error = Panel.shared.set(min(1, max(0, value)), on: target) { JSValue.fail(error) }
         }
-        JSValue.namespace(["set": set], in: host, as: "brightness")
     }, topic: { BrightnessTopic($0) })
 }
 

@@ -1,7 +1,6 @@
 import CoreLocation
 import CoreWLAN
 import GaryCore
-import JavaScriptCore
 
 extension Capability {
     static let wifi = Capability(name: "wifi", summary: "Wi-Fi power, network, signal, and rate. Scan, join a network, and turn Wi-Fi on or off.", types: """
@@ -23,63 +22,54 @@ extension Capability {
       interface WiFiNetwork { ssid: string | null; bssid: string | null; rssi: number; noise: number; channel: number | null; secure: boolean }
       interface Host { wifi: WiFiApi }
       interface WiFiApi {
-        setPower(on: boolean): void;
+        setPower(on: boolean): null;
         scan(): Promise<WiFiNetwork[]>;
         join(ssid: string, password?: string | null): Promise<"joined">;
-        requestLocation(): void;
+        requestLocation(): Promise<string>;
       }
     }
     """, permissions: [.location], install: { host, plugin in
-        let setPower: @convention(block) (Bool) -> Void = { on in
-            guard let interface = CWWiFiClient.shared().interface() else { return JSValue.fail("this Mac has no Wi-Fi interface") }
-            do { try interface.setPower(on) } catch { JSValue.fail("cannot turn Wi-Fi \(on ? "on" : "off"): \(error.localizedDescription)") }
-        }
-        let scan: @convention(block) () -> JSValue = { [weak plugin] in
-            promise(plugin, "wifi-scan") { interface in
-                let networks = try interface.scanForNetworks(withSSID: nil).sorted { $0.rssiValue > $1.rssiValue }
-                return networks.map { network -> [String: Any] in
-                    ["ssid": network.ssid ?? NSNull(), "bssid": network.bssid ?? NSNull(), "rssi": network.rssiValue, "noise": network.noiseMeasurement,
-                     "channel": network.wlanChannel?.channelNumber ?? NSNull(), "secure": !network.supportsSecurity(.none)]
-                }
+        plugin.installAPI(host, "wifi", WiFiRequest.methods) { call in
+            switch try WiFiRequest.parse(call) {
+            case .setPower(let on): return .now(try setPower(on))
+            case .scan: return .later(.global(qos: .userInitiated)) { try scan() }
+            case .join(let ssid, let password): return .later(.global(qos: .userInitiated)) { try join(ssid, password) }
+            case .requestLocation: return .later(.main) { .string(Permission.location.request()) }
             }
         }
-        let join: @convention(block) (String, JSValue) -> JSValue = { [weak plugin] ssid, password in
-            promise(plugin, "wifi-join") { interface in
-                let networks = try interface.scanForNetworks(withSSID: nil)
-                guard let network = networks.first(where: { $0.ssid == ssid }) else {
-                    let hidden = !networks.isEmpty && networks.allSatisfy { $0.ssid == nil }
-                    throw WiFiError("no network \(ssid) in range" + (hidden ? "; macOS hides network names: " + missingGrant(.location, "wifi") : ""))
-                }
-                try interface.associate(to: network, password: password.optionalString)
-                return "joined"
-            }
-        }
-        let requestLocation: @convention(block) () -> Void = { DispatchQueue.main.async { LocationAccess.shared.request() } }
-        JSValue.namespace(["setPower": setPower, "scan": scan, "join": join, "requestLocation": requestLocation], in: host, as: "wifi")
     }, topic: { WiFiTopic($0) })
 }
 
-private struct WiFiError: Error, LocalizedError {
-    let errorDescription: String?
-    init(_ message: String) { errorDescription = message }
+private func wifiInterface() throws -> CWInterface {
+    guard let interface = CWWiFiClient.shared().interface() else { throw HostFailure("this Mac has no Wi-Fi interface") }
+    return interface
 }
 
-private func promise(_ plugin: PluginRuntime?, _ cause: String, _ work: @escaping (CWInterface) throws -> Any) -> JSValue {
-    let context = JSContext.current()!
-    return JSValue(newPromiseIn: context) { resolve, reject in
-        DispatchQueue.global(qos: .userInitiated).async {
-            let result = Result { () throws -> Any in
-                guard let interface = CWWiFiClient.shared().interface() else { throw WiFiError("this Mac has no Wi-Fi interface") }
-                return try work(interface)
-            }
-            plugin?.queue.async {
-                switch result {
-                case .success(let value): plugin?.callBack(resolve!, [value], Trace(cause))
-                case .failure(let error): plugin?.callBack(reject!, [JSValue(newErrorFromMessage: error.localizedDescription, in: context)!], Trace(cause))
-                }
-            }
-        }
+private func setPower(_ on: Bool) throws -> JSON {
+    do { try wifiInterface().setPower(on) } catch { throw HostFailure("cannot turn Wi-Fi \(on ? "on" : "off"): \(error.localizedDescription)") }
+    return .null
+}
+
+private func scan() throws -> JSON {
+    let networks = try wifiInterface().scanForNetworks(withSSID: nil).sorted { $0.rssiValue > $1.rssiValue }
+    return .array(networks.map { network in
+        .object([
+            "ssid": network.ssid.map(JSON.string) ?? .null, "bssid": network.bssid.map(JSON.string) ?? .null,
+            "rssi": .number(Double(network.rssiValue)), "noise": .number(Double(network.noiseMeasurement)),
+            "channel": network.wlanChannel.map { .number(Double($0.channelNumber)) } ?? .null, "secure": .bool(!network.supportsSecurity(.none)),
+        ])
+    })
+}
+
+private func join(_ ssid: String, _ password: String?) throws -> JSON {
+    let interface = try wifiInterface()
+    let networks = try interface.scanForNetworks(withSSID: nil)
+    guard let network = networks.first(where: { $0.ssid == ssid }) else {
+        let hidden = !networks.isEmpty && networks.allSatisfy { $0.ssid == nil }
+        throw HostFailure("no network \(ssid) in range" + (hidden ? "; macOS hides network names: " + missingGrant(.location, "wifi") : ""))
     }
+    try interface.associate(to: network, password: password)
+    return .string("joined")
 }
 
 final class LocationAccess: NSObject, CLLocationManagerDelegate {
