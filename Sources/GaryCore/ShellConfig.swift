@@ -15,11 +15,14 @@ public struct ShellConfig: Equatable, Sendable {
     public var plugins: [PluginID]
     public var disabledPlugins: Set<PluginID>
     public var settings: [PluginID: JSON]
+    public var revealMenuBar: Bool
 
     public static let defaults = ShellConfig(
         bar: [.left: [], .center: [], .right: [PluginID("gary.battery")!, PluginID("gary.clock")!]],
-        plugins: [], disabledPlugins: [], settings: [:]
+        plugins: [], disabledPlugins: [], settings: [:], revealMenuBar: true
     )
+
+    private static let revealMenuBarKey = "revealMenuBar"
 
     public static func parse(_ json: JSON) throws -> ShellConfig {
         func fail(_ path: String, _ reason: String) -> ShellConfigError { ShellConfigError(path: path, reason: reason) }
@@ -35,12 +38,18 @@ public struct ShellConfig: Equatable, Sendable {
         var config = defaults
         if let bar = fields["bar"] {
             guard let sections = bar.object else { throw fail("bar", "must be an object") }
-            if let unknown = sections.keys.sorted().first(where: { BarSection(rawValue: $0) == nil }) {
-                throw fail("bar.\(unknown)", "is not left, center or right")
+            if let unknown = sections.keys.sorted().first(where: { BarSection(rawValue: $0) == nil && $0 != revealMenuBarKey }) {
+                throw fail("bar.\(unknown)", "is not left, center, right or \(revealMenuBarKey)")
             }
-            config.bar = Dictionary(uniqueKeysWithValues: try BarSection.allCases.map { section in
-                (section, try sections[section.rawValue].map { try ids($0, "bar.\(section.rawValue)") } ?? [])
-            })
+            if let reveal = sections[revealMenuBarKey] {
+                guard let value = reveal.bool else { throw fail("bar.\(revealMenuBarKey)", "must be true or false") }
+                config.revealMenuBar = value
+            }
+            if BarSection.allCases.contains(where: { sections[$0.rawValue] != nil }) {
+                config.bar = Dictionary(uniqueKeysWithValues: try BarSection.allCases.map { section in
+                    (section, try sections[section.rawValue].map { try ids($0, "bar.\(section.rawValue)") } ?? [])
+                })
+            }
         }
         if let plugins = fields["plugins"] { config.plugins = try ids(plugins, "plugins") }
         if let disabled = fields["disabledPlugins"] { config.disabledPlugins = Set(try ids(disabled, "disabledPlugins")) }
@@ -131,7 +140,9 @@ extension ShellConfig {
         func set(_ key: String, _ value: JSON, changed: Bool) {
             if changed || fields[key] != nil { fields[key] = value }
         }
-        set("bar", .object(Dictionary(uniqueKeysWithValues: BarSection.allCases.map { ($0.rawValue, ids(bar[$0] ?? [])) })), changed: bar != config.bar)
+        var barFields = fields["bar"]?.object ?? [:]
+        for section in BarSection.allCases { barFields[section.rawValue] = ids(bar[section] ?? []) }
+        set("bar", .object(barFields), changed: bar != config.bar)
         set("plugins", ids(plugins), changed: plugins != config.plugins)
         set("disabledPlugins", ids(disabled.sorted()), changed: disabled != config.disabledPlugins)
         return .object(fields)

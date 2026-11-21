@@ -43,6 +43,13 @@ struct ShellConfigTests {
         #expect(parsed.resolve(standard).enabled.contains(id("gary.battery")))
     }
 
+    @Test func theBarRevealsTheMenuBarUnlessTurnedOffWhichKeepsTheDefaultSections() throws {
+        #expect(ShellConfig.defaults.revealMenuBar)
+        let parsed = try config(#"{"bar": {"revealMenuBar": false}}"#)
+        #expect(!parsed.revealMenuBar)
+        #expect(parsed.bar == ShellConfig.defaults.bar)
+    }
+
     @Test func aThirdPartyPluginRunsOnlyWhenNamed() throws {
         #expect(!ShellConfig.defaults.resolve(standard).enabled.contains(id("acme.weather")))
         let named = try config(#"{"bar": {"left": ["acme.weather"]}, "plugins": ["acme.notes"]}"#).resolve(standard)
@@ -70,7 +77,7 @@ struct ShellConfigTests {
     @Test func oneEnabledBarPluginReplacesTheBuiltInBar() throws {
         #expect(ShellConfig.defaults.resolve(standard).barPlugin == nil)
         let bars = catalog([("acme.top", .user, [.bar]), ("acme.alt", .user, [.bar, .service]), ("acme.off", .user, [.bar])])
-        let resolution = try config(#"{"bar": {}, "plugins": ["acme.top", "acme.alt"]}"#).resolve(bars)
+        let resolution = try config(#"{"bar": {"right": []}, "plugins": ["acme.top", "acme.alt"]}"#).resolve(bars)
         #expect(resolution.barPlugin == id("acme.alt"))
         #expect(resolution.warnings == ["acme.top is a bar too; acme.alt replaces the built-in bar"])
         #expect(try config(#"{"plugins": ["acme.top", "acme.alt"], "disabledPlugins": ["acme.alt"]}"#).resolve(bars).barPlugin == id("acme.top"))
@@ -94,7 +101,8 @@ struct ShellConfigTests {
         let cases: [(String, ShellConfigError)] = [
             ("[]", ShellConfigError(path: "root", reason: "must be an object")),
             (#"{"bar": []}"#, ShellConfigError(path: "bar", reason: "must be an object")),
-            (#"{"bar": {"top": []}}"#, ShellConfigError(path: "bar.top", reason: "is not left, center or right")),
+            (#"{"bar": {"top": []}}"#, ShellConfigError(path: "bar.top", reason: "is not left, center, right or revealMenuBar")),
+            (#"{"bar": {"revealMenuBar": "no"}}"#, ShellConfigError(path: "bar.revealMenuBar", reason: "must be true or false")),
             (#"{"bar": {"left": ["Clock"]}}"#, ShellConfigError(path: "bar.left[0]", reason: "is not a plugin id")),
             (#"{"disabledPlugins": "gary.clock"}"#, ShellConfigError(path: "disabledPlugins", reason: "must be an array of plugin ids")),
             (#"{"settings": {"clock": {}}}"#, ShellConfigError(path: "settings.clock", reason: "is not a plugin id")),
@@ -136,6 +144,12 @@ struct ShellConfigChangeTests {
         let config = try ShellConfig.parse(removed)
         #expect(config.bar[.left] == [] && config.plugins == [] && config.disabledPlugins == [])
         #expect(config.settings[widget] == .object([:]))
+    }
+
+    @Test func editingTheBarKeepsRevealMenuBar() throws {
+        let next = try apply(.enable(widget, inBar: true), to: #"{"bar": {"revealMenuBar": false}}"#)
+        #expect(next["bar"]?["revealMenuBar"] == .bool(false))
+        #expect(try ShellConfig.parse(next).bar[.right]?.first == widget)
     }
 
     @Test func refusesToEditAnInvalidFile() {

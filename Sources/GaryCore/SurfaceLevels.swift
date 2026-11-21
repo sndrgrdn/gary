@@ -2,13 +2,14 @@ import Foundation
 
 public struct SurfaceLevels: Equatable, Sendable {
     public var bar: Int
+    public var barAside: Int
     public var layers: [SurfaceLayer: Int]
 
     private static let desktopIcon = -2147483603
     private static let mainMenu = 24
 
     private static func row(bar: Int) -> SurfaceLevels {
-        SurfaceLevels(bar: bar, layers: [
+        SurfaceLevels(bar: bar, barAside: mainMenu - 1, layers: [
             .desktop: desktopIcon - 1, .below: -1, .normal: 0, .top: 3, .overlay: 101, .notch: mainMenu + 3,
         ])
     }

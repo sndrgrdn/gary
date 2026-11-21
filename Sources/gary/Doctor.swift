@@ -59,7 +59,7 @@ struct Doctor {
 
         section("Window levels")
         let levels = SurfaceLevels.forSystem(version)
-        info("bar \(levels.bar)")
+        info("bar \(levels.bar), and \(levels.barAside) while the macOS menu bar is revealed")
         for layer in SurfaceLayer.allCases { info("\(layer.rawValue) \(levels.level(layer))") }
 
         section("Private API")

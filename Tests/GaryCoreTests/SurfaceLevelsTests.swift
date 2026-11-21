@@ -19,6 +19,7 @@ struct SurfaceLevelsTests {
             let stack = [SurfaceLayer.desktop, .below, .normal, .top].map(version.level)
             #expect(stack == stack.sorted())
             #expect(version.level(.notch) > version.bar)
+            #expect(version.barAside < 24)
             #expect(version.level(.overlay) > version.level(.notch))
         }
         #expect(levels(27, 2).level(.overlay) == 101)

@@ -88,6 +88,8 @@ final class Shell {
     private var displays: [DisplayInfo] = []
     private var bars = PerDisplay<BarWindow>()
     private var windows: [MountKey: SurfaceWindow] = [:]
+    private var barsAside: [String: Bool] = [:]
+    private var asideTimer: Timer?
     private var mounts: [MountKey: Mount] = [:]
     private var clickMonitors: [Any] = []
     private var hotkeys: HotkeyCenter?
@@ -371,11 +373,12 @@ final class Shell {
             spec.anchors = Edges(top: true, bottom: false, left: true, right: true)
             spec.height = .points(display.band)
             spec.exclusionMode = .ignore
-            window.place(spec, on: display, level: levels.bar)
+            window.place(spec, on: display, level: barLevel(display.id))
         } else if let spec = slot.surface {
             window.place(spec, on: display, level: levels.level(spec.layer))
         }
         if isNew {
+            if key.slot.kind == .bar { watchTopEdge(of: window.panel.contentView!) { [weak self] in self?.pointerReachedTop(key.display) } }
             window.show(fade: fade(key.slot))
             if key.slot.kind.isSurface, slot.surface?.focusable == true { focus(window, key.slot) }
             watchClicks()
@@ -460,6 +463,50 @@ final class Shell {
         }
     }
 
+    private func barLevel(_ display: String) -> Int {
+        barsAside[display] == nil ? levels.bar : levels.barAside
+    }
+
+    private func applyBarLevel(_ display: String) {
+        let aside = barsAside[display] != nil
+        let panels = [bars[display]?.panel].compactMap { $0 } + windows.filter { $0.key.slot.kind == .bar && $0.key.display == display }.map(\.value.panel)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = theme.motion.fade
+            for panel in panels {
+                panel.level = NSWindow.Level(rawValue: barLevel(display))
+                panel.animator().alphaValue = aside ? 0 : 1
+            }
+        }
+    }
+
+    private func pointerReachedTop(_ id: String) {
+        guard config.revealMenuBar, !SystemState.saved.menuBarHidden, barsAside[id] == nil, let display = displays.first(where: { $0.id == id }) else { return }
+        barsAside[id] = NativeMenuBar.revealed(on: display.frame)
+        applyBarLevel(id)
+        log("bar on \(id.prefix(8)) hides so the macOS menu bar can reveal")
+        guard asideTimer == nil else { return }
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in self?.returnBarsAside() }
+        RunLoop.main.add(timer, forMode: .common)
+        asideTimer = timer
+    }
+
+    private func returnBarsAside() {
+        let pointer = NSEvent.mouseLocation
+        for (id, menuBarWasShown) in barsAside {
+            if let display = displays.first(where: { $0.id == id }), config.revealMenuBar, !SystemState.saved.menuBarHidden {
+                let band = NSRect(x: display.frame.minX, y: display.frame.maxY - display.band, width: display.frame.width, height: display.band)
+                if NSMouseInRect(pointer, band, false) || (!menuBarWasShown && NativeMenuBar.revealed(on: display.frame)) { continue }
+            }
+            barsAside[id] = nil
+            applyBarLevel(id)
+            log("bar on \(id.prefix(8)) returns over the macOS menu bar")
+        }
+        if barsAside.isEmpty {
+            asideTimer?.invalidate()
+            asideTimer = nil
+        }
+    }
+
     private var panels: [NSPanel] { bars.surfaces.values.map(\.panel) + windows.values.map(\.panel) }
 
     private var appearance: NSAppearance? { NSAppearance(named: theme.mode == .dark ? .darkAqua : .aqua) }
@@ -478,8 +525,11 @@ final class Shell {
         let change = DisplayChange(from: displays, to: next)
         displays = next
         let theme = theme, appearance = appearance, level = levels.bar
-        let barChange = bars.sync(usesBuiltinBar ? next : [], open: { display in
+        let barChange = bars.sync(usesBuiltinBar ? next : [], open: { [weak self] display in
             let bar = BarWindow(display: display, level: level)
+            watchTopEdge(of: bar.panel.contentView!) { [weak self, weak bar] in
+                if let bar { self?.pointerReachedTop(bar.display.id) }
+            }
             bar.panel.appearance = appearance
             bar.layout(theme: theme)
             return bar

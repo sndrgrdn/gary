@@ -178,7 +178,8 @@ enum Skill {
 
     | Field | Meaning |
     | --- | --- |
-    | `bar` | `{ "left": [...], "center": [...], "right": [...] }`, lists of bar widget ids. Naming a widget here enables it. |
+    | `bar` | `{ "left": [...], "center": [...], "right": [...] }`, lists of bar widget ids. Naming a widget here enables it. Naming any section replaces the default sections. |
+    | `bar.revealMenuBar` | `true` by default: when the pointer reaches the top edge of a display, the bar hides so macOS can reveal its menu bar, and returns when the menu bar hides again. `false` keeps the bar over the macOS menu bar. While a plugin hides the menu bar with the `menubar` capability, the bar stays. |
     | `plugins` | Ids of enabled plugins that are not bar widgets, such as panels and services. |
     | `disabledPlugins` | Ids to turn off, including built-in ones. |
     | `settings` | `{ "<id>": { ... } }`. Each plugin reads its object as `state.settings`. |
