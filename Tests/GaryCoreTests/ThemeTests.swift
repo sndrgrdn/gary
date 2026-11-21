@@ -79,6 +79,18 @@ struct ThemeTests {
         #expect(theme.colors["bad"] == RGBA(hex: "#de6145"))
     }
 
+    @Test func surfacesDefaultToTheSystemFontAndTheBarKeepsMonospace() throws {
+        let theme = try theme()
+        #expect(theme.resolve(nil).font.family == .system)
+        #expect(theme.resolve("title").font.family == .system)
+        #expect(theme.resolve("mono").font.family == .monospaced)
+        #expect(theme.inBar.resolve(nil).font.family == .monospaced)
+        #expect(theme.inBar.resolve("active").font == FontToken(family: .monospaced, size: 12, weight: .bold))
+        let custom = try self.theme(#"{"bar":{"fonts":{"body":{"family":"Menlo","size":11}}}}"#)
+        #expect(custom.inBar.resolve(nil).font == FontToken(family: .named("Menlo"), size: 11, weight: .regular))
+        #expect(custom.resolve(nil).font.family == .system)
+    }
+
     @Test func terminalColoursStandInForNamedOnes() throws {
         let theme = try theme(palette: """
         background = "#1a1b26"
@@ -134,7 +146,7 @@ struct ThemeTests {
     @Test func theBundledThemeResolvesEveryStyle() throws {
         let theme = try theme()
         #expect(theme.style("active").color == RGBA(hex: "#7aa2f7"))
-        #expect(theme.style("active").font == FontToken(family: .monospaced, size: 12, weight: .bold))
+        #expect(theme.style("active").font == FontToken(family: .system, size: 13, weight: .semibold))
         #expect(theme.bar.background == RGBA(hex: "#1a1b26"))
         #expect(theme.spacing.item == 8)
     }
@@ -166,7 +178,7 @@ struct ThemeTests {
         #expect(resolved.padding == 4 && resolved.radius == 12)
         #expect(resolved.background == RGBA(hex: "#7aa2f7"))
         #expect(resolved.color == RGBA(hex: "#ff0000"))
-        #expect(resolved.font == FontToken(family: .monospaced, size: 20, weight: .regular))
+        #expect(resolved.font == FontToken(family: .system, size: 20, weight: .regular))
         #expect(theme.resolve(nil, props, hover: "hover").background == RGBA(red: 0xa9 / 255, green: 0xb1 / 255, blue: 0xd6 / 255, alpha: 0.1))
         #expect(theme.resolve(nil, StyleProps(color: "no-such-color")).color == theme.style("default").color)
         #expect(theme.motion.fade == 0.15)

@@ -31,6 +31,7 @@ public struct Theme: Equatable, Sendable {
     public struct Bar: Equatable, Sendable {
         public var height: Double
         public var background: RGBA
+        public var fonts: [String: FontToken]
     }
 
     public struct Motion: Equatable, Sendable {
@@ -47,6 +48,12 @@ public struct Theme: Equatable, Sendable {
     public var warnings: [String]
 
     public var mode: Palette.Mode { palette.mode }
+
+    public var inBar: Theme {
+        var theme = self
+        theme.fonts.merge(bar.fonts) { $1 }
+        return theme
+    }
 
     public func color(_ reference: String?) -> RGBA? {
         guard let reference, let expression = ColorExpr(reference) else { return nil }
@@ -113,19 +120,21 @@ public struct Theme: Equatable, Sendable {
         for name in chains.keys.sorted() {
             if let color = resolve(name, []) { colors[name] = color } else { warnings.append("colors.\(name): no colour resolves with this palette") }
         }
-        var fonts: [String: FontToken] = [:]
-        for (name, value) in try object(json["fonts"], "fonts") {
-            let fields = try object(value, "fonts.\(name)")
-            let family: FontToken.Family
-            switch fields["family"]?.string {
-            case "system"?: family = .system
-            case "monospaced"?: family = .monospaced
-            case let name?: family = .named(name)
-            case nil: throw fail("fonts.\(name).family", "must be a string")
+        func fonts(_ value: JSON?, _ path: String) throws -> [String: FontToken] {
+            try object(value, path).reduce(into: [:]) { fonts, entry in
+                let (name, value) = entry
+                let fields = try object(value, "\(path).\(name)")
+                let family: FontToken.Family
+                switch fields["family"]?.string {
+                case "system"?: family = .system
+                case "monospaced"?: family = .monospaced
+                case let name?: family = .named(name)
+                case nil: throw fail("\(path).\(name).family", "must be a string")
+                }
+                let weightName = fields["weight"]?.string ?? "regular"
+                guard let weight = FontToken.Weight(rawValue: weightName) else { throw fail("\(path).\(name).weight", "unknown weight \(weightName)") }
+                fonts[name] = FontToken(family: family, size: try number(fields["size"], "\(path).\(name).size"), weight: weight)
             }
-            let weightName = fields["weight"]?.string ?? "regular"
-            guard let weight = FontToken.Weight(rawValue: weightName) else { throw fail("fonts.\(name).weight", "unknown weight \(weightName)") }
-            fonts[name] = FontToken(family: family, size: try number(fields["size"], "fonts.\(name).size"), weight: weight)
         }
         let spacing = try object(json["spacing"], "spacing")
         let bar = try object(json["bar"], "bar")
@@ -133,13 +142,16 @@ public struct Theme: Equatable, Sendable {
         var theme = Theme(
             palette: palette,
             colors: colors,
-            fonts: fonts,
+            fonts: try fonts(json["fonts"], "fonts"),
             spacing: Spacing(
                 item: try number(spacing["item"], "spacing.item"),
                 section: try number(spacing["section"], "spacing.section"),
                 edge: try number(spacing["edge"], "spacing.edge")
             ),
-            bar: Bar(height: try number(bar["height"], "bar.height"), background: colors["bar"] ?? palette.background),
+            bar: Bar(
+                height: try number(bar["height"], "bar.height"), background: colors["bar"] ?? palette.background,
+                fonts: bar["fonts"] == nil ? [:] : try fonts(bar["fonts"], "bar.fonts")
+            ),
             motion: Motion(fade: try number(motion["fade"], "motion.fade")),
             styles: [:],
             warnings: []
@@ -151,7 +163,7 @@ public struct Theme: Equatable, Sendable {
             for (field, reference) in [("color", props.color), ("background", props.background)] {
                 if let reference, theme.color(reference) == nil { warnings.append("\(path).\(field): no colour \(reference) with this palette") }
             }
-            if let font = props.font, fonts[font] == nil { throw fail("\(path).font", "unknown font \(font)") }
+            if let font = props.font, theme.fonts[font] == nil { throw fail("\(path).font", "unknown font \(font)") }
             theme.styles[name] = props
         }
         let fallback = try theme.styles["default"] ?? { throw fail("styles.default", "must be an object") }()

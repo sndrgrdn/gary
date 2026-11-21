@@ -14,12 +14,20 @@
     "bar": "background"
   },
   "fonts": {
-    "body": { "family": "monospaced", "size": 12, "weight": "regular" },
-    "strong": { "family": "monospaced", "size": 12, "weight": "bold" },
-    "title": { "family": "monospaced", "size": 14, "weight": "semibold" }
+    "body": { "family": "system", "size": 13, "weight": "regular" },
+    "strong": { "family": "system", "size": 13, "weight": "semibold" },
+    "title": { "family": "system", "size": 15, "weight": "semibold" },
+    "mono": { "family": "monospaced", "size": 12, "weight": "regular" }
   },
   "spacing": { "item": 8, "section": 14, "edge": 16 },
-  "bar": { "height": 32 },
+  "bar": {
+    "height": 32,
+    "fonts": {
+      "body": { "family": "monospaced", "size": 12, "weight": "regular" },
+      "strong": { "family": "monospaced", "size": 12, "weight": "bold" },
+      "title": { "family": "monospaced", "size": 14, "weight": "semibold" }
+    }
+  },
   "motion": { "fade": 0.15 },
   "styles": {
     "default": { "color": "foreground", "font": "body" },
@@ -29,6 +37,7 @@
     "good": { "color": "good" },
     "bad": { "color": "bad" },
     "title": { "color": "bright", "font": "title" },
+    "mono": { "font": "mono" },
     "panel": { "background": "panel", "radius": 12, "padding": 14 },
     "surface": { "background": "panel", "radius": 12 },
     "hover": { "background": "hover", "radius": 6 },

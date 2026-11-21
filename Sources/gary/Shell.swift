@@ -77,7 +77,7 @@ final class Shell {
     private let capabilities: CapabilityNames
     private let levels = SurfaceLevels.forSystem(ProcessInfo.processInfo.operatingSystemVersion)
     private var theme: Theme
-    private var renderer: ViewRenderer
+    private var renderers: (bar: ViewRenderer, surface: ViewRenderer)
     private var themePayload: JSON?
     private var paletteFile: PaletteFile?
     private var systemMode = Palette.Mode(NSApp.effectiveAppearance)
@@ -102,7 +102,7 @@ final class Shell {
     init() throws {
         capabilities = try Capability.names()
         theme = try Theme.parse(try JSON.parse(Data(contentsOf: Paths.defaultTheme)), palette: Palette(nil, system: systemMode))
-        renderer = ViewRenderer(theme: theme)
+        renderers = (ViewRenderer(theme: theme.inBar), ViewRenderer(theme: theme))
         resolution = config.resolve(catalog)
     }
 
@@ -335,6 +335,7 @@ final class Shell {
         let slotKey = slot.key
         let onAction: ActionHandler = { [weak self] action, payload in self?.perform(action, payload, slotKey) }
         let started = now()
+        let renderer = renderer(slot.key.kind)
         let mutations: Int
         if let mounted = mounts[key] {
             if let patch = reconcile(mounted.node, tree) {
@@ -354,6 +355,10 @@ final class Shell {
             log(String(format: "commit plugin=%@ display=%@ cause=%@ since_ms=%.3f apply_ms=%.3f mut=%d tree=%@",
                        slot.key.id.rawValue, display, trace.cause, (end - trace.start) * 1000, (end - started) * 1000, mutations, tree.summary))
         }
+    }
+
+    private func renderer(_ kind: PluginKind) -> ViewRenderer {
+        kind == .bar || kind == .barWidget ? renderers.bar : renderers.surface
     }
 
     private func place(_ key: MountKey) {
@@ -585,11 +590,11 @@ final class Shell {
             guard next != theme else { return .ok("theme unchanged") }
             theme = next
             for warning in theme.warnings { log("theme \(warning)") }
-            renderer = ViewRenderer(theme: theme)
+            renderers = (ViewRenderer(theme: theme.inBar), ViewRenderer(theme: theme))
             for panel in panels { panel.appearance = appearance }
             refreshDisplays(trace)
             for bar in bars.surfaces.values { bar.layout(theme: theme) }
-            for mount in mounts.values { renderer.restyle(mount.view, mount.node) }
+            for (key, mount) in mounts { renderer(key.slot.kind).restyle(mount.view, mount.node) }
             for key in mounts.keys { place(key) }
             commitFrame()
             let json = theme.json

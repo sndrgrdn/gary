@@ -278,8 +278,8 @@ enum Skill {
     """
 
     private static func themeSection(_ theme: JSON?) -> String {
-        func entries(_ section: String) -> String {
-            guard let fields = theme?[section]?.object else { return "- (the theme is not bundled with this binary)" }
+        func entries(_ value: JSON?) -> String {
+            guard let fields = value?.object else { return "- (the theme is not bundled with this binary)" }
             return fields.keys.sorted().map { "- `\($0)`: `\(fields[$0]!.text)`" }.joined(separator: "\n")
         }
         return """
@@ -289,15 +289,19 @@ enum Skill {
 
         Styles:
 
-        \(entries("styles"))
+        \(entries(theme?["styles"]))
 
         Colors:
 
-        \(entries("colors"))
+        \(entries(theme?["colors"]))
 
-        Fonts:
+        Fonts, which panels, overlays, and menus use:
 
-        \(entries("fonts"))
+        \(entries(theme?["fonts"]))
+
+        Fonts in the bar and its widgets, which replace the fonts of the same name there:
+
+        \(entries(theme?["bar"]?["fonts"]))
         """
     }
 
