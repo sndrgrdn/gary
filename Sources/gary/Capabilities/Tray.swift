@@ -75,23 +75,24 @@ extension Capability {
     })
 }
 
-private func attribute(_ element: AXUIElement, _ name: String) -> AnyObject? {
-    var value: AnyObject?
-    return AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success ? value : nil
+private func attribute<Value>(_ element: AXUIElement, _ name: String, as _: Value.Type) -> Value? {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
+    return value as? Value
 }
 
 private func children(_ element: AXUIElement, _ name: String = kAXChildrenAttribute) -> [AXUIElement] {
-    attribute(element, name) as? [AXUIElement] ?? []
+    attribute(element, name, as: [AXUIElement].self) ?? []
 }
 
 private func frame(_ element: AXUIElement) -> CGRect {
     var origin = CGPoint.zero
     var size = CGSize.zero
-    if let value = attribute(element, kAXPositionAttribute) {
-        AXValueGetValue(value as! AXValue, .cgPoint, &origin)
+    if let position = attribute(element, kAXPositionAttribute, as: AXValue.self) {
+        AXValueGetValue(position, .cgPoint, &origin)
     }
-    if let value = attribute(element, kAXSizeAttribute) {
-        AXValueGetValue(value as! AXValue, .cgSize, &size)
+    if let extent = attribute(element, kAXSizeAttribute, as: AXValue.self) {
+        AXValueGetValue(extent, .cgSize, &size)
     }
     return CGRect(origin: origin, size: size)
 }
@@ -109,11 +110,11 @@ private func scan() throws -> [TrayItem] {
             var pid: pid_t = 0
             AXUIElementGetPid(child, &pid)
             let owner = NSRunningApplication(processIdentifier: pid)
-            let button = attribute(child, kAXRoleAttribute) as? String == kAXButtonRole
+            let button = attribute(child, kAXRoleAttribute, as: String.self) == kAXButtonRole
             elements.append(TrayElement(
                 frame: frame(group), app: owner?.bundleIdentifier ?? "pid:\(pid)", name: owner?.localizedName ?? "", pid: pid,
-                title: button ? attribute(child, kAXTitleAttribute) as? String : nil,
-                detail: button ? attribute(child, kAXDescriptionAttribute) as? String : nil,
+                title: button ? attribute(child, kAXTitleAttribute, as: String.self) : nil,
+                detail: button ? attribute(child, kAXDescriptionAttribute, as: String.self) : nil,
             ))
         }
     }
@@ -168,17 +169,11 @@ private func passClicks(at point: CGPoint) -> () -> Void {
     } }
 }
 
-private func windowList(_ options: CGWindowListOption) -> [[String: Any]] {
-    CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
-}
-
 private func popups() -> [CGWindowID] {
     let skipped = Set([getpid()] + NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MenuBarAgent").map(\.processIdentifier))
-    return windowList([.optionOnScreenOnly]).compactMap { info in
-        guard let owner = info[kCGWindowOwnerPID as String] as? pid_t, !skipped.contains(owner),
-              let layer = info[kCGWindowLayer as String] as? Int, layer > Int(CGWindowLevelForKey(.mainMenuWindow)) else { return nil }
-        return info[kCGWindowNumber as String] as? CGWindowID
-    }
+    return WindowInfo.list([.optionOnScreenOnly])
+        .filter { !skipped.contains($0.owner) && $0.layer > Int(CGWindowLevelForKey(.mainMenuWindow)) }
+        .map(\.id)
 }
 
 private typealias CreateImage = @convention(c) (CGRect, CFArray, CGWindowImageOption) -> Unmanaged<CGImage>?
@@ -192,16 +187,10 @@ private func capture(_ items: [TrayItem]) -> (paths: [String: String], error: St
         [:],
         "MenuBarAgent is not running",
     ) }
-    let windows = (CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { info -> (
-        id: CGWindowID,
-        bounds: CGRect
-    )? in
-        guard info[kCGWindowOwnerPID as String] as? pid_t == agent,
-              info[kCGWindowLayer as String] as? Int == Int(CGWindowLevelForKey(.mainMenuWindow)),
-              let id = info[kCGWindowNumber as String] as? CGWindowID,
-              let bounds = (info[kCGWindowBounds as String] as! CFDictionary?).flatMap({ CGRect(dictionaryRepresentation: $0) }),
-              bounds.height <= 60 else { return nil }
-        return (id, bounds)
+    let windows = WindowInfo.list([.optionAll]).compactMap { window -> (id: CGWindowID, bounds: CGRect)? in
+        guard window.owner == agent, window.layer == Int(CGWindowLevelForKey(.mainMenuWindow)),
+              let bounds = window.bounds, bounds.height <= 60 else { return nil }
+        return (window.id, bounds)
     }
     let hosts = Dictionary(windows.map { ("\($0.bounds.origin)", $0) }, uniquingKeysWith: { $0.id > $1.id ? $0 : $1 }).values
     var paths: [String: String] = [:]
