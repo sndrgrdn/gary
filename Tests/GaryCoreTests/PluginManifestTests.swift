@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import GaryCore
 
-let testCapabilities = try! CapabilityNames(uses: ["exec", "network", "files"])
+let testCapabilities = try! CapabilityNames([("battery", false, true), ("clock", false, true), ("exec", true, false), ("files", true, false), ("network", true, false)])
 
 struct PluginManifestTests {
     private func manifest(_ fields: [String: Any], origin: PluginOrigin = .user, capabilities: CapabilityNames = testCapabilities) throws -> PluginManifest {
@@ -28,7 +28,7 @@ struct PluginManifestTests {
         #expect(parsed.kinds == [.service, .barWidget])
         #expect(parsed.entryPoints == [.service: "lib/service.js", .barWidget: "widget.js"])
         #expect(parsed.keepLoaded)
-        #expect(parsed.subscribes == [.clock, .battery, .plugin(PluginID("acme.counter")!)])
+        #expect(parsed.subscribes == [.capability("clock"), .capability("battery"), .plugin(PluginID("acme.counter")!)])
         #expect(parsed.uses == ["exec", "network", "files"])
     }
 
@@ -87,10 +87,15 @@ struct PluginManifestTests {
         rejects(["uses": ["dbus"]], with: .unknownService("dbus"))
     }
 
-    @Test func usesAcceptsExactlyTheRegisteredCapabilities() throws {
-        let wifi = try CapabilityNames(uses: ["wifi"])
-        #expect(try manifest(["uses": ["wifi"]], capabilities: wifi).uses == ["wifi"])
-        #expect(throws: ManifestError.unknownService("exec")) { try manifest(["uses": ["wifi", "exec"]], capabilities: wifi) }
+    @Test func usesNamesCapabilitiesWithAnAPIAndSubscribesNamesCapabilitiesWithATopic() throws {
+        let registry = try CapabilityNames([("wifi", true, true), ("volume", true, false), ("battery", false, true)])
+        let parsed = try manifest(["uses": ["wifi", "volume"], "subscribes": ["wifi", "battery"]], capabilities: registry)
+        #expect(parsed.uses == ["wifi", "volume"])
+        #expect(parsed.subscribes == [.capability("wifi"), .capability("battery")])
+        #expect(throws: ManifestError.unknownService("battery")) { try manifest(["uses": ["battery"]], capabilities: registry) }
+        #expect(throws: ManifestError.unknownService("exec")) { try manifest(["uses": ["exec"]], capabilities: registry) }
+        #expect(throws: ManifestError.unknownTopic("volume")) { try manifest(["subscribes": ["volume"]], capabilities: registry) }
+        #expect(throws: ManifestError.unknownTopic("clock")) { try manifest(["subscribes": ["clock"]], capabilities: registry) }
     }
 
     @Test func parsesHotkeysIntoModifiersAndKeyCodes() throws {

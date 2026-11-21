@@ -8,23 +8,12 @@ public enum PluginKind: String, CaseIterable, Sendable {
 }
 
 public enum Topic: Hashable, Sendable, CustomStringConvertible {
-    case battery, clock
+    case capability(String)
     case plugin(PluginID)
-
-    public init?(_ raw: String) {
-        switch raw {
-        case "battery": self = .battery
-        case "clock": self = .clock
-        default:
-            guard let id = PluginID(raw) else { return nil }
-            self = .plugin(id)
-        }
-    }
 
     public var description: String {
         switch self {
-        case .battery: return "battery"
-        case .clock: return "clock"
+        case .capability(let name): return name
         case .plugin(let id): return id.rawValue
         }
     }
@@ -160,8 +149,9 @@ public struct PluginManifest: Equatable, Sendable {
 
         let keepLoaded = try optional("keepLoaded", \.bool, default: false)
         let subscribes = try optional("subscribes", strings, default: []).map { raw in
-            guard let topic = Topic(raw) else { throw ManifestError.unknownTopic(raw) }
-            return topic
+            if capabilities.topics.contains(raw) { return Topic.capability(raw) }
+            guard let id = PluginID(raw) else { throw ManifestError.unknownTopic(raw) }
+            return .plugin(id)
         }
         let uses = try optional("uses", strings, default: [])
         if let unknown = uses.first(where: { !capabilities.uses.contains($0) }) { throw ManifestError.unknownService(unknown) }

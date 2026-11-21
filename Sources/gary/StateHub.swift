@@ -10,10 +10,6 @@ final class StateHub {
     private var latest: [Topic: JSON] = [:]
     private var subscribers: [Topic: [ObjectIdentifier: Subscriber]] = [:]
 
-    func publish<S: Snapshot>(_ snapshot: S, _ trace: Trace) {
-        publish(S.topic, snapshot.json, trace)
-    }
-
     func publish(_ topic: Topic, _ value: JSON, _ trace: Trace) {
         let targets: [Subscriber] = lock.withLock {
             guard latest[topic] != value else { return [] }

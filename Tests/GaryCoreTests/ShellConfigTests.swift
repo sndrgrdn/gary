@@ -79,7 +79,7 @@ struct ShellConfigTests {
     @Test func subscriptionsToPluginsThatAreMissingOrOffAreWarnings() throws {
         let plugins = catalog(
             [("acme.counter", .user, [.service]), ("acme.view", .user, [.barWidget]), ("acme.off", .user, [.service])],
-            subscribes: ["acme.view": [.clock, .plugin(id("acme.counter")), .plugin(id("acme.off")), .plugin(id("acme.ghost"))]]
+            subscribes: ["acme.view": [.capability("clock"), .plugin(id("acme.counter")), .plugin(id("acme.off")), .plugin(id("acme.ghost"))]]
         )
         let resolution = try config(#"{"bar": {"left": ["acme.view"]}, "plugins": ["acme.counter"]}"#).resolve(plugins)
         #expect(resolution.warnings == ["acme.view subscribes to acme.off, which is not enabled", "acme.view subscribes to acme.ghost, which is not installed"])

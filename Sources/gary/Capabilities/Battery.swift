@@ -2,25 +2,28 @@ import Foundation
 import GaryCore
 import IOKit.ps
 
-final class BatteryProvider {
-    private let hub: StateHub
+extension Capability {
+    static let battery = Capability(name: "battery", topic: { BatteryTopic($0) })
+}
 
-    init(hub: StateHub) { self.hub = hub }
+private final class BatteryTopic {
+    private let publish: (JSON, Trace) -> Void
 
-    func start() {
+    init(_ publish: @escaping (JSON, Trace) -> Void) {
+        self.publish = publish
         let context = Unmanaged.passUnretained(self).toOpaque()
         let source = IOPSNotificationCreateRunLoopSource({ context in
-            Unmanaged<BatteryProvider>.fromOpaque(context!).takeUnretainedValue().publish(Trace("battery"))
+            Unmanaged<BatteryTopic>.fromOpaque(context!).takeUnretainedValue().send(Trace("battery"))
         }, context).takeRetainedValue()
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        publish(Trace("battery-start"))
+        send(Trace("battery-start"))
     }
 
-    private func publish(_ trace: Trace) {
-        hub.publish(Self.read(), trace)
+    private func send(_ trace: Trace) {
+        publish(Self.read(), trace)
     }
 
-    static func read() -> BatterySnapshot {
+    private static func read() -> JSON {
         let info = IOPSCopyPowerSourcesInfo().takeRetainedValue()
         let list = IOPSCopyPowerSourcesList(info).takeRetainedValue() as [CFTypeRef]
         let acPower = (IOPSGetProvidingPowerSourceType(info)?.takeUnretainedValue() as String?) == kIOPMACPowerKey
@@ -29,12 +32,17 @@ final class BatteryProvider {
                   description[kIOPSTypeKey] as? String == kIOPSInternalBatteryType,
                   let current = description[kIOPSCurrentCapacityKey] as? Int,
                   let maximum = description[kIOPSMaxCapacityKey] as? Int, maximum > 0 else { continue }
-            return BatterySnapshot(
-                percent: min(100, current * 100 / maximum),
-                charging: description[kIOPSIsChargingKey] as? Bool ?? false,
-                source: acPower ? .ac : .battery
-            )
+            return snapshot(percent: min(100, current * 100 / maximum), charging: description[kIOPSIsChargingKey] as? Bool ?? false, ac: acPower)
         }
-        return BatterySnapshot(percent: nil, charging: false, source: .ac)
+        return snapshot(percent: nil, charging: false, ac: true)
+    }
+
+    private static func snapshot(percent: Int?, charging: Bool, ac: Bool) -> JSON {
+        .object([
+            "present": .bool(percent != nil),
+            "percent": percent.map { .number(Double($0)) } ?? .null,
+            "charging": .bool(charging),
+            "source": .string(ac ? "ac" : "battery"),
+        ])
     }
 }

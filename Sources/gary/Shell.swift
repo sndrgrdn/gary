@@ -85,7 +85,7 @@ final class Shell {
     private var previousApp: NSRunningApplication?
     private var server: LineServer?
     private var watcher: FileWatcher?
-    private var providers: [AnyObject] = []
+    private var publishers: [AnyObject] = []
     private var signals: [DispatchSourceSignal] = []
 
     init() throws {
@@ -104,10 +104,9 @@ final class Shell {
         loadConfig()
         scan()
 
-        let clock = ClockProvider(hub: hub), battery = BatteryProvider(hub: hub)
-        providers = [clock, battery]
-        clock.start()
-        battery.start()
+        publishers = Capability.all.compactMap { capability in
+            capability.topic.map { start in start { [hub] value, trace in hub.publish(.capability(capability.name), value, trace) } }
+        }
 
         rebuildDisplays(Trace("start"))
         sync(Trace("start"))

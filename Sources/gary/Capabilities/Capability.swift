@@ -9,14 +9,17 @@ struct Capability {
     let name: String
     var permission: Permission?
     var install: ((JSValue, PluginRuntime) -> Void)?
+    var topic: ((@escaping (JSON, Trace) -> Void) -> AnyObject)?
 
     static let all: [Capability] = [
+        .battery,
+        .clock,
         .exec,
         .files,
         .network,
     ]
 
     static func names() throws -> CapabilityNames {
-        try CapabilityNames(uses: all.filter { $0.install != nil }.map(\.name))
+        try CapabilityNames(all.map { ($0.name, $0.install != nil, $0.topic != nil) })
     }
 }
