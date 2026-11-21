@@ -25,19 +25,21 @@ public enum JSON: Equatable, Sendable {
     }
 
     public func encoded() -> Data {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        return try! encoder.encode(self)
+        encoded(formatting: [])
     }
 
     public var text: String {
-        String(decoding: encoded(), as: UTF8.self)
+        String(bytes: encoded(), encoding: .utf8) ?? "null"
     }
 
     public var prettyText: String {
+        (String(bytes: encoded(formatting: .prettyPrinted), encoding: .utf8) ?? "null") + "\n"
+    }
+
+    private func encoded(formatting: JSONEncoder.OutputFormatting) -> Data {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes, .prettyPrinted]
-        return String(decoding: try! encoder.encode(self), as: UTF8.self) + "\n"
+        encoder.outputFormatting = formatting.union([.sortedKeys, .withoutEscapingSlashes])
+        return (try? encoder.encode(self)) ?? Data("null".utf8)
     }
 
     public subscript(key: String) -> JSON? {
@@ -48,33 +50,28 @@ public enum JSON: Equatable, Sendable {
     }
 
     public var string: String? {
-        if case let .string(s) = self {
-            return s
-        }; return nil
+        guard case let .string(value) = self else { return nil }
+        return value
     }
 
     public var number: Double? {
-        if case let .number(n) = self {
-            return n
-        }; return nil
+        guard case let .number(value) = self else { return nil }
+        return value
     }
 
     public var bool: Bool? {
-        if case let .bool(b) = self {
-            return b
-        }; return nil
+        guard case let .bool(value) = self else { return nil }
+        return value
     }
 
     public var array: [JSON]? {
-        if case let .array(a) = self {
-            return a
-        }; return nil
+        guard case let .array(value) = self else { return nil }
+        return value
     }
 
     public var object: [String: JSON]? {
-        if case let .object(o) = self {
-            return o
-        }; return nil
+        guard case let .object(value) = self else { return nil }
+        return value
     }
 
     public func merging(_ override: JSON) -> JSON {
