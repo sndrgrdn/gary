@@ -1,6 +1,5 @@
 import AppKit
 import GaryCore
-import GaryPrivate
 import GarySocket
 
 enum Paths {
@@ -109,7 +108,7 @@ final class Shell {
             source.resume()
             signals.append(source)
         }
-        log("ready pid=\(getpid()) levels=bar:\(levels.bar),panel:\(levels.panel) capabilities=\(gary_capabilities().rawValue) plugins=\(catalog.sortedIDs.map(\.rawValue).joined(separator: ","))")
+        log("ready pid=\(getpid()) levels=bar:\(levels.bar),panel:\(levels.panel) plugins=\(catalog.sortedIDs.map(\.rawValue).joined(separator: ","))")
     }
 
     private func quit() {
