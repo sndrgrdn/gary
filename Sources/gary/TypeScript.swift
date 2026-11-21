@@ -6,20 +6,19 @@ final class TypeScript {
     static let idle: TimeInterval = 30
 
     private let lock = NSLock()
-    private var transform: JSValue?
+    private var transpiler: (context: JSContext, transform: JSValue)?
     private var release: DispatchWorkItem?
 
     func strip(_ source: String, file: String) throws -> String {
         try lock.withLock {
             let started = now()
-            let loaded = self.transform != nil
-            let transform = try self.transform ?? load()
-            self.transform = transform
+            let loaded = transpiler != nil
+            let (context, transform) = try transpiler ?? load()
+            transpiler = (context, transform)
             release?.cancel()
-            let work = DispatchWorkItem { [weak self] in self?.lock.withLock { self?.transform = nil } }
+            let work = DispatchWorkItem { [weak self] in self?.lock.withLock { self?.transpiler = nil } }
             release = work
             DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + Self.idle, execute: work)
-            let context = transform.context!
             context.exception = nil
             let result = transform.call(withArguments: [source])
             if tracing {
@@ -32,15 +31,16 @@ final class TypeScript {
         }
     }
 
-    private func load() throws -> JSValue {
-        let url = Bundle.main.resourceURL!.appending(path: "sucrase.js")
-        let context = JSContext()!
+    private func load() throws -> (context: JSContext, transform: JSValue) {
+        guard let resources = Bundle.main.resourceURL else { throw RenderError("cannot load the TypeScript transpiler: no resource directory") }
+        let url = resources.appending(path: "sucrase.js")
+        guard let context = JSContext() else { throw RenderError("cannot load the TypeScript transpiler: no JavaScript context") }
         try context.evaluateScript(String(contentsOf: url, encoding: .utf8), withSourceURL: url)
         guard context.exception == nil, let transform = context.evaluateScript("""
         (function (source) {
           return Sucrase.transform(source, { transforms: ["typescript"], disableESTransforms: true }).code;
         })
         """), transform.isObject else { throw RenderError("cannot load the TypeScript transpiler from \(url.path)") }
-        return transform
+        return (context, transform)
     }
 }

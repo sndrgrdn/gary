@@ -40,8 +40,7 @@ final class PluginRuntime: Subscriber {
     private let deliver: (PluginRuntime, RuntimeEvent) -> Void
     let queue: DispatchQueue
     private let watchdog = Watchdog()
-    private var context: JSContext?
-    private var functions: (render: JSValue, dispatch: JSValue, call: JSValue, surface: JSValue)?
+    private var functions: PluginFunctions?
     private var exception: String?
     private var state: [Topic: JSON] = [:]
     private var theme: JSON
@@ -80,11 +79,11 @@ final class PluginRuntime: Subscriber {
         queue.async { [self] in
             state = hub.subscribe(self, to: bundle.manifest.subscribes)
             do {
-                try evaluate()
+                let functions = try evaluate()
                 for (topic, value) in state.sorted(by: { $0.key.description < $1.key.description }) {
-                    try announce(topic, value)
+                    try announce(topic, value, to: functions)
                 }
-                output = try renderOutput()
+                output = try renderOutput(functions)
                 deliver(self, .loaded(output, trace))
             } catch {
                 teardown()
@@ -114,9 +113,9 @@ final class PluginRuntime: Subscriber {
     func receive(_ topic: Topic, _ value: JSON, _ trace: Trace) {
         queue.async { [self] in
             state[topic] = value
-            guard functions != nil else { return }
+            guard let functions else { return }
             do {
-                try announce(topic, value)
+                try announce(topic, value, to: functions)
                 renderAll(trace)
             } catch {
                 fail("\(error)")
@@ -124,8 +123,8 @@ final class PluginRuntime: Subscriber {
         }
     }
 
-    private func announce(_ topic: Topic, _ value: JSON) throws {
-        try invoke(functions!.dispatch, ["onTopic", JSON.array([.string(topic.description), value]).text, stateText(for: nil)])
+    private func announce(_ topic: Topic, _ value: JSON, to functions: PluginFunctions) throws {
+        try invoke(functions.dispatch, ["onTopic", JSON.array([.string(topic.description), value]).text, stateText(for: nil)])
     }
 
     func perform(_ action: String, _ payload: JSON) {
@@ -179,9 +178,9 @@ final class PluginRuntime: Subscriber {
     }
 
     private func renderAll(_ trace: Trace, always: Bool = false) {
-        guard functions != nil else { return }
+        guard let functions else { return }
         do {
-            let next = try renderOutput()
+            let next = try renderOutput(functions)
             guard always || next != output else { return }
             output = next
             deliver(self, .output(next, trace))
@@ -190,18 +189,18 @@ final class PluginRuntime: Subscriber {
         }
     }
 
-    private func renderOutput() throws -> RuntimeOutput {
+    private func renderOutput(_ functions: PluginFunctions) throws -> RuntimeOutput {
         guard scene.shown else { return RuntimeOutput() }
         var next = RuntimeOutput()
         var targets = scene.displays
         if kind.isSurface {
-            let text = try invoke(functions!.surface, [stateText(for: nil)]).toString() ?? "null"
+            let text = try invoke(functions.surface, [stateText(for: nil)]).toString() ?? "null"
             let surface = try SurfaceSpec.parse(JSON.parse(text), kind: kind)
             targets = surface.screen.select(targets, focused: scene.focused)
             next.surface = surface
         }
         for display in targets {
-            next.trees[display.id] = try render(display)
+            next.trees[display.id] = try render(display, with: functions)
         }
         return next
     }
@@ -222,10 +221,122 @@ final class PluginRuntime: Subscriber {
         }
         stops = []
         functions = nil
-        context = nil
     }
 
-    private func addTimer(_ callback: JSValue, milliseconds: Double, repeats: Bool) -> Int {
+    var isRunning: Bool {
+        functions != nil
+    }
+
+    func onStop(_ stop: @escaping () -> Void) {
+        stops.append(stop)
+    }
+
+    func callBack(_ callback: JSValue, _ arguments: [Any], _ trace: Trace) {
+        guard isRunning else { return }
+        do {
+            try invoke(callback, arguments)
+            renderAll(trace)
+        } catch {
+            fail("\(error)")
+        }
+    }
+
+    private func render(_ display: DisplayInfo, with functions: PluginFunctions) throws -> Node {
+        let text = try invoke(functions.render, [stateText(for: display)])
+        guard text.isString, let json = text.toString() else { throw RenderError("render returned nothing") }
+        return try Node.parse(Data(json.utf8)).resolvingImages(against: bundle.directory)
+    }
+
+    private func stateText(for display: DisplayInfo?) -> String {
+        var fields = Dictionary(uniqueKeysWithValues: state.map { ($0.key.description, $0.value) })
+        fields["settings"] = settings
+        fields["theme"] = theme
+        fields["display"] = display?.json
+        return JSON.object(fields).text
+    }
+}
+
+private extension PluginRuntime {
+    func evaluate() throws -> PluginFunctions {
+        let url = try bundle.entryPoint(kind)
+        var source = try String(contentsOf: url, encoding: .utf8)
+        if url.pathExtension == "ts" {
+            source = try TypeScript.shared.strip(source, file: url.lastPathComponent)
+        }
+        guard let context = JSContext() else { throw RenderError("no JavaScript context") }
+        context.name = "\(id)"
+        context.exceptionHandler = { [weak self] _, value in self?.exception = value?.toString() ?? "unknown exception" }
+        if !gary_script_time_limit(context.jsGlobalContextRef, Self.timeLimit, { _, info in
+            if let info {
+                Unmanaged<Watchdog>.fromOpaque(info).takeUnretainedValue().fired = true
+            }
+            return true
+        }, Unmanaged.passUnretained(watchdog).toOpaque()) {
+            log("plugin \(id): no script time limit on this system")
+        }
+        let host = try makeHost(in: context)
+        for capability in Capability.all where bundle.manifest.uses.contains(capability.name) {
+            capability.install?(host, self)
+        }
+        context.setObject(host, forKeyedSubscript: "host" as NSString)
+        try installTimers(in: context)
+        context.evaluateScript("var module = { exports: {} }; var exports = module.exports;")
+        try check { context.evaluateScript(source, withSourceURL: url) }
+        let wrappers = try check { context.evaluateScript(PluginScripts.functions)?.call(withArguments: [kind == .service]) }
+        let functions = PluginFunctions(wrappers)
+        self.functions = functions
+        return functions
+    }
+
+    func installTimers(in context: JSContext) throws {
+        let add: @convention(block) (JSValue, Double, Bool) -> Int = { [weak self] callback, milliseconds, repeats in
+            self?.addTimer(callback, milliseconds: milliseconds, repeats: repeats) ?? 0
+        }
+        let clear: @convention(block) (Int) -> Void = { [weak self] id in self?.timers.removeValue(forKey: id)?.cancel() }
+        try check { context.evaluateScript(PluginScripts.timers)?.call(withArguments: [add, clear]) }
+    }
+
+    func makeHost(in context: JSContext) throws -> JSValue {
+        let id = id
+        let logBlock: @convention(block) (String) -> Void = { message in log("plugin \(id): \(message)") }
+        let storageURL = Paths.storage.appending(path: "\(id).json")
+        let read: @convention(block) () -> String? = { try? String(contentsOf: storageURL, encoding: .utf8) }
+        let write: @convention(block) (String) -> Void = { text in
+            do {
+                try FileManager.default.createDirectory(at: Paths.storage, withIntermediateDirectories: true)
+                try Data(text.utf8).write(to: storageURL, options: .atomic)
+            } catch {
+                log("plugin \(id): storage not saved: \(error)")
+            }
+        }
+        let publishBlock: @convention(block) (JSValue) -> Void = { [weak self] value in
+            guard let self, let text = value.context.objectForKeyedSubscript("JSON").invokeMethod("stringify", withArguments: [value]).toString(),
+                  let json = try? JSON.parse(text) else { return }
+            hub.publish(.plugin(id), json, Trace("publish"))
+        }
+        let surfaceBlocks = [SurfaceRequest.show, .hide, .toggle].map { request in
+            { [weak self] in
+                guard let self else { return }
+                deliver(self, .surface(request))
+            } as @convention(block) () -> Void
+        }
+        let callBlock: @convention(block) (String, [String], JSValue, JSValue) -> Void = { [weak self] method, arguments, resolve, reject in
+            guard let self else { return }
+            deliver(self, .call(method: method, arguments: arguments) { [weak self] response in
+                self?.queue.async {
+                    switch response {
+                    case let .ok(text): self?.callBack(resolve, [text], Trace("host.call"))
+                    case let .failure(message): self?.callBack(reject, [message], Trace("host.call"))
+                    }
+                }
+            })
+        }
+        return try check {
+            context.evaluateScript(PluginScripts.host)?.call(withArguments: [logBlock, read, write, publishBlock] + surfaceBlocks + [callBlock])
+        }
+    }
+
+    func addTimer(_ callback: JSValue, milliseconds: Double, repeats: Bool) -> Int {
         let id = nextTimer
         nextTimer += 1
         let interval = max(repeats ? 10 : 0, milliseconds.isFinite ? milliseconds : 0) / 1000
@@ -247,191 +358,13 @@ final class PluginRuntime: Subscriber {
         return id
     }
 
-    var isRunning: Bool {
-        functions != nil
-    }
-
-    func onStop(_ stop: @escaping () -> Void) {
-        stops.append(stop)
-    }
-
-    func callBack(_ callback: JSValue, _ arguments: [Any], _ trace: Trace) {
-        guard isRunning else { return }
-        do {
-            try invoke(callback, arguments)
-            renderAll(trace)
-        } catch {
-            fail("\(error)")
-        }
-    }
-
-    private func evaluate() throws {
-        let url = try bundle.entryPoint(kind)
-        var source = try String(contentsOf: url, encoding: .utf8)
-        if url.pathExtension == "ts" {
-            source = try TypeScript.shared.strip(source, file: url.lastPathComponent)
-        }
-        let context = JSContext()!
-        context.name = "\(id)"
-        context.exceptionHandler = { [weak self] _, value in self?.exception = value?.toString() ?? "unknown exception" }
-        if !gary_script_time_limit(context.jsGlobalContextRef, Self.timeLimit, { _, info in
-            Unmanaged<Watchdog>.fromOpaque(info!).takeUnretainedValue().fired = true
-            return true
-        }, Unmanaged.passUnretained(watchdog).toOpaque()) {
-            log("plugin \(id): no script time limit on this system")
-        }
-        let host = makeHost(in: context)
-        for capability in Capability.all where bundle.manifest.uses.contains(capability.name) {
-            capability.install?(host, self)
-        }
-        context.setObject(host, forKeyedSubscript: "host" as NSString)
-        installTimers(in: context)
-        context.evaluateScript("var module = { exports: {} }; var exports = module.exports;")
-        try check { context.evaluateScript(source, withSourceURL: url) }
-        let wrappers = try check { context.evaluateScript("""
-        (function (m, headless) {
-          var e = function () { return m.exports; };
-          if (!headless && typeof e().render !== "function") throw new Error("module.exports.render is not a function");
-          return [
-            function (state) { return JSON.stringify(e().render(JSON.parse(state))); },
-            function (name, args, state) {
-              var f = e()[name];
-              if (typeof f !== "function") return null;
-              return f.apply(e(), JSON.parse(args).concat([JSON.parse(state)])) === true;
-            },
-            function (method, args, done) {
-              var f = e().methods && e().methods[method];
-              if (typeof f !== "function") throw new Error("no method " + method);
-              var r = f.apply(null, JSON.parse(args));
-              var text = function (v) { return v === undefined ? "" : JSON.stringify(v); };
-              if (!r || typeof r.then !== "function") return done(true, text(r));
-              r.then(function (v) { done(true, text(v)); }, function (x) { done(false, x instanceof Error ? x.message : String(x)); });
-            },
-            function (state) {
-              var s = e().surface;
-              if (typeof s === "function") s = s(JSON.parse(state));
-              return JSON.stringify(s === undefined ? null : s);
-            }
-          ];
-        })
-        """)?.call(withArguments: [context.objectForKeyedSubscript("module")!, kind == .service]) }
-        self.context = context
-        functions = (wrappers.atIndex(0), wrappers.atIndex(1), wrappers.atIndex(2), wrappers.atIndex(3))
-    }
-
-    private func installTimers(in context: JSContext) {
-        let add: @convention(block) (JSValue, Double, Bool) -> Int = { [weak self] callback, milliseconds, repeats in
-            self?.addTimer(callback, milliseconds: milliseconds, repeats: repeats) ?? 0
-        }
-        let clear: @convention(block) (Int) -> Void = { [weak self] id in self?.timers.removeValue(forKey: id)?.cancel() }
-        context.evaluateScript("""
-        (function (g, add, clear) {
-          function timer(repeats) {
-            return function (f, ms) {
-              var args = Array.prototype.slice.call(arguments, 2);
-              if (typeof f !== "function") throw new TypeError("timer callback must be a function");
-              return add(function () { f.apply(null, args); }, Number(ms) || 0, repeats);
-            };
-          }
-          g.setTimeout = timer(false);
-          g.setInterval = timer(true);
-          g.clearTimeout = g.clearInterval = function (id) { if (typeof id === "number") clear(id); };
-        })
-        """).call(withArguments: [context.globalObject!, add, clear])
-    }
-
-    private func makeHost(in context: JSContext) -> JSValue {
-        let host = JSValue(newObjectIn: context)!
-        let id = id
-        let logBlock: @convention(block) (String) -> Void = { message in log("plugin \(id): \(message)") }
-        host.setObject(logBlock, forKeyedSubscript: "log" as NSString)
-        let storageURL = Paths.storage.appending(path: "\(id).json")
-        let read: @convention(block) () -> String? = { try? String(contentsOf: storageURL, encoding: .utf8) }
-        let write: @convention(block) (String) -> Void = { text in
-            do {
-                try FileManager.default.createDirectory(at: Paths.storage, withIntermediateDirectories: true)
-                try Data(text.utf8).write(to: storageURL, options: .atomic)
-            } catch {
-                log("plugin \(id): storage not saved: \(error)")
-            }
-        }
-        host.setObject(context.evaluateScript("""
-        (function (read, write) {
-          var data = null;
-          function load() {
-            if (data !== null) return;
-            var text = read();
-            try { data = text ? JSON.parse(text) : {}; } catch (e) { data = {}; }
-          }
-          return {
-            get: function (key) { load(); return data[key]; },
-            set: function (key, value) {
-              load();
-              if (value === undefined) delete data[key]; else data[key] = JSON.parse(JSON.stringify(value));
-              write(JSON.stringify(data));
-            }
-          };
-        })
-        """).call(withArguments: [read, write]), forKeyedSubscript: "storage" as NSString)
-        let publishBlock: @convention(block) (JSValue) -> Void = { [weak self] value in
-            guard let self, let text = value.context.objectForKeyedSubscript("JSON").invokeMethod("stringify", withArguments: [value]).toString(),
-                  let json = try? JSON.parse(text) else { return }
-            hub.publish(.plugin(id), json, Trace("publish"))
-        }
-        host.setObject(publishBlock, forKeyedSubscript: "publish" as NSString)
-        for request in [SurfaceRequest.show, .hide, .toggle] {
-            let block: @convention(block) () -> Void = { [weak self] in
-                guard let self else { return }
-                deliver(self, .surface(request))
-            }
-            host.setObject(block, forKeyedSubscript: request.rawValue as NSString)
-        }
-        let callBlock: @convention(block) (String, [String]) -> JSValue = { [weak self] method, arguments in
-            let context = JSContext.current()!
-            return JSValue(newPromiseIn: context) { resolve, reject in
-                guard let self else { return }
-                self.deliver(self, .call(method: method, arguments: arguments) { [weak self] response in
-                    self?.queue.async {
-                        switch response {
-                        case let .ok(text): self?.callBack(resolve!, [text], Trace("host.call"))
-                        case let .failure(message): self?.callBack(reject!, [JSValue(newErrorFromMessage: message, in: context)!], Trace("host.call"))
-                        }
-                    }
-                })
-            }
-        }
-        host.setObject(context.evaluateScript("""
-        (function (call) {
-          return function (method) {
-            var args = Array.prototype.slice.call(arguments, 1).map(String);
-            return call(String(method), args).then(function (text) { return text === "" ? undefined : JSON.parse(text); });
-          };
-        })
-        """).call(withArguments: [callBlock]), forKeyedSubscript: "call" as NSString)
-        return host
-    }
-
-    private func render(_ display: DisplayInfo) throws -> Node {
-        let text = try invoke(functions!.render, [stateText(for: display)])
-        guard text.isString, let json = text.toString() else { throw RenderError("render returned nothing") }
-        return try Node.parse(Data(json.utf8)).resolvingImages(against: bundle.directory)
-    }
-
-    private func stateText(for display: DisplayInfo?) -> String {
-        var fields = Dictionary(uniqueKeysWithValues: state.map { ($0.key.description, $0.value) })
-        fields["settings"] = settings
-        fields["theme"] = theme
-        fields["display"] = display?.json
-        return JSON.object(fields).text
-    }
-
     @discardableResult
-    private func invoke(_ function: JSValue, _ arguments: [Any]) throws -> JSValue {
+    func invoke(_ function: JSValue, _ arguments: [Any]) throws -> JSValue {
         try check { function.call(withArguments: arguments) }
     }
 
     @discardableResult
-    private func check(_ body: () -> JSValue?) throws -> JSValue {
+    func check(_ body: () -> JSValue?) throws -> JSValue {
         exception = nil
         watchdog.fired = false
         let result = body()
