@@ -19,22 +19,13 @@ final class MountedTree: ObservableObject {
 }
 
 final class TreeHostingView: NSHostingView<TreeView> {
-    let tree: MountedTree
+    var tree: MountedTree {
+        rootView.tree
+    }
 
-    init(tree: MountedTree, onAction: @escaping ActionHandler, onDismiss: @escaping () -> Void = {}) {
-        self.tree = tree
-        super.init(rootView: TreeView(tree: tree, onAction: onAction, onDismiss: onDismiss))
+    convenience init(tree: MountedTree, onAction: @escaping ActionHandler, onDismiss: @escaping () -> Void) {
+        self.init(rootView: TreeView(tree: tree, onAction: onAction, onDismiss: onDismiss))
         sizingOptions = [.intrinsicContentSize]
-    }
-
-    @available(*, unavailable)
-    required init(rootView _: TreeView) {
-        fatalError()
-    }
-
-    @available(*, unavailable)
-    required init?(coder _: NSCoder) {
-        fatalError()
     }
 
     override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
