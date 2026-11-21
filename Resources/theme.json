@@ -1,0 +1,29 @@
+{
+  "colors": {
+    "background": "#1a1b26",
+    "foreground": "#a9b1d6",
+    "dim": "#565f89",
+    "bright": "#c0caf5",
+    "accent": "#7aa2f7",
+    "good": "#9ece6a",
+    "bad": "#f7768e",
+    "panel": "#24283bf2"
+  },
+  "fonts": {
+    "body": { "family": "monospaced", "size": 12, "weight": "regular" },
+    "strong": { "family": "monospaced", "size": 12, "weight": "bold" },
+    "title": { "family": "monospaced", "size": 14, "weight": "semibold" }
+  },
+  "spacing": { "item": 8, "section": 14, "edge": 16 },
+  "bar": { "height": 32, "background": "background" },
+  "panel": { "background": "panel", "radius": 12, "padding": 14 },
+  "styles": {
+    "default": { "color": "foreground", "font": "body" },
+    "active": { "color": "accent", "font": "strong" },
+    "dim": { "color": "dim" },
+    "bright": { "color": "bright" },
+    "good": { "color": "good" },
+    "bad": { "color": "bad" },
+    "title": { "color": "bright", "font": "title" }
+  }
+}
