@@ -262,7 +262,7 @@ enum Skill {
     - `offset` moves a node down by that many points, or up when it is negative, without moving its siblings.
     - `animation` animates what changes inside the node when `render` returns a different tree: `"smooth"`, `"spring"`, or `"none"`, which turns off an animation that an enclosing node set. Sizes, positions, colors, and progress values move, and changed text cross-fades.
     - `material` paints a material behind the node, inside its `radius` and under its `background`: `"vibrant"` blurs what is behind the window, `"glass"` is Liquid Glass, and `"none"` removes a material that the node's `style` sets. Give `background` a translucent color, such as `alpha(panel, 0.4)`, to tint it.
-    - A `text` node is exactly as wide as its text and as tall as its lines, with no padding of its own.
+    - A `text` node is exactly as wide as its text and as tall as its lines, with no padding of its own. A `text` node with its own `width` keeps its text on one line, placed by `align`, and text wider than that spills over the edge. To wrap text at a width, give the width to its row or column.
     - Give siblings unique `key` values so Gary keeps each child's view, and its state such as hover or typed text, when the order changes.
     - A node with `action` is clickable. Gary calls `onAction(action, payload)`.
     - An `image` path that does not start with `/` or `~` is relative to the plugin folder, so a plugin can ship its own images. A path that ends in `.app` shows that app's icon.

@@ -150,7 +150,7 @@ struct NodeView: View {
             ScrollNode(node: node, gap: gap, padding: look.padding ?? Insets(0), maxHeight: look.height)
         case .text(let text):
             Text(verbatim: text).font(Font(nsFont(look.font) as CTFont)).foregroundStyle(Color(look.color))
-                .multilineTextAlignment(TextAlignment(look.align ?? .leading)).fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(TextAlignment(look.align ?? .leading)).fixedSize(horizontal: look.width != nil, vertical: true)
         case .icon(let symbol):
             Image(systemName: symbol).font(.system(size: look.font.size, weight: .init(look.font.weight))).foregroundStyle(Color(look.color))
         case .image(let path):
