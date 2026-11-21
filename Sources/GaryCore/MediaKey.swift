@@ -16,20 +16,26 @@ public enum MediaKey: String, CaseIterable, Sendable {
     }
 
     public struct Gate: Sendable {
-        private var held: Set<MediaKey> = []
+        private var held: Set<MediaKey>
 
-        public init() {}
+        public init() {
+            held = []
+        }
 
         public mutating func swallows(_ press: Press, intercepted: Bool) -> Bool {
             guard press.down else { return held.remove(press.key) != nil }
-            if intercepted { held.insert(press.key) }
+            if intercepted {
+                held.insert(press.key)
+            }
             return intercepted
         }
     }
 
     public struct UnknownKey: Error, Equatable, CustomStringConvertible {
         public let name: String
-        public var description: String { "unknown media key \"\(name)\"; use \(MediaKey.allCases.map(\.rawValue).joined(separator: ", "))" }
+        public var description: String {
+            "unknown media key \"\(name)\"; use \(MediaKey.allCases.map(\.rawValue).joined(separator: ", "))"
+        }
     }
 
     public static func decode(systemDefinedData data1: Int) -> Press? {

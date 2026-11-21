@@ -31,10 +31,14 @@ public struct FocusState: Equatable, Sendable {
                 return (record["assertionStartDateTimestamp"]?.number ?? 0, mode)
             }
             .max { $0.start < $1.start }
-        if let manual { return state(manual.mode, .manual) }
+        if let manual {
+            return state(manual.mode, .manual)
+        }
         for (mode, configuration) in modes.sorted(by: { $0.key < $1.key }) {
             let triggers = configuration["triggers"]?["triggers"]?.array ?? []
-            if triggers.contains(where: { Schedule($0)?.covers(date, calendar: calendar) == true }) { return state(mode, .schedule) }
+            if triggers.contains(where: { Schedule($0)?.covers(date, calendar: calendar) == true }) {
+                return state(mode, .schedule)
+            }
         }
         return nil
     }
@@ -56,12 +60,18 @@ struct Schedule {
     }
 
     func covers(_ date: Date, calendar: Calendar) -> Bool {
-        let parts = calendar.dateComponents([.weekday, .hour, .minute], from: date)
-        let minute = parts.hour! * 60 + parts.minute!
-        let today = parts.weekday! - 1, yesterday = (today + 6) % 7
-        func on(_ day: Int) -> Bool { weekdays & (1 << day) != 0 }
-        if start == end { return on(today) }
-        if start < end { return on(today) && minute >= start && minute < end }
+        let minute = calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date)
+        let today = calendar.component(.weekday, from: date) - 1
+        let yesterday = (today + 6) % 7
+        func on(_ day: Int) -> Bool {
+            weekdays & (1 << day) != 0
+        }
+        if start == end {
+            return on(today)
+        }
+        if start < end {
+            return on(today) && minute >= start && minute < end
+        }
         return (on(today) && minute >= start) || (on(yesterday) && minute < end)
     }
 }

@@ -19,7 +19,9 @@ public struct RestartBudget: Equatable, Sendable {
         failures = []
     }
 
-    public var summary: String { "\(failures.count) failures in \(Int(window)) s" }
+    public var summary: String {
+        "\(failures.count) failures in \(Int(window)) s"
+    }
 }
 
 public enum ProcessExit: Equatable, Sendable {
@@ -29,19 +31,21 @@ public enum ProcessExit: Equatable, Sendable {
     public static let alreadyRunning: Int32 = 75
     public static let restart: Int32 = 76
 
-    public var asksForRestart: Bool { self == .exited(Self.restart) }
+    public var asksForRestart: Bool {
+        self == .exited(Self.restart)
+    }
 
     public var isCrash: Bool {
         switch self {
-        case .exited(let status): return status != 0 && status != Self.alreadyRunning && status != Self.restart
-        case .signaled(let signal): return ![SIGTERM, SIGINT, SIGHUP].contains(signal)
+        case let .exited(status): status != 0 && status != Self.alreadyRunning && status != Self.restart
+        case let .signaled(signal): ![SIGTERM, SIGINT, SIGHUP].contains(signal)
         }
     }
 
     public var description: String {
         switch self {
-        case .exited(let status): return "exited with status \(status)"
-        case .signaled(let signal): return "killed by signal \(signal) (\(String(cString: strsignal(signal))))"
+        case let .exited(status): "exited with status \(status)"
+        case let .signaled(signal): "killed by signal \(signal) (\(String(cString: strsignal(signal))))"
         }
     }
 }

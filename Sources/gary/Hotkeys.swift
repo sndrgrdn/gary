@@ -17,10 +17,21 @@ final class HotkeyCenter {
         self.onPress = onPress
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         InstallEventHandler(GetEventDispatcherTarget(), { _, event, info in
+            guard let info else { return OSStatus(eventNotHandledErr) }
             var id = EventHotKeyID()
-            GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &id)
-            let center = Unmanaged<HotkeyCenter>.fromOpaque(info!).takeUnretainedValue()
-            if let binding = center.owners[id.id] { center.onPress(binding) }
+            GetEventParameter(
+                event,
+                EventParamName(kEventParamDirectObject),
+                EventParamType(typeEventHotKeyID),
+                nil,
+                MemoryLayout<EventHotKeyID>.size,
+                nil,
+                &id,
+            )
+            let center = Unmanaged<HotkeyCenter>.fromOpaque(info).takeUnretainedValue()
+            if let binding = center.owners[id.id] {
+                center.onPress(binding)
+            }
             return noErr
         }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &handler)
     }
@@ -41,8 +52,14 @@ final class HotkeyCenter {
             var ref: EventHotKeyRef?
             let number = nextNumber
             nextNumber += 1
-            let status = RegisterEventHotKey(binding.hotkey.keys.keyCode, carbonModifiers(binding.hotkey.keys.modifiers),
-                                             EventHotKeyID(signature: OSType(0x47617279), id: number), GetEventDispatcherTarget(), 0, &ref)
+            let status = RegisterEventHotKey(
+                binding.hotkey.keys.keyCode,
+                carbonModifiers(binding.hotkey.keys.modifiers),
+                EventHotKeyID(signature: OSType(0x4761_7279), id: number),
+                GetEventDispatcherTarget(),
+                0,
+                &ref,
+            )
             guard status == noErr, let ref else {
                 log("hotkey \(binding.hotkey.keys) of \(binding.owner) could not be registered (\(status))")
                 continue
@@ -56,10 +73,18 @@ final class HotkeyCenter {
 
     private func carbonModifiers(_ modifiers: KeyCombo.Modifiers) -> UInt32 {
         var flags = 0
-        if modifiers.contains(.command) { flags |= cmdKey }
-        if modifiers.contains(.control) { flags |= controlKey }
-        if modifiers.contains(.option) { flags |= optionKey }
-        if modifiers.contains(.shift) { flags |= shiftKey }
+        if modifiers.contains(.command) {
+            flags |= cmdKey
+        }
+        if modifiers.contains(.control) {
+            flags |= controlKey
+        }
+        if modifiers.contains(.option) {
+            flags |= optionKey
+        }
+        if modifiers.contains(.shift) {
+            flags |= shiftKey
+        }
         return UInt32(flags)
     }
 }

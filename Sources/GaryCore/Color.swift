@@ -1,7 +1,10 @@
 import Foundation
 
 public struct RGBA: Equatable, Sendable {
-    public var red, green, blue, alpha: Double
+    public var red: Double
+    public var green: Double
+    public var blue: Double
+    public var alpha: Double
 
     public init(red: Double, green: Double, blue: Double, alpha: Double = 1) {
         self.red = red
@@ -13,10 +16,17 @@ public struct RGBA: Equatable, Sendable {
     public init?(hex: String) {
         guard hex.hasPrefix("#") else { return nil }
         var digits = String(hex.dropFirst())
-        if digits.count == 3 { digits = digits.map { "\($0)\($0)" }.joined() }
+        if digits.count == 3 {
+            digits = digits.map { "\($0)\($0)" }.joined()
+        }
         guard digits.count == 6 || digits.count == 8, digits.allSatisfy(\.isHexDigit), let value = UInt64(digits, radix: 16) else { return nil }
-        let rgba = digits.count == 6 ? value << 8 | 0xff : value
-        func channel(_ shift: UInt64) -> Double { Double((rgba >> shift) & 0xff) / 255 }
+        self.init(rgba: digits.count == 6 ? value << 8 | 0xFF : value)
+    }
+
+    init(rgba: UInt64) {
+        func channel(_ shift: UInt64) -> Double {
+            Double((rgba >> shift) & 0xFF) / 255
+        }
         self.init(red: channel(24), green: channel(16), blue: channel(8), alpha: channel(0))
     }
 
@@ -26,14 +36,20 @@ public struct RGBA: Equatable, Sendable {
     }
 
     public var luminance: Double {
-        func linear(_ value: Double) -> Double { value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4) }
+        func linear(_ value: Double) -> Double {
+            value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+        }
         return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
     }
 
-    public var isLight: Bool { luminance > 0.179 }
+    public var isLight: Bool {
+        luminance > 0.179
+    }
 
     public func mixed(with other: RGBA, _ amount: Double) -> RGBA {
-        func blend(_ a: Double, _ b: Double) -> Double { a + (b - a) * amount }
+        func blend(_ from: Double, _ to: Double) -> Double {
+            from + (to - from) * amount
+        }
         return RGBA(red: blend(red, other.red), green: blend(green, other.green), blue: blend(blue, other.blue), alpha: blend(alpha, other.alpha))
     }
 }
@@ -55,16 +71,16 @@ public indirect enum ColorExpr: Equatable, Sendable {
 
     public func evaluate(_ lookup: (String) -> RGBA?) -> RGBA? {
         switch self {
-        case .literal(let color): return color
-        case .name(let name): return lookup(name)
-        case .mix(let a, let b, let amount):
-            guard let a = a.evaluate(lookup), let b = b.evaluate(lookup) else { return nil }
-            return a.mixed(with: b, amount)
-        case .alpha(let base, let alpha):
+        case let .literal(color): return color
+        case let .name(name): return lookup(name)
+        case let .mix(first, second, amount):
+            guard let first = first.evaluate(lookup), let second = second.evaluate(lookup) else { return nil }
+            return first.mixed(with: second, amount)
+        case let .alpha(base, alpha):
             guard var color = base.evaluate(lookup) else { return nil }
             color.alpha = alpha
             return color
-        case .contrast(let base):
+        case let .contrast(base):
             guard let color = base.evaluate(lookup) else { return nil }
             return color.isLight ? RGBA(red: 0, green: 0, blue: 0) : RGBA(red: 1, green: 1, blue: 1)
         }
@@ -76,7 +92,9 @@ public indirect enum ColorExpr: Equatable, Sendable {
         var rest: Substring
         var depth = 0
 
-        var atEnd: Bool { rest.allSatisfy(\.isWhitespace) }
+        var atEnd: Bool {
+            rest.allSatisfy(\.isWhitespace)
+        }
 
         mutating func word() -> Substring? {
             rest = rest.drop(while: \.isWhitespace)
@@ -101,13 +119,21 @@ public indirect enum ColorExpr: Equatable, Sendable {
             depth += 1
             defer { depth -= 1 }
             guard depth <= Self.maxDepth, let word = word() else { return nil }
-            if word.hasPrefix("#") { return RGBA(hex: String(word)).map(ColorExpr.literal) }
+            if word.hasPrefix("#") {
+                return RGBA(hex: String(word)).map(ColorExpr.literal)
+            }
             guard let first = word.first, first.isLetter || first == "_" else { return nil }
             guard take("(") else { return .name(String(word)) }
-            switch word {
+            return call(word)
+        }
+
+        private mutating func call(_ function: Substring) -> ColorExpr? {
+            switch function {
             case "mix":
-                guard let a = expression(), take(","), let b = expression(), take(","), let amount = fraction(), take(")") else { return nil }
-                return .mix(a, b, amount)
+                guard let first = expression(), take(","), let second = expression(), take(","), let amount = fraction(), take(")") else {
+                    return nil
+                }
+                return .mix(first, second, amount)
             case "alpha":
                 guard let base = expression(), take(","), let alpha = fraction(), take(")") else { return nil }
                 return .alpha(base, alpha)

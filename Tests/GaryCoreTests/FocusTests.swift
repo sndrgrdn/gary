@@ -1,23 +1,24 @@
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 struct FocusTests {
     static var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC")!
+        calendar.timeZone = .gmt
         return calendar
     }
 
-    static func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
-        calendar.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute))!
+    static func at(_ day: Int, _ hour: Int, _ minute: Int = 0) throws -> Date {
+        try #require(calendar.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute)))
     }
 
     static func assertions(_ modes: [(String, Double)]) -> Data {
         let records = modes.map { mode, start in
             #"{"assertionUUID":"A","assertionStartDateTimestamp":\#(start),"assertionDetails":{"assertionDetailsIdentifier":"com.apple.donotdisturb.private.intents","assertionDetailsModeIdentifier":"\#(mode)"}}"#
         }
-        return Data(#"{"data":[{"storeAssertionRecords":[\#(records.joined(separator: ","))],"storeInvalidationRecords":[]}],"header":{"version":8}}"#.utf8)
+        return Data(#"{"data":[{"storeAssertionRecords":[\#(records.joined(separator: ","))],"storeInvalidationRecords":[]}],"header":{"version":8}}"#
+            .utf8)
     }
 
     static let noAssertions = Data(#"{"data":[{"storeInvalidationRecords":[]}],"header":{"version":8}}"#.utf8)
@@ -39,16 +40,20 @@ struct FocusTests {
         try FocusState.resolve(assertions: assertions, configurations: configurations, at: date, calendar: Self.calendar)
     }
 
-    @Test func aManuallyEnabledFocusIsActiveWithItsNameAndSymbol() throws {
-        let state = try resolve(Self.assertions([("com.apple.donotdisturb.mode.default", 100), ("com.apple.focus.work", 200)]), Self.configurations(), Self.at(21, 12))
+    @Test func `a manually enabled focus is active with its name and symbol`() throws {
+        let state = try resolve(
+            Self.assertions([("com.apple.donotdisturb.mode.default", 100), ("com.apple.focus.work", 200)]),
+            Self.configurations(),
+            Self.at(21, 12),
+        )
         #expect(state == FocusState(mode: "com.apple.focus.work", name: "Work", symbol: "person.lanyardcard.fill", source: .manual))
     }
 
-    @Test func noAssertionAndNoScheduleMeansNoFocus() throws {
+    @Test func `no assertion and no schedule means no focus`() throws {
         #expect(try resolve(Self.noAssertions, Self.configurations(), Self.at(21, 12)) == nil)
     }
 
-    @Test func anOvernightScheduleCoversLateEveningAndEarlyMorningOnly() throws {
+    @Test func `an overnight schedule covers late evening and early morning only`() throws {
         let configurations = Self.configurations(Self.schedule(22, 10))
         #expect(try resolve(Self.noAssertions, configurations, Self.at(21, 23))?.source == .schedule)
         #expect(try resolve(Self.noAssertions, configurations, Self.at(21, 9, 59))?.name == "Do Not Disturb")
@@ -56,12 +61,12 @@ struct FocusTests {
         #expect(try resolve(Self.noAssertions, configurations, Self.at(21, 12)) == nil)
     }
 
-    @Test func aDisabledScheduleNeverActivates() throws {
+    @Test func `a disabled schedule never activates`() throws {
         let configurations = Self.configurations(Self.schedule(0, 0, enabled: 1))
         #expect(try resolve(Self.noAssertions, configurations, Self.at(21, 12)) == nil)
     }
 
-    @Test func weekdayBitsStartWithSundayAndAnOvernightWindowBelongsToTheDayItStarted() throws {
+    @Test func `weekday bits start with sunday and an overnight window belongs to the day it started`() throws {
         let workdays = Self.configurations(Self.schedule(9, 17, weekdays: 0b0111110))
         #expect(try resolve(Self.noAssertions, workdays, Self.at(21, 10)) == nil)
         #expect(try resolve(Self.noAssertions, workdays, Self.at(23, 10)) != nil)
@@ -70,12 +75,12 @@ struct FocusTests {
         #expect(try resolve(Self.noAssertions, fridayNight, Self.at(21, 23)) == nil)
     }
 
-    @Test func aManualFocusWinsOverASchedule() throws {
+    @Test func `a manual focus wins over A schedule`() throws {
         let state = try resolve(Self.assertions([("com.apple.focus.work", 1)]), Self.configurations(Self.schedule(0, 0)), Self.at(21, 12))
         #expect(state?.mode == "com.apple.focus.work")
     }
 
-    @Test func unreadableFilesAreErrors() {
+    @Test func `unreadable files are errors`() {
         #expect(throws: FocusState.FileError.self) { try resolve(Data("{}".utf8), Self.configurations(), Self.at(21, 12)) }
         #expect(throws: FocusState.FileError.self) { try resolve(Self.noAssertions, Data("not json".utf8), Self.at(21, 12)) }
     }

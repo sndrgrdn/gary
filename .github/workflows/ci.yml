@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+      - run: brew install just swiftformat swiftlint periphery
+      - run: npm ci
+      - run: just lint
+      - run: swift build --jobs 4 -Xswiftc -warnings-as-errors
+      - run: just test
+      - run: just typecheck
+      - run: just dead-code
+      - run: just anti-slop

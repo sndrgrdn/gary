@@ -7,7 +7,9 @@ public enum BarSection: String, CaseIterable, Sendable {
 public struct ShellConfigError: Error, Equatable, CustomStringConvertible {
     public let path: String
     public let reason: String
-    public var description: String { "shell.json \(path): \(reason)" }
+    public var description: String {
+        "shell.json \(path): \(reason)"
+    }
 }
 
 public struct ShellConfig: Equatable, Sendable {
@@ -18,49 +20,65 @@ public struct ShellConfig: Equatable, Sendable {
     public var revealMenuBar: Bool
 
     public static let defaults = ShellConfig(
-        bar: [.left: [], .center: [], .right: [PluginID("gary.battery")!, PluginID("gary.clock")!]],
-        plugins: [], disabledPlugins: [], settings: [:], revealMenuBar: true
+        bar: [.left: [], .center: [], .right: [PluginID(builtin: "battery"), PluginID(builtin: "clock")]],
+        plugins: [], disabledPlugins: [], settings: [:], revealMenuBar: true,
     )
 
     private static let revealMenuBarKey = "revealMenuBar"
 
     public static func parse(_ json: JSON) throws -> ShellConfig {
-        func fail(_ path: String, _ reason: String) -> ShellConfigError { ShellConfigError(path: path, reason: reason) }
-        guard let fields = json.object else { throw fail("root", "must be an object") }
-        func ids(_ value: JSON, _ path: String) throws -> [PluginID] {
-            guard let items = value.array else { throw fail(path, "must be an array of plugin ids") }
-            return try items.enumerated().map { index, item in
-                guard let raw = item.string, let id = PluginID(raw) else { throw fail("\(path)[\(index)]", "is not a plugin id") }
-                return id
-            }
-        }
-
+        guard let fields = json.object else { throw ShellConfigError(path: "root", reason: "must be an object") }
         var config = defaults
         if let bar = fields["bar"] {
-            guard let sections = bar.object else { throw fail("bar", "must be an object") }
-            if let unknown = sections.keys.sorted().first(where: { BarSection(rawValue: $0) == nil && $0 != revealMenuBarKey }) {
-                throw fail("bar.\(unknown)", "is not left, center, right or \(revealMenuBarKey)")
-            }
-            if let reveal = sections[revealMenuBarKey] {
-                guard let value = reveal.bool else { throw fail("bar.\(revealMenuBarKey)", "must be true or false") }
-                config.revealMenuBar = value
-            }
-            if BarSection.allCases.contains(where: { sections[$0.rawValue] != nil }) {
-                config.bar = Dictionary(uniqueKeysWithValues: try BarSection.allCases.map { section in
-                    (section, try sections[section.rawValue].map { try ids($0, "bar.\(section.rawValue)") } ?? [])
-                })
-            }
+            try config.parseBar(bar)
         }
-        if let plugins = fields["plugins"] { config.plugins = try ids(plugins, "plugins") }
-        if let disabled = fields["disabledPlugins"] { config.disabledPlugins = Set(try ids(disabled, "disabledPlugins")) }
+        if let plugins = fields["plugins"] {
+            config.plugins = try ids(plugins, "plugins")
+        }
+        if let disabled = fields["disabledPlugins"] {
+            config.disabledPlugins = try Set(ids(disabled, "disabledPlugins"))
+        }
         if let settings = fields["settings"] {
-            guard let entries = settings.object else { throw fail("settings", "must be an object keyed by plugin id") }
-            config.settings = Dictionary(uniqueKeysWithValues: try entries.map { key, value in
-                guard let id = PluginID(key) else { throw fail("settings.\(key)", "is not a plugin id") }
-                return (id, value)
-            })
+            config.settings = try parseSettings(settings)
         }
         return config
+    }
+
+    private mutating func parseBar(_ bar: JSON) throws {
+        let key = Self.revealMenuBarKey
+        guard let sections = bar.object else { throw ShellConfigError(path: "bar", reason: "must be an object") }
+        if let unknown = sections.keys.sorted().first(where: { BarSection(rawValue: $0) == nil && $0 != key }) {
+            throw ShellConfigError(path: "bar.\(unknown)", reason: "is not left, center, right or \(key)")
+        }
+        if let reveal = sections[key] {
+            guard let value = reveal.bool else { throw ShellConfigError(path: "bar.\(key)", reason: "must be true or false") }
+            revealMenuBar = value
+        }
+        if BarSection.allCases.contains(where: { sections[$0.rawValue] != nil }) {
+            self.bar = try Dictionary(uniqueKeysWithValues: BarSection.allCases.map { section in
+                try (section, sections[section.rawValue].map { try Self.ids($0, "bar.\(section.rawValue)") } ?? [])
+            })
+        }
+    }
+
+    private static func ids(_ value: JSON, _ path: String) throws -> [PluginID] {
+        guard let items = value.array else { throw ShellConfigError(path: path, reason: "must be an array of plugin ids") }
+        return try items.enumerated().map { index, item in
+            guard let raw = item.string, let id = PluginID(raw) else {
+                throw ShellConfigError(path: "\(path)[\(index)]", reason: "is not a plugin id")
+            }
+            return id
+        }
+    }
+
+    private static func parseSettings(_ settings: JSON) throws -> [PluginID: JSON] {
+        guard let entries = settings.object else {
+            throw ShellConfigError(path: "settings", reason: "must be an object keyed by plugin id")
+        }
+        return try Dictionary(uniqueKeysWithValues: entries.map { key, value in
+            guard let id = PluginID(key) else { throw ShellConfigError(path: "settings.\(key)", reason: "is not a plugin id") }
+            return (id, value)
+        })
     }
 
     public struct Resolution: Equatable, Sendable {
@@ -73,10 +91,11 @@ public struct ShellConfig: Equatable, Sendable {
     public func resolve(_ catalog: PluginCatalog) -> Resolution {
         var warnings: [String] = []
         let named = Set(bar.values.joined()).union(plugins)
-        let enabled = Set(catalog.plugins.values.filter { bundle in
+        let enabledManifests = catalog.plugins.values.filter { bundle in
             let id = bundle.manifest.id
             return !disabledPlugins.contains(id) && (bundle.origin == .builtin || named.contains(id))
-        }.map(\.manifest.id))
+        }.map(\.manifest).sorted { $0.id < $1.id }
+        let enabled = Set(enabledManifests.map(\.id))
 
         var placed = Set<PluginID>()
         var resolved: [BarSection: [PluginID]] = [:]
@@ -98,50 +117,65 @@ public struct ShellConfig: Equatable, Sendable {
                 return true
             }
         }
-        for id in plugins where catalog.plugins[id] == nil { warnings.append("plugins: no plugin \(id)") }
-        for id in enabled.sorted() {
-            for case .plugin(let source) in catalog.plugins[id]!.manifest.subscribes where !enabled.contains(source) {
-                warnings.append("\(id) subscribes to \(source), which is \(catalog.plugins[source] == nil ? "not installed" : "not enabled")")
+        for id in plugins where catalog.plugins[id] == nil {
+            warnings.append("plugins: no plugin \(id)")
+        }
+        for manifest in enabledManifests {
+            for case let .plugin(source) in manifest.subscribes where !enabled.contains(source) {
+                let state = catalog.plugins[source] == nil ? "not installed" : "not enabled"
+                warnings.append("\(manifest.id) subscribes to \(source), which is \(state)")
             }
         }
-        let bars = enabled.filter { catalog.plugins[$0]!.manifest.kinds.contains(.bar) }.sorted()
-        for id in bars.dropFirst() { warnings.append("\(id) is a bar too; \(bars[0]) replaces the built-in bar") }
+        let bars = enabledManifests.filter { $0.kinds.contains(.bar) }.map(\.id)
+        for id in bars.dropFirst() {
+            warnings.append("\(id) is a bar too; \(bars[0]) replaces the built-in bar")
+        }
         return Resolution(enabled: enabled, bar: resolved, barPlugin: bars.first, warnings: warnings)
     }
 }
 
-extension ShellConfig {
-    public enum Change: Equatable, Sendable {
+public extension ShellConfig {
+    enum Change: Equatable, Sendable {
         case enable(PluginID, inBar: Bool)
         case disable(PluginID)
         case remove(PluginID)
     }
 
-    public static func applying(_ change: Change, to json: JSON) throws -> JSON {
+    static func applying(_ change: Change, to json: JSON) throws -> JSON {
         let config = try parse(json)
         var fields = json.object ?? [:]
-        var bar = config.bar, plugins = config.plugins, disabled = config.disabledPlugins
+        var bar = config.bar
+        var plugins = config.plugins
+        var disabled = config.disabledPlugins
         switch change {
-        case .enable(let id, let inBar):
+        case let .enable(id, inBar):
             disabled.remove(id)
             if inBar {
-                if !bar.values.contains(where: { $0.contains(id) }) { bar[.right, default: []].insert(id, at: 0) }
+                if !bar.values.contains(where: { $0.contains(id) }) {
+                    bar[.right, default: []].insert(id, at: 0)
+                }
             } else if !plugins.contains(id) {
                 plugins.append(id)
             }
-        case .disable(let id):
+        case let .disable(id):
             disabled.insert(id)
-        case .remove(let id):
+        case let .remove(id):
             bar = bar.mapValues { $0.filter { $0 != id } }
             plugins.removeAll { $0 == id }
             disabled.remove(id)
         }
-        func ids(_ list: [PluginID]) -> JSON { .array(list.map { .string($0.rawValue) }) }
+        func ids(_ list: [PluginID]) -> JSON {
+            .array(list.map { .string($0.rawValue) })
+        }
         func set(_ key: String, _ value: JSON, changed: Bool) {
-            if changed || fields[key] != nil { fields[key] = value }
+            if changed || fields[key] != nil {
+                fields[key] = value
+            }
         }
         var barFields = fields["bar"]?.object ?? [:]
-        for section in BarSection.allCases { barFields[section.rawValue] = ids(bar[section] ?? []) }
+        for section in BarSection.allCases {
+            barFields[section.rawValue] = ids(bar[section] ?? [])
+        }
         set("bar", .object(barFields), changed: bar != config.bar)
         set("plugins", ids(plugins), changed: plugins != config.plugins)
         set("disabledPlugins", ids(disabled.sorted()), changed: disabled != config.disabledPlugins)

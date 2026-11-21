@@ -14,11 +14,11 @@ public enum FilesRequest: Equatable, Sendable {
         let path = try call.path(0, home: home)
         switch call.method {
         case "readFile": return .read(path: path)
-        case "writeFile": return .write(path: path, text: try call.string(1, "text"))
+        case "writeFile": return try .write(path: path, text: call.string(1, "text"))
         case "mkdir": return .makeDirectory(path: path)
         case "list": return .list(path: path)
         default:
-            guard path != "/" && path != home else { throw call.fail("refusing to remove \(path)") }
+            guard path != "/", path != home else { throw call.fail("refusing to remove \(path)") }
             return .remove(path: path)
         }
     }

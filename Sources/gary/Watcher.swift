@@ -13,13 +13,28 @@ final class FileWatcher {
     init(roots: [URL], quiet: TimeInterval = 0.02, onChange: @escaping (Set<String>, Trace) -> Void) {
         self.quiet = quiet
         self.onChange = onChange
-        var context = FSEventStreamContext(version: 0, info: Unmanaged.passUnretained(self).toOpaque(), retain: nil, release: nil, copyDescription: nil)
+        var context = FSEventStreamContext(
+            version: 0,
+            info: Unmanaged.passUnretained(self).toOpaque(),
+            retain: nil,
+            release: nil,
+            copyDescription: nil,
+        )
         let flags = kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer | kFSEventStreamCreateFlagUseCFTypes
-        stream = FSEventStreamCreate(nil, { _, info, count, paths, _, _ in
-            let watcher = Unmanaged<FileWatcher>.fromOpaque(info!).takeUnretainedValue()
-            let list = Unmanaged<NSArray>.fromOpaque(paths).takeUnretainedValue() as? [String] ?? []
-            watcher.received(Array(list.prefix(count)))
-        }, &context, roots.map { $0.resolvingSymlinksInPath().path } as CFArray, FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 0, FSEventStreamCreateFlags(flags))
+        stream = FSEventStreamCreate(
+            nil,
+            { _, info, count, paths, _, _ in
+                guard let info else { return }
+                let watcher = Unmanaged<FileWatcher>.fromOpaque(info).takeUnretainedValue()
+                let list = Unmanaged<NSArray>.fromOpaque(paths).takeUnretainedValue() as? [String] ?? []
+                watcher.received(Array(list.prefix(count)))
+            },
+            &context,
+            roots.map { $0.resolvingSymlinksInPath().path } as CFArray,
+            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+            0,
+            FSEventStreamCreateFlags(flags),
+        )
         if let stream {
             FSEventStreamSetDispatchQueue(stream, queue)
             FSEventStreamStart(stream)
@@ -28,13 +43,18 @@ final class FileWatcher {
 
     private func received(_ paths: [String]) {
         let time = now()
-        if firstEvent == nil { firstEvent = time }
-        if tracing { log(String(format: "fs-event t0=%.6f paths=%@", time, paths.joined(separator: ","))) }
+        if firstEvent == nil {
+            firstEvent = time
+        }
+        if tracing {
+            log(String(format: "fs-event t0=%.6f paths=%@", time, paths.joined(separator: ",")))
+        }
         pending.formUnion(paths)
         flush?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            let paths = pending, trace = Trace("fs", start: firstEvent ?? now())
+            let paths = pending
+            let trace = Trace("fs", start: firstEvent ?? now())
             pending = []
             firstEvent = nil
             DispatchQueue.main.async { self.onChange(paths, trace) }
@@ -59,19 +79,27 @@ final class PathWatch {
     }
 
     func stop() {
-        queue.sync {
+        queue.async { [self] in
             pending?.cancel()
-            for source in sources { source.cancel() }
+            for source in sources {
+                source.cancel()
+            }
             sources = []
         }
     }
 
     private func arm() {
-        for source in sources { source.cancel() }
+        for source in sources {
+            source.cancel()
+        }
         sources = paths.compactMap { path in
             let descriptor = open(path, O_EVTONLY)
             guard descriptor >= 0 else { return nil }
-            let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: descriptor, eventMask: [.write, .extend, .delete, .rename, .attrib], queue: queue)
+            let source = DispatchSource.makeFileSystemObjectSource(
+                fileDescriptor: descriptor,
+                eventMask: [.write, .extend, .delete, .rename, .attrib],
+                queue: queue,
+            )
             source.setEventHandler { [weak self] in self?.changed() }
             source.setCancelHandler { close(descriptor) }
             source.resume()

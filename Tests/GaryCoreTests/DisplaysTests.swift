@@ -1,14 +1,16 @@
 import CoreGraphics
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 private final class FakeSurface {
     var display: DisplayInfo
     var updates = 0
     var closed = false
 
-    init(_ display: DisplayInfo) { self.display = display }
+    init(_ display: DisplayInfo) {
+        self.display = display
+    }
 }
 
 private struct Harness {
@@ -17,7 +19,7 @@ private struct Harness {
 
     @discardableResult
     mutating func show(_ screens: [DisplayInfo]) -> DisplayChange {
-        var opened = self.opened
+        var opened = opened
         let change = bars.sync(screens, open: { display in
             let surface = FakeSurface(display)
             opened.append(surface)
@@ -30,7 +32,9 @@ private struct Harness {
         return change
     }
 
-    var live: [FakeSurface] { opened.filter { !$0.closed } }
+    var live: [FakeSurface] {
+        opened.filter { !$0.closed }
+    }
 }
 
 private func screen(_ id: String, _ index: Int, x: Double = 0, width: Double = 1512, height: Double = 982, notch: Bool = false) -> DisplayInfo {
@@ -52,13 +56,13 @@ private func expectOneSurfacePerScreen(_ harness: Harness, _ screens: [DisplayIn
 }
 
 struct PerDisplayTests {
-    @Test func plugsAndUnplugsScreensWithoutLeaksOrDuplicates() {
+    @Test func `plugs and unplugs screens without leaks or duplicates`() {
         var harness = Harness()
         let steps: [[DisplayInfo]] = [
             [builtIn],
             [builtIn, left],
             [builtIn, left, right],
-            [builtIn, right].enumerated().map { var s = $1; s.index = $0; return s },
+            [builtIn, right].enumerated().map { var display = $1; display.index = $0; return display },
             [builtIn],
             [],
             [builtIn, left],
@@ -70,7 +74,7 @@ struct PerDisplayTests {
         #expect(harness.opened.count == 5)
     }
 
-    @Test func reorderingAndResizingUpdateTheSameSurfaces() {
+    @Test func `reordering and resizing update the same surfaces`() {
         var harness = Harness()
         harness.show([builtIn, left])
         let first = harness.opened
@@ -94,7 +98,7 @@ struct PerDisplayTests {
         #expect(harness.bars["built-in"]?.updates == 1)
     }
 
-    @Test func anUnchangedSetTouchesNothing() {
+    @Test func `an unchanged set touches nothing`() {
         var harness = Harness()
         harness.show([builtIn, left])
         let change = harness.show([builtIn, left])
@@ -103,7 +107,7 @@ struct PerDisplayTests {
         #expect(harness.live.allSatisfy { $0.updates == 0 })
     }
 
-    @Test func sleepThatDropsEveryScreenRestoresThemOnWake() {
+    @Test func `sleep that drops every screen restores them on wake`() {
         var harness = Harness()
         harness.show([builtIn, right])
         let sleep = harness.show([])
@@ -114,7 +118,7 @@ struct PerDisplayTests {
         expectOneSurfacePerScreen(harness, [builtIn, right])
     }
 
-    @Test func aRepeatedIDGetsOneSurface() {
+    @Test func `a repeated ID gets one surface`() {
         var harness = Harness()
         var twin = builtIn
         twin.index = 1
@@ -123,16 +127,20 @@ struct PerDisplayTests {
         expectOneSurfacePerScreen(harness, [builtIn])
     }
 
-    @Test func randomHotPlugSequencesKeepOneSurfacePerScreen() {
+    @Test func `random hot plug sequences keep one surface per screen`() {
         var random = SeededRandom(seed: 42)
         var harness = Harness()
         let pool = [builtIn, left, right, screen("tv", 3, x: 4072, width: 1280, height: 720), screen("ipad", 4, x: 0, width: 1366, height: 1024)]
         for _ in 0..<2000 {
             var screens = pool.filter { _ in random.next(2) == 0 }
-            for index in screens.indices.reversed() { screens.swapAt(index, random.next(index + 1)) }
+            for index in screens.indices.reversed() {
+                screens.swapAt(index, random.next(index + 1))
+            }
             for index in screens.indices {
                 screens[index].index = index
-                if random.next(4) == 0 { screens[index].frame.size.width = Double(800 + random.next(3000)) }
+                if random.next(4) == 0 {
+                    screens[index].frame.size.width = Double(800 + random.next(3000))
+                }
             }
             let before = Dictionary(uniqueKeysWithValues: harness.live.map { ($0.display.id, ObjectIdentifier($0)) })
             let change = harness.show(screens)
@@ -145,7 +153,7 @@ struct PerDisplayTests {
 }
 
 struct DisplayChangeTests {
-    @Test func namesAddedRemovedAndChangedScreens() {
+    @Test func `names added removed and changed screens`() {
         var moved = left
         moved.frame.origin.x = 1512
         let change = DisplayChange(from: [builtIn, left, right], to: [builtIn, moved, screen("tv", 2)])

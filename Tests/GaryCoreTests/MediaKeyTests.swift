@@ -1,8 +1,8 @@
-import Testing
 @testable import GaryCore
+import Testing
 
 struct MediaKeyTests {
-    @Test func decodesTheKeyAndWhetherItWentDownFromSystemDefinedData() {
+    @Test func `decodes the key and whether it went down from system defined data`() {
         #expect(MediaKey.decode(systemDefinedData: 0 << 16 | 0x0A00) == MediaKey.Press(key: .volumeUp, down: true, isRepeat: false))
         #expect(MediaKey.decode(systemDefinedData: 1 << 16 | 0x0B00) == MediaKey.Press(key: .volumeDown, down: false, isRepeat: false))
         #expect(MediaKey.decode(systemDefinedData: 7 << 16 | 0x0A00) == MediaKey.Press(key: .mute, down: true, isRepeat: false))
@@ -10,36 +10,52 @@ struct MediaKeyTests {
         #expect(MediaKey.decode(systemDefinedData: 3 << 16 | 0x0A00)?.key == .brightnessDown)
     }
 
-    @Test func aHeldKeyIsMarkedAsARepeat() {
+    @Test func `a held key is marked as A repeat`() {
         #expect(MediaKey.decode(systemDefinedData: 0 << 16 | 0x0A01) == MediaKey.Press(key: .volumeUp, down: true, isRepeat: true))
     }
 
-    @Test func otherSystemKeysAndMalformedStatesAreNotMediaKeys() {
+    @Test func `other system keys and malformed states are not media keys`() {
         #expect(MediaKey.decode(systemDefinedData: 16 << 16 | 0x0A00) == nil)
         #expect(MediaKey.decode(systemDefinedData: 21 << 16 | 0x0A00) == nil)
         #expect(MediaKey.decode(systemDefinedData: 0 << 16 | 0x0C00) == nil)
     }
 
-    static func swallowed(_ presses: [(MediaKey, down: Bool, intercepted: Bool)]) -> [Bool] {
-        var gate = MediaKey.Gate()
-        return presses.map { gate.swallows(.init(key: $0.0, down: $0.down, isRepeat: false), intercepted: $0.intercepted) }
+    struct Tap {
+        let key: MediaKey
+        let down: Bool
+        let intercepted: Bool
+
+        init(_ key: MediaKey, down: Bool, intercepted: Bool) {
+            self.key = key
+            self.down = down
+            self.intercepted = intercepted
+        }
     }
 
-    @Test func anInterceptedKeyIsSwallowedFromDownThroughItsRepeatsToUp() {
+    static func swallowed(_ taps: [Tap]) -> [Bool] {
+        var gate = MediaKey.Gate()
+        return taps.map { gate.swallows(.init(key: $0.key, down: $0.down, isRepeat: false), intercepted: $0.intercepted) }
+    }
+
+    @Test func `an intercepted key is swallowed from down through its repeats to up`() {
         #expect(Self.swallowed([
-            (.volumeUp, down: true, intercepted: true), (.volumeUp, down: true, intercepted: true), (.volumeUp, down: false, intercepted: true),
-            (.brightnessUp, down: true, intercepted: false), (.brightnessUp, down: false, intercepted: false),
+            Tap(.volumeUp, down: true, intercepted: true), Tap(.volumeUp, down: true, intercepted: true), Tap(
+                .volumeUp,
+                down: false,
+                intercepted: true,
+            ),
+            Tap(.brightnessUp, down: true, intercepted: false), Tap(.brightnessUp, down: false, intercepted: false),
         ]) == [true, true, true, false, false])
     }
 
-    @Test func aKeyUpWhoseDownReachedTheSystemPassesSoTheSystemKeyIsNotLeftHeld() {
+    @Test func `a key up whose down reached the system passes so the system key is not left held`() {
         #expect(Self.swallowed([
-            (.volumeUp, down: false, intercepted: true),
-            (.mute, down: true, intercepted: true), (.mute, down: false, intercepted: true), (.mute, down: false, intercepted: true),
+            Tap(.volumeUp, down: false, intercepted: true),
+            Tap(.mute, down: true, intercepted: true), Tap(.mute, down: false, intercepted: true), Tap(.mute, down: false, intercepted: true),
         ]) == [false, true, true, false])
     }
 
-    @Test func pluginsNameTheKeysTheyIntercept() throws {
+    @Test func `plugins name the keys they intercept`() throws {
         #expect(try MediaKey.parse(["volume-up", "mute", "volume-up"]) == [.volumeUp, .mute])
         #expect(throws: MediaKey.UnknownKey(name: "play")) { try MediaKey.parse(["volume-up", "play"]) }
     }

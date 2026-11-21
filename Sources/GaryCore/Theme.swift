@@ -18,7 +18,9 @@ public struct FontToken: Hashable, Sendable {
 public struct ThemeError: Error, Equatable, CustomStringConvertible {
     public let path: String
     public let reason: String
-    public var description: String { "theme \(path): \(reason)" }
+    public var description: String {
+        "theme \(path): \(reason)"
+    }
 }
 
 public struct Theme: Equatable, Sendable {
@@ -46,12 +48,17 @@ public struct Theme: Equatable, Sendable {
     public var motion: Motion
     public var styles: [String: StyleProps]
     public var warnings: [String]
+    private var fallback: StyleProps
+    private var fallbackFont: FontToken
 
-    public var mode: Palette.Mode { palette.mode }
+    public var mode: Palette.Mode {
+        palette.mode
+    }
 
     public var inBar: Theme {
         var theme = self
         theme.fonts.merge(bar.fonts) { $1 }
+        theme.fallbackFont = fallback.font.flatMap { bar.fonts[$0] } ?? fallbackFont
         return theme
     }
 
@@ -60,57 +67,95 @@ public struct Theme: Equatable, Sendable {
         return expression.evaluate { colors[$0] ?? palette.colors[$0] }
     }
 
-    public func style(_ name: String?) -> ResolvedStyle { resolve(name) }
+    public func style(_ name: String?) -> ResolvedStyle {
+        resolve(name)
+    }
 
     public func resolve(_ name: String?, _ props: StyleProps = StyleProps(), hover: String? = nil) -> ResolvedStyle {
-        let fallback = styles["default"]!
         var merged = props.over(name.flatMap { styles[$0] }?.over(fallback) ?? fallback)
-        if let hover, let hovered = styles[hover] { merged = hovered.over(merged) }
-        var font = merged.font.flatMap { fonts[$0] } ?? fonts[fallback.font!]!
-        if let size = merged.fontSize { font.size = size }
+        if let hover, let hovered = styles[hover] {
+            merged = hovered.over(merged)
+        }
+        var font = merged.font.flatMap { fonts[$0] } ?? fallbackFont
+        if let size = merged.fontSize {
+            font.size = size
+        }
         return ResolvedStyle(
-            props: merged, color: color(merged.color) ?? color(fallback.color) ?? palette.foreground, font: font, background: color(merged.background),
-            shadowColor: color(merged.shadow?.color), borderColor: color(merged.border?.color)
+            props: merged, color: color(merged.color) ?? color(fallback.color) ?? palette.foreground, font: font,
+            background: color(merged.background),
+            shadowColor: color(merged.shadow?.color), borderColor: color(merged.border?.color),
         )
     }
 
     public var json: JSON {
-        func hexes(_ colors: [String: RGBA]) -> JSON { .object(colors.mapValues { .string($0.hex) }) }
+        func hexes(_ colors: [String: RGBA]) -> JSON {
+            .object(colors.mapValues { .string($0.hex) })
+        }
         return .object(["mode": .string(mode.rawValue), "colors": hexes(colors), "palette": hexes(palette.colors)])
     }
 
-    public static func parse(_ base: JSON, override: JSON? = nil, palette: Palette) throws -> Theme {
+    public static func parse(_ base: JSON, palette: Palette, override: JSON? = nil) throws -> Theme {
         let json = override.map { base.merging($0) } ?? base
-        func fail(_ path: String, _ reason: String) -> ThemeError { ThemeError(path: path, reason: reason) }
-        func object(_ value: JSON?, _ path: String) throws -> [String: JSON] {
-            guard let object = value?.object else { throw fail(path, "must be an object") }
-            return object
-        }
-        func number(_ value: JSON?, _ path: String) throws -> Double {
-            guard let number = value?.number, number >= 0 else { throw fail(path, "must be a non-negative number") }
-            return number
-        }
-        func chain(_ value: JSON?, _ path: String) throws -> [ColorExpr] {
-            guard let value else { return [] }
-            let items = value.array ?? [value]
-            return try items.enumerated().map { index, item in
-                guard let text = item.string, let expression = ColorExpr(text) else {
-                    throw fail(value.array == nil ? path : "\(path)[\(index)]", "must be \(ColorExpr.syntax)")
-                }
-                return expression
-            }
-        }
-
         _ = try object(json["colors"], "colors")
-        let baseColors = base["colors"]?.object ?? [:], overrideColors = override?["colors"]?.object ?? [:]
+        let (colors, colorWarnings) = try resolveColors(
+            base: base["colors"]?.object ?? [:],
+            override: override?["colors"]?.object ?? [:],
+            palette: palette,
+        )
+        let spacingFields = try object(json["spacing"], "spacing")
+        let barFields = try object(json["bar"], "bar")
+        let motionFields = try object(json["motion"], "motion")
+        let fonts = try fonts(json["fonts"], "fonts")
+        let spacing = try Spacing(
+            item: number(spacingFields["item"], "spacing.item"),
+            section: number(spacingFields["section"], "spacing.section"),
+            edge: number(spacingFields["edge"], "spacing.edge"),
+        )
+        let bar = try Bar(
+            height: number(barFields["height"], "bar.height"), background: colors["bar"] ?? palette.background,
+            fonts: barFields["fonts"] == nil ? [:] : Self.fonts(barFields["fonts"], "bar.fonts"),
+        )
+        let motion = try Motion(fade: number(motionFields["fade"], "motion.fade"))
+        let styles = try styles(json["styles"], fonts: fonts)
+        guard let fallback = styles["default"] else { throw ThemeError(path: "styles.default", reason: "must be an object") }
+        if fallback.color == nil {
+            throw ThemeError(path: "styles.default.color", reason: "must name a color")
+        }
+        guard let fallbackFont = fallback.font.flatMap({ fonts[$0] })
+        else { throw ThemeError(path: "styles.default.font", reason: "must name a font") }
+        var theme = Theme(
+            palette: palette, colors: colors, fonts: fonts, spacing: spacing, bar: bar, motion: motion,
+            styles: styles, warnings: [], fallback: fallback, fallbackFont: fallbackFont,
+        )
+        theme.warnings = (colorWarnings + theme.styleWarnings()).sorted()
+        return theme
+    }
+
+    private static func object(_ value: JSON?, _ path: String) throws -> [String: JSON] {
+        guard let object = value?.object else { throw ThemeError(path: path, reason: "must be an object") }
+        return object
+    }
+
+    private static func number(_ value: JSON?, _ path: String) throws -> Double {
+        guard let number = value?.number, number >= 0 else { throw ThemeError(path: path, reason: "must be a non-negative number") }
+        return number
+    }
+
+    private static func resolveColors(
+        base: [String: JSON],
+        override: [String: JSON],
+        palette: Palette,
+    ) throws -> (colors: [String: RGBA], warnings: [String]) {
         var chains: [String: [ColorExpr]] = [:]
-        for name in Set(baseColors.keys).union(overrideColors.keys) {
-            chains[name] = try chain(overrideColors[name], "colors.\(name)") + chain(baseColors[name], "colors.\(name)")
+        for name in Set(base.keys).union(override.keys) {
+            chains[name] = try chain(override[name], "colors.\(name)") + chain(base[name], "colors.\(name)")
         }
         func resolve(_ name: String, _ visiting: Set<String>) -> RGBA? {
             if !visiting.contains(name), let chain = chains[name] {
                 for expression in chain {
-                    if let color = expression.evaluate({ resolve($0, visiting.union([name])) }) { return color }
+                    if let color = expression.evaluate({ resolve($0, visiting.union([name])) }) {
+                        return color
+                    }
                 }
             }
             return palette.colors[name]
@@ -118,58 +163,67 @@ public struct Theme: Equatable, Sendable {
         var colors: [String: RGBA] = [:]
         var warnings: [String] = []
         for name in chains.keys.sorted() {
-            if let color = resolve(name, []) { colors[name] = color } else { warnings.append("colors.\(name): no colour resolves with this palette") }
-        }
-        func fonts(_ value: JSON?, _ path: String) throws -> [String: FontToken] {
-            try object(value, path).reduce(into: [:]) { fonts, entry in
-                let (name, value) = entry
-                let fields = try object(value, "\(path).\(name)")
-                let family: FontToken.Family
-                switch fields["family"]?.string {
-                case "system"?: family = .system
-                case "monospaced"?: family = .monospaced
-                case let name?: family = .named(name)
-                case nil: throw fail("\(path).\(name).family", "must be a string")
-                }
-                let weightName = fields["weight"]?.string ?? "regular"
-                guard let weight = FontToken.Weight(rawValue: weightName) else { throw fail("\(path).\(name).weight", "unknown weight \(weightName)") }
-                fonts[name] = FontToken(family: family, size: try number(fields["size"], "\(path).\(name).size"), weight: weight)
+            if let color = resolve(name, []) {
+                colors[name] = color
+            } else {
+                warnings.append("colors.\(name): no colour resolves with this palette")
             }
         }
-        let spacing = try object(json["spacing"], "spacing")
-        let bar = try object(json["bar"], "bar")
-        let motion = try object(json["motion"], "motion")
-        var theme = Theme(
-            palette: palette,
-            colors: colors,
-            fonts: try fonts(json["fonts"], "fonts"),
-            spacing: Spacing(
-                item: try number(spacing["item"], "spacing.item"),
-                section: try number(spacing["section"], "spacing.section"),
-                edge: try number(spacing["edge"], "spacing.edge")
-            ),
-            bar: Bar(
-                height: try number(bar["height"], "bar.height"), background: colors["bar"] ?? palette.background,
-                fonts: bar["fonts"] == nil ? [:] : try fonts(bar["fonts"], "bar.fonts")
-            ),
-            motion: Motion(fade: try number(motion["fade"], "motion.fade")),
-            styles: [:],
-            warnings: []
-        )
+        return (colors, warnings)
+    }
 
-        for (name, value) in try object(json["styles"], "styles") {
-            let path = "styles.\(name)"
-            let props = try StyleProps.parse(try object(value, path)) { field, reason in fail("\(path).\(field)", reason) }
-            for (field, reference) in [("color", props.color), ("background", props.background)] {
-                if let reference, theme.color(reference) == nil { warnings.append("\(path).\(field): no colour \(reference) with this palette") }
+    private static func chain(_ value: JSON?, _ path: String) throws -> [ColorExpr] {
+        guard let value else { return [] }
+        let items = value.array ?? [value]
+        return try items.enumerated().map { index, item in
+            guard let text = item.string, let expression = ColorExpr(text) else {
+                throw ThemeError(path: value.array == nil ? path : "\(path)[\(index)]", reason: "must be \(ColorExpr.syntax)")
             }
-            if let font = props.font, theme.fonts[font] == nil { throw fail("\(path).font", "unknown font \(font)") }
-            theme.styles[name] = props
+            return expression
         }
-        let fallback = try theme.styles["default"] ?? { throw fail("styles.default", "must be an object") }()
-        if fallback.color == nil { throw fail("styles.default.color", "must name a color") }
-        if fallback.font == nil { throw fail("styles.default.font", "must name a font") }
-        theme.warnings = warnings.sorted()
-        return theme
+    }
+
+    private static func fonts(_ value: JSON?, _ path: String) throws -> [String: FontToken] {
+        try object(value, path).reduce(into: [:]) { fonts, entry in
+            let (name, value) = entry
+            fonts[name] = try font(object(value, "\(path).\(name)"), "\(path).\(name)")
+        }
+    }
+
+    private static func font(_ fields: [String: JSON], _ path: String) throws -> FontToken {
+        let family: FontToken.Family
+        switch fields["family"]?.string {
+        case "system": family = .system
+        case "monospaced": family = .monospaced
+        case let name?: family = .named(name)
+        case nil: throw ThemeError(path: "\(path).family", reason: "must be a string")
+        }
+        let weightName = fields["weight"]?.string ?? "regular"
+        guard let weight = FontToken.Weight(rawValue: weightName) else { throw ThemeError(
+            path: "\(path).weight",
+            reason: "unknown weight \(weightName)",
+        ) }
+        return try FontToken(family: family, size: number(fields["size"], "\(path).size"), weight: weight)
+    }
+
+    private static func styles(_ value: JSON?, fonts: [String: FontToken]) throws -> [String: StyleProps] {
+        try object(value, "styles").reduce(into: [:]) { styles, entry in
+            let (name, value) = entry
+            let path = "styles.\(name)"
+            let props = try StyleProps.parse(object(value, path)) { field, reason in ThemeError(path: "\(path).\(field)", reason: reason) }
+            if let font = props.font, fonts[font] == nil {
+                throw ThemeError(path: "\(path).font", reason: "unknown font \(font)")
+            }
+            styles[name] = props
+        }
+    }
+
+    private func styleWarnings() -> [String] {
+        styles.flatMap { name, props in
+            [("color", props.color), ("background", props.background)].compactMap { field, reference in
+                guard let reference, color(reference) == nil else { return nil }
+                return "styles.\(name).\(field): no colour \(reference) with this palette"
+            }
+        }
     }
 }

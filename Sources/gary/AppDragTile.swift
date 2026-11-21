@@ -33,7 +33,9 @@ final class AppDragTile {
         label.font = .systemFont(ofSize: 13)
         label.textColor = theme.map { NSColor($0.resolve(nil).color) } ?? .labelColor
         label.preferredMaxLayoutWidth = 190
-        let close = NSButton(image: NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close")!, target: nil, action: nil)
+        let close = NSButton(title: "", target: nil, action: nil)
+        close.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close")
+        close.imagePosition = .imageOnly
         close.isBordered = false
         close.contentTintColor = theme?.color("dim").map { NSColor($0) } ?? .secondaryLabelColor
         let row = NSStackView(views: [icon, label, close])
@@ -60,18 +62,27 @@ final class AppDragTile {
         self.timer = timer
     }
 
-    @objc private func closeClicked() { close() }
+    @objc private func closeClicked() {
+        close()
+    }
 
     private func close() {
         timer?.invalidate()
         panel.close()
-        if Self.current === self { Self.current = nil }
+        if Self.current === self {
+            Self.current = nil
+        }
     }
 
     private func tick() {
         let settings = Self.settingsWindow()
-        if settings != nil { settingsSeen = true }
-        if settingsSeen && settings == nil || Date().timeIntervalSince(opened) > 300 { return close() }
+        if settings != nil {
+            settingsSeen = true
+        }
+        if settingsSeen && settings == nil || Date().timeIntervalSince(opened) > 300 {
+            close()
+            return
+        }
         place(beside: settings)
         guard !probing else { return }
         probing = true
@@ -80,7 +91,9 @@ final class AppDragTile {
             let granted = freshGrants([permission]).contains(permission)
             DispatchQueue.main.async {
                 self?.probing = false
-                if granted { self?.close() }
+                if granted {
+                    self?.close()
+                }
             }
         }
     }
@@ -92,21 +105,24 @@ final class AppDragTile {
         var origin: CGPoint
         if let settings {
             origin = CGPoint(x: settings.midX - size.width / 2, y: settings.minY - size.height - 12)
-            if origin.y < visible.minY { origin.y = settings.minY + 16 }
+            if origin.y < visible.minY {
+                origin.y = settings.minY + 16
+            }
         } else {
             origin = CGPoint(x: visible.midX - size.width / 2, y: visible.minY + 80)
         }
         origin.x = min(max(origin.x, visible.minX), visible.maxX - size.width)
-        if panel.frame.origin != origin { panel.setFrameOrigin(origin) }
+        if panel.frame.origin != origin {
+            panel.setFrameOrigin(origin)
+        }
     }
 
     private static func settingsWindow() -> CGRect? {
-        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
         let mainHeight = NSScreen.screens.first?.frame.height ?? 0
         let settings = Set(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.systempreferences").map(\.processIdentifier))
-        return windows.lazy
-            .filter { ($0[kCGWindowOwnerPID as String] as? pid_t).map(settings.contains) == true && $0[kCGWindowLayer as String] as? Int == 0 }
-            .compactMap { ($0[kCGWindowBounds as String] as? NSDictionary).flatMap { CGRect(dictionaryRepresentation: $0) } }
+        return OnScreenWindow.list([.optionOnScreenOnly, .excludeDesktopElements]).lazy
+            .filter { $0.ownerPID.map(settings.contains) == true && $0.layer == 0 }
+            .compactMap(\.bounds)
             .filter { $0.width > 200 && $0.height > 200 }
             .map { CGRect(x: $0.minX, y: mainHeight - $0.maxY, width: $0.width, height: $0.height) }
             .first
@@ -121,10 +137,17 @@ private final class DraggableAppIcon: NSImageView, NSDraggingSource {
         toolTip = Bundle.main.bundlePath
     }
 
-    required init?(coder: NSCoder) { nil }
+    required init?(coder _: NSCoder) {
+        nil
+    }
 
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-    override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
+    override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
+        true
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .openHand)
+    }
 
     override func mouseDown(with event: NSEvent) {
         let item = NSDraggingItem(pasteboardWriter: Bundle.main.bundleURL as NSURL)
@@ -132,7 +155,7 @@ private final class DraggableAppIcon: NSImageView, NSDraggingSource {
         beginDraggingSession(with: [item], event: event, source: self)
     }
 
-    func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+    func draggingSession(_: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
         context == .outsideApplication ? [.copy, .link, .generic] : []
     }
 }

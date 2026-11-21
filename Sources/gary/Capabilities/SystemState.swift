@@ -4,8 +4,15 @@ import GaryPrivate
 enum SkyLight {
     private static let connection = privateSymbol(.mainConnectionID, as: (@convention(c) () -> Int32).self)
     private static let setAlpha = privateSymbol(.setMenuBarInsetAndAlpha, as: (@convention(c) (Int32, Double, Double, Float) -> Int32).self)
-    private static let getDock = privateSymbol(.getDockRect,
-                                               as: (@convention(c) (Int32, UnsafeMutablePointer<CGRect>, UnsafeMutablePointer<Int32>, UnsafeMutablePointer<Int32>) -> Int32).self)
+    private static let getDock = privateSymbol(
+        .getDockRect,
+        as: (@convention(c) (
+            Int32,
+            UnsafeMutablePointer<CGRect>,
+            UnsafeMutablePointer<Int32>,
+            UnsafeMutablePointer<Int32>,
+        ) -> Int32).self,
+    )
     private static let setDock = privateSymbol(.setDockRect, as: (@convention(c) (Int32, CGRect, Int32, Int32) -> Int32).self)
 
     static func missing(_ symbols: [GarySymbol]) -> String? {
@@ -23,7 +30,9 @@ enum SkyLight {
 
     static func dockRect() -> DockRect? {
         guard let connection, let getDock else { return nil }
-        var rect = CGRect.zero, reason: Int32 = 0, orientation: Int32 = 0
+        var rect = CGRect.zero
+        var reason: Int32 = 0
+        var orientation: Int32 = 0
         guard getDock(connection(), &rect, &reason, &orientation) == 0 else { return nil }
         return DockRect(rect: rect, reason: reason, orientation: orientation)
     }
@@ -42,9 +51,29 @@ enum CoreDock {
         read == nil || write == nil ? "CoreDockGetAutoHideEnabled or CoreDockSetAutoHideEnabled is missing on this macOS" : nil
     }
 
-    static var autohide: Bool { read?() ?? false }
+    static var visibility: DockVisibility {
+        DockVisibility(rawValue: read?() ?? false)
+    }
 
-    static func setAutohide(_ on: Bool) { write?(on) }
+    static func setVisibility(_ visibility: DockVisibility) {
+        write?(visibility.rawValue)
+    }
+}
+
+enum DockVisibility: RawRepresentable, Codable, Equatable {
+    case autohide
+    case shown
+
+    init(rawValue autohide: Bool) {
+        self = autohide ? .autohide : .shown
+    }
+
+    var rawValue: Bool {
+        switch self {
+        case .autohide: true
+        case .shown: false
+        }
+    }
 }
 
 struct DockRect: Codable, Equatable {
@@ -59,13 +88,18 @@ struct SavedSystemState: Codable, Equatable {
         var reserved: DockRect
     }
 
+    private enum CodingKeys: String, CodingKey {
+        case menuBarHidden, dock
+        case dockVisibility = "autohide"
+    }
+
     var menuBarHidden = false
     var dock: Dock?
-    var autohide: Bool?
+    var dockVisibility: DockVisibility?
 }
 
 enum SystemState {
-    static private(set) var saved = SavedSystemState()
+    private(set) static var saved = SavedSystemState()
     private static var watchdog: pid_t = 0
 
     static func update(_ change: (inout SavedSystemState) -> Void) {
@@ -89,12 +123,20 @@ enum SystemState {
     static func restore(_ state: SavedSystemState? = nil) {
         let file = (try? Data(contentsOf: Paths.systemRestore)).flatMap { try? JSONDecoder().decode(SavedSystemState.self, from: $0) }
         guard let state = state ?? file, state != SavedSystemState() else { return }
-        if state.menuBarHidden { SkyLight.setMenuBarAlpha(1) }
-        if let dock = state.dock, SkyLight.dockRect()?.rect == dock.reserved.rect { SkyLight.setDockRect(dock.own) }
-        if let autohide = state.autohide, CoreDock.autohide != autohide { CoreDock.setAutohide(autohide) }
+        if state.menuBarHidden {
+            SkyLight.setMenuBarAlpha(1)
+        }
+        if let dock = state.dock, SkyLight.dockRect()?.rect == dock.reserved.rect {
+            SkyLight.setDockRect(dock.own)
+        }
+        if let visibility = state.dockVisibility, CoreDock.visibility != visibility {
+            CoreDock.setVisibility(visibility)
+        }
         try? FileManager.default.removeItem(at: Paths.systemRestore)
         saved = SavedSystemState()
-        log("restored the system state Gary had changed: menubar hidden=\(state.menuBarHidden) dock=\(state.dock?.own.rect.debugDescription ?? "-") autohide=\(state.autohide.map(String.init) ?? "-")")
+        log(
+            "restored the system state Gary had changed: menubar hidden=\(state.menuBarHidden) dock=\(state.dock?.own.rect.debugDescription ?? "-") autohide=\(state.dockVisibility.map { String($0.rawValue) } ?? "-")",
+        )
     }
 
     private static func startWatchdog() {
@@ -108,10 +150,14 @@ enum SystemState {
         posix_spawnattr_setpgroup(&attributes, 0)
         let argv = ["gary-restore", "restore-after", String(getpid())].map { strdup($0) } + [nil]
         let status = posix_spawn(&watchdog, path, &actions, &attributes, argv, environ)
-        for argument in argv { free(argument) }
+        for argument in argv {
+            free(argument)
+        }
         posix_spawn_file_actions_destroy(&actions)
         posix_spawnattr_destroy(&attributes)
-        if status != 0 { log("restore watchdog not started: \(String(cString: strerror(status)))") }
+        if status != 0 {
+            log("restore watchdog not started: \(String(cString: strerror(status)))")
+        }
     }
 }
 

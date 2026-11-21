@@ -25,11 +25,15 @@ func runCli(_ verb: String, _ arguments: [String]) -> Int32 {
             line = try requestLine(request.line, path: socketPath, timeout: request.timeout + 5)
         }
         switch try Response.decode(line: line) {
-        case .ok(let result):
-            if request == .quit { return awaitQuit("Gary stopped") }
-            if !result.isEmpty { print(result) }
+        case let .ok(result):
+            if request == .quit {
+                return awaitQuit("Gary stopped")
+            }
+            if !result.isEmpty {
+                print(result)
+            }
             return 0
-        case .failure(let message):
+        case let .failure(message):
             fputs("gary: \(message)\n", stderr)
             return 1
         }
@@ -46,7 +50,7 @@ func runCli(_ verb: String, _ arguments: [String]) -> Int32 {
 
 private func awaitQuit(_ done: String) -> Int32 {
     for _ in 0..<50 {
-        if !lockIsHeld(appLockPath) && !lockIsHeld(supervisorLockPath) {
+        if !lockIsHeld(appLockPath), !lockIsHeld(supervisorLockPath) {
             print(done)
             return 0
         }
@@ -62,17 +66,19 @@ private func startApp() throws {
     let open = try Process.run(URL(fileURLWithPath: "/usr/bin/open"), arguments: ["-g", Bundle.main.bundlePath])
     open.waitUntilExit()
     for _ in 0..<50 {
-        if (try? requestLine(Request.ping.line, path: socketPath, timeout: 1)) != nil { return }
+        if (try? requestLine(Request.ping.line, path: socketPath, timeout: 1)) != nil {
+            return
+        }
         Thread.sleep(forTimeInterval: 0.2)
     }
     throw SocketError.unreachable(socketPath)
 }
 
-let appUsage: [(syntax: String, description: String, example: String?)] = [
-    ("app", "Run the shell in the foreground, logging to the terminal, without the crash supervisor.", nil),
-    ("login [on|off|status]", "Start Gary at login, or stop doing so.", nil),
-    ("--version", "Print the version of this Gary.", nil),
-    ("update", "Install the latest release from GitHub with gh, after saying which version is installed and which is the latest.", nil),
+let appUsage: [CommandUsage] = [
+    CommandUsage("app", "Run the shell in the foreground, logging to the terminal, without the crash supervisor.", nil),
+    CommandUsage("login [on|off|status]", "Start Gary at login, or stop doing so.", nil),
+    CommandUsage("--version", "Print the version of this Gary.", nil),
+    CommandUsage("update", "Install the latest release from GitHub with gh, after saying which version is installed and which is the latest.", nil),
 ]
 
 func runUpdate(_ arguments: [String]) -> Int32 {
@@ -96,12 +102,16 @@ func runUpdate(_ arguments: [String]) -> Int32 {
 
 func runHelp() -> Int32 {
     print("usage: gary <verb> [args], sent to the running app over \(socketPath)\n")
-    for usage in Request.usage { printUsage(usage) }
+    for usage in Request.usage {
+        printUsage(usage)
+    }
     print("\nThese commands work without the running app:\n")
-    for usage in appUsage + skillUsage + pluginUsage { printUsage(usage) }
+    for usage in appUsage + skillUsage + pluginUsage {
+        printUsage(usage)
+    }
     return 0
 }
 
-private func printUsage(_ usage: (syntax: String, description: String, example: String?)) {
+private func printUsage(_ usage: CommandUsage) {
     print("  \(usage.syntax)\n      \(usage.description)" + (usage.example.map { "\n      for example: \($0)" } ?? ""))
 }

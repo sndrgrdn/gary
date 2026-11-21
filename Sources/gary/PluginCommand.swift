@@ -1,72 +1,65 @@
 import Foundation
 import GaryCore
 
-let pluginUsage: [(syntax: String, description: String, example: String?)] = [
-    ("plugin new <id> [--kind <kind,...> | --from <example>] [--dir <folder>] [--enable]",
-     "Scaffold a TypeScript plugin with one or more kinds, or copy a bundled example under a new id, into ~/.config/gary/plugins/<id>, or into <folder>, which must not exist yet and which Gary does not load until gary plugin add copies it.", "gary plugin new you.weather --from load --enable"),
-    ("plugin validate <path>", "Check a plugin folder with the checks Gary runs when it loads plugins.", nil),
-    ("plugin add <git-url|path> [--enable]", "Install a plugin from a git repository or a folder without running any of it.", "gary plugin add https://github.com/you/gary-weather --enable"),
-    ("plugin update <id> [--yes]", "Show what changed upstream, then fast-forward the plugin's checkout.", "gary plugin update you.weather"),
-    ("plugin remove <id>", "Move a plugin to the Trash and drop it from shell.json.", nil),
-    ("plugin enable <id>", "Turn a plugin on in shell.json; a bar widget goes to the right of the bar.", nil),
-    ("plugin disable <id>", "Turn a plugin off in shell.json.", nil),
-    ("plugin list", "List installed plugins and whether shell.json enables them.", nil),
-    ("plugin types [path]", "Write gary.d.ts and manifest.schema.json into a plugin folder.", "gary plugin types ~/.config/gary/plugins/you.weather"),
+let pluginUsage: [CommandUsage] = [
+    CommandUsage(
+        "plugin new <id> [--kind <kind,...> | --from <example>] [--dir <folder>] [--enable]",
+        """
+        Scaffold a TypeScript plugin with one or more kinds, or copy a bundled example under a new id, \
+        into ~/.config/gary/plugins/<id>, or into <folder>, which must not exist yet \
+        and which Gary does not load until gary plugin add copies it.
+        """,
+        "gary plugin new you.weather --from load --enable",
+    ),
+    CommandUsage("plugin validate <path>", "Check a plugin folder with the checks Gary runs when it loads plugins.", nil),
+    CommandUsage(
+        "plugin add <git-url|path> [--enable]",
+        "Install a plugin from a git repository or a folder without running any of it.",
+        "gary plugin add https://github.com/you/gary-weather --enable",
+    ),
+    CommandUsage(
+        "plugin update <id> [--yes]",
+        "Show what changed upstream, then fast-forward the plugin's checkout.",
+        "gary plugin update you.weather",
+    ),
+    CommandUsage("plugin remove <id>", "Move a plugin to the Trash and drop it from shell.json.", nil),
+    CommandUsage("plugin enable <id>", "Turn a plugin on in shell.json; a bar widget goes to the right of the bar.", nil),
+    CommandUsage("plugin disable <id>", "Turn a plugin off in shell.json.", nil),
+    CommandUsage("plugin list", "List installed plugins and whether shell.json enables them.", nil),
+    CommandUsage(
+        "plugin types [path]",
+        "Write gary.d.ts and manifest.schema.json into a plugin folder.",
+        "gary plugin types ~/.config/gary/plugins/you.weather",
+    ),
 ]
 
-private struct CommandError: Error, CustomStringConvertible {
-    let description: String
-    var usage = false
-    init(_ description: String, usage: Bool = false) {
-        self.description = description
-        self.usage = usage
-    }
-}
-
-private struct Arguments {
-    var positional: [String] = []
-    var flags: Set<String> = []
-    var options: [String: String] = [:]
-
-    init(_ raw: [String], flags allowed: Set<String> = [], options: Set<String> = [], count: ClosedRange<Int>) throws {
-        var rest = raw[...]
-        while let argument = rest.popFirst() {
-            if allowed.contains(argument) {
-                flags.insert(argument)
-            } else if options.contains(argument) {
-                guard let value = rest.popFirst() else { throw CommandError("\(argument) needs a value", usage: true) }
-                self.options[argument] = value
-            } else if argument.hasPrefix("--") {
-                throw CommandError("unknown option \(argument)", usage: true)
-            } else {
-                positional.append(argument)
-            }
-        }
-        guard count.contains(positional.count) else { throw CommandError("wrong number of arguments", usage: true) }
+private func dispatch(_ arguments: [String]) throws {
+    let rest = Array(arguments.dropFirst())
+    switch arguments.first {
+    case "new": try newPlugin(Arguments(rest, count: 1...1, flags: ["--enable"], options: ["--kind", "--from", "--dir"]))
+    case "validate": try validate(Arguments(rest, count: 1...1).positional[0])
+    case "add": try add(Arguments(rest, count: 1...1, flags: ["--enable"]))
+    case "update": try update(Arguments(rest, count: 1...1, flags: ["--yes"]))
+    case "remove": try remove(pluginID(Arguments(rest, count: 1...1).positional[0]))
+    case "enable": try enable(pluginID(Arguments(rest, count: 1...1).positional[0]))
+    case "disable": try disable(pluginID(Arguments(rest, count: 1...1).positional[0]))
+    case "list": _ = try Arguments(rest, count: 0...0); try list()
+    case "types":
+        let path = try Arguments(rest, count: 0...1).positional.first ?? "."
+        try print(writeTypes(URL(fileURLWithPath: path).standardizedFileURL))
+    default: throw CommandError("unknown plugin command", usage: true)
     }
 }
 
 func runPlugin(_ arguments: [String]) -> Int32 {
     do {
-        let rest = Array(arguments.dropFirst())
-        switch arguments.first {
-        case "new": try newPlugin(try Arguments(rest, flags: ["--enable"], options: ["--kind", "--from", "--dir"], count: 1...1))
-        case "validate": try validate(try Arguments(rest, count: 1...1).positional[0])
-        case "add": try add(try Arguments(rest, flags: ["--enable"], count: 1...1))
-        case "update": try update(try Arguments(rest, flags: ["--yes"], count: 1...1))
-        case "remove": try remove(try pluginID(try Arguments(rest, count: 1...1).positional[0]))
-        case "enable": try enable(try pluginID(try Arguments(rest, count: 1...1).positional[0]))
-        case "disable": try disable(try pluginID(try Arguments(rest, count: 1...1).positional[0]))
-        case "list": _ = try Arguments(rest, count: 0...0); try list()
-        case "types":
-            let path = try Arguments(rest, count: 0...1).positional.first ?? "."
-            print(try writeTypes(URL(fileURLWithPath: path).standardizedFileURL))
-        default: throw CommandError("unknown plugin command", usage: true)
-        }
+        try dispatch(arguments)
         return 0
     } catch let error as CommandError where error.usage {
         fputs("gary plugin: \(error)\nusage:\n", stderr)
-        for (syntax, _, _) in pluginUsage { fputs("  gary \(syntax)\n", stderr) }
+        for usage in pluginUsage {
+            fputs("  gary \(usage.syntax)\n", stderr)
+        }
         return 64
     } catch {
         fputs("gary plugin: \(error)\n", stderr)
@@ -80,7 +73,7 @@ private func pluginID(_ raw: String) throws -> PluginID {
 }
 
 private func installed() throws -> PluginCatalog {
-    PluginCatalog.scan(builtin: Paths.builtinPlugins, user: Paths.userPlugins, capabilities: try Capability.names())
+    try PluginCatalog.scan(builtin: Paths.builtinPlugins, user: Paths.userPlugins, capabilities: Capability.names())
 }
 
 private func userPlugin(_ id: PluginID) throws -> URL {
@@ -119,9 +112,11 @@ private func newPlugin(_ arguments: Arguments) throws {
         }
     }
     _ = try writeTypes(directory)
-    let bundle = try PluginBundle.load(directory, origin: .user, capabilities: try Capability.names())
+    let bundle = try PluginBundle.load(directory, origin: .user, capabilities: Capability.names())
     print("created \(id) in \(directory.path)" + (example.map { " from the \($0.directory.lastPathComponent) example" } ?? ""))
-    if arguments.flags.contains("--enable") { try enable(id) }
+    if arguments.flags.contains("--enable") {
+        try enable(id)
+    }
     print("edit \(bundle.manifest.kinds.compactMap { bundle.manifest.entryPoints[$0] }.joined(separator: ", ")); Gary reloads the plugin on save")
 }
 
@@ -130,7 +125,7 @@ private func bundledExample(_ name: String) throws -> PluginBundle {
     guard names.contains(name) else {
         throw CommandError("no example \(name); " + (names.isEmpty ? "this gary has no bundled examples" : "use \(names.joined(separator: ", "))"))
     }
-    return try PluginBundle.load(Paths.examples.appending(path: name), origin: .user, capabilities: try Capability.names())
+    return try PluginBundle.load(Paths.examples.appending(path: name), origin: .user, capabilities: Capability.names())
 }
 
 private func replace(_ old: String, with new: String, in directory: URL) throws {
@@ -145,7 +140,7 @@ private func validate(_ path: String) throws {
     let directory = URL(fileURLWithPath: path).standardizedFileURL
     let bundle: PluginBundle
     do {
-        bundle = try PluginBundle.load(directory, origin: .user, capabilities: try Capability.names())
+        bundle = try PluginBundle.load(directory, origin: .user, capabilities: Capability.names())
     } catch {
         throw CommandError("\(directory.path): \(error)")
     }
@@ -162,7 +157,9 @@ private func add(_ arguments: Arguments) throws {
     let local = URL(fileURLWithPath: source).standardizedFileURL
     var isDirectory: ObjCBool = false
     if FileManager.default.fileExists(atPath: local.path, isDirectory: &isDirectory), isDirectory.boolValue {
-        if let top = try? git(["rev-parse", "--show-toplevel"], in: local), URL(fileURLWithPath: top).resolvingSymlinksInPath() == local.resolvingSymlinksInPath() {
+        if let top = try? git(["rev-parse", "--show-toplevel"], in: local),
+           URL(fileURLWithPath: top).resolvingSymlinksInPath() == local.resolvingSymlinksInPath()
+        {
             try git(["clone", "--quiet", "--", local.path, checkout.path], in: staging)
         } else {
             try FileManager.default.copyItem(at: local, to: checkout)
@@ -202,7 +199,9 @@ private func warnUnsandboxed(_ manifest: PluginManifest) {
     warning: plugins run unsandboxed inside Gary, with your user account's access to files, \
     the network and other programs, and with every macOS permission you granted Gary.
     """)
-    guard !manifest.capabilities.isEmpty else { return print("\(manifest.id) uses no capabilities") }
+    guard !manifest.capabilities.isEmpty else { print("\(manifest.id) uses no capabilities")
+        return
+    }
     print("\(manifest.id) uses these capabilities in uses and subscribes:")
     printCapabilities(manifest.capabilities)
 }
@@ -211,7 +210,9 @@ private func printCapabilities(_ names: [String]) {
     let width = names.map(\.count).max() ?? 0
     for name in names {
         let permissions = Capability.all.first { $0.name == name }?.permissions.map(\.name) ?? []
-        print("  \(name.padding(toLength: width, withPad: " ", startingAt: 0))  macOS permission: \(permissions.isEmpty ? "none" : permissions.joined(separator: ", "))")
+        print(
+            "  \(name.padding(toLength: width, withPad: " ", startingAt: 0))  macOS permission: \(permissions.isEmpty ? "none" : permissions.joined(separator: ", "))",
+        )
     }
 }
 
@@ -219,11 +220,14 @@ private func update(_ arguments: Arguments) throws {
     let id = try pluginID(arguments.positional[0])
     let directory = try userPlugin(id)
     guard (try? git(["rev-parse", "--is-inside-work-tree"], in: directory)) == "true" else { throw CommandError("\(id) was not installed from git") }
-    guard try git(["status", "--porcelain"], in: directory).isEmpty else { throw CommandError("\(id) has local changes; commit or discard them first") }
+    guard try git(["status", "--porcelain"], in: directory).isEmpty
+    else { throw CommandError("\(id) has local changes; commit or discard them first") }
     try git(["fetch", "--quiet"], in: directory)
     let head = try git(["rev-parse", "HEAD"], in: directory)
     let upstream = try git(["rev-parse", "@{upstream}"], in: directory)
-    guard head != upstream else { return print("\(id) is up to date") }
+    guard head != upstream else { print("\(id) is up to date")
+        return
+    }
     guard (try? git(["merge-base", "--is-ancestor", "HEAD", upstream], in: directory)) != nil else {
         throw CommandError("\(id) cannot fast-forward to \(upstream.prefix(12))")
     }
@@ -257,7 +261,9 @@ private func update(_ arguments: Arguments) throws {
         guard isatty(STDIN_FILENO) != 0 else { throw CommandError("rerun with --yes to apply this update") }
         print("apply this update to \(id)? [y/N] ", terminator: "")
         fflush(stdout)
-        guard readLine()?.lowercased().hasPrefix("y") == true else { return print("not updated") }
+        guard readLine()?.lowercased().hasPrefix("y") == true else { print("not updated")
+            return
+        }
     }
     try git(["merge", "--ff-only", "--quiet", upstream], in: directory)
     print("updated \(id) \(current?.version ?? "?") -> \(next.version)")
@@ -295,16 +301,24 @@ private func editShellConfig(_ change: ShellConfig.Change) throws {
 
 private func list() throws {
     let catalog = try installed()
-    let config = FileManager.default.fileExists(atPath: Paths.shellConfig.path)
-        ? try ShellConfig.parse(try JSON.parse(Data(contentsOf: Paths.shellConfig))) : ShellConfig.defaults
+    let config = try FileManager.default.fileExists(atPath: Paths.shellConfig.path)
+        ? ShellConfig.parse(JSON.parse(Data(contentsOf: Paths.shellConfig))) : ShellConfig.defaults
     let enabled = config.resolve(catalog).enabled
-    for id in catalog.sortedIDs {
-        let bundle = catalog.plugins[id]!
-        let source = bundle.origin == .builtin ? "builtin" : (try? git(["remote", "get-url", "origin"], in: bundle.directory)) ?? bundle.directory.path
-        print([id.rawValue, bundle.manifest.version, enabled.contains(id) ? "enabled" : "disabled",
-               bundle.manifest.kinds.map(\.rawValue).joined(separator: ","), source].joined(separator: "\t"))
+    for bundle in catalog.sortedIDs.compactMap({ catalog.plugins[$0] }) {
+        let id = bundle.manifest.id
+        let source = bundle.origin == .builtin ? "builtin" : (try? git(["remote", "get-url", "origin"], in: bundle.directory)) ?? bundle.directory
+            .path
+        print([
+            id.rawValue,
+            bundle.manifest.version,
+            enabled.contains(id) ? "enabled" : "disabled",
+            bundle.manifest.kinds.map(\.rawValue).joined(separator: ","),
+            source,
+        ].joined(separator: "\t"))
     }
-    for problem in catalog.problems { print("\(problem.directory.lastPathComponent)\t-\tinvalid\t\(problem.reason)") }
+    for problem in catalog.problems {
+        print("\(problem.directory.lastPathComponent)\t-\tinvalid\t\(problem.reason)")
+    }
 }
 
 private func writeTypes(_ directory: URL) throws -> String {
@@ -317,7 +331,13 @@ private func writeTypes(_ directory: URL) throws -> String {
             let manifest = try PluginManifest.parse(data, origin: .user, capabilities: capabilities)
             let names = Set(manifest.uses + manifest.subscribes.map(\.description))
             selected = Capability.all.filter { names.contains($0.name) }
-            topics = manifest.subscribes.compactMap { if case .plugin(let id) = $0 { return id } else { return nil } }
+            topics = manifest.subscribes.compactMap {
+                if case let .plugin(id) = $0 {
+                    id
+                } else {
+                    nil
+                }
+            }
             scope = "the uses and subscribes of \(manifest.id)"
         } catch {
             scope = "every capability, since manifest.json is invalid: \(error)"
@@ -338,7 +358,8 @@ private func git(_ arguments: [String], in directory: URL, environment: [String:
     process.arguments = ["git"] + arguments
     process.currentDirectoryURL = directory
     process.environment = ProcessInfo.processInfo.environment.merging(environment) { $1 }
-    let output = Pipe(), errors = Pipe()
+    let output = Pipe()
+    let errors = Pipe()
     process.standardOutput = output
     process.standardError = errors
     process.standardInput = FileHandle.nullDevice
@@ -347,9 +368,15 @@ private func git(_ arguments: [String], in directory: URL, environment: [String:
     let message = errors.fileHandleForReading.readDataToEndOfFile()
     process.waitUntilExit()
     guard process.terminationStatus == 0 else {
-        throw CommandError("git \(arguments.first ?? "") failed: \(String(decoding: message, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))")
+        throw CommandError(
+            "git \(arguments.first ?? "") failed: \(text(message))",
+        )
     }
-    return String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+    return text(data)
+}
+
+private func text(_ data: Data) -> String {
+    (String(bytes: data, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
 private func show(_ arguments: [String], in directory: URL) throws {

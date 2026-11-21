@@ -13,7 +13,6 @@ typedef NS_ENUM(NSInteger, GarySymbol) {
     GarySymbolDockGetAutoHide,
     GarySymbolDockSetAutoHide,
     GarySymbolWindowListCreateImage,
-    GarySymbolBluetoothGetPower,
     GarySymbolBluetoothSetPower,
     GarySymbolGetBrightness,
     GarySymbolSetBrightness,

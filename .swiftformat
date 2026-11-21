@@ -1,0 +1,15 @@
+--swiftversion 6.2
+--exclude .build,build,Vendor,tmp,node_modules,tools
+
+--maxwidth 150
+--ranges no-space
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--closingparen balanced
+
+--enable blockComments,commonTypos,emptyExtensions,isEmpty,noExplicitOwnership,noGuardInTests
+--enable preferContains,preferCountWhere,preferFirstWhere,preferFlatMap,preferMinOverSorted,preferFinalClasses
+--enable preferSwiftTesting,preferStructSwiftTestingSuites
+--enable redundantExtendedLifetime,redundantOverload,redundantSendable,singlePropertyPerLine,unusedPrivateDeclarations
+--disable environmentEntry

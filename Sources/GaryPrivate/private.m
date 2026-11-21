@@ -14,7 +14,6 @@ static const GaryPrivateSymbol symbols[] = {
     [GarySymbolDockGetAutoHide] = {"/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices", "CoreDockGetAutoHideEnabled", "dock hide"},
     [GarySymbolDockSetAutoHide] = {"/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices", "CoreDockSetAutoHideEnabled", "dock hide"},
     [GarySymbolWindowListCreateImage] = {SKYLIGHT, "SLWindowListCreateImageFromArray", "tray icons"},
-    [GarySymbolBluetoothGetPower] = {"/System/Library/Frameworks/IOBluetooth.framework/IOBluetooth", "IOBluetoothPreferenceGetControllerPowerState", "bluetooth power"},
     [GarySymbolBluetoothSetPower] = {"/System/Library/Frameworks/IOBluetooth.framework/IOBluetooth", "IOBluetoothPreferenceSetControllerPowerState", "bluetooth power"},
     [GarySymbolGetBrightness] = {DISPLAY_SERVICES, "DisplayServicesGetBrightness", "brightness of built-in displays"},
     [GarySymbolSetBrightness] = {DISPLAY_SERVICES, "DisplayServicesSetBrightness", "brightness of built-in displays"},

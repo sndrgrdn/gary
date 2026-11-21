@@ -1,11 +1,13 @@
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 struct NodeTests {
-    private func parse(_ text: String) throws -> Node { try Node.parse(Data(text.utf8)) }
+    private func parse(_ text: String) throws -> Node {
+        try Node.parse(Data(text.utf8))
+    }
 
-    @Test func parsesEveryKindWithOptionalFields() throws {
+    @Test func `parses every kind with optional fields`() throws {
         let node = try parse("""
         {"type":"row","style":"bar","children":[
           {"type":"text","text":"1","key":"ws1","style":"active","action":"1"},
@@ -22,7 +24,7 @@ struct NodeTests {
         ]), style: "bar"))
     }
 
-    @Test func parsesTheControlsAndStyleProperties() throws {
+    @Test func `parses the controls and style properties`() throws {
         let node = try parse("""
         {"type":"column","style":"panel","padding":8,"gap":4,"background":"#000000","children":[
           {"type":"button","action":"open","hover":"selected","radius":6,"children":[{"type":"image","path":"/Applications/Safari.app","width":24,"height":24}]},
@@ -33,8 +35,11 @@ struct NodeTests {
         ]}
         """)
         #expect(node == Node(.column([
-            Node(.button([Node(.image("/Applications/Safari.app"), props: StyleProps(width: 24, height: 24))], hover: "selected"),
-                 action: "open", props: StyleProps(radius: 6)),
+            Node(
+                .button([Node(.image("/Applications/Safari.app"), props: StyleProps(width: 24, height: 24))], hover: "selected"),
+                action: "open",
+                props: StyleProps(radius: 6),
+            ),
             Node(.slider(0.25), action: "volume"),
             Node(.progress(1), props: StyleProps(opacity: 0.5, color: "accent")),
             Node(.input(Node.Input(value: "saf", placeholder: "Search", change: "query", submit: "run")), props: StyleProps(fontSize: 16)),
@@ -43,8 +48,10 @@ struct NodeTests {
         #expect(try parse(#"{"type":"input"}"#) == Node(.input(Node.Input(value: ""))))
     }
 
-    @Test func parsesPaddingPerSideASignedOffsetAlignmentAnimationAndMaterial() throws {
-        func props(_ fields: String) throws -> StyleProps { try parse(#"{"type":"text","text":"a",\#(fields)}"#).props }
+    @Test func `parses padding per side A signed offset alignment animation and material`() throws {
+        func props(_ fields: String) throws -> StyleProps {
+            try parse(#"{"type":"text","text":"a",\#(fields)}"#).props
+        }
         #expect(try props(#""padding":4"#).padding == Insets(4))
         #expect(try props(#""padding":[2,6]"#).padding == Insets(top: 2, right: 6, bottom: 2, left: 6))
         #expect(try props(#""padding":[1,2,3,4]"#).padding == Insets(top: 1, right: 2, bottom: 3, left: 4))
@@ -56,12 +63,16 @@ struct NodeTests {
         #expect(try props(#""animation":"spring","material":"glass""#) == StyleProps(animation: .spring, material: .glass))
         #expect(try props(#""material":"vibrant","colorScheme":"dark""#) == StyleProps(material: .vibrant, colorScheme: .dark))
         #expect(throws: NodeError(path: "root", reason: "colorScheme must be one of \"dark\", \"light\"")) { try props(#""colorScheme":"auto""#) }
-        #expect(throws: NodeError(path: "root", reason: "align must be one of \"leading\", \"center\", \"trailing\"")) { try props(#""align":"left""#) }
-        #expect(throws: NodeError(path: "root", reason: "material must be one of \"vibrant\", \"glass\", \"none\"")) { try props(#""material":"blur""#) }
+        #expect(throws: NodeError(path: "root", reason: "align must be one of \"leading\", \"center\", \"trailing\"")) {
+            try props(#""align":"left""#)
+        }
+        #expect(throws: NodeError(path: "root", reason: "material must be one of \"vibrant\", \"glass\", \"none\"")) {
+            try props(#""material":"blur""#)
+        }
         #expect(throws: NodeError(path: "root", reason: "offset must be a number")) { try props(#""offset":"1""#) }
     }
 
-    @Test func parsesAStackWithPlacedLayeredAndDecoratedChildren() throws {
+    @Test func `parses A stack with placed layered and decorated children`() throws {
         let node = try parse("""
         {"type":"stack","width":768,"height":475,"animation":"smooth","duration":0.35,"children":[
           {"type":"stack","key":"card","x":-94.5,"y":17.5,"zIndex":100,"scale":0.97,"radius":12,"clip":true,"transition":"opacity",
@@ -73,18 +84,34 @@ struct NodeTests {
         ]}
         """)
         #expect(node == Node(.stack([
-            Node(.stack([
-                Node(.image("/p.jpg"), props: StyleProps(width: 768, height: 475, fit: .fill)),
-                Node(.row([]), props: StyleProps(opacity: 0.42, background: "background"), hovered: StyleProps(opacity: 0.2)),
-            ]), key: "card", props: StyleProps(radius: 12, x: -94.5, y: 17.5, zIndex: 100, scale: 0.97, transition: .opacity, clip: true,
-                                                shadow: Shadow(color: "alpha(#000000, 0.45)", radius: 30, y: 18), border: Border(color: "accent", width: 2.5)),
-                 pressed: StyleProps(scale: 0.97)),
+            Node(
+                .stack([
+                    Node(.image("/p.jpg"), props: StyleProps(width: 768, height: 475, fit: .fill)),
+                    Node(.row([]), props: StyleProps(opacity: 0.42, background: "background"), hovered: StyleProps(opacity: 0.2)),
+                ]),
+                key: "card",
+                props: StyleProps(
+                    radius: 12,
+                    x: -94.5,
+                    y: 17.5,
+                    zIndex: 100,
+                    scale: 0.97,
+                    transition: .opacity,
+                    clip: true,
+                    shadow: Shadow(color: "alpha(#000000, 0.45)", radius: 30, y: 18),
+                    border: Border(
+                        color: "accent",
+                        width: 2.5,
+                    ),
+                ),
+                pressed: StyleProps(scale: 0.97),
+            ),
         ]), props: StyleProps(width: 768, height: 475, animation: .smooth, duration: 0.35)))
         #expect(try parse(#"{"type":"row","border":{"color":"accent"},"shadow":{"color":"accent"}}"#).props
             == StyleProps(shadow: Shadow(color: "accent"), border: Border(color: "accent", width: 1)))
     }
 
-    @Test func rejectsMalformedStackAndDecorationProperties() {
+    @Test func `rejects malformed stack and decoration properties`() {
         let cases: [(String, String)] = [
             (#""x":"1""#, "x must be a number"),
             (#""zIndex":true"#, "zIndex must be a number"),
@@ -105,15 +132,16 @@ struct NodeTests {
         }
     }
 
-    @Test func anImageDecodesAtTheLargestSizeItsFitShowsWithoutUpscaling() {
-        let wide = CGSize(width: 2048, height: 1024), frame = CGSize(width: 1536, height: 950)
+    @Test func `an image decodes at the largest size its fit shows without upscaling`() {
+        let wide = CGSize(width: 2048, height: 1024)
+        let frame = CGSize(width: 1536, height: 950)
         #expect(ImageFit.fill.pixelSize(source: wide, frame: frame) == 1900)
         #expect(ImageFit.fit.pixelSize(source: wide, frame: frame) == 1536)
         #expect(ImageFit.fill.pixelSize(source: CGSize(width: 1024, height: 633), frame: frame) == 1024)
         #expect(ImageFit.fit.pixelSize(source: .zero, frame: CGSize(width: 32, height: 30)) == 32)
     }
 
-    @Test func aScrollRevealsTheChildItNamesOrElseTheFirstSelectedOne() throws {
+    @Test func `a scroll reveals the child it names or else the first selected one`() {
         let rows = (0..<12).map { index in Node(.text("\(index)"), key: "r\(index)", style: index == 9 || index == 11 ? "selected" : nil) }
         #expect(Node(.scroll(rows, reveal: nil)).revealedChild == 9)
         #expect(Node(.scroll(rows, reveal: "r3")).revealedChild == 3)
@@ -122,23 +150,31 @@ struct NodeTests {
         #expect(Node(.column(rows)).revealedChild == nil)
     }
 
-    @Test func keyedChildrenAreIdentifiedByKeyAndTheRestByTheirPositionAmongUnkeyedSiblings() {
+    @Test func `keyed children are identified by key and the rest by their position among unkeyed siblings`() {
         let row = Node(.row([Node(.text("a")), Node(.text("b"), key: "b"), Node(.icon("bolt")), Node(.spacer, key: "gap")]))
         #expect(row.childIDs == [.position(0), .key("b"), .position(1), .key("gap")])
-        #expect(Node(.text("a")).childIDs == [])
+        #expect(Node(.text("a")).childIDs.isEmpty)
     }
 
-    @Test func relativeImagePathsResolveInsideThePluginFolder() throws {
-        let tree = try parse(#"{"type":"row","children":[{"type":"image","path":"icons/logo.png"},{"type":"image","path":"../../Gary.icns"},{"type":"image","path":"~/a.png"},{"type":"image","path":"/b.png"}]}"#)
+    @Test func `relative image paths resolve inside the plugin folder`() throws {
+        let tree = try parse(#"""
+        {"type":"row","children":[{"type":"image","path":"icons/logo.png"},{"type":"image","path":"../../Gary.icns"},\#
+        {"type":"image","path":"~/a.png"},{"type":"image","path":"/b.png"}]}
+        """#)
         let resolved = tree.resolvingImages(against: URL(fileURLWithPath: "/App/Resources/plugins/onboarding"))
-        #expect(resolved.children.map(\.content) == [.image("/App/Resources/plugins/onboarding/icons/logo.png"), .image("/App/Resources/Gary.icns"), .image("~/a.png"), .image("/b.png")])
+        #expect(resolved.children.map(\.content) == [
+            .image("/App/Resources/plugins/onboarding/icons/logo.png"),
+            .image("/App/Resources/Gary.icns"),
+            .image("~/a.png"),
+            .image("/b.png"),
+        ])
     }
 
-    @Test func nullOptionalFieldsAreAbsent() throws {
+    @Test func `null optional fields are absent`() throws {
         #expect(try parse(#"{"type":"text","text":"a","style":null,"key":null}"#) == Node(.text("a")))
     }
 
-    @Test func rejectsMalformedNodesWithTheirPath() {
+    @Test func `rejects malformed nodes with their path`() {
         let cases: [(String, NodeError)] = [
             (#"[]"#, NodeError(path: "root", reason: "node must be an object")),
             (#"{"text":"a"}"#, NodeError(path: "root", reason: "type is required")),
@@ -152,10 +188,14 @@ struct NodeTests {
             (#"{"type":"icon","text":"x"}"#, NodeError(path: "root", reason: "symbol is required")),
             (#"{"type":"text","text":"a","style":3}"#, NodeError(path: "root", reason: "style must be a string")),
             (#"{"type":"row","children":{}}"#, NodeError(path: "root", reason: "children must be an array")),
-            (#"{"type":"row","children":[{"type":"text","text":"a"},{"type":"text"}]}"#,
-             NodeError(path: "root.children[1]", reason: "text is required")),
-            (#"{"type":"row","children":[{"type":"spacer","key":"k"},{"type":"spacer","key":"k"}]}"#,
-             NodeError(path: "root", reason: "duplicate key \"k\" among children")),
+            (
+                #"{"type":"row","children":[{"type":"text","text":"a"},{"type":"text"}]}"#,
+                NodeError(path: "root.children[1]", reason: "text is required"),
+            ),
+            (
+                #"{"type":"row","children":[{"type":"spacer","key":"k"},{"type":"spacer","key":"k"}]}"#,
+                NodeError(path: "root", reason: "duplicate key \"k\" among children"),
+            ),
         ]
         for (text, error) in cases {
             #expect(throws: error, "\(text)") { try parse(text) }
@@ -163,9 +203,11 @@ struct NodeTests {
         #expect(throws: NodeError(path: "root", reason: "render did not return a JSON value")) { try parse("undefined") }
     }
 
-    @Test func boundsDepthAndSize() throws {
+    @Test func `bounds depth and size`() throws {
         var deep = #"{"type":"spacer"}"#
-        for _ in 1..<Node.maxDepth { deep = #"{"type":"row","children":[\#(deep)]}"# }
+        for _ in 1..<Node.maxDepth {
+            deep = #"{"type":"row","children":[\#(deep)]}"#
+        }
         _ = try parse(deep)
         #expect(throws: NodeError.self) { try parse(#"{"type":"row","children":[\#(deep)]}"#) }
 
@@ -178,9 +220,12 @@ struct NodeTests {
 
 struct SeededRandom {
     private var state: UInt64
-    init(seed: UInt64) { state = seed }
+    init(seed: UInt64) {
+        state = seed
+    }
+
     mutating func next(_ bound: Int) -> Int {
-        state = state &* 6364136223846793005 &+ 1442695040888963407
+        state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
         return Int((state >> 33) % UInt64(bound))
     }
 }

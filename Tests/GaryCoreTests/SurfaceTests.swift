@@ -1,13 +1,13 @@
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 struct SurfaceTests {
     private let display = DisplayInfo(id: "a", index: 0, frame: CGRect(x: 0, y: 0, width: 1000, height: 800), band: 32)
     private let content = CGSize(width: 200, height: 100)
 
     private func spec(_ text: String, kind: PluginKind = .panel) throws -> SurfaceSpec {
-        try SurfaceSpec.parse(try JSON.parse(text), kind: kind)
+        try SurfaceSpec.parse(JSON.parse(text), kind: kind)
     }
 
     private func frame(_ text: String, kind: PluginKind = .panel, content: CGSize? = nil) throws -> CGRect {
@@ -17,28 +17,28 @@ struct SurfaceTests {
         }
     }
 
-    @Test func noAnchorsCentresTheContentBelowTheBarBand() throws {
+    @Test func `no anchors centres the content below the bar band`() throws {
         #expect(try frame("{}") == CGRect(x: 400, y: 334, width: 200, height: 100))
     }
 
-    @Test func oneAnchorPinsThatEdgeWithItsMargin() throws {
+    @Test func `one anchor pins that edge with its margin`() throws {
         #expect(try frame(#"{"anchors":{"top":true,"right":true},"margins":{"top":8,"right":16}}"#)
             == CGRect(x: 784, y: 800 - 32 - 8 - 100, width: 200, height: 100))
         #expect(try frame(#"{"anchors":{"bottom":true},"margins":80}"#) == CGRect(x: 400, y: 80, width: 200, height: 100))
         #expect(try frame(#"{"anchors":{"left":true},"margins":{"left":10}}"#) == CGRect(x: 10, y: 334, width: 200, height: 100))
     }
 
-    @Test func opposingAnchorsStretchBetweenTheMargins() throws {
+    @Test func `opposing anchors stretch between the margins`() throws {
         #expect(try frame(#"{"anchors":{"left":true,"right":true,"top":true},"margins":{"left":10,"right":20},"height":40}"#)
             == CGRect(x: 10, y: 800 - 32 - 40, width: 970, height: 40))
     }
 
-    @Test func anOverlayCoversTheWholeScreenByDefault() throws {
+    @Test func `an overlay covers the whole screen by default`() throws {
         #expect(try frame("{}", kind: .overlay) == CGRect(x: 0, y: 0, width: 1000, height: 800))
         #expect(try frame(#"{"exclusionMode":"normal"}"#, kind: .overlay) == CGRect(x: 0, y: 0, width: 1000, height: 768))
     }
 
-    @Test func fixedSizesSkipFittingAndFitAsksOnlyForTheFreeAxis() throws {
+    @Test func `fixed sizes skip fitting and fit asks only for the free axis`() throws {
         var asked: [(Double?, Double?)] = []
         let fixed = try spec(#"{"width":300,"height":50}"#).frame(on: display) { width, height, _ in
             asked.append((width, height))
@@ -53,7 +53,7 @@ struct SurfaceTests {
         #expect(asked.count == 1 && asked[0].0 == 300 && asked[0].1 == nil)
     }
 
-    @Test func aSurfaceStaysOnItsScreenWhenItsContentOutgrowsIt() throws {
+    @Test func `a surface stays on its screen when its content outgrows it`() throws {
         let wide = CGSize(width: 1400, height: 100)
         #expect(try frame(#"{"anchors":{"top":true,"right":true},"margins":{"top":8,"right":16}}"#, content: wide)
             == CGRect(x: 0, y: 800 - 32 - 8 - 100, width: 984, height: 100))
@@ -61,7 +61,7 @@ struct SurfaceTests {
         #expect(try frame(#"{"width":1500,"anchors":{"left":true},"margins":{"left":10}}"#) == CGRect(x: 10, y: 334, width: 990, height: 100))
     }
 
-    @Test func fittingIsToldTheSpaceLeftOnTheScreen() throws {
+    @Test func `fitting is told the space left on the screen`() throws {
         var limits: [CGSize] = []
         _ = try spec(#"{"anchors":{"top":true,"right":true},"margins":{"top":8,"right":16,"left":50}}"#).frame(on: display) { _, _, limit in
             limits.append(limit)
@@ -70,28 +70,32 @@ struct SurfaceTests {
         #expect(limits == [CGSize(width: 984, height: 760)])
     }
 
-    @Test func kindsHaveTheirOwnDefaults() {
+    @Test func `kinds have their own defaults`() {
         #expect(SurfaceSpec.defaults(for: .menu).focusable)
         #expect(SurfaceSpec.defaults(for: .menu).layer == .overlay)
         #expect(!SurfaceSpec.defaults(for: .panel).focusable)
         #expect(SurfaceSpec.defaults(for: .panel).layer == .top)
         #expect(SurfaceSpec.defaults(for: .overlay).anchors == SurfaceSpec.all)
         #expect([PluginKind.panel, .overlay, .menu].allSatisfy { SurfaceSpec.defaults(for: $0).background == .solid })
-        #expect(SurfaceSpec.defaults(for: .bar).background == SurfaceBackground.none)
+        #expect(SurfaceSpec.defaults(for: .bar).background == SurfaceBackground.transparent)
     }
 
-    @Test func parsesEveryField() throws {
-        let parsed = try spec(#"{"screen":"all","anchors":{"bottom":true},"width":"fit","height":24,"margins":{"bottom":4},"layer":"notch","exclusionMode":"ignore","clickThrough":true,"focusable":true,"background":"none"}"#)
+    @Test func `parses every field`() throws {
+        let parsed = try spec(#"""
+        {"screen":"all","anchors":{"bottom":true},"width":"fit","height":24,"margins":{"bottom":4},"layer":"notch",\#
+        "exclusionMode":"ignore","clickThrough":true,"focusable":true,"background":"none"}
+        """#)
         #expect(parsed.screen == .all)
         #expect(parsed.anchors == Edges(top: false, bottom: true, left: false, right: false))
         #expect(parsed.width == .fit && parsed.height == .points(24))
         #expect(parsed.margins == Edges(top: 0, bottom: 4, left: 0, right: 0))
-        #expect(parsed.layer == .notch && parsed.exclusionMode == .ignore && parsed.clickThrough && parsed.focusable && parsed.background == SurfaceBackground.none)
+        #expect(parsed.layer == .notch && parsed.exclusionMode == .ignore && parsed.clickThrough && parsed.focusable && parsed
+            .background == SurfaceBackground.transparent)
         #expect(try spec(#"{"screen":1}"#).screen == .index(1))
         #expect(try spec("null") == SurfaceSpec.defaults(for: .panel))
     }
 
-    @Test func rejectsMalformedSurfacesWithTheirPath() {
+    @Test func `rejects malformed surfaces with their path`() {
         let cases: [(String, SurfaceError)] = [
             ("[]", SurfaceError(path: "surface", reason: "must be an object")),
             (#"{"screen":"left"}"#, SurfaceError(path: "surface.screen", reason: "must be \"main\", \"focused\", \"all\" or a display index")),
@@ -108,7 +112,7 @@ struct SurfaceTests {
         }
     }
 
-    @Test func screensSelectByNameOrIndexAndFallBackToTheMainDisplay() {
+    @Test func `screens select by name or index and fall back to the main display`() {
         let displays = (0..<3).map { DisplayInfo(id: "d\($0)", index: $0, frame: .zero, band: 0) }
         #expect(ScreenSelector.all.select(displays, focused: nil).map(\.id) == ["d0", "d1", "d2"])
         #expect(ScreenSelector.main.select(displays, focused: "d2").map(\.id) == ["d0"])

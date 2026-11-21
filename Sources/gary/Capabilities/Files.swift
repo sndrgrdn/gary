@@ -31,7 +31,7 @@ extension Capability {
       },
     } satisfies Gary.Menu;
     """, install: { host, plugin in
-        plugin.installAPI(host, nil, FilesRequest.methods) { call in .now(try perform(try FilesRequest.parse(call, home: home))) }
+        plugin.installAPI(host, nil, FilesRequest.methods) { call in try .now(perform(FilesRequest.parse(call, home: home))) }
         let watchFile: @convention(block) (String, JSValue) -> Void = { [weak plugin] path, callback in
             guard let plugin, callback.isObject else { return }
             let watch = FileWatch(path: (path as NSString).expandingTildeInPath, callback: callback)
@@ -49,23 +49,24 @@ private func perform(_ request: FilesRequest) throws -> JSON {
     let files = FileManager.default
     do {
         switch request {
-        case .read(let path):
-            return .string(try String(contentsOfFile: path, encoding: .utf8))
-        case .write(let path, let text):
+        case let .read(path):
+            return try .string(String(contentsOfFile: path, encoding: .utf8))
+        case let .write(path, text):
             try Data(text.utf8).write(to: URL(fileURLWithPath: path), options: .atomic)
-        case .makeDirectory(let path):
+        case let .makeDirectory(path):
             try files.createDirectory(atPath: path, withIntermediateDirectories: true)
-        case .remove(let path):
+        case let .remove(path):
             guard (try? files.attributesOfItem(atPath: path)) != nil else { return .bool(false) }
             try files.removeItem(atPath: path)
             return .bool(true)
-        case .list(let path):
-            return .array(try files.contentsOfDirectory(atPath: path).sorted().map { name in
+        case let .list(path):
+            return try .array(files.contentsOfDirectory(atPath: path).sorted().map { name in
                 let attributes = try? files.attributesOfItem(atPath: path + "/" + name)
                 let type = attributes?[.type] as? FileAttributeType
                 return .object([
                     "name": .string(name),
-                    "type": .string(type == .typeDirectory ? "directory" : type == .typeSymbolicLink ? "link" : type == .typeRegular ? "file" : "other"),
+                    "type": .string(type == .typeDirectory ? "directory" : type == .typeSymbolicLink ? "link" : type == .typeRegular ? "file" :
+                        "other"),
                     "size": .number(Double(attributes?[.size] as? Int ?? 0)),
                 ])
             })
@@ -98,7 +99,11 @@ private final class FileWatch {
             }
             return
         }
-        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: descriptor, eventMask: [.write, .extend, .delete, .rename, .attrib], queue: plugin.queue)
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: descriptor,
+            eventMask: [.write, .extend, .delete, .rename, .attrib],
+            queue: plugin.queue,
+        )
         source.setEventHandler { [weak self, weak plugin, weak source] in
             guard let self, let plugin, let source else { return }
             if !source.data.isDisjoint(with: [.delete, .rename]) {

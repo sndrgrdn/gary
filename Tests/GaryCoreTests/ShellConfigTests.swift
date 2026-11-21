@@ -1,103 +1,128 @@
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 struct ShellConfigTests {
-    private func id(_ raw: String) -> PluginID { PluginID(raw)! }
+    private struct Entry {
+        let raw: String
+        let origin: PluginOrigin
+        let kinds: [PluginKind]
 
-    private func catalog(_ entries: [(String, PluginOrigin, [PluginKind])], subscribes: [String: [Topic]] = [:]) -> PluginCatalog {
+        init(_ raw: String, _ origin: PluginOrigin, _ kinds: [PluginKind]) {
+            self.raw = raw
+            self.origin = origin
+            self.kinds = kinds
+        }
+    }
+
+    private func id(_ raw: String) throws -> PluginID {
+        try #require(PluginID(raw))
+    }
+
+    private func catalog(_ entries: [Entry], subscribes: [String: [Topic]] = [:]) throws -> PluginCatalog {
         var catalog = PluginCatalog()
-        for (raw, origin, kinds) in entries {
+        for entry in entries {
+            let pluginID = try id(entry.raw)
             let manifest = PluginManifest(
-                id: id(raw), name: raw, version: "1", kinds: kinds,
-                entryPoints: Dictionary(uniqueKeysWithValues: kinds.map { ($0, "main.js") }),
-                keepLoaded: false, subscribes: subscribes[raw] ?? [], uses: [], hotkeys: []
+                id: pluginID, name: entry.raw, version: "1", kinds: entry.kinds,
+                entryPoints: Dictionary(uniqueKeysWithValues: entry.kinds.map { ($0, "main.js") }),
+                keepLoaded: false, subscribes: subscribes[entry.raw] ?? [], uses: [], hotkeys: [],
             )
-            catalog.plugins[id(raw)] = PluginBundle(manifest: manifest, directory: URL(fileURLWithPath: "/p/\(raw)"), origin: origin)
+            catalog.plugins[pluginID] = PluginBundle(
+                manifest: manifest, directory: URL(fileURLWithPath: "/p/\(entry.raw)"), origin: entry.origin,
+            )
         }
         return catalog
     }
 
     private var standard: PluginCatalog {
-        catalog([
-            ("gary.clock", .builtin, [.barWidget]), ("gary.battery", .builtin, [.barWidget]),
-            ("gary.today", .builtin, [.panel]),
-            ("acme.weather", .user, [.barWidget]), ("acme.notes", .user, [.panel]),
-        ])
+        get throws {
+            try catalog([
+                Entry("gary.clock", .builtin, [.barWidget]), Entry("gary.battery", .builtin, [.barWidget]),
+                Entry("gary.today", .builtin, [.panel]),
+                Entry("acme.weather", .user, [.barWidget]), Entry("acme.notes", .user, [.panel]),
+            ])
+        }
     }
 
-    private func config(_ text: String) throws -> ShellConfig { try ShellConfig.parse(try JSON.parse(text)) }
+    private func config(_ text: String) throws -> ShellConfig {
+        try ShellConfig.parse(JSON.parse(text))
+    }
 
-    @Test func anEmptyFileKeepsTheDefaults() throws {
+    @Test func `an empty file keeps the defaults`() throws {
         #expect(try config("{}") == ShellConfig.defaults)
-        let resolution = ShellConfig.defaults.resolve(standard)
-        #expect(resolution.bar == [.left: [], .center: [], .right: [id("gary.battery"), id("gary.clock")]])
-        #expect(resolution.enabled == Set(["gary.clock", "gary.battery", "gary.today"].map(id)))
+        let resolution = try ShellConfig.defaults.resolve(standard)
+        #expect(try resolution.bar == [.left: [], .center: [], .right: [id("gary.battery"), id("gary.clock")]])
+        #expect(try resolution.enabled == Set(["gary.clock", "gary.battery", "gary.today"].map(id)))
         #expect(resolution.warnings.isEmpty)
     }
 
-    @Test func aUserBarReplacesTheDefaultBarWhole() throws {
+    @Test func `a user bar replaces the default bar whole`() throws {
         let parsed = try config(#"{"bar": {"left": ["gary.clock"]}}"#)
-        #expect(parsed.bar == [.left: [id("gary.clock")], .center: [], .right: []])
-        #expect(parsed.resolve(standard).bar[.right] == [])
-        #expect(parsed.resolve(standard).enabled.contains(id("gary.battery")))
+        #expect(try parsed.bar == [.left: [id("gary.clock")], .center: [], .right: []])
+        #expect(try parsed.resolve(standard).bar[.right]?.isEmpty == true)
+        #expect(try parsed.resolve(standard).enabled.contains(id("gary.battery")))
     }
 
-    @Test func theBarRevealsTheMenuBarUnlessTurnedOffWhichKeepsTheDefaultSections() throws {
+    @Test func `the bar reveals the menu bar unless turned off which keeps the default sections`() throws {
         #expect(ShellConfig.defaults.revealMenuBar)
         let parsed = try config(#"{"bar": {"revealMenuBar": false}}"#)
         #expect(!parsed.revealMenuBar)
         #expect(parsed.bar == ShellConfig.defaults.bar)
     }
 
-    @Test func aThirdPartyPluginRunsOnlyWhenNamed() throws {
-        #expect(!ShellConfig.defaults.resolve(standard).enabled.contains(id("acme.weather")))
+    @Test func `a third party plugin runs only when named`() throws {
+        #expect(try !ShellConfig.defaults.resolve(standard).enabled.contains(id("acme.weather")))
         let named = try config(#"{"bar": {"left": ["acme.weather"]}, "plugins": ["acme.notes"]}"#).resolve(standard)
-        #expect(named.enabled.isSuperset(of: [id("acme.weather"), id("acme.notes")]))
-        #expect(named.bar[.left] == [id("acme.weather")])
+        #expect(try named.enabled.isSuperset(of: [id("acme.weather"), id("acme.notes")]))
+        #expect(try named.bar[.left] == [id("acme.weather")])
     }
 
-    @Test func disablingRemovesAPluginEverywhere() throws {
-        let resolution = try config(#"{"plugins": ["acme.notes"], "disabledPlugins": ["gary.battery", "gary.today", "acme.notes"]}"#).resolve(standard)
-        #expect(!resolution.enabled.contains(id("gary.battery")))
-        #expect(!resolution.enabled.contains(id("gary.today")))
-        #expect(!resolution.enabled.contains(id("acme.notes")))
-        #expect(resolution.bar[.right] == [id("gary.clock")])
+    @Test func `disabling removes A plugin everywhere`() throws {
+        let resolution = try config(#"{"plugins": ["acme.notes"], "disabledPlugins": ["gary.battery", "gary.today", "acme.notes"]}"#)
+            .resolve(standard)
+        #expect(try !resolution.enabled.contains(id("gary.battery")))
+        #expect(try !resolution.enabled.contains(id("gary.today")))
+        #expect(try !resolution.enabled.contains(id("acme.notes")))
+        #expect(try resolution.bar[.right] == [id("gary.clock")])
         #expect(resolution.warnings.isEmpty)
     }
 
-    @Test func theBarSkipsUnknownNonWidgetAndRepeatedEntriesWithWarnings() throws {
+    @Test func `the bar skips unknown non widget and repeated entries with warnings`() throws {
         let resolution = try config(#"{"bar": {"left": ["acme.ghost", "gary.today", "gary.clock"], "right": ["gary.clock"]}}"#).resolve(standard)
-        #expect(resolution.bar == [.left: [id("gary.clock")], .center: [], .right: []])
+        #expect(try resolution.bar == [.left: [id("gary.clock")], .center: [], .right: []])
         #expect(resolution.warnings == [
             "bar.left: no plugin acme.ghost", "bar.left: gary.today is not a bar widget", "bar.right: gary.clock is already in the bar",
         ])
     }
 
-    @Test func oneEnabledBarPluginReplacesTheBuiltInBar() throws {
-        #expect(ShellConfig.defaults.resolve(standard).barPlugin == nil)
-        let bars = catalog([("acme.top", .user, [.bar]), ("acme.alt", .user, [.bar, .service]), ("acme.off", .user, [.bar])])
+    @Test func `one enabled bar plugin replaces the built in bar`() throws {
+        #expect(try ShellConfig.defaults.resolve(standard).barPlugin == nil)
+        let bars = try catalog([Entry("acme.top", .user, [.bar]), Entry("acme.alt", .user, [.bar, .service]), Entry("acme.off", .user, [.bar])])
         let resolution = try config(#"{"bar": {"right": []}, "plugins": ["acme.top", "acme.alt"]}"#).resolve(bars)
-        #expect(resolution.barPlugin == id("acme.alt"))
+        #expect(try resolution.barPlugin == id("acme.alt"))
         #expect(resolution.warnings == ["acme.top is a bar too; acme.alt replaces the built-in bar"])
         #expect(try config(#"{"plugins": ["acme.top", "acme.alt"], "disabledPlugins": ["acme.alt"]}"#).resolve(bars).barPlugin == id("acme.top"))
     }
 
-    @Test func subscriptionsToPluginsThatAreMissingOrOffAreWarnings() throws {
-        let plugins = catalog(
-            [("acme.counter", .user, [.service]), ("acme.view", .user, [.barWidget]), ("acme.off", .user, [.service])],
-            subscribes: ["acme.view": [.capability("clock"), .plugin(id("acme.counter")), .plugin(id("acme.off")), .plugin(id("acme.ghost"))]]
+    @Test func `subscriptions to plugins that are missing or off are warnings`() throws {
+        let plugins = try catalog(
+            [Entry("acme.counter", .user, [.service]), Entry("acme.view", .user, [.barWidget]), Entry("acme.off", .user, [.service])],
+            subscribes: ["acme.view": [.capability("clock"), .plugin(id("acme.counter")), .plugin(id("acme.off")), .plugin(id("acme.ghost"))]],
         )
         let resolution = try config(#"{"bar": {"left": ["acme.view"]}, "plugins": ["acme.counter"]}"#).resolve(plugins)
-        #expect(resolution.warnings == ["acme.view subscribes to acme.off, which is not enabled", "acme.view subscribes to acme.ghost, which is not installed"])
+        #expect(resolution.warnings == [
+            "acme.view subscribes to acme.off, which is not enabled",
+            "acme.view subscribes to acme.ghost, which is not installed",
+        ])
     }
 
-    @Test func settingsAreKeptPerPlugin() throws {
+    @Test func `settings are kept per plugin`() throws {
         let parsed = try config(#"{"settings": {"gary.clock": {"hour12": true}}}"#)
-        #expect(parsed.settings[id("gary.clock")] == .object(["hour12": .bool(true)]))
+        #expect(try parsed.settings[id("gary.clock")] == .object(["hour12": .bool(true)]))
     }
 
-    @Test func rejectsMalformedFilesWithTheirPath() {
+    @Test func `rejects malformed files with their path`() {
         let cases: [(String, ShellConfigError)] = [
             ("[]", ShellConfigError(path: "root", reason: "must be an object")),
             (#"{"bar": []}"#, ShellConfigError(path: "bar", reason: "must be an object")),
@@ -114,45 +139,56 @@ struct ShellConfigTests {
 }
 
 struct ShellConfigChangeTests {
-    private let widget = PluginID("acme.weather")!
+    private let widget: PluginID
 
-    private func apply(_ change: ShellConfig.Change, to text: String) throws -> JSON {
-        try ShellConfig.applying(change, to: try JSON.parse(text))
+    init() throws {
+        widget = try #require(PluginID("acme.weather"))
     }
 
-    @Test func enablingABarWidgetKeepsTheDefaultBarAndPutsItFirstOnTheRight() throws {
+    private func apply(_ change: ShellConfig.Change, to text: String) throws -> JSON {
+        try ShellConfig.applying(change, to: JSON.parse(text))
+    }
+
+    @Test func `enabling A bar widget keeps the default bar and puts it first on the right`() throws {
         let next = try apply(.enable(widget, inBar: true), to: "{}")
-        #expect(try ShellConfig.parse(next).bar == [.left: [], .center: [], .right: [widget, PluginID("gary.battery")!, PluginID("gary.clock")!]])
+        #expect(try ShellConfig.parse(next).bar == [
+            .left: [],
+            .center: [],
+            .right: [widget, #require(PluginID("gary.battery")), #require(PluginID("gary.clock"))],
+        ])
         #expect(next["plugins"] == nil && next["disabledPlugins"] == nil)
         #expect(try ShellConfig.applying(.enable(widget, inBar: true), to: next) == next)
     }
 
-    @Test func enablingAnotherKindNamesItInPluginsAndClearsADisable() throws {
-        let next = try apply(.enable(widget, inBar: false), to: #"{"disabledPlugins": ["acme.weather"], "settings": {"acme.weather": {"unit": "c"}}}"#)
+    @Test func `enabling another kind names it in plugins and clears A disable`() throws {
+        let next = try apply(
+            .enable(widget, inBar: false),
+            to: #"{"disabledPlugins": ["acme.weather"], "settings": {"acme.weather": {"unit": "c"}}}"#,
+        )
         #expect(next["plugins"] == .array([.string("acme.weather")]))
         #expect(next["disabledPlugins"] == .array([]))
         #expect(next["settings"]?["acme.weather"]?["unit"] == .string("c"))
         #expect(next["bar"] == nil)
     }
 
-    @Test func disablingKeepsThePlacementAndRemovingDropsEveryMentionButSettings() throws {
+    @Test func `disabling keeps the placement and removing drops every mention but settings`() throws {
         let text = #"{"bar": {"left": ["acme.weather"]}, "plugins": ["acme.weather"], "settings": {"acme.weather": {}}}"#
         let disabled = try apply(.disable(widget), to: text)
         #expect(try ShellConfig.parse(disabled).disabledPlugins == [widget])
         #expect(try ShellConfig.parse(disabled).bar[.left] == [widget])
         let removed = try ShellConfig.applying(.remove(widget), to: disabled)
         let config = try ShellConfig.parse(removed)
-        #expect(config.bar[.left] == [] && config.plugins == [] && config.disabledPlugins == [])
+        #expect(config.bar[.left]?.isEmpty == true && config.plugins.isEmpty && config.disabledPlugins.isEmpty)
         #expect(config.settings[widget] == .object([:]))
     }
 
-    @Test func editingTheBarKeepsRevealMenuBar() throws {
+    @Test func `editing the bar keeps reveal menu bar`() throws {
         let next = try apply(.enable(widget, inBar: true), to: #"{"bar": {"revealMenuBar": false}}"#)
         #expect(next["bar"]?["revealMenuBar"] == .bool(false))
         #expect(try ShellConfig.parse(next).bar[.right]?.first == widget)
     }
 
-    @Test func refusesToEditAnInvalidFile() {
+    @Test func `refuses to edit an invalid file`() {
         #expect(throws: ShellConfigError.self) { try apply(.enable(widget, inBar: true), to: #"{"bar": []}"#) }
     }
 }

@@ -7,10 +7,22 @@ public enum CapabilityError: Error, Equatable, CustomStringConvertible {
 
     public var description: String {
         switch self {
-        case .invalidName(let name): return "capability name \"\(name)\" must be a lowercase letter followed by lowercase letters, digits or hyphens"
-        case .duplicateName(let name): return "capability \(name) is registered twice"
-        case .noEffect(let name): return "capability \(name) neither installs an API nor publishes a topic"
+        case let .invalidName(name): "capability name \"\(name)\" must be a lowercase letter followed by lowercase letters, digits or hyphens"
+        case let .duplicateName(name): "capability \(name) is registered twice"
+        case let .noEffect(name): "capability \(name) neither installs an API nor publishes a topic"
         }
+    }
+}
+
+public struct CapabilityDeclaration: Sendable {
+    public let name: String
+    public let installs: Bool
+    public let publishes: Bool
+
+    public init(_ name: String, installs: Bool, publishes: Bool) {
+        self.name = name
+        self.installs = installs
+        self.publishes = publishes
     }
 }
 
@@ -18,7 +30,7 @@ public struct CapabilityNames: Equatable, Sendable {
     public let uses: Set<String>
     public let topics: Set<String>
 
-    public init(_ capabilities: [(name: String, installs: Bool, publishes: Bool)]) throws {
+    public init(_ capabilities: [CapabilityDeclaration]) throws {
         var names: Set<String> = []
         for capability in capabilities {
             guard isCapabilityName(capability.name) else { throw CapabilityError.invalidName(capability.name) }

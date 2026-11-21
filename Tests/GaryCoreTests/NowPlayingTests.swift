@@ -1,11 +1,20 @@
 import Foundation
-import Testing
 @testable import GaryCore
+import Testing
 
 struct NowPlayingTests {
-    static let full = #"{"type":"data","diff":false,"payload":{"bundleIdentifier":"com.spotify.client","playing":true,"title":"Song","artist":"Band","album":"Record","durationMicros":215000000,"elapsedTimeMicros":12500000,"timestampEpochMicros":1795280000123456,"playbackRate":1,"artworkMimeType":"image/png","artworkData":"iVBORw0K"}}"#
+    static let full = #"""
+    {"type":"data","diff":false,"payload":{"bundleIdentifier":"com.spotify.client","playing":true,"title":"Song","artist":"Band","album":"Record",\#
+    "durationMicros":215000000,"elapsedTimeMicros":12500000,"timestampEpochMicros":1795280000123456,"playbackRate":1,\#
+    "artworkMimeType":"image/png","artworkData":"iVBORw0K"}}
+    """#
 
-    @Test func aFullPayloadDescribesTheTrackInSecondsAndEpochMilliseconds() throws {
+    static let helperMedia = #"""
+    {"type":"data","diff":false,"payload":{"bundleIdentifier":"com.apple.WebKit.GPU",\#
+    "parentApplicationBundleIdentifier":"com.apple.Safari","playing":true,"title":"Video"}}
+    """#
+
+    @Test func `a full payload describes the track in seconds and epoch milliseconds`() throws {
         var state = NowPlaying()
         try state.apply(Self.full)
         let track = try #require(state.track)
@@ -21,7 +30,7 @@ struct NowPlayingTests {
         #expect(track.artwork == NowPlaying.Artwork(mimeType: "image/png", data: Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A])))
     }
 
-    @Test func aDiffUpdatesSomeFieldsKeepsTheRestAndNullRemovesAField() throws {
+    @Test func `a diff updates some fields keeps the rest and null removes A field`() throws {
         var state = NowPlaying()
         try state.apply(Self.full)
         try state.apply(#"{"type":"data","diff":true,"payload":{"playing":false,"elapsedTimeMicros":30000000,"artist":null}}"#)
@@ -33,7 +42,7 @@ struct NowPlayingTests {
         #expect(track.artwork != nil)
     }
 
-    @Test func aFullPayloadReplacesTheTrackAndAnEmptyOneMeansNothingIsPlaying() throws {
+    @Test func `a full payload replaces the track and an empty one means nothing is playing`() throws {
         var state = NowPlaying()
         try state.apply(Self.full)
         try state.apply(#"{"type":"data","diff":false,"payload":{"bundleIdentifier":"com.apple.Music","playing":false,"title":"Other"}}"#)
@@ -45,13 +54,13 @@ struct NowPlayingTests {
         #expect(state.track == nil)
     }
 
-    @Test func mediaPlayedThroughAHelperBelongsToItsParentApplication() throws {
+    @Test func `media played through A helper belongs to its parent application`() throws {
         var state = NowPlaying()
-        try state.apply(#"{"type":"data","diff":false,"payload":{"bundleIdentifier":"com.apple.WebKit.GPU","parentApplicationBundleIdentifier":"com.apple.Safari","playing":true,"title":"Video"}}"#)
+        try state.apply(Self.helperMedia)
         #expect(state.track?.app == "com.apple.Safari")
     }
 
-    @Test func aPlayerWithoutABundleStillHasATrack() throws {
+    @Test func `a player without A bundle still has A track`() throws {
         var state = NowPlaying()
         try state.apply(#"{"type":"data","diff":false,"payload":{"processIdentifier":76991,"playing":true,"title":"Song"}}"#)
         let track = try #require(state.track)
@@ -59,7 +68,7 @@ struct NowPlayingTests {
         #expect(track.title == "Song")
     }
 
-    @Test func linesThatAreNotAdapterDataAreRejectedAndLeaveTheTrackAlone() throws {
+    @Test func `lines that are not adapter data are rejected and leave the track alone`() throws {
         var state = NowPlaying()
         try state.apply(Self.full)
         #expect(throws: NowPlaying.LineError.self) { try state.apply("Symbol 'adapter_stream_env' not found") }

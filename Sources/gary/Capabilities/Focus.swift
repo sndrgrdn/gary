@@ -26,14 +26,17 @@ extension Capability {
     """, permissions: [.fullDiskAccess], topic: { FocusTopic($0) })
 }
 
-private final class FocusTopic {
+private final class FocusTopic: TopicFeed {
     static let directory = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/DoNotDisturb/DB")
     private let publish: (JSON, Trace) -> Void
     private var observations: [Observation] = []
 
     init(_ publish: @escaping (JSON, Trace) -> Void) {
         self.publish = publish
-        let watch = PathWatch(["", "Assertions.json", "ModeConfigurations.json"].map { Self.directory.appending(path: $0).path }, queue: DispatchQueue(label: "gary.focus")) { [weak self] in
+        let watch = PathWatch(
+            ["", "Assertions.json", "ModeConfigurations.json"].map { Self.directory.appending(path: $0).path },
+            queue: DispatchQueue(label: "gary.focus"),
+        ) { [weak self] in
             self?.send(Trace("focus"))
         }
         let next = Date(timeIntervalSince1970: (Date().timeIntervalSince1970 / 60).rounded(.down) * 60 + 60)
@@ -50,11 +53,21 @@ private final class FocusTopic {
             let configurations = try Data(contentsOf: Self.directory.appending(path: "ModeConfigurations.json"))
             state = try FocusState.resolve(assertions: assertions, configurations: configurations, at: Date(), calendar: .current)
         } catch let error as FocusState.FileError {
-            return publish(.object(["available": .bool(false), "reason": .string(error.description), "active": .bool(false)]), trace)
+            publish(.object(["available": .bool(false), "reason": .string(error.description), "active": .bool(false)]), trace)
+            return
         } catch {
-            return publish(.object(["available": .bool(false), "reason": .string(missingGrant(.fullDiskAccess, "focus")), "active": .bool(false)]), trace)
+            publish(
+                .object(["available": .bool(false), "reason": .string(missingGrant(.fullDiskAccess, "focus")), "active": .bool(false)]),
+                trace,
+            )
+            return
         }
-        guard let state else { return publish(.object(["available": .bool(true), "active": .bool(false), "mode": .null, "name": .null, "symbol": .null, "source": .null]), trace) }
+        guard let state else { publish(
+            .object(["available": .bool(true), "active": .bool(false), "mode": .null, "name": .null, "symbol": .null, "source": .null]),
+            trace,
+        )
+        return
+        }
         publish(.object([
             "available": .bool(true), "active": .bool(true), "mode": .string(state.mode),
             "name": state.name.map(JSON.string) ?? .null, "symbol": state.symbol.map(JSON.string) ?? .null, "source": .string(state.source.rawValue),

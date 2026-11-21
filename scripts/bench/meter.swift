@@ -21,25 +21,45 @@ func sample(_ pid: Int32) -> Sample? {
     guard result == 0 else { return nil }
     return Sample(
         footprint: info.ri_phys_footprint, cpu: Double(info.ri_user_time + info.ri_system_time) * tick / 1e9,
-        wakeups: info.ri_pkg_idle_wkups + info.ri_interrupt_wkups, time: Date().timeIntervalSince1970
+        wakeups: info.ri_pkg_idle_wkups + info.ri_interrupt_wkups, time: Date().timeIntervalSince1970,
     )
 }
 
-let seconds = Double(CommandLine.arguments[1])!
-let targets = CommandLine.arguments.dropFirst(2).map { argument -> (String, Int32) in
-    let parts = argument.split(separator: "=")
-    return (String(parts[0]), Int32(parts[1])!)
+struct Target {
+    let name: String
+    let pid: Int32
 }
-let start = targets.map { sample($0.1) }
+
+func fail(_ message: String) -> Never {
+    FileHandle.standardError.write(Data("meter: \(message)\n".utf8))
+    exit(64)
+}
+
+guard CommandLine.arguments.count > 1, let seconds = Double(CommandLine.arguments[1]) else { fail("usage: meter <seconds> <name=pid>...") }
+let targets = CommandLine.arguments.dropFirst(2).map { argument -> Target in
+    let parts = argument.split(separator: "=")
+    guard parts.count == 2, let pid = Int32(parts[1]) else { fail("expected name=pid, got \(argument)") }
+    return Target(name: String(parts[0]), pid: pid)
+}
+
+let start = targets.map { sample($0.pid) }
 Thread.sleep(forTimeInterval: seconds)
-let end = targets.map { sample($0.1) }
-for (index, (name, pid)) in targets.enumerated() {
-    guard let a = start[index], let b = end[index] else {
-        print("\(name) pid=\(pid) gone")
+let end = targets.map { sample($0.pid) }
+for (index, target) in targets.enumerated() {
+    guard let first = start[index], let last = end[index] else {
+        print("\(target.name) pid=\(target.pid) gone")
         continue
     }
-    let window = b.time - a.time
-    print(String(format: "%@ pid=%d footprint_start_mb=%.2f footprint_end_mb=%.2f cpu_pct=%.4f cpu_s=%.4f wakeups_per_s=%.2f window_s=%.1f",
-                 name, pid, Double(a.footprint) / 1_048_576, Double(b.footprint) / 1_048_576,
-                 (b.cpu - a.cpu) / window * 100, b.cpu - a.cpu, Double(b.wakeups - a.wakeups) / window, window))
+    let window = last.time - first.time
+    print(String(
+        format: "%@ pid=%d footprint_start_mb=%.2f footprint_end_mb=%.2f cpu_pct=%.4f cpu_s=%.4f wakeups_per_s=%.2f window_s=%.1f",
+        target.name,
+        target.pid,
+        Double(first.footprint) / 1_048_576,
+        Double(last.footprint) / 1_048_576,
+        (last.cpu - first.cpu) / window * 100,
+        last.cpu - first.cpu,
+        Double(last.wakeups - first.wakeups) / window,
+        window,
+    ))
 }

@@ -8,8 +8,8 @@ public enum ClipboardRequest: Equatable, Sendable {
 
     public static func parse(_ call: HostCall) throws -> ClipboardRequest {
         switch call.method {
-        case "read": return .read
-        case "writeText": return .writeText(try call.string(0, "text"))
+        case "read": .read
+        case "writeText": try .writeText(call.string(0, "text"))
         default: throw call.unknownMethod
         }
     }

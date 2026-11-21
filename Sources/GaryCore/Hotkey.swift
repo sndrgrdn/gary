@@ -3,7 +3,10 @@ import Foundation
 public struct KeyCombo: Hashable, Sendable, CustomStringConvertible {
     public struct Modifiers: OptionSet, Hashable, Sendable {
         public let rawValue: Int
-        public init(rawValue: Int) { self.rawValue = rawValue }
+        public init(rawValue: Int) {
+            self.rawValue = rawValue
+        }
+
         public static let command = Modifiers(rawValue: 1)
         public static let control = Modifiers(rawValue: 2)
         public static let option = Modifiers(rawValue: 4)
@@ -29,7 +32,9 @@ public struct KeyCombo: Hashable, Sendable, CustomStringConvertible {
             "left": 123, "right": 124, "down": 125, "up": 126,
         ]
         let functionKeys: [UInt32] = [122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111]
-        for (index, code) in functionKeys.enumerated() { codes["f\(index + 1)"] = code }
+        for (index, code) in functionKeys.enumerated() {
+            codes["f\(index + 1)"] = code
+        }
         return codes
     }()
 

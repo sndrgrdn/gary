@@ -3,54 +3,62 @@ import CoreWLAN
 import GaryCore
 
 extension Capability {
-    static let wifi = Capability(name: "wifi", summary: "Wi-Fi power, network, signal, and rate. Scan, join a network, and turn Wi-Fi on or off.", types: """
-    declare namespace Gary {
-      interface State { wifi?: WiFi }
-      interface WiFi {
-        available: boolean;
-        location: "authorized" | "denied" | "restricted" | "notDetermined";
-        interface?: string | null;
-        power?: boolean;
-        connected?: boolean;
-        ssid?: string | null;
-        bssid?: string | null;
-        rssi?: number | null;
-        noise?: number | null;
-        channel?: number | null;
-        transmitRate?: number | null;
-      }
-      interface WiFiNetwork { ssid: string | null; bssid: string | null; rssi: number; noise: number; channel: number | null; secure: boolean }
-      interface Host { wifi: WiFiApi }
-      interface WiFiApi {
-        setPower(on: boolean): null;
-        scan(): Promise<WiFiNetwork[]>;
-        join(ssid: string, password?: string | null): Promise<"joined">;
-        requestLocation(): Promise<string>;
-      }
-    }
-    """, example: """
-    module.exports = {
-      render(state) {
-        const wifi = state.wifi;
-        if (!wifi?.power) return { type: "icon", symbol: "wifi.slash", style: "dim", action: "on" };
-        if (wifi.location !== "authorized") return { type: "text", text: "Allow Location for the network name", action: "location" };
-        return { type: "row", children: [{ type: "icon", key: "icon", symbol: "wifi" }, { type: "text", key: "ssid", text: wifi.ssid ?? "Not connected" }] };
-      },
-      onAction(action) {
-        if (action === "on") host.wifi.setPower(true);
-        if (action === "location") host.wifi.requestLocation().then((message) => host.log(message));
-      },
-    } satisfies Gary.BarWidget;
-    """, permissions: [.location], install: { host, plugin in
-        plugin.installAPI(host, "wifi", WiFiRequest.methods) { call in
-            switch try WiFiRequest.parse(call) {
-            case .setPower(let on): return .now(try setPower(on))
-            case .scan: return .later(.global(qos: .userInitiated)) { try scan() }
-            case .join(let ssid, let password): return .later(.global(qos: .userInitiated)) { try join(ssid, password) }
-            case .requestLocation: return .later(.main) { .string(Permission.location.request()) }
-            }
+    static let wifi = Capability(
+        name: "wifi",
+        summary: "Wi-Fi power, network, signal, and rate. Scan, join a network, and turn Wi-Fi on or off.",
+        types: """
+        declare namespace Gary {
+          interface State { wifi?: WiFi }
+          interface WiFi {
+            available: boolean;
+            location: "authorized" | "denied" | "restricted" | "notDetermined";
+            interface?: string | null;
+            power?: boolean;
+            connected?: boolean;
+            ssid?: string | null;
+            bssid?: string | null;
+            rssi?: number | null;
+            noise?: number | null;
+            channel?: number | null;
+            transmitRate?: number | null;
+          }
+          interface WiFiNetwork { ssid: string | null; bssid: string | null; rssi: number; noise: number; channel: number | null; secure: boolean }
+          interface Host { wifi: WiFiApi }
+          interface WiFiApi {
+            setPower(on: boolean): null;
+            scan(): Promise<WiFiNetwork[]>;
+            join(ssid: string, password?: string | null): Promise<"joined">;
+            requestLocation(): Promise<string>;
+          }
         }
-    }, topic: { WiFiTopic($0) })
+        """,
+        example: """
+        module.exports = {
+          render(state) {
+            const wifi = state.wifi;
+            if (!wifi?.power) return { type: "icon", symbol: "wifi.slash", style: "dim", action: "on" };
+            if (wifi.location !== "authorized") return { type: "text", text: "Allow Location for the network name", action: "location" };
+            return { type: "row", children: [{ type: "icon", key: "icon", symbol: "wifi" }, { type: "text", key: "ssid", text: wifi.ssid ?? "Not connected" }] };
+          },
+          onAction(action) {
+            if (action === "on") host.wifi.setPower(true);
+            if (action === "location") host.wifi.requestLocation().then((message) => host.log(message));
+          },
+        } satisfies Gary.BarWidget;
+        """,
+        permissions: [.location],
+        install: { host, plugin in
+            plugin.installAPI(host, "wifi", WiFiRequest.methods) { call in
+                switch try WiFiRequest.parse(call) {
+                case let .setPower(enabled): try .now(setPower(enabled))
+                case .scan: .later(.global(qos: .userInitiated)) { try scan() }
+                case let .join(ssid, password): .later(.global(qos: .userInitiated)) { try join(ssid, password) }
+                case .requestLocation: .later(.main) { .string(Permission.location.request()) }
+                }
+            }
+        },
+        topic: { WiFiTopic($0) },
+    )
 }
 
 private func wifiInterface() throws -> CWInterface {
@@ -58,8 +66,10 @@ private func wifiInterface() throws -> CWInterface {
     return interface
 }
 
-private func setPower(_ on: Bool) throws -> JSON {
-    do { try wifiInterface().setPower(on) } catch { throw HostFailure("cannot turn Wi-Fi \(on ? "on" : "off"): \(error.localizedDescription)") }
+private func setPower(_ enabled: Bool) throws -> JSON {
+    do { try wifiInterface().setPower(enabled) } catch {
+        throw HostFailure("cannot turn Wi-Fi \(enabled ? "on" : "off"): \(error.localizedDescription)")
+    }
     return .null
 }
 
@@ -97,10 +107,10 @@ final class LocationAccess: NSObject, CLLocationManagerDelegate {
 
     var status: String {
         switch manager.authorizationStatus {
-        case .authorizedAlways, .authorizedWhenInUse: return "authorized"
-        case .denied: return "denied"
-        case .restricted: return "restricted"
-        default: return "notDetermined"
+        case .authorizedAlways, .authorizedWhenInUse: "authorized"
+        case .denied: "denied"
+        case .restricted: "restricted"
+        default: "notDetermined"
         }
     }
 
@@ -108,12 +118,12 @@ final class LocationAccess: NSObject, CLLocationManagerDelegate {
         manager.requestWhenInUseAuthorization()
     }
 
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+    func locationManagerDidChangeAuthorization(_: CLLocationManager) {
         onChange?()
     }
 }
 
-private final class WiFiTopic: NSObject, CWEventDelegate {
+private final class WiFiTopic: NSObject, CWEventDelegate, TopicFeed {
     private let publish: (JSON, Trace) -> Void
     private let client = CWWiFiClient.shared()
 
@@ -136,11 +146,16 @@ private final class WiFiTopic: NSObject, CWEventDelegate {
 
     private func send(_ trace: Trace) {
         guard let interface = client.interface() else {
-            return publish(.object(["available": .bool(false), "location": .string(LocationAccess.shared.status)]), trace)
+            publish(.object(["available": .bool(false), "location": .string(LocationAccess.shared.status)]), trace)
+            return
         }
         let power = interface.powerOn()
-        func optional(_ value: String?) -> JSON { value.map(JSON.string) ?? .null }
-        func number(_ value: Int, when present: Bool) -> JSON { present ? .number(Double(value)) : .null }
+        func optional(_ value: String?) -> JSON {
+            value.map(JSON.string) ?? .null
+        }
+        func number(_ value: Int, when present: Bool) -> JSON {
+            present ? .number(Double(value)) : .null
+        }
         let linked = power && interface.wlanChannel() != nil
         publish(.object([
             "available": .bool(true),
@@ -157,10 +172,27 @@ private final class WiFiTopic: NSObject, CWEventDelegate {
         ]), trace)
     }
 
-    func powerStateDidChangeForWiFiInterface(withName interfaceName: String) { send(Trace("wifi")) }
-    func ssidDidChangeForWiFiInterface(withName interfaceName: String) { send(Trace("wifi")) }
-    func bssidDidChangeForWiFiInterface(withName interfaceName: String) { send(Trace("wifi")) }
-    func linkDidChangeForWiFiInterface(withName interfaceName: String) { send(Trace("wifi")) }
-    func linkQualityDidChangeForWiFiInterface(withName interfaceName: String, rssi: Int, transmitRate: Double) { send(Trace("wifi")) }
-    func modeDidChangeForWiFiInterface(withName interfaceName: String) { send(Trace("wifi")) }
+    func powerStateDidChangeForWiFiInterface(withName _: String) {
+        send(Trace("wifi"))
+    }
+
+    func ssidDidChangeForWiFiInterface(withName _: String) {
+        send(Trace("wifi"))
+    }
+
+    func bssidDidChangeForWiFiInterface(withName _: String) {
+        send(Trace("wifi"))
+    }
+
+    func linkDidChangeForWiFiInterface(withName _: String) {
+        send(Trace("wifi"))
+    }
+
+    func linkQualityDidChangeForWiFiInterface(withName _: String, rssi _: Int, transmitRate _: Double) {
+        send(Trace("wifi"))
+    }
+
+    func modeDidChangeForWiFiInterface(withName _: String) {
+        send(Trace("wifi"))
+    }
 }

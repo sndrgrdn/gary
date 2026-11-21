@@ -4,40 +4,49 @@ import GaryPrivate
 import IOKit
 
 extension Capability {
-    static let brightness = Capability(name: "brightness", summary: "Brightness of the built-in display and of external displays that support DDC. Set it.", types: """
-    declare namespace Gary {
-      interface State { brightness?: Brightness }
-      interface Brightness { displays: BrightnessDisplay[]; missing: string[] }
-      interface BrightnessDisplay { id: string; name: string | null; builtin: boolean; brightness: number | null; control: "displayservices" | "ddc" | null }
-      interface Host { brightness: BrightnessApi }
-      interface BrightnessApi { set(value: number, display?: string | null): null }
-    }
-    """, example: """
-    module.exports = {
-      render(state) {
-        return {
-          type: "column",
-          children: (state.brightness?.displays ?? []).filter((display) => display.brightness !== null).map((display) => (
-            { type: "slider", key: display.id, value: display.brightness!, action: display.id }
-          )),
-        };
-      },
-      onAction(display, payload) {
-        if (typeof payload === "number") host.brightness.set(payload, display);
-      },
-    } satisfies Gary.Panel;
-    """, install: { host, plugin in
-        plugin.installAPI(host, "brightness", BrightnessRequest.methods) { call in
-            switch try BrightnessRequest.parse(call) {
-            case .set(let value, let id):
-                let displays = Display.online()
-                let target = id == nil ? displays.first(where: \.builtin) ?? displays.first : displays.first { $0.uuid == id }
-                guard let target else { throw HostFailure("no display \(id ?? "")") }
-                if let error = Panel.shared.set(value, on: target) { throw HostFailure(error) }
-                return .now(.null)
-            }
+    static let brightness = Capability(
+        name: "brightness",
+        summary: "Brightness of the built-in display and of external displays that support DDC. Set it.",
+        types: """
+        declare namespace Gary {
+          interface State { brightness?: Brightness }
+          interface Brightness { displays: BrightnessDisplay[]; missing: string[] }
+          interface BrightnessDisplay { id: string; name: string | null; builtin: boolean; brightness: number | null; control: "displayservices" | "ddc" | null }
+          interface Host { brightness: BrightnessApi }
+          interface BrightnessApi { set(value: number, display?: string | null): null }
         }
-    }, topic: { BrightnessTopic($0) })
+        """,
+        example: """
+        module.exports = {
+          render(state) {
+            return {
+              type: "column",
+              children: (state.brightness?.displays ?? []).filter((display) => display.brightness !== null).map((display) => (
+                { type: "slider", key: display.id, value: display.brightness!, action: display.id }
+              )),
+            };
+          },
+          onAction(display, payload) {
+            if (typeof payload === "number") host.brightness.set(payload, display);
+          },
+        } satisfies Gary.Panel;
+        """,
+        install: { host, plugin in
+            plugin.installAPI(host, "brightness", BrightnessRequest.methods) { call in
+                switch try BrightnessRequest.parse(call) {
+                case let .set(value, id):
+                    let displays = Display.online()
+                    let target = id == nil ? displays.first(where: \.builtin) ?? displays.first : displays.first { $0.uuid == id }
+                    guard let target else { throw HostFailure("no display \(id ?? "")") }
+                    if let error = Panel.shared.set(value, on: target) {
+                        throw HostFailure(error)
+                    }
+                    return .now(.null)
+                }
+            }
+        },
+        topic: { BrightnessTopic($0) },
+    )
 }
 
 private enum DisplayServices {
@@ -57,7 +66,20 @@ private enum DisplayServices {
     static let displayInfo = privateSymbol(.displayInfo, as: DisplayInfo.self)
 
     static var missing: [String] {
-        missingSymbols([.getBrightness, .setBrightness, .registerBrightnessChanges, .avServiceCreate, .avServiceReadI2C, .avServiceWriteI2C, .displayInfo])
+        missingSymbols([
+            .getBrightness,
+            .setBrightness,
+            .registerBrightnessChanges,
+            .avServiceCreate,
+            .avServiceReadI2C,
+            .avServiceWriteI2C,
+            .displayInfo,
+        ])
+    }
+
+    static func location(_ display: CGDirectDisplayID) -> String? {
+        guard let info = displayInfo?(display)?.takeRetainedValue() else { return nil }
+        return (info as NSDictionary)[kIODisplayLocationKey] as? String
     }
 
     static func brightness(_ display: CGDirectDisplayID) -> Float? {
@@ -72,10 +94,13 @@ private struct Display {
     let uuid: String
     let builtin: Bool
 
-    var label: String { builtin ? "the built-in display" : "display \(uuid)" }
+    var label: String {
+        builtin ? "the built-in display" : "display \(uuid)"
+    }
 
     static func online() -> [Display] {
-        var ids = [CGDirectDisplayID](repeating: 0, count: 16), count: UInt32 = 0
+        var ids = [CGDirectDisplayID](repeating: 0, count: 16)
+        var count: UInt32 = 0
         guard CGGetOnlineDisplayList(16, &ids, &count) == .success else { return [] }
         return ids.prefix(Int(count)).filter { CGDisplayIsActive($0) != 0 && CGDisplayMirrorsDisplay($0) == kCGNullDirectDisplay }.compactMap { id in
             guard let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue() else { return nil }
@@ -98,8 +123,7 @@ private final class Panel {
         let services = avServices()
         external = [:]
         for display in displays where DisplayServices.brightness(display.id) == nil {
-            guard let location = DisplayServices.displayInfo?(display.id)?.takeRetainedValue() as? [String: Any],
-                  let path = location[kIODisplayLocationKey] as? String, let service = services[path] else { continue }
+            guard let path = DisplayServices.location(display.id), let service = services[path] else { continue }
             external[display.id] = ExternalPanel(service: service, level: transfer(service, DDC.readRequest(DDC.brightness), reply: true))
         }
     }
@@ -107,7 +131,8 @@ private final class Panel {
     func snapshot(_ displays: [Display], names: [CGDirectDisplayID: String]) -> JSON {
         .object([
             "displays": .array(displays.map { display in
-                var level: Double?, control: String?
+                var level: Double?
+                var control: String?
                 if let value = DisplayServices.brightness(display.id) {
                     (level, control) = (Double(value), "displayservices")
                 } else if let panel = external[display.id] {
@@ -132,7 +157,8 @@ private final class Panel {
             guard let panel = external[display.id], let maximum = panel.level?.maximum else { return "\(display.label) has no brightness control" }
             let value = UInt16((level * Double(maximum)).rounded())
             queue.async { [self] in
-                guard transfer(panel.service, DDC.writeRequest(DDC.brightness, value), reply: false) != nil else { return log("brightness: DDC write to \(display.label) failed") }
+                guard transfer(panel.service, DDC.writeRequest(DDC.brightness, value), reply: false) != nil
+                else { return log("brightness: DDC write to \(display.label) failed") }
                 external[display.id]?.level = (value, maximum)
                 DispatchQueue.main.async { BrightnessTopic.current?.refresh(Trace("brightness-ddc")) }
             }
@@ -144,14 +170,18 @@ private final class Panel {
         guard let read = DisplayServices.readI2C, let write = DisplayServices.writeI2C else { return nil }
         for _ in 0..<3 {
             var packet = request
-            usleep(10_000)
-            guard write(service, UInt32(DDC.chipAddress), UInt32(DDC.dataAddress), &packet, UInt32(packet.count)) == kIOReturnSuccess else { continue }
+            usleep(10000)
+            guard write(service, UInt32(DDC.chipAddress), UInt32(DDC.dataAddress), &packet, UInt32(packet.count)) == kIOReturnSuccess
+            else { continue }
             guard reply else { return (0, 1) }
-            usleep(50_000)
+            usleep(50000)
             var answer = [UInt8](repeating: 0, count: DDC.replyLength)
             if read(service, UInt32(DDC.chipAddress), 0, &answer, UInt32(answer.count)) == kIOReturnSuccess,
-               let value = DDC.parseReply(answer, code: DDC.brightness) { return value }
-            usleep(20_000)
+               let value = DDC.parseReply(answer, code: DDC.brightness)
+            {
+                return value
+            }
+            usleep(20000)
         }
         return nil
     }
@@ -161,7 +191,8 @@ private final class Panel {
         var iterator = io_iterator_t()
         let root = IORegistryGetRootEntry(kIOMainPortDefault)
         defer { IOObjectRelease(root) }
-        guard IORegistryEntryCreateIterator(root, kIOServicePlane, IOOptionBits(kIORegistryIterateRecursively), &iterator) == KERN_SUCCESS else { return [:] }
+        guard IORegistryEntryCreateIterator(root, kIOServicePlane, IOOptionBits(kIORegistryIterateRecursively), &iterator) == KERN_SUCCESS
+        else { return [:] }
         defer { IOObjectRelease(iterator) }
         var services: [String: CFTypeRef] = [:]
         var framebuffer: String?
@@ -175,7 +206,8 @@ private final class Panel {
                 IORegistryEntryGetPath(entry, kIOServicePlane, &path)
                 framebuffer = String(cString: path)
             case "DCPAVServiceProxy":
-                guard let framebuffer, IORegistryEntryCreateCFProperty(entry, "Location" as CFString, nil, 0)?.takeRetainedValue() as? String == "External",
+                guard let framebuffer,
+                      IORegistryEntryCreateCFProperty(entry, "Location" as CFString, nil, 0)?.takeRetainedValue() as? String == "External",
                       let service = create(kCFAllocatorDefault, entry)?.takeRetainedValue() else { continue }
                 services[framebuffer] = service
             default:
@@ -186,8 +218,8 @@ private final class Panel {
     }
 }
 
-private final class BrightnessTopic {
-    static weak var current: BrightnessTopic?
+private final class BrightnessTopic: TopicFeed {
+    weak static var current: BrightnessTopic?
     private static var registered: Set<CGDirectDisplayID> = []
     private let publish: (JSON, Trace) -> Void
     private var observation: Observation?
@@ -195,7 +227,10 @@ private final class BrightnessTopic {
     init(_ publish: @escaping (JSON, Trace) -> Void) {
         self.publish = publish
         Self.current = self
-        observation = Observation(.default, NSApplication.didChangeScreenParametersNotification) { [weak self] in self?.refresh(Trace("screens"), scan: true) }
+        observation = Observation(.default, NSApplication.didChangeScreenParametersNotification) { [weak self] in self?.refresh(
+            Trace("screens"),
+            scan: true,
+        ) }
         refresh(Trace("brightness-start"), scan: true)
     }
 
@@ -211,7 +246,9 @@ private final class BrightnessTopic {
         }
         let panel = Panel.shared
         panel.queue.async { [weak self] in
-            if scan { panel.scan(displays) }
+            if scan {
+                panel.scan(displays)
+            }
             let state = panel.snapshot(displays, names: names)
             self?.publish(state, trace)
         }

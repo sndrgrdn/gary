@@ -5,12 +5,20 @@ public enum PluginTypes {
     public static let schemaFile = "manifest.schema.json"
 
     public static func declarations(capabilities: [String], pluginTopics: [PluginID], theme: JSON?) -> String {
-        func names(_ section: String) -> String {
-            let keys = theme?[section]?.object?.keys.sorted() ?? []
-            return (keys.map { "\"\($0)\"" } + ["(string & {})"]).joined(separator: " | ")
-        }
-        func union(_ values: [String]) -> String { values.map { "\"\($0)\"" }.joined(separator: " | ") }
-        let style = (StyleProps.numbers.map { "\($0.0)?: number;" } + [
+        [coreTypes(theme: theme), stateTypes(pluginTopics: pluginTopics), moduleTypes(capabilities: capabilities)].joined(separator: "\n\n")
+    }
+
+    private static func union(_ values: [String]) -> String {
+        values.map { "\"\($0)\"" }.joined(separator: " | ")
+    }
+
+    private static func names(_ section: String, in theme: JSON?) -> String {
+        let keys = theme?[section]?.object?.keys.sorted() ?? []
+        return (keys.map { "\"\($0)\"" } + ["(string & {})"]).joined(separator: " | ")
+    }
+
+    private static var styleFields: String {
+        (StyleProps.numbers.map { "\($0.0)?: number;" } + [
             "padding?: number | [number, number] | [number, number, number, number];",
         ] + StyleProps.signed.map { "\($0.0)?: number;" } + [
             "align?: \(union(Align.allCases.map(\.rawValue)));", "animation?: \(union(Animation.allCases.map(\.rawValue)));",
@@ -20,11 +28,12 @@ public enum PluginTypes {
             "shadow?: { color: Color; radius?: number; y?: number };", "border?: { color: Color; width?: number };",
         ] + StyleProps.colors.map { "\($0.0)?: Color;" } + ["font?: FontName;"])
             .map { "    \($0)" }.joined(separator: "\n")
+    }
+
+    private static func coreTypes(theme: JSON?) -> String {
         let nodes = Node.Kind.allCases.map { kind in
             "  interface \(typeName(kind.rawValue)) extends Style {\n    type: \"\(kind.rawValue)\";\(fields(kind).map { "\n    \($0)" }.joined())\n  }"
         }.joined(separator: "\n")
-        let modules = PluginKind.allCases.map { "  type \(typeName($0.rawValue)) = \($0 == .service ? "Module" : "Rendered");" }.joined(separator: "\n")
-        let topics = pluginTopics.map { "    \"\($0)\"?: Json;" }.joined(separator: "\n")
         return """
         declare namespace Gary {
           type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
@@ -36,13 +45,13 @@ public enum PluginTypes {
             precise: boolean;
             phase: "began" | "changed" | "ended" | "momentum" | "none";
           }
-          type StyleName = \(names("styles"));
-          type FontName = \(names("fonts"));
-          type ColorName = \(names("colors"));
+          type StyleName = \(names("styles", in: theme));
+          type FontName = \(names("fonts", in: theme));
+          type ColorName = \(names("colors", in: theme));
           type Color = ColorName;
 
           interface StyleProps {
-        \(style)
+        \(styleFields)
           }
           interface Style extends StyleProps {
             key?: string;
@@ -53,7 +62,12 @@ public enum PluginTypes {
           }
         \(nodes)
           type Node = \(Node.Kind.allCases.map { typeName($0.rawValue) }.joined(separator: " | "));
+        """
+    }
 
+    private static func stateTypes(pluginTopics: [PluginID]) -> String {
+        let topics = pluginTopics.map { "    \"\($0)\"?: Json;" }.joined(separator: "\n")
+        return """
           interface Display {
             id: string;
             index: number;
@@ -88,7 +102,13 @@ public enum PluginTypes {
             focusable?: boolean;
             background?: \(union(SurfaceBackground.allCases.map(\.rawValue)));
           }
+        """
+    }
 
+    private static func moduleTypes(capabilities: [String]) -> String {
+        let modules = PluginKind.allCases.map { "  type \(typeName($0.rawValue)) = \($0 == .service ? "Module" : "Rendered");" }
+            .joined(separator: "\n")
+        return """
           type ActionPayload = null | number | string;
           interface Storage {
             get(key: string): Json | undefined;
@@ -132,49 +152,50 @@ public enum PluginTypes {
     }
 
     public static func manifestSchema(_ capabilities: CapabilityNames) -> JSON {
-        func strings(_ values: [String]) -> String { JSON.array(values.map(JSON.string)).text }
         let kinds = strings(PluginKind.allCases.map(\.rawValue))
-        return try! JSON.parse(#"""
-        {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "title": "Gary plugin manifest",
-          "type": "object",
-          "required": ["schemaVersion", "id", "name", "version", "kinds", "entryPoints"],
-          "$defs": {
-            "id": { "type": "string", "maxLength": 128, "pattern": "^[a-z0-9][a-z0-9-]*(\\.[a-z0-9][a-z0-9-]*)+$" }
-          },
-          "properties": {
-            "$schema": { "type": "string" },
-            "schemaVersion": { "const": \#(PluginManifest.schemaVersion) },
-            "id": { "allOf": [{ "$ref": "#/$defs/id" }, { "not": { "type": "string", "pattern": "^gary\\." } }] },
-            "name": { "type": "string" },
-            "version": { "type": "string" },
-            "kinds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": \#(kinds) } },
-            "entryPoints": {
-              "type": "object",
-              "propertyNames": { "enum": \#(kinds) },
-              "additionalProperties": { "type": "string", "pattern": "^(?![/~])(?!.*(^|/)\\.{0,2}(/|$))[^\\u0000]*\\.(js|ts)$" }
-            },
-            "keepLoaded": { "type": "boolean" },
-            "subscribes": {
-              "type": "array",
-              "items": { "anyOf": [{ "enum": \#(strings(capabilities.topics.sorted())) }, { "$ref": "#/$defs/id" }] }
-            },
-            "uses": { "type": "array", "items": { "enum": \#(strings(capabilities.uses.sorted())) } },
-            "hotkeys": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "required": ["id", "keys"],
-                "properties": {
-                  "id": { "type": "string", "minLength": 1 },
-                  "keys": { "type": "string", "pattern": "^(([A-Za-z]+\\+)+[^+]+|[Ff]([1-9]|1[0-2]))$" }
-                }
-              }
-            }
-          }
-        }
-        """#)
+        let id = JSON.object(["$ref": .string("#/$defs/id")])
+        let string = type("string")
+        return .object([
+            "$schema": .string("https://json-schema.org/draft/2020-12/schema"),
+            "title": .string("Gary plugin manifest"),
+            "type": .string("object"),
+            "required": strings(["schemaVersion", "id", "name", "version", "kinds", "entryPoints"]),
+            "$defs": .object(["id": type("string", [
+                "maxLength": .number(128), "pattern": .string(#"^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$"#),
+            ])]),
+            "properties": .object([
+                "$schema": string,
+                "schemaVersion": .object(["const": .number(Double(PluginManifest.schemaVersion))]),
+                "id": .object(["allOf": .array([id, .object(["not": type("string", ["pattern": .string(#"^gary\."#)])])])]),
+                "name": string,
+                "version": string,
+                "kinds": type("array", ["minItems": .number(1), "uniqueItems": .bool(true), "items": .object(["enum": kinds])]),
+                "entryPoints": type("object", [
+                    "propertyNames": .object(["enum": kinds]),
+                    "additionalProperties": type("string", ["pattern": .string(#"^(?![/~])(?!.*(^|/)\.{0,2}(/|$))[^\u0000]*\.(js|ts)$"#)]),
+                ]),
+                "keepLoaded": type("boolean"),
+                "subscribes": type("array", [
+                    "items": .object(["anyOf": .array([.object(["enum": strings(capabilities.topics.sorted())]), id])]),
+                ]),
+                "uses": type("array", ["items": .object(["enum": strings(capabilities.uses.sorted())])]),
+                "hotkeys": type("array", ["items": type("object", [
+                    "required": strings(["id", "keys"]),
+                    "properties": .object([
+                        "id": type("string", ["minLength": .number(1)]),
+                        "keys": type("string", ["pattern": .string(#"^(([A-Za-z]+\+)+[^+]+|[Ff]([1-9]|1[0-2]))$"#)]),
+                    ]),
+                ])]),
+            ]),
+        ])
+    }
+
+    private static func type(_ name: String, _ fields: [String: JSON] = [:]) -> JSON {
+        .object(fields.merging(["type": .string(name)]) { $1 })
+    }
+
+    private static func strings(_ values: [String]) -> JSON {
+        .array(values.map(JSON.string))
     }
 
     static func typeName(_ raw: String) -> String {
@@ -183,15 +204,15 @@ public enum PluginTypes {
 
     private static func fields(_ kind: Node.Kind) -> [String] {
         switch kind {
-        case .row, .column, .stack: return ["children?: Node[];"]
-        case .scroll: return ["children?: Node[];", "reveal?: string;"]
-        case .button: return ["children?: Node[];", "hover?: StyleName;"]
-        case .text: return ["text: string | number;"]
-        case .icon: return ["symbol: string;"]
-        case .image: return ["path: string;"]
-        case .slider, .progress: return ["value: number;"]
-        case .input: return ["value?: string | number;", "placeholder?: string;", "change?: string;", "submit?: string;"]
-        case .spacer: return []
+        case .row, .column, .stack: ["children?: Node[];"]
+        case .scroll: ["children?: Node[];", "reveal?: string;"]
+        case .button: ["children?: Node[];", "hover?: StyleName;"]
+        case .text: ["text: string | number;"]
+        case .icon: ["symbol: string;"]
+        case .image: ["path: string;"]
+        case .slider, .progress: ["value: number;"]
+        case .input: ["value?: string | number;", "placeholder?: string;", "change?: string;", "submit?: string;"]
+        case .spacer: []
         }
     }
 }

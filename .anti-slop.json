@@ -1,0 +1,8 @@
+{
+  "disabled": [
+    "no-force-unwrap",
+    "no-force-try",
+    "require-safety-comment-for-forced-cast",
+    "no-shape-in-symbol-names"
+  ]
+}

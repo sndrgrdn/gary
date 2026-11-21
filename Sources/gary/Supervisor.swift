@@ -40,11 +40,15 @@ private final class Child: @unchecked Sendable {
     func stop(_ signal: Int32) {
         lock.withLock {
             stopping = true
-            if let process, process.isRunning { kill(process.processIdentifier, signal) }
+            if let process, process.isRunning {
+                kill(process.processIdentifier, signal)
+            }
         }
     }
 
-    var isStopping: Bool { lock.withLock { stopping } }
+    var isStopping: Bool {
+        lock.withLock { stopping }
+    }
 }
 
 func runSupervisor() -> Int32 {
@@ -76,8 +80,9 @@ private func supervise(_ child: Child) -> Int32 {
         guard child.start(process) else { return 0 }
         log("supervisor pid=\(getpid()): started gary pid=\(process.processIdentifier)")
         exited.wait()
-        let exit: ProcessExit = process.terminationReason == .uncaughtSignal ? .signaled(process.terminationStatus) : .exited(process.terminationStatus)
-        if exit.asksForRestart && !child.isStopping {
+        let exit: ProcessExit = process
+            .terminationReason == .uncaughtSignal ? .signaled(process.terminationStatus) : .exited(process.terminationStatus)
+        if exit.asksForRestart, !child.isStopping {
             log("supervisor: gary asked to restart")
             continue
         }
@@ -102,8 +107,12 @@ func runLogin(_ arguments: [String]) -> Int32 {
     let service = SMAppService.mainApp
     do {
         switch arguments {
-        case ["on"]: if service.status != .enabled { try service.register() }
-        case ["off"]: if service.status == .enabled { try service.unregister() }
+        case ["on"]: if service.status != .enabled {
+                try service.register()
+            }
+        case ["off"]: if service.status == .enabled {
+                try service.unregister()
+            }
         case [], ["status"]: break
         default:
             fputs("usage: gary login [on|off|status]\n", stderr)
@@ -120,11 +129,11 @@ func runLogin(_ arguments: [String]) -> Int32 {
 extension SMAppService.Status {
     var name: String {
         switch self {
-        case .enabled: return "on"
-        case .notRegistered: return "off"
-        case .requiresApproval: return "awaiting approval in System Settings > General > Login Items"
-        case .notFound: return "off (never registered)"
-        @unknown default: return "unknown (\(rawValue))"
+        case .enabled: "on"
+        case .notRegistered: "off"
+        case .requiresApproval: "awaiting approval in System Settings > General > Login Items"
+        case .notFound: "off (never registered)"
+        @unknown default: "unknown (\(rawValue))"
         }
     }
 }
