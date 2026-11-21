@@ -126,7 +126,7 @@ enum Skill {
     - `gary doctor` reports private API, permission, plugin, `shell.json`, and theme problems.
     - `gary permissions` shows which macOS permissions Gary has and which enabled plugins need them. A capability that lacks a permission says so in its error or topic value, with the `gary permissions request <name>` command that asks for it.
     - Take a screenshot to check the result. `screencapture -x /tmp/gary.png` captures the main display, and `screencapture -x -R 0,0,1728,40 /tmp/bar.png` captures a rectangle in points from the top left, such as the bar. The bar is `theme.bar.height` points tall, 32 by default. Summon a surface first. The screenshot needs Screen Recording for the program that runs `screencapture`, not for Gary.
-    - When `gary` prints `not running`, start Gary with `open ~/Applications/Gary.app`.
+    - When `gary` prints `not running`, start Gary with `open ~/Applications/Gary.app`. To restart Gary, for example after the user grants Screen Recording, run `pkill -f Gary.app/Contents/MacOS/gary` and then `open ~/Applications/Gary.app`.
     """
 
     private static let reference = """
@@ -296,7 +296,13 @@ enum Skill {
         ]
         for permission in Permission.allCases {
             let users = Capability.all.filter { $0.permissions.contains(permission) }.map { "`\($0.name)`" }
-            let asks = permission.hasPrompt ? "the macOS prompt, or the Settings pane after a refusal" : "opens the System Settings pane"
+            let asks: String
+            switch permission {
+            case .accessibility: asks = "the macOS prompt, which offers to open the Settings pane"
+            case .bluetooth, .location: asks = "the macOS prompt, or the Settings pane after a refusal"
+            case .screenRecording: asks = "the macOS prompt the first time, and the Settings pane"
+            case .fullDiskAccess: asks = "the Settings pane, since macOS has no prompt"
+            }
             lines.append("| `\(permission.rawValue)` | \(permission.name) | \(users.joined(separator: ", ")) | \(asks) |")
         }
         return lines.joined(separator: "\n")

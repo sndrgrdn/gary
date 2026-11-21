@@ -17,8 +17,6 @@ public enum Permission: String, CaseIterable, Sendable {
         }
     }
 
-    public var hasPrompt: Bool { self != .fullDiskAccess }
-
     public var settingsPane: URL {
         let anchor: String
         switch self {
