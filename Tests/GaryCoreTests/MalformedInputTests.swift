@@ -3,8 +3,14 @@ import Foundation
 import Testing
 
 private let resources = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../../Resources")
-private let baseTheme = try! JSON.parse(Data(contentsOf: resources.appending(path: "theme.json")))
-private let capabilities = try! CapabilityNames([("exec", true, false), ("battery", false, true), ("clock", false, true)])
+
+private func loadBaseTheme() throws -> JSON {
+    try JSON.parse(Data(contentsOf: resources.appending(path: "theme.json")))
+}
+
+private func makeCapabilities() throws -> CapabilityNames {
+    try CapabilityNames([("exec", true, false), ("battery", false, true), ("clock", false, true)])
+}
 
 private let shellSample = """
 {"plugins": ["demo.osd", "demo.counter"], "disabledPlugins": ["gary.today"], "bar": {"left": ["demo.counter"], "right": ["gary.clock"]},
@@ -60,7 +66,7 @@ private func mutate(_ json: JSON, _ random: inout SeededRandom) -> JSON {
         case 0: fields[key] = nil
         case 1: fields[key] = hostileValues[random.next(hostileValues.count)]
         case 2: fields[hostileStrings[random.next(hostileStrings.count)]] = hostileValues[random.next(hostileValues.count)]
-        default: fields[key] = mutate(fields[key]!, &random)
+        default: fields[key] = fields[key].map { mutate($0, &random) }
         }
         return .object(fields)
     case var .array(items) where !items.isEmpty && random.next(4) != 0:
@@ -100,14 +106,17 @@ private func mutatedTexts(_ sample: String, count: Int, seed: UInt64) -> [String
                 default: bytes = Array(bytes[..<index])
                 }
             }
-            texts.append(String(decoding: bytes, as: UTF8.self))
+            if let text = String(bytes: bytes, encoding: .utf8) {
+                texts.append(text)
+            }
         }
     }
     return texts
 }
 
 struct MalformedInputTests {
-    @Test func `malformed shell configs are rejected or resolved without crashing`() {
+    @Test func `malformed shell configs are rejected or resolved without crashing`() throws {
+        let capabilities = try makeCapabilities()
         var catalog = PluginCatalog()
         for text in mutatedTexts(manifestSample, count: 50, seed: 7) {
             if let manifest = try? PluginManifest.parse(Data(text.utf8), origin: .user, capabilities: capabilities) {
@@ -120,7 +129,8 @@ struct MalformedInputTests {
         }
     }
 
-    @Test func `malformed themes are rejected or parsed without crashing`() {
+    @Test func `malformed themes are rejected or parsed without crashing`() throws {
+        let baseTheme = try loadBaseTheme()
         let palettes = [Palette(nil, system: .dark), Palette(PaletteFile.parse(paletteSample), system: .light)]
         for (index, text) in mutatedTexts(themeSample, count: 3000, seed: 2).enumerated() {
             guard let json = try? JSON.parse(text) else { continue }
@@ -134,7 +144,8 @@ struct MalformedInputTests {
         }
     }
 
-    @Test func `malformed palettes keep the good lines without crashing`() {
+    @Test func `malformed palettes keep the good lines without crashing`() throws {
+        let baseTheme = try loadBaseTheme()
         var texts = mutatedTexts(paletteSample, count: 3000, seed: 4)
         texts += hostileStrings.map { "accent = \"\($0)\"" } + hostileStrings
         for text in texts {
@@ -145,7 +156,8 @@ struct MalformedInputTests {
         }
     }
 
-    @Test func `malformed manifests nodes surfaces and requests are rejected without crashing`() {
+    @Test func `malformed manifests nodes surfaces and requests are rejected without crashing`() throws {
+        let capabilities = try makeCapabilities()
         for text in mutatedTexts(manifestSample, count: 3000, seed: 5) {
             for origin in [PluginOrigin.user, .builtin] {
                 _ = try? PluginManifest.parse(Data(text.utf8), origin: origin, capabilities: capabilities)

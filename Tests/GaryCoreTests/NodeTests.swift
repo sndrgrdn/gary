@@ -153,14 +153,14 @@ struct NodeTests {
     @Test func `keyed children are identified by key and the rest by their position among unkeyed siblings`() {
         let row = Node(.row([Node(.text("a")), Node(.text("b"), key: "b"), Node(.icon("bolt")), Node(.spacer, key: "gap")]))
         #expect(row.childIDs == [.position(0), .key("b"), .position(1), .key("gap")])
-        #expect(Node(.text("a")).childIDs == [])
+        #expect(Node(.text("a")).childIDs.isEmpty)
     }
 
     @Test func `relative image paths resolve inside the plugin folder`() throws {
-        let tree =
-            try parse(
-                #"{"type":"row","children":[{"type":"image","path":"icons/logo.png"},{"type":"image","path":"../../Gary.icns"},{"type":"image","path":"~/a.png"},{"type":"image","path":"/b.png"}]}"#,
-            )
+        let tree = try parse(#"""
+        {"type":"row","children":[{"type":"image","path":"icons/logo.png"},{"type":"image","path":"../../Gary.icns"},\#
+        {"type":"image","path":"~/a.png"},{"type":"image","path":"/b.png"}]}
+        """#)
         let resolved = tree.resolvingImages(against: URL(fileURLWithPath: "/App/Resources/plugins/onboarding"))
         #expect(resolved.children.map(\.content) == [
             .image("/App/Resources/plugins/onboarding/icons/logo.png"),
