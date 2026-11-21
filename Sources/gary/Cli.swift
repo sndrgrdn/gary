@@ -34,12 +34,15 @@ func runCli(_ verb: String, _ arguments: [String]) -> Int32 {
     }
 }
 
+let appUsage: [(syntax: String, description: String)] = [
+    ("app", "Run the shell in the foreground, logging to the terminal, without the crash supervisor."),
+    ("login [on|off|status]", "Start Gary at login, or stop doing so."),
+]
+
 func runHelp() -> Int32 {
     print("usage: gary <verb> [args], sent to the running app over \(socketPath)\n")
     for (syntax, description) in Request.usage { print("  \(syntax)\n      \(description)") }
-    print("\n  app\n      Run the shell in the foreground, logging to the terminal, without the crash supervisor.")
-    print("  login [on|off|status]\n      Start Gary at login, or stop doing so.")
-    print("\nPlugin commands work on ~/.config/gary without the running app:\n")
-    for (syntax, description) in pluginUsage { print("  \(syntax)\n      \(description)") }
+    print("\nThese commands work without the running app:\n")
+    for (syntax, description) in appUsage + skillUsage + pluginUsage { print("  \(syntax)\n      \(description)") }
     return 0
 }

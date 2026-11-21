@@ -30,16 +30,6 @@ struct PrivateSymbolCheck {
 }
 
 extension Permission {
-    var name: String {
-        switch self {
-        case .accessibility: return "Accessibility"
-        case .bluetooth: return "Bluetooth"
-        case .fullDiskAccess: return "Full Disk Access"
-        case .location: return "Location"
-        case .screenRecording: return "Screen Recording"
-        }
-    }
-
     var isGranted: Bool {
         switch self {
         case .accessibility:

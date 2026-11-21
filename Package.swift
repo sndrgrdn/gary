@@ -51,5 +51,11 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v5)],
             linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("JavaScriptCore"), .linkedFramework("IOKit"), .linkedFramework("Carbon")]
         ),
+        // Checks of the app target against its capability registry, such as the agent guide covering every capability.
+        .testTarget(
+            name: "GaryTests",
+            dependencies: ["gary"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
     ]
 )

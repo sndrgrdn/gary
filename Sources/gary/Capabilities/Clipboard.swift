@@ -2,7 +2,7 @@ import AppKit
 import GaryCore
 
 extension Capability {
-    static let clipboard = Capability(name: "clipboard", types: """
+    static let clipboard = Capability(name: "clipboard", summary: "A clipboard change counter and the types on the clipboard. Read the clipboard and write text to it.", types: """
     declare namespace Gary {
       interface State { clipboard?: ClipboardChange }
       interface ClipboardChange { count: number; types: string[]; access: "default" | "ask" | "always" | "never" }

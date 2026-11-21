@@ -3,7 +3,7 @@ import GaryCore
 import JavaScriptCore
 
 extension Capability {
-    static let files = Capability(name: "files", types: """
+    static let files = Capability(name: "files", summary: "Read, write, list, remove, and watch files.", types: """
     declare namespace Gary {
       interface Host {
         readFile(path: string): string;

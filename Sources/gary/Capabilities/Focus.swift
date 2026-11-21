@@ -2,7 +2,7 @@ import Foundation
 import GaryCore
 
 extension Capability {
-    static let focus = Capability(name: "focus", types: """
+    static let focus = Capability(name: "focus", summary: "Whether a Focus is on, and its name and symbol.", types: """
     declare namespace Gary {
       interface State { focus?: Focus }
       interface Focus {

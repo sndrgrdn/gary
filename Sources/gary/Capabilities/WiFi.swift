@@ -4,7 +4,7 @@ import GaryCore
 import JavaScriptCore
 
 extension Capability {
-    static let wifi = Capability(name: "wifi", types: """
+    static let wifi = Capability(name: "wifi", summary: "Wi-Fi power, network, signal, and rate. Scan, join a network, and turn Wi-Fi on or off.", types: """
     declare namespace Gary {
       interface State { wifi?: WiFi }
       interface WiFi {

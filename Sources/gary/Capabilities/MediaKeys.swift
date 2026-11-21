@@ -3,7 +3,7 @@ import GaryCore
 import JavaScriptCore
 
 extension Capability {
-    static let mediakeys = Capability(name: "mediakeys", types: """
+    static let mediakeys = Capability(name: "mediakeys", summary: "Take over the volume, mute, and brightness keys.", types: """
     declare namespace Gary {
       type MediaKeyName = "volume-up" | "volume-down" | "mute" | "brightness-up" | "brightness-down";
       interface MediaKeyEvent { key: MediaKeyName; repeat: boolean; modifiers: ("shift" | "control" | "option" | "command")[] }

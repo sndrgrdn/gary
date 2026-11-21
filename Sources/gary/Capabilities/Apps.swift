@@ -2,7 +2,7 @@ import AppKit
 import GaryCore
 
 extension Capability {
-    static let apps = Capability(name: "apps", types: """
+    static let apps = Capability(name: "apps", summary: "The frontmost app and the running apps. Launch, activate, and quit apps by bundle id.", types: """
     declare namespace Gary {
       interface State { apps?: Apps }
       interface Apps { frontmost: App | null; running: App[] }

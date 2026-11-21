@@ -5,7 +5,7 @@ import GaryCore
 import JavaScriptCore
 
 extension Capability {
-    static let audio = Capability(name: "audio", types: """
+    static let audio = Capability(name: "audio", summary: "Audio devices, volume, mute, and the apps that use the microphone. Set the volume, mute, and the default device.", types: """
     declare namespace Gary {
       type AudioScope = "output" | "input";
       interface State { audio?: Audio }

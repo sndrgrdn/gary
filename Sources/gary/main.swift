@@ -35,5 +35,6 @@ case "doctor": exit(runDoctor())
 case "restore-after": exit(runRestoreAfter(Array(args.dropFirst())))
 case "help", "--help", "-h": exit(runHelp())
 case "plugin": exit(runPlugin(Array(args.dropFirst())))
+case "skill": exit(Skill.run(Array(args.dropFirst())))
 default: exit(runCli(verb, Array(args.dropFirst())))
 }

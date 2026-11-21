@@ -4,7 +4,7 @@ import JavaScriptCore
 import SQLite3
 
 extension Capability {
-    static let notifications = Capability(name: "notifications", types: """
+    static let notifications = Capability(name: "notifications", summary: "Notifications that Notification Center delivered. Open the app that sent one.", types: """
     declare namespace Gary {
       interface State { notifications?: Notifications }
       interface Notifications { available: boolean; reason?: string; items: DeliveredNotification[] }

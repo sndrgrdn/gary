@@ -3,7 +3,7 @@ import Carbon.HIToolbox
 import GaryCore
 
 extension Capability {
-    static let paste = Capability(name: "paste", types: """
+    static let paste = Capability(name: "paste", summary: "Paste the clipboard into the frontmost app.", types: """
     declare namespace Gary {
       interface Host { paste(): Promise<{ app: string | null; name: string | null }> }
     }

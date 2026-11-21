@@ -2,7 +2,7 @@ import AppKit
 import GaryCore
 
 extension Capability {
-    static let dock = Capability(name: "dock", types: """
+    static let dock = Capability(name: "dock", summary: "Reserve a screen edge that windows keep clear of, and hide or show the Dock.", types: """
     declare namespace Gary {
       type DockEdge = "bottom" | "left" | "right";
       interface DockState {

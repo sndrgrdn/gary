@@ -4,7 +4,7 @@ import GaryCore
 import JavaScriptCore
 
 extension Capability {
-    static let nowplaying = Capability(name: "nowplaying", types: """
+    static let nowplaying = Capability(name: "nowplaying", summary: "The track that any app is playing. Play, pause, skip, and seek.", types: """
     declare namespace Gary {
       interface State { nowplaying?: NowPlaying }
       interface NowPlaying { available: boolean; reason?: string; track: Track | null }

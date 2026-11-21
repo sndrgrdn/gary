@@ -4,12 +4,9 @@ import GaryCore
 import GaryPrivate
 import JavaScriptCore
 
-enum Permission: String, CaseIterable {
-    case accessibility, bluetooth, fullDiskAccess, location, screenRecording
-}
-
 struct Capability {
     let name: String
+    let summary: String
     let types: String
     var permissions: [Permission] = []
     var install: ((JSValue, PluginRuntime) -> Void)?

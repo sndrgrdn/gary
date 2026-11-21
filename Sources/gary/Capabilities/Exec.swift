@@ -3,7 +3,7 @@ import GaryCore
 import JavaScriptCore
 
 extension Capability {
-    static let exec = Capability(name: "exec", types: """
+    static let exec = Capability(name: "exec", summary: "Run a command off the main thread and get its exit status and output.", types: """
     declare namespace Gary {
       interface Host { exec(argv: string[], callback: (result: ExecResult) => void): void }
       interface ExecResult { status: number; stdout: string; stderr: string }

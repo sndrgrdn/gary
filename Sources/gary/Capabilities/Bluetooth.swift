@@ -6,7 +6,7 @@ import IOKit
 import JavaScriptCore
 
 extension Capability {
-    static let bluetooth = Capability(name: "bluetooth", types: """
+    static let bluetooth = Capability(name: "bluetooth", summary: "Bluetooth power and paired devices with their battery levels. Turn Bluetooth on or off, and connect or disconnect a device.", types: """
     declare namespace Gary {
       interface State { bluetooth?: Bluetooth }
       interface Bluetooth {

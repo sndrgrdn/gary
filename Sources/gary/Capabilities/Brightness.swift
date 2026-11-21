@@ -5,7 +5,7 @@ import IOKit
 import JavaScriptCore
 
 extension Capability {
-    static let brightness = Capability(name: "brightness", types: """
+    static let brightness = Capability(name: "brightness", summary: "Brightness of the built-in display and of external displays that support DDC. Set it.", types: """
     declare namespace Gary {
       interface State { brightness?: Brightness }
       interface Brightness { displays: BrightnessDisplay[]; missing: string[] }
