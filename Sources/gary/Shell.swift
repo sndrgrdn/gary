@@ -832,37 +832,26 @@ final class Shell {
     }
 
     private func filesChanged(_ paths: Set<String>, _ trace: Trace) {
-        let root = Paths.config.resolvingSymlinksInPath().path
-        let plugins = Paths.userPlugins.resolvingSymlinksInPath().path + "/"
+        let configRoot = Paths.config.resolvingSymlinksInPath().path
+        let pluginsRoot = Paths.userPlugins.resolvingSymlinksInPath().path
+        let changes = paths.compactMap { ConfigFileChange(path: $0, configRoot: configRoot, pluginsRoot: pluginsRoot) }
         var rescan = false
-        var themeChanged = false
-        var configChanged = false
         var reloads = Set<SlotKey>()
-        for path in paths {
-            if path == root + "/theme.json" {
-                themeChanged = true
-            } else if path == root + "/palette.toml" {
-                loadPalette()
-                themeChanged = true
-            } else if path == root + "/shell.json" {
-                configChanged = true
-            } else if path.hasPrefix(plugins) {
-                let relative = path.dropFirst(plugins.count)
-                if relative.split(separator: "/").dropFirst().contains(where: { $0.hasPrefix(".") }) {
-                    continue
-                }
-                let directory = String(relative.prefix { $0 != "/" })
-                let owners = slots.values.filter { $0.bundle.origin == .user && $0.bundle.directory.lastPathComponent == directory }
-                if owners.isEmpty || relative.hasSuffix("/manifest.json") || !relative.contains("/") {
-                    rescan = true
-                } else {
-                    reloads.formUnion(owners.map(\.key))
-                }
+        for case let .plugin(directory, rescansCatalog) in changes {
+            let owners = slots.values.filter { $0.bundle.origin == .user && $0.bundle.directory.lastPathComponent == directory }
+            if owners.isEmpty || rescansCatalog {
+                rescan = true
+            } else {
+                reloads.formUnion(owners.map(\.key))
             }
         }
-        if themeChanged {
+        if changes.contains(.palette) {
+            loadPalette()
+        }
+        if changes.contains(.theme) || changes.contains(.palette) {
             reloadTheme(trace)
         }
+        let configChanged = changes.contains(.shellConfig)
         if rescan || configChanged {
             _ = refresh(config: configChanged, catalog: rescan, trace)
         }
