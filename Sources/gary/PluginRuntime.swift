@@ -121,8 +121,12 @@ final class PluginRuntime: Subscriber {
         dispatch("onAction", [.string(action), payload], Trace("action"))
     }
 
-    func key(_ key: String) {
-        dispatch("onKey", [.string(key)], Trace("key"))
+    func key(_ key: String, unhandled: @escaping () -> Void) {
+        dispatch("onKey", [.string(key)], Trace("key"), unhandled: unhandled)
+    }
+
+    func scroll(_ event: JSON) {
+        dispatch("onScroll", [event], Trace("scroll"))
     }
 
     func hotkey(_ id: String) {
@@ -133,11 +137,14 @@ final class PluginRuntime: Subscriber {
         dispatch("onMediaKey", [event], Trace("mediakey"))
     }
 
-    private func dispatch(_ handler: String, _ arguments: [JSON], _ trace: Trace) {
+    private func dispatch(_ handler: String, _ arguments: [JSON], _ trace: Trace, unhandled: (() -> Void)? = nil) {
         queue.async { [self] in
             guard let functions else { return }
             do {
-                try invoke(functions.dispatch, [handler, JSON.array(arguments).text, stateText(for: nil)])
+                guard try invoke(functions.dispatch, [handler, JSON.array(arguments).text, stateText(for: nil)]).toBool() else {
+                    if let unhandled { DispatchQueue.main.async(execute: unhandled) }
+                    return
+                }
                 renderAll(trace)
             } catch {
                 fail("\(error)")
@@ -258,7 +265,9 @@ final class PluginRuntime: Subscriber {
             function (state) { return JSON.stringify(e().render(JSON.parse(state))); },
             function (name, args, state) {
               var f = e()[name];
-              if (typeof f === "function") f.apply(e(), JSON.parse(args).concat([JSON.parse(state)]));
+              if (typeof f !== "function") return false;
+              f.apply(e(), JSON.parse(args).concat([JSON.parse(state)]));
+              return true;
             },
             function (method, args, done) {
               var f = e().methods && e().methods[method];

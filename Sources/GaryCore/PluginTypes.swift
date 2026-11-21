@@ -25,7 +25,13 @@ public enum PluginTypes {
         declare namespace Gary {
           type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
           type Kind = \(union(PluginKind.allCases.map(\.rawValue)));
-          type Key = "up" | "down" | "enter" | "escape" | "tab";
+          type Key = \(union(Set(KeyName.named.values).sorted())) | (string & {});
+          interface ScrollEvent {
+            x: number;
+            y: number;
+            precise: boolean;
+            phase: "began" | "changed" | "ended" | "momentum" | "none";
+          }
           type StyleName = \(names("styles"));
           type FontName = \(names("fonts"));
           type ColorName = \(names("colors"));
@@ -94,6 +100,7 @@ public enum PluginTypes {
             render?(state: State): Node;
             onAction?(action: string, payload: ActionPayload, state: State): void;
             onKey?(key: Key, state: State): void;
+            onScroll?(event: ScrollEvent, state: State): void;
             onHotkey?(id: string, state: State): void;
             onTopic?(topic: string, value: Json, state: State): void;
             methods?: { [name: string]: (...args: string[]) => Json | void | Promise<Json | void> };

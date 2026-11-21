@@ -398,6 +398,10 @@ final class Shell {
         if isNew {
             if key.slot.kind == .bar { watchTopEdge(of: window.panel.contentView!) { [weak self] in self?.pointerReachedTop(key.display) } }
             window.show(fade: fade(key.slot))
+            if key.slot.kind.isSurface {
+                let slotKey = key.slot
+                window.panel.onScroll = { [weak self] event in self?.slots[slotKey]?.runtime?.scroll(event) }
+            }
             if key.slot.kind.isSurface, slot.surface?.focusable == true { focus(window, key.slot) }
             watchClicks()
         }
@@ -413,8 +417,9 @@ final class Shell {
 
     private func keyPressed(_ key: String, _ slot: SlotKey) {
         if tracing { log("key plugin=\(slot) key=\(key)") }
-        slots[slot]?.runtime?.key(key)
-        if slot.kind == .menu && key == "escape" { _ = hide(slot.id, Trace("escape")) }
+        slots[slot]?.runtime?.key(key) { [weak self] in
+            if slot.kind == .menu && key == "escape" { _ = self?.hide(slot.id, Trace("escape")) }
+        }
     }
 
     private func unmount(_ key: MountKey) {

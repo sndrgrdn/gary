@@ -2,16 +2,45 @@ import AppKit
 import GaryCore
 
 final class SurfacePanel: NSPanel {
-    static let keys: [UInt16: String] = [126: "up", 125: "down", 36: "enter", 76: "enter", 53: "escape", 48: "tab"]
-
     var focusable = false
     var onKey: ((String) -> Void)?
+    var onScroll: ((JSON) -> Void)?
     var onResignKey: (() -> Void)?
 
     override var canBecomeKey: Bool { focusable }
 
     override func keyDown(with event: NSEvent) {
-        if let key = Self.keys[event.keyCode], let onKey { onKey(key) } else { super.keyDown(with: event) }
+        let flags = event.modifierFlags
+        let modifiers = [(NSEvent.ModifierFlags.control, KeyName.Modifiers.control), (.option, .option), (.shift, .shift), (.command, .command)]
+            .reduce(into: KeyName.Modifiers()) { modifiers, pair in if flags.contains(pair.0) { modifiers.insert(pair.1) } }
+        if let onKey, let key = KeyName.name(keyCode: event.keyCode, characters: event.characters,
+                                             ignoringModifiers: event.charactersIgnoringModifiers, modifiers: modifiers) {
+            onKey(key)
+        } else {
+            super.keyDown(with: event)
+        }
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .scrollWheel, let onScroll {
+            let phase: String
+            if !event.momentumPhase.isEmpty {
+                phase = "momentum"
+            } else if event.phase.contains(.began) || event.phase.contains(.mayBegin) {
+                phase = "began"
+            } else if event.phase.contains(.changed) {
+                phase = "changed"
+            } else if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
+                phase = "ended"
+            } else {
+                phase = "none"
+            }
+            onScroll(.object([
+                "x": .number(event.scrollingDeltaX), "y": .number(event.scrollingDeltaY),
+                "precise": .bool(event.hasPreciseScrollingDeltas), "phase": .string(phase),
+            ]))
+        }
+        super.sendEvent(event)
     }
 
     override func resignKey() {
@@ -210,6 +239,7 @@ final class SurfaceWindow {
         let panel = panel
         panel.ignoresMouseEvents = true
         panel.onKey = nil
+        panel.onScroll = nil
         panel.onResignKey = nil
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = fade
