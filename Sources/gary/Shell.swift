@@ -302,6 +302,8 @@ final class Shell {
             case .hide: _ = hide(key.id, trace)
             case .toggle: toggle(key.id, trace) { _ in }
             }
+        case .call(let method, let arguments, let reply):
+            call(key.id, method, arguments, Trace("host-call"), reply)
         case .failed(let reason):
             if slot.candidate === runtime {
                 slot.candidate = nil

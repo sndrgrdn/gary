@@ -22,6 +22,7 @@ enum RuntimeEvent {
     case loaded(RuntimeOutput, Trace)
     case output(RuntimeOutput, Trace)
     case surface(SurfaceRequest)
+    case call(method: String, arguments: [String], reply: (Response) -> Void)
     case failed(String)
 }
 
@@ -346,6 +347,28 @@ final class PluginRuntime: Subscriber {
             }
             host.setObject(block, forKeyedSubscript: request.rawValue as NSString)
         }
+        let callBlock: @convention(block) (String, [String]) -> JSValue = { [weak self] method, arguments in
+            let context = JSContext.current()!
+            return JSValue(newPromiseIn: context) { resolve, reject in
+                guard let self else { return }
+                self.deliver(self, .call(method: method, arguments: arguments) { [weak self] response in
+                    self?.queue.async {
+                        switch response {
+                        case .ok(let text): self?.callBack(resolve!, [text], Trace("host.call"))
+                        case .failure(let message): self?.callBack(reject!, [JSValue(newErrorFromMessage: message, in: context)!], Trace("host.call"))
+                        }
+                    }
+                })
+            }
+        }
+        host.setObject(context.evaluateScript("""
+        (function (call) {
+          return function (method) {
+            var args = Array.prototype.slice.call(arguments, 1).map(String);
+            return call(String(method), args).then(function (text) { return text === "" ? undefined : JSON.parse(text); });
+          };
+        })
+        """).call(withArguments: [callBlock]), forKeyedSubscript: "call" as NSString)
         return host
     }
 

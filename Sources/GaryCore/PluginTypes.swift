@@ -87,6 +87,7 @@ public enum PluginTypes {
             show(): void;
             hide(): void;
             toggle(): void;
+            call(method: string, ...args: string[]): Promise<Json | undefined>;
           }
 
           interface Module {

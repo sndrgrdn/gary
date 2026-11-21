@@ -194,7 +194,7 @@ enum Skill {
     | `onHotkey(id, state)` | When a manifest hotkey fires. |
     | `onTopic(topic, value, state)` | When a subscribed topic changes, and once per topic at load. |
     | `onMediaKey(event, state)` | When a key that `host.mediakeys.intercept` claimed is pressed. |
-    | `methods` | `gary call <id> <method> [args...]` runs one with string arguments. |
+    | `methods` | `gary call <id> <method> [args...]` and `host.call(method, ...args)` run one with string arguments. It returns a JSON value, or a promise of one. |
     | `surface` | An object, or a function of `state`, that places a panel, overlay, or menu. |
 
     ## state
@@ -236,6 +236,7 @@ enum Skill {
     | `host.storage.get(key)`, `host.storage.set(key, value)` | Keeps JSON values in `~/Library/Application Support/Gary/storage/<id>.json`. Setting `undefined` deletes the key. |
     | `host.publish(value)` | Publishes a JSON value as the topic named by the plugin's id. |
     | `host.show()`, `host.hide()`, `host.toggle()` | Shows or hides the plugin's surface. |
+    | `host.call(method, ...args)` | Runs a function from the plugin's own `methods`, in the kind that `gary call` would run, loading it if needed, and returns a promise of its result. It rejects with the error the function threw or rejected with, or after 60 seconds. Plugins reach each other only through `host.publish` and `subscribes`. |
 
     `setTimeout`, `setInterval`, `clearTimeout`, and `clearInterval` work as in a browser. An interval is at least 10 ms.
 
