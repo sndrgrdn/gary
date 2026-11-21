@@ -232,6 +232,7 @@ struct DeviceRequestTests {
         #expect(try ["play", "pause", "toggle", "next", "previous"].map { try NowPlayingRequest.parse(call("nowplaying", $0)) } == [.play, .pause, .toggle, .next, .previous])
         #expect(try NowPlayingRequest.parse(call("nowplaying", "seek", .number(42.5))) == .seek(seconds: 42.5))
         #expect(throws: ArgumentError.self) { try NowPlayingRequest.parse(call("nowplaying", "seek", .number(-1))) }
+        #expect(throws: ArgumentError.self) { try NowPlayingRequest.parse(call("nowplaying", "seek", .number(1e13))) }
         #expect(throws: ArgumentError.self) { try NowPlayingRequest.parse(call("nowplaying", "seek")) }
     }
 

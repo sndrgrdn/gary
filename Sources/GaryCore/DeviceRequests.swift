@@ -63,7 +63,7 @@ public enum NowPlayingRequest: Equatable, Sendable {
         case "previous": return .previous
         case "seek":
             let seconds = try call.number(0, "seconds")
-            guard seconds >= 0 else { throw call.fail("seconds must be 0 or more") }
+            guard (0...1e9).contains(seconds) else { throw call.fail("seconds must be from 0 to 1e9") }
             return .seek(seconds: seconds)
         default: throw call.unknownMethod
         }
