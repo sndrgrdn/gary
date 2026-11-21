@@ -27,33 +27,10 @@ public struct ShellConfig: Equatable, Sendable {
     private static let revealMenuBarKey = "revealMenuBar"
 
     public static func parse(_ json: JSON) throws -> ShellConfig {
-        func fail(_ path: String, _ reason: String) -> ShellConfigError {
-            ShellConfigError(path: path, reason: reason)
-        }
-        guard let fields = json.object else { throw fail("root", "must be an object") }
-        func ids(_ value: JSON, _ path: String) throws -> [PluginID] {
-            guard let items = value.array else { throw fail(path, "must be an array of plugin ids") }
-            return try items.enumerated().map { index, item in
-                guard let raw = item.string, let id = PluginID(raw) else { throw fail("\(path)[\(index)]", "is not a plugin id") }
-                return id
-            }
-        }
-
+        guard let fields = json.object else { throw ShellConfigError(path: "root", reason: "must be an object") }
         var config = defaults
         if let bar = fields["bar"] {
-            guard let sections = bar.object else { throw fail("bar", "must be an object") }
-            if let unknown = sections.keys.sorted().first(where: { BarSection(rawValue: $0) == nil && $0 != revealMenuBarKey }) {
-                throw fail("bar.\(unknown)", "is not left, center, right or \(revealMenuBarKey)")
-            }
-            if let reveal = sections[revealMenuBarKey] {
-                guard let value = reveal.bool else { throw fail("bar.\(revealMenuBarKey)", "must be true or false") }
-                config.revealMenuBar = value
-            }
-            if BarSection.allCases.contains(where: { sections[$0.rawValue] != nil }) {
-                config.bar = try Dictionary(uniqueKeysWithValues: BarSection.allCases.map { section in
-                    try (section, sections[section.rawValue].map { try ids($0, "bar.\(section.rawValue)") } ?? [])
-                })
-            }
+            try config.parseBar(bar)
         }
         if let plugins = fields["plugins"] {
             config.plugins = try ids(plugins, "plugins")
@@ -62,13 +39,46 @@ public struct ShellConfig: Equatable, Sendable {
             config.disabledPlugins = try Set(ids(disabled, "disabledPlugins"))
         }
         if let settings = fields["settings"] {
-            guard let entries = settings.object else { throw fail("settings", "must be an object keyed by plugin id") }
-            config.settings = try Dictionary(uniqueKeysWithValues: entries.map { key, value in
-                guard let id = PluginID(key) else { throw fail("settings.\(key)", "is not a plugin id") }
-                return (id, value)
-            })
+            config.settings = try parseSettings(settings)
         }
         return config
+    }
+
+    private mutating func parseBar(_ bar: JSON) throws {
+        let key = Self.revealMenuBarKey
+        guard let sections = bar.object else { throw ShellConfigError(path: "bar", reason: "must be an object") }
+        if let unknown = sections.keys.sorted().first(where: { BarSection(rawValue: $0) == nil && $0 != key }) {
+            throw ShellConfigError(path: "bar.\(unknown)", reason: "is not left, center, right or \(key)")
+        }
+        if let reveal = sections[key] {
+            guard let value = reveal.bool else { throw ShellConfigError(path: "bar.\(key)", reason: "must be true or false") }
+            revealMenuBar = value
+        }
+        if BarSection.allCases.contains(where: { sections[$0.rawValue] != nil }) {
+            self.bar = try Dictionary(uniqueKeysWithValues: BarSection.allCases.map { section in
+                try (section, sections[section.rawValue].map { try Self.ids($0, "bar.\(section.rawValue)") } ?? [])
+            })
+        }
+    }
+
+    private static func ids(_ value: JSON, _ path: String) throws -> [PluginID] {
+        guard let items = value.array else { throw ShellConfigError(path: path, reason: "must be an array of plugin ids") }
+        return try items.enumerated().map { index, item in
+            guard let raw = item.string, let id = PluginID(raw) else {
+                throw ShellConfigError(path: "\(path)[\(index)]", reason: "is not a plugin id")
+            }
+            return id
+        }
+    }
+
+    private static func parseSettings(_ settings: JSON) throws -> [PluginID: JSON] {
+        guard let entries = settings.object else {
+            throw ShellConfigError(path: "settings", reason: "must be an object keyed by plugin id")
+        }
+        return try Dictionary(uniqueKeysWithValues: entries.map { key, value in
+            guard let id = PluginID(key) else { throw ShellConfigError(path: "settings.\(key)", reason: "is not a plugin id") }
+            return (id, value)
+        })
     }
 
     public struct Resolution: Equatable, Sendable {
@@ -81,10 +91,11 @@ public struct ShellConfig: Equatable, Sendable {
     public func resolve(_ catalog: PluginCatalog) -> Resolution {
         var warnings: [String] = []
         let named = Set(bar.values.joined()).union(plugins)
-        let enabled = Set(catalog.plugins.values.filter { bundle in
+        let enabledManifests = catalog.plugins.values.filter { bundle in
             let id = bundle.manifest.id
             return !disabledPlugins.contains(id) && (bundle.origin == .builtin || named.contains(id))
-        }.map(\.manifest.id))
+        }.map(\.manifest).sorted { $0.id < $1.id }
+        let enabled = Set(enabledManifests.map(\.id))
 
         var placed = Set<PluginID>()
         var resolved: [BarSection: [PluginID]] = [:]
@@ -109,12 +120,13 @@ public struct ShellConfig: Equatable, Sendable {
         for id in plugins where catalog.plugins[id] == nil {
             warnings.append("plugins: no plugin \(id)")
         }
-        for id in enabled.sorted() {
-            for case let .plugin(source) in catalog.plugins[id]!.manifest.subscribes where !enabled.contains(source) {
-                warnings.append("\(id) subscribes to \(source), which is \(catalog.plugins[source] == nil ? "not installed" : "not enabled")")
+        for manifest in enabledManifests {
+            for case let .plugin(source) in manifest.subscribes where !enabled.contains(source) {
+                let state = catalog.plugins[source] == nil ? "not installed" : "not enabled"
+                warnings.append("\(manifest.id) subscribes to \(source), which is \(state)")
             }
         }
-        let bars = enabled.filter { catalog.plugins[$0]!.manifest.kinds.contains(.bar) }.sorted()
+        let bars = enabledManifests.filter { $0.kinds.contains(.bar) }.map(\.id)
         for id in bars.dropFirst() {
             warnings.append("\(id) is a bar too; \(bars[0]) replaces the built-in bar")
         }
