@@ -210,7 +210,9 @@ private extension View {
         switch node.content {
         case .column, .stack: vertical = .top
         case .scroll: (height, padding, clickable, vertical) = (nil, Insets(0), nil, .top)
-        case .image: (width, height, clip) = (width ?? height ?? 16, height ?? width ?? 16, clip || look.fit == .fill)
+        case .image:
+            (width, height, clip) = (width ?? height ?? 16, height ?? width ?? 16, clip || look.fit == .fill)
+            horizontal = look.align.map(HorizontalAlignment.init) ?? .center
         case .slider: (width, clickable) = (width ?? 120, nil)
         case .input: (width, clickable) = (width ?? 240, nil)
         case .progress: (width, height, background) = (width ?? 120, height ?? 6, nil)
