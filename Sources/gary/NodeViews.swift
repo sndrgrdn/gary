@@ -362,6 +362,7 @@ private struct InputNode: View {
     }
 
     private func typed(_ next: String) {
+        guard next != text.wrappedValue else { return }
         text.wrappedValue = next
         guard let change = input.change else { return }
         sent.wrappedValue.append(next)
