@@ -87,23 +87,23 @@ private func address(
     AudioObjectPropertyAddress(mSelector: selector, mScope: scope, mElement: kAudioObjectPropertyElementMain)
 }
 
-private func property<T>(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress, _ initial: T) -> T? {
+private func property<T: BitwiseCopyable>(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress, _ initial: T) -> T? {
     var address = address
     var value = initial
     var size = UInt32(MemoryLayout<T>.size)
     guard AudioObjectHasProperty(object, &address),
-          withUnsafeMutableBytes(of: &value, { AudioObjectGetPropertyData(object, &address, 0, nil, &size, $0.baseAddress!) }) == noErr
+          AudioObjectGetPropertyData(object, &address, 0, nil, &size, &value) == noErr
     else { return nil }
     return value
 }
 
-private func setProperty(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress, _ value: some Any) -> OSStatus? {
+private func setProperty(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress, _ value: some BitwiseCopyable) -> OSStatus? {
     var address = address
     var value = value
     var settable: DarwinBoolean = false
     guard AudioObjectHasProperty(object, &address), AudioObjectIsPropertySettable(object, &address, &settable) == noErr,
           settable.boolValue else { return nil }
-    return withUnsafeBytes(of: &value) { AudioObjectSetPropertyData(object, &address, 0, nil, UInt32($0.count), $0.baseAddress!) }
+    return AudioObjectSetPropertyData(object, &address, 0, nil, UInt32(MemoryLayout.size(ofValue: value)), &value)
 }
 
 private func stringProperty(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress) -> String? {
