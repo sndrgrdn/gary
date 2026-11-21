@@ -42,5 +42,12 @@ let package = Package(
             dependencies: ["GarySocket"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
+        // The app and CLI.
+        .executableTarget(
+            name: "gary",
+            dependencies: ["GaryCore", "GarySocket", "GaryDinky", "GaryPrivate"],
+            swiftSettings: [.swiftLanguageMode(.v5)],
+            linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("JavaScriptCore"), .linkedFramework("IOKit")]
+        ),
     ]
 )
