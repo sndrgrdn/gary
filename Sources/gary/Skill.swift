@@ -267,7 +267,7 @@ enum Skill {
     | --- | --- | --- |
     | `screen` | `"main"`, `"focused"`, `"all"`, or a display index | `"focused"`, the display under the pointer |
     | `anchors` | `{ top, bottom, left, right }` booleans | none, so centered. An overlay anchors to every edge. |
-    | `width`, `height` | points or `"fit"` | `"fit"` |
+    | `width`, `height` | points or `"fit"`. Gary keeps the surface on its display, so a size larger than the display shrinks to it. | `"fit"` |
     | `margins` | points, or `{ top, bottom, left, right }` | `0` |
     | `layer` | \(SurfaceLayer.allCases.map { "`\($0.rawValue)`" }.joined(separator: ", ")) | `top`. An overlay or menu uses `overlay`. |
     | `exclusionMode` | `"normal"` keeps clear of the bar, and `"ignore"` covers it | `"normal"`. An overlay uses `"ignore"`. |

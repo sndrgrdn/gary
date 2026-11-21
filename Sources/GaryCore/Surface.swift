@@ -177,21 +177,25 @@ public struct SurfaceSpec: Equatable, Sendable {
         return area
     }
 
-    public func frame(on display: DisplayInfo, fitting: (_ width: Double?, _ height: Double?) -> CGSize) -> CGRect {
+    public func frame(on display: DisplayInfo, fitting: (_ width: Double?, _ height: Double?, _ limit: CGSize) -> CGSize) -> CGRect {
         let area = area(on: display)
         func forced(_ dimension: Dimension, _ low: Bool, _ high: Bool, _ span: Double, _ lowMargin: Double, _ highMargin: Double) -> Double? {
             if low && high { return max(0, span - lowMargin - highMargin) }
             if case .points(let value) = dimension { return value }
             return nil
         }
+        let limit = CGSize(
+            width: max(0, area.width - (anchors.left ? margins.left : 0) - (anchors.right ? margins.right : 0)),
+            height: max(0, area.height - (anchors.bottom ? margins.bottom : 0) - (anchors.top ? margins.top : 0))
+        )
         let width = forced(self.width, anchors.left, anchors.right, area.width, margins.left, margins.right)
         let height = forced(self.height, anchors.bottom, anchors.top, area.height, margins.bottom, margins.top)
-        let fitted = width == nil || height == nil ? fitting(width, height) : .zero
-        let size = CGSize(width: width ?? fitted.width, height: height ?? fitted.height)
+        let fitted = width == nil || height == nil ? fitting(width.map { min($0, limit.width) }, height.map { min($0, limit.height) }, limit) : .zero
+        let size = CGSize(width: min(width ?? fitted.width, limit.width), height: min(height ?? fitted.height, limit.height))
         func origin(_ low: Bool, _ high: Bool, _ min: Double, _ max: Double, _ length: Double, _ lowMargin: Double, _ highMargin: Double) -> Double {
-            if low { return min + lowMargin }
-            if high { return max - highMargin - length }
-            return ((min + max - length) / 2).rounded()
+            let start: Double
+            if low { start = min + lowMargin } else if high { start = max - highMargin - length } else { start = ((min + max - length) / 2).rounded() }
+            return Swift.min(Swift.max(start, min), max - length)
         }
         return CGRect(
             x: origin(anchors.left, anchors.right, area.minX, area.maxX, size.width, margins.left, margins.right),

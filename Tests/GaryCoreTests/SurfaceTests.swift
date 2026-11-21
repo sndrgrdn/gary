@@ -10,8 +10,9 @@ struct SurfaceTests {
         try SurfaceSpec.parse(try JSON.parse(text), kind: kind)
     }
 
-    private func frame(_ text: String, kind: PluginKind = .panel) throws -> CGRect {
-        try spec(text, kind: kind).frame(on: display) { width, height in
+    private func frame(_ text: String, kind: PluginKind = .panel, content: CGSize? = nil) throws -> CGRect {
+        let content = content ?? self.content
+        return try spec(text, kind: kind).frame(on: display) { width, height, _ in
             CGSize(width: width ?? content.width, height: height ?? content.height)
         }
     }
@@ -39,17 +40,34 @@ struct SurfaceTests {
 
     @Test func fixedSizesSkipFittingAndFitAsksOnlyForTheFreeAxis() throws {
         var asked: [(Double?, Double?)] = []
-        let fixed = try spec(#"{"width":300,"height":50}"#).frame(on: display) { width, height in
+        let fixed = try spec(#"{"width":300,"height":50}"#).frame(on: display) { width, height, _ in
             asked.append((width, height))
             return .zero
         }
         #expect(fixed.size == CGSize(width: 300, height: 50))
         #expect(asked.isEmpty)
-        _ = try spec(#"{"width":300}"#).frame(on: display) { width, height in
+        _ = try spec(#"{"width":300}"#).frame(on: display) { width, height, _ in
             asked.append((width, height))
             return CGSize(width: 300, height: 70)
         }
         #expect(asked.count == 1 && asked[0].0 == 300 && asked[0].1 == nil)
+    }
+
+    @Test func aSurfaceStaysOnItsScreenWhenItsContentOutgrowsIt() throws {
+        let wide = CGSize(width: 1400, height: 100)
+        #expect(try frame(#"{"anchors":{"top":true,"right":true},"margins":{"top":8,"right":16}}"#, content: wide)
+            == CGRect(x: 0, y: 800 - 32 - 8 - 100, width: 984, height: 100))
+        #expect(try frame("{}", content: CGSize(width: 1200, height: 900)) == CGRect(x: 0, y: 0, width: 1000, height: 768))
+        #expect(try frame(#"{"width":1500,"anchors":{"left":true},"margins":{"left":10}}"#) == CGRect(x: 10, y: 334, width: 990, height: 100))
+    }
+
+    @Test func fittingIsToldTheSpaceLeftOnTheScreen() throws {
+        var limits: [CGSize] = []
+        _ = try spec(#"{"anchors":{"top":true,"right":true},"margins":{"top":8,"right":16,"left":50}}"#).frame(on: display) { _, _, limit in
+            limits.append(limit)
+            return content
+        }
+        #expect(limits == [CGSize(width: 984, height: 760)])
     }
 
     @Test func kindsHaveTheirOwnDefaults() {

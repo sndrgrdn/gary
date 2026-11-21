@@ -165,21 +165,24 @@ final class SurfaceWindow {
         panel.ignoresMouseEvents = spec.clickThrough
         panel.focusable = spec.focusable
         NSLayoutConstraint.deactivate(size)
-        let frame = spec.frame(on: display) { width, height in
-            fixedSize(width, height, priority: 999).fitting
+        let frame = spec.frame(on: display) { width, height, limit in
+            fit(width, height, limit)
         }
-        size = fixedSize(frame.width, frame.height, priority: 999).constraints
+        size = [card.widthAnchor.constraint(equalToConstant: frame.width), card.heightAnchor.constraint(equalToConstant: frame.height)]
+        for constraint in size { constraint.priority = .init(999) }
         NSLayoutConstraint.activate(size)
         panel.setFrame(frame, display: false)
     }
 
-    private func fixedSize(_ width: Double?, _ height: Double?, priority: Float) -> (constraints: [NSLayoutConstraint], fitting: CGSize) {
-        let constraints = [width.map { card.widthAnchor.constraint(equalToConstant: $0) }, height.map { card.heightAnchor.constraint(equalToConstant: $0) }].compactMap { $0 }
-        for constraint in constraints { constraint.priority = .init(priority) }
+    private func fit(_ width: Double?, _ height: Double?, _ limit: CGSize) -> CGSize {
+        let constraints = [
+            width.map { card.widthAnchor.constraint(equalToConstant: $0) } ?? card.widthAnchor.constraint(lessThanOrEqualToConstant: limit.width),
+            height.map { card.heightAnchor.constraint(equalToConstant: $0) } ?? card.heightAnchor.constraint(lessThanOrEqualToConstant: limit.height),
+        ]
+        for constraint in constraints { constraint.priority = .init(999) }
         NSLayoutConstraint.activate(constraints)
-        let fitting = card.fittingSize
-        NSLayoutConstraint.deactivate(constraints)
-        return (constraints, fitting)
+        defer { NSLayoutConstraint.deactivate(constraints) }
+        return card.fittingSize
     }
 
     func show(fade: Double) {
