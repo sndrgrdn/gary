@@ -7,14 +7,15 @@ LINK="$HOME/.local/bin/gary"
 fail() { echo "gary install: $*" >&2; exit 1; }
 
 main() {
-    command -v gh >/dev/null 2>&1 || fail "needs the GitHub CLI; install it with brew install gh, then run gh auth login"
-    gh auth status --hostname github.com >/dev/null 2>&1 || fail "gh is not logged in; run gh auth login"
+    [ ! -d "${HOMEBREW_PREFIX:-/opt/homebrew}/Caskroom/gary" ] || fail "Homebrew installed Gary; update it with brew upgrade --cask gary"
 
     if [ $# -gt 0 ]; then
         tag="v${1#v}"
     else
-        tag=$(gh release view --repo "$REPO" --json tagName --jq .tagName) || fail "cannot read the releases of $REPO; ask its owner for access"
+        latest=$(curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/$REPO/releases/latest") || fail "cannot reach the releases of $REPO"
+        tag=${latest##*/}
     fi
+    case $tag in v[0-9]*) ;; *) fail "cannot find the latest release of $REPO" ;; esac
     version=${tag#v}
     installed=$(plutil -extract CFBundleShortVersionString raw "$APP/Contents/Info.plist" 2>/dev/null) || installed=none
     echo "installed: $installed, release: $version"
@@ -26,7 +27,9 @@ main() {
         fresh=true
         work=$(mktemp -d)
         trap 'rm -rf "$work"' EXIT
-        gh release download "$tag" --repo "$REPO" --pattern "Gary-$version.zip*" --dir "$work"
+        url="https://github.com/$REPO/releases/download/$tag/Gary-$version.zip"
+        curl -fsSL -o "$work/Gary-$version.zip" "$url" || fail "cannot download $url"
+        curl -fsSL -o "$work/Gary-$version.zip.sha256" "$url.sha256" || fail "cannot download $url.sha256"
         (cd "$work" && shasum -a 256 -c "Gary-$version.zip.sha256") || fail "the checksum of Gary-$version.zip does not match"
         ditto -x -k "$work/Gary-$version.zip" "$work/unzipped"
         codesign --verify --deep --strict "$work/unzipped/Gary.app" || fail "the signature of Gary $version does not verify"

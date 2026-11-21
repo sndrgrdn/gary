@@ -6,15 +6,26 @@ Gary needs macOS 27.2 or later on Apple silicon.
 
 ## Install
 
-You need the [GitHub CLI](https://cli.github.com), logged in with `gh auth login`, and read access to this private repository.
-
 Run the install script:
 
 ```sh
-gh api repos/sndrgrdn/gary/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | sh
+curl -fsSL https://raw.githubusercontent.com/sndrgrdn/gary/main/scripts/install.sh | sh
 ```
 
-The script downloads the latest release and checks its checksum and signature. It installs `~/Applications/Gary.app`, links `~/.local/bin/gary`, starts Gary at login, and starts Gary now. To install a specific version, add `-s -- 0.1.0` after `sh`. You can run the script again at any time.
+The script downloads the latest release and checks its checksum and signature. It installs `~/Applications/Gary.app`, links `~/.local/bin/gary`, starts Gary at login, and starts Gary now. To install a specific version, add `-s -- 0.2.0` after `sh`. You can run the script again at any time.
+
+### Install with Homebrew
+
+```sh
+brew install --cask sndrgrdn/tap/gary
+```
+
+Homebrew installs `/Applications/Gary.app` and puts `gary` on your `PATH`. To start Gary at login and start it now, run:
+
+```sh
+gary login on
+open -a Gary
+```
 
 ### Install from source
 
@@ -54,7 +65,7 @@ The skill points the agent to `gary skill show`, which prints the plugin guide f
 gary update
 ```
 
-`gary update` prints the installed and latest versions, and installs the latest release if they differ. `gary --version` prints the installed version.
+`gary update` prints the installed and latest versions, and installs the latest release if they differ. If you installed Gary with Homebrew, run `brew upgrade --cask gary` instead. `gary --version` prints the installed version.
 
 ## Uninstall
 
@@ -64,6 +75,8 @@ gary skill remove
 gary quit
 rm -rf ~/Applications/Gary.app ~/.local/bin/gary
 ```
+
+If you installed Gary with Homebrew, replace the last line with `brew uninstall --cask gary`.
 
 To also delete your settings, plugins, plugin storage, log, and permission grants, run:
 

@@ -78,7 +78,7 @@ let appUsage: [CommandUsage] = [
     CommandUsage("app", "Run the shell in the foreground, logging to the terminal, without the crash supervisor.", nil),
     CommandUsage("login [on|off|status]", "Start Gary at login, or stop doing so.", nil),
     CommandUsage("--version", "Print the version of this Gary.", nil),
-    CommandUsage("update", "Install the latest release from GitHub with gh, after saying which version is installed and which is the latest.", nil),
+    CommandUsage("update", "Install the latest release from GitHub, after saying which version is installed and which is the latest.", nil),
 ]
 
 func runUpdate(_ arguments: [String]) -> Int32 {
