@@ -182,6 +182,8 @@ final class SurfaceWindow {
         for constraint in constraints { constraint.priority = .init(999) }
         NSLayoutConstraint.activate(constraints)
         defer { NSLayoutConstraint.deactivate(constraints) }
+        card.setFrameSize(card.fittingSize)
+        card.layoutSubtreeIfNeeded()
         return card.fittingSize
     }
 

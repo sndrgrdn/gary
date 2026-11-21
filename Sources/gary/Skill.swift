@@ -258,6 +258,7 @@ enum Skill {
 
     - Give siblings unique `key` values so Gary can patch views in place.
     - A node with `action` is clickable. Gary calls `onAction(action, payload)`.
+    - Text wraps when its surface is narrower than the text, such as a surface with a fixed `width` or one at the display's edge. Text in a `button` stays on one line.
     - A tree holds at most 1000 nodes and 16 levels.
     - Colors are \(ColorExpr.syntax).
 

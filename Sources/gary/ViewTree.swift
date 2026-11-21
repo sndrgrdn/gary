@@ -19,8 +19,24 @@ final class TextNodeView: NSTextField, NodeView {
     var nodeAction: String?
     var onAction: ActionHandler?
     var sizing: [NSLayoutConstraint] = []
+    private var wrapWidth: CGFloat = 0
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) { click(event) }
+
+    override var intrinsicContentSize: NSSize {
+        guard let cell else { return super.intrinsicContentSize }
+        let unbounded = CGFloat.greatestFiniteMagnitude
+        let natural = cell.cellSize(forBounds: NSRect(x: 0, y: 0, width: unbounded, height: unbounded))
+        let lines = wrapWidth > 0 && wrapWidth < natural.width ? cell.cellSize(forBounds: NSRect(x: 0, y: 0, width: wrapWidth, height: unbounded)) : natural
+        return NSSize(width: ceil(natural.width), height: ceil(lines.height))
+    }
+
+    override func layout() {
+        super.layout()
+        guard abs(bounds.width - wrapWidth) >= 0.5 else { return }
+        wrapWidth = bounds.width
+        invalidateIntrinsicContentSize()
+    }
 }
 
 final class IconNodeView: NSImageView, NodeView {
@@ -80,6 +96,11 @@ final class ButtonNodeView: StackNodeView {
         super.updateTrackingAreas()
         for area in trackingAreas { removeTrackingArea(area) }
         addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+
+    override func pinCrossAxis() {
+        super.pinCrossAxis()
+        for case let label as TextNodeView in arrangedSubviews { label.setContentCompressionResistancePriority(.required, for: .horizontal) }
     }
 
     override func mouseEntered(with event: NSEvent) { hovered = true; paint() }
@@ -224,9 +245,10 @@ final class ViewRenderer {
             fitWidth.isActive = true
             view = scroll
         case .text:
-            let label = TextNodeView(labelWithString: "")
+            let label = TextNodeView(wrappingLabelWithString: "")
+            label.isSelectable = false
             label.setContentHuggingPriority(.required, for: .horizontal)
-            label.setContentCompressionResistancePriority(.required, for: .horizontal)
+            label.setContentCompressionResistancePriority(.init(749), for: .horizontal)
             view = label
         case .icon:
             let icon = IconNodeView()
