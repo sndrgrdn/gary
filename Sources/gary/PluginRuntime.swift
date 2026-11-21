@@ -110,7 +110,9 @@ final class PluginRuntime: Subscriber {
         queue.sync {
             guard let functions else { return .failure("\(id) is not running") }
             do {
-                return .ok(try invoke(functions.call, [method, JSON.array(arguments.map(JSON.string)).text]).toString() ?? "")
+                let result = try invoke(functions.call, [method, JSON.array(arguments.map(JSON.string)).text]).toString() ?? ""
+                renderAll(Trace("call"))
+                return .ok(result)
             } catch {
                 return .failure("\(error)")
             }
