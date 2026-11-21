@@ -117,6 +117,10 @@ final class PluginRuntime: Subscriber {
         dispatch("onHotkey", [.string(id)], Trace("hotkey"))
     }
 
+    func mediaKey(_ event: JSON) {
+        dispatch("onMediaKey", [event], Trace("mediakey"))
+    }
+
     private func dispatch(_ handler: String, _ arguments: [JSON], _ trace: Trace) {
         queue.async { [self] in
             guard let functions else { return }
