@@ -222,7 +222,7 @@ final class Shell {
         let key = slot.key
         let runtime = PluginRuntime(
             bundle: slot.bundle, kind: key.kind, scene: scene(for: slot),
-            settings: config.settings[key.id] ?? .object([:]), hub: hub
+            settings: config.settings[key.id] ?? .object([:]), theme: theme.json, hub: hub
         ) { [weak self] runtime, event in
             DispatchQueue.main.async { self?.handle(event, from: runtime, key) }
         }
@@ -508,6 +508,11 @@ final class Shell {
             for mount in mounts.values { renderer.restyle(mount.view, mount.node) }
             for key in mounts.keys { place(key) }
             commitFrame()
+            let json = theme.json
+            for slot in slots.values {
+                slot.candidate?.setTheme(json, trace)
+                slot.runtime?.setTheme(json, trace)
+            }
             log(String(format: "theme applied mode=%@ palette=%@ cause=%@ since_ms=%.3f", theme.mode.rawValue,
                        paletteFile == nil ? "built-in" : "palette.toml", trace.cause, (now() - trace.start) * 1000))
             return .ok("theme applied")

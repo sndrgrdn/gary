@@ -57,6 +57,7 @@ final class PluginRuntime: Subscriber {
     private var functions: (render: JSValue, dispatch: JSValue, call: JSValue, surface: JSValue)?
     private var exception: String?
     private var state: [Topic: JSON] = [:]
+    private var theme: JSON
     private var timers: [Int: DispatchSourceTimer] = [:]
     private var watches: [FileWatch] = []
     private var nextTimer = 1
@@ -66,12 +67,14 @@ final class PluginRuntime: Subscriber {
 
     var id: PluginID { bundle.manifest.id }
 
-    init(bundle: PluginBundle, kind: PluginKind, scene: Scene, settings: JSON, hub: StateHub, deliver: @escaping (PluginRuntime, RuntimeEvent) -> Void) {
+    init(bundle: PluginBundle, kind: PluginKind, scene: Scene, settings: JSON, theme: JSON, hub: StateHub,
+         deliver: @escaping (PluginRuntime, RuntimeEvent) -> Void) {
         self.bundle = bundle
         self.kind = kind
         self.scene = scene
         initialScene = scene
         self.settings = settings
+        self.theme = theme
         self.hub = hub
         self.deliver = deliver
         queue = DispatchQueue(label: "gary.plugin.\(bundle.manifest.id)", qos: .userInitiated)
@@ -99,6 +102,13 @@ final class PluginRuntime: Subscriber {
         queue.async { [self] in
             self.scene = scene
             renderAll(trace, always: true)
+        }
+    }
+
+    func setTheme(_ theme: JSON, _ trace: Trace) {
+        queue.async { [self] in
+            self.theme = theme
+            renderAll(trace)
         }
     }
 
@@ -439,6 +449,7 @@ final class PluginRuntime: Subscriber {
     private func stateText(for display: DisplayInfo?) -> String {
         var fields = Dictionary(uniqueKeysWithValues: state.map { ($0.key.description, $0.value) })
         fields["settings"] = settings
+        fields["theme"] = theme
         fields["display"] = display?.json
         return JSON.object(fields).text
     }
