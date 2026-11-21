@@ -15,5 +15,15 @@ let package = Package(
             dependencies: ["GaryCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
+        // Unix socket server and clients: NDJSON lines for Gary's IPC, EOF-framed exchanges for dinky. Unit tested.
+        .target(
+            name: "GarySocket",
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .testTarget(
+            name: "GarySocketTests",
+            dependencies: ["GarySocket"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
     ]
 )
