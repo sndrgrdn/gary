@@ -65,10 +65,10 @@ private enum NotificationStore {
     }
 
     static func read(_ filter: String = "") -> Result<[DeliveredNotification], Failure> {
-        var db: OpaquePointer?
-        defer { sqlite3_close(db) }
-        let opened = sqlite3_open_v2(directory.appending(path: "db").path, &db, SQLITE_OPEN_READONLY, nil)
-        guard opened == SQLITE_OK, sqlite3_exec(db, "PRAGMA query_only = 1", nil, nil, nil) == SQLITE_OK else {
+        var database: OpaquePointer?
+        defer { sqlite3_close(database) }
+        let opened = sqlite3_open_v2(directory.appending(path: "db").path, &database, SQLITE_OPEN_READONLY, nil)
+        guard opened == SQLITE_OK, sqlite3_exec(database, "PRAGMA query_only = 1", nil, nil, nil) == SQLITE_OK else {
             let denied = opened == SQLITE_AUTH || opened == SQLITE_CANTOPEN || opened == SQLITE_PERM
             return .failure(Failure(reason: denied ? missingGrant(.fullDiskAccess, "notifications") :
                     "cannot open the notification database (\(opened))"))
@@ -76,8 +76,8 @@ private enum NotificationStore {
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
         let query = "SELECT r.rec_id, a.identifier, r.data FROM record r JOIN app a ON a.app_id = r.app_id \(filter) ORDER BY r.delivered_date DESC LIMIT 50"
-        guard sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK else {
-            return .failure(Failure(reason: "the notification database has an unknown layout: \(String(cString: sqlite3_errmsg(db)))"))
+        guard sqlite3_prepare_v2(database, query, -1, &statement, nil) == SQLITE_OK else {
+            return .failure(Failure(reason: "the notification database has an unknown layout: \(String(cString: sqlite3_errmsg(database)))"))
         }
         var records: [DeliveredNotification] = []
         while sqlite3_step(statement) == SQLITE_ROW {

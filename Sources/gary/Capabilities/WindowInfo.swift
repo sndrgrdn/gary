@@ -1,0 +1,23 @@
+import CoreGraphics
+import Foundation
+
+struct WindowInfo: Equatable {
+    let id: CGWindowID
+    let owner: pid_t
+    let layer: Int
+    let bounds: CGRect?
+
+    static func list(_ options: CGWindowListOption) -> [Self] {
+        (CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [NSDictionary] ?? []).compactMap(Self.init)
+    }
+}
+
+extension WindowInfo {
+    init?(_ info: NSDictionary) {
+        guard let id = info[kCGWindowNumber as String] as? CGWindowID,
+              let owner = info[kCGWindowOwnerPID as String] as? pid_t,
+              let layer = info[kCGWindowLayer as String] as? Int else { return nil }
+        let bounds = (info[kCGWindowBounds as String] as? NSDictionary).flatMap { CGRect(dictionaryRepresentation: $0) }
+        self.init(id: id, owner: owner, layer: layer, bounds: bounds)
+    }
+}
