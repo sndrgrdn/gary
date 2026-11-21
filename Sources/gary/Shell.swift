@@ -908,15 +908,7 @@ final class Shell {
         case let .toggle(id):
             toggle(id, trace, reply)
         case let .reloadPlugins(id):
-            let live = slots.values.filter { (id == nil || $0.key.id == id) && (isLive($0) || $0.disabledReason != nil) }
-            if let id, live.isEmpty {
-                reply(.failure("\(id) is not loaded"))
-                return
-            }
-            for slot in live {
-                reload(slot, trace)
-            }
-            reply(.ok("reloading \(live.count)"))
+            reply(reloadPlugins(id, trace))
         case .rescanPlugins:
             _ = refresh(config: false, catalog: true, trace)
             reply(.ok("\(catalog.plugins.count) plugins, \(catalog.problems.count) problems"))
@@ -934,17 +926,30 @@ final class Shell {
         case let .requestPermission(permission):
             reply(.ok(permission.request()))
         case let .action(id, kind, action, payload):
-            guard let runtime = slots[SlotKey(id: id, kind: kind)]?.runtime else { reply(.failure("\(id) has no running \(kind.rawValue)"))
-                return
-            }
-            runtime.perform(action, payload.map { Double($0).map(JSON.number) ?? .string($0) } ?? .null)
-            reply(.ok("sent \(action) to \(id)/\(kind.rawValue)"))
+            reply(send(action, payload, to: SlotKey(id: id, kind: kind)))
         case let .call(id, method, arguments):
             call(id, method, arguments, trace) { response in
                 guard case let .ok(text) = response, case let .string(string)? = try? JSON.parse(text) else { return reply(response) }
                 reply(.ok(string))
             }
         }
+    }
+
+    private func reloadPlugins(_ id: PluginID?, _ trace: Trace) -> Response {
+        let live = slots.values.filter { (id == nil || $0.key.id == id) && (isLive($0) || $0.disabledReason != nil) }
+        if let id, live.isEmpty {
+            return .failure("\(id) is not loaded")
+        }
+        for slot in live {
+            reload(slot, trace)
+        }
+        return .ok("reloading \(live.count)")
+    }
+
+    private func send(_ action: String, _ payload: String?, to key: SlotKey) -> Response {
+        guard let runtime = slots[key]?.runtime else { return .failure("\(key.id) has no running \(key.kind.rawValue)") }
+        runtime.perform(action, payload.map { Double($0).map(JSON.number) ?? .string($0) } ?? .null)
+        return .ok("sent \(action) to \(key)")
     }
 
     private func call(_ id: PluginID, _ method: String, _ arguments: [String], _ trace: Trace, _ reply: @escaping (Response) -> Void) {
