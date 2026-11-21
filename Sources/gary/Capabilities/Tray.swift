@@ -24,7 +24,7 @@ extension Capability {
       interface Host { tray: TrayApi }
       interface TrayApi {
         items(): Promise<{ items: TrayItem[]; iconError: string | null }>;
-        press(id: string): Promise<TrayItem>;
+        press(id: string): Promise<TrayItem & { opened: boolean }>;
       }
     }
     """, permissions: [.accessibility, .screenRecording], install: { host, plugin in
@@ -34,17 +34,17 @@ extension Capability {
                 guard AXIsProcessTrusted() else { throw HostFailure(missingGrant(.accessibility, "the tray")) }
                 switch request {
                 case .items:
-                    let items = try scan().map(\.item)
+                    let items = try scan()
                     let icons = capture(items)
                     return .object([
                         "items": .array(items.map { $0.json(icon: icons.paths[$0.id]) }),
                         "iconError": icons.error.map(JSON.string) ?? .null,
                     ])
                 case .press(let id):
-                    guard let target = try scan().first(where: { $0.item.id == id }) else { throw HostFailure("no tray item \(id)") }
-                    let result = AXUIElementPerformAction(target.press, kAXPressAction as CFString)
-                    guard result == .success else { throw HostFailure("pressing \(id) failed with AXError \(result.rawValue)") }
-                    return target.item.json(icon: nil)
+                    guard let item = try scan().first(where: { $0.id == id }) else { throw HostFailure("no tray item \(id)") }
+                    guard case .object(var fields) = item.json(icon: nil) else { return .null }
+                    fields["opened"] = .bool(try click(item.element.frame))
+                    return .object(fields)
                 }
             }
         }
@@ -67,14 +67,13 @@ private func frame(_ element: AXUIElement) -> CGRect {
     return CGRect(origin: origin, size: size)
 }
 
-private func scan() throws -> [(item: TrayItem, press: AXUIElement)] {
+private func scan() throws -> [TrayItem] {
     guard let agent = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MenuBarAgent").first else {
         throw HostFailure("MenuBarAgent is not running")
     }
     let application = AXUIElementCreateApplication(agent.processIdentifier)
     AXUIElementSetMessagingTimeout(application, 1)
     var elements: [TrayElement] = []
-    var targets: [Int: AXUIElement] = [:]
     for window in children(application, kAXWindowsAttribute) {
         for group in children(window) {
             guard let child = children(group).first else { continue }
@@ -82,17 +81,66 @@ private func scan() throws -> [(item: TrayItem, press: AXUIElement)] {
             AXUIElementGetPid(child, &pid)
             let owner = NSRunningApplication(processIdentifier: pid)
             let button = attribute(child, kAXRoleAttribute) as? String == kAXButtonRole
-            let element = TrayElement(
+            elements.append(TrayElement(
                 frame: frame(group), app: owner?.bundleIdentifier ?? "pid:\(pid)", name: owner?.localizedName ?? "", pid: pid,
                 title: button ? attribute(child, kAXTitleAttribute) as? String : nil,
                 detail: button ? attribute(child, kAXDescriptionAttribute) as? String : nil
-            )
-            elements.append(element)
-            let slot = Int(element.frame.minX.rounded())
-            if button || targets[slot] == nil { targets[slot] = button ? child : group }
+            ))
         }
     }
-    return TrayItem.merge(elements).map { ($0, targets[Int($0.element.frame.minX.rounded())]!) }
+    return TrayItem.merge(elements)
+}
+
+private func click(_ frame: CGRect) throws -> Bool {
+    guard CGPreflightPostEventAccess() else { throw HostFailure(missingGrant(.accessibility, "tray.press")) }
+    let point = CGPoint(x: frame.midX, y: frame.midY)
+    let before = Set(popups())
+    let restore = DispatchQueue.main.sync { passClicks(at: point) }
+    defer { DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: restore) }
+    let pointer = CGEvent(source: nil)?.location
+    if UserDefaults.standard.bool(forKey: "_HIHideMenuBar") {
+        let edge = CGPoint(x: point.x, y: 0)
+        CGWarpMouseCursorPosition(edge)
+        post(.mouseMoved, at: edge)
+        usleep(700_000)
+    }
+    post(.leftMouseDown, at: point)
+    post(.leftMouseUp, at: point)
+    if let pointer { CGWarpMouseCursorPosition(pointer) }
+    return wait(for: { !Set(popups()).subtracting(before).isEmpty })
+}
+
+private func post(_ type: CGEventType, at point: CGPoint) {
+    CGEvent(mouseEventSource: CGEventSource(stateID: .hidSystemState), mouseType: type, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
+    usleep(20_000)
+}
+
+private func wait(for condition: () -> Bool) -> Bool {
+    for _ in 0..<20 {
+        if condition() { return true }
+        usleep(50_000)
+    }
+    return false
+}
+
+private func passClicks(at point: CGPoint) -> () -> Void {
+    let flipped = CGPoint(x: point.x, y: (NSScreen.screens.first?.frame.height ?? 0) - point.y)
+    let windows = NSApp.windows.filter { $0.isVisible && !$0.ignoresMouseEvents && $0.frame.contains(flipped) }
+    for window in windows { window.ignoresMouseEvents = true }
+    return { for window in windows { window.ignoresMouseEvents = false } }
+}
+
+private func windowList(_ options: CGWindowListOption) -> [[String: Any]] {
+    CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
+}
+
+private func popups() -> [CGWindowID] {
+    let skipped = Set([getpid()] + NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MenuBarAgent").map(\.processIdentifier))
+    return windowList([.optionOnScreenOnly]).compactMap { info in
+        guard let owner = info[kCGWindowOwnerPID as String] as? pid_t, !skipped.contains(owner),
+              let layer = info[kCGWindowLayer as String] as? Int, layer > Int(CGWindowLevelForKey(.mainMenuWindow)) else { return nil }
+        return info[kCGWindowNumber as String] as? CGWindowID
+    }
 }
 
 private typealias CreateImage = @convention(c) (CGRect, CFArray, CGWindowImageOption) -> Unmanaged<CGImage>?
