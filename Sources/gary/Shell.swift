@@ -257,6 +257,7 @@ final class Shell {
         case .output(let output, let trace):
             guard slot.runtime === runtime else { return }
             present(slot, output, trace)
+            if slot.visible { slot.answerWaiters(.ok("shown")) }
         case .surface(let request):
             let trace = Trace("host-\(request.rawValue)")
             switch request {
@@ -671,7 +672,6 @@ final class Shell {
         slot.waiters.append(reply)
         if let runtime = slot.runtime {
             runtime.setScene(scene(for: slot), trace)
-            slot.answerWaiters(.ok("shown"))
         } else if slot.candidate == nil {
             load(slot, trace)
         }
