@@ -71,6 +71,7 @@ private func startApp() throws {
 let appUsage: [(syntax: String, description: String, example: String?)] = [
     ("app", "Run the shell in the foreground, logging to the terminal, without the crash supervisor.", nil),
     ("login [on|off|status]", "Start Gary at login, or stop doing so.", nil),
+    ("--version", "Print the version of this Gary.", nil),
 ]
 
 func runHelp() -> Int32 {
