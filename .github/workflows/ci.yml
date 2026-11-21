@@ -14,6 +14,7 @@ jobs:
         with:
           node-version: lts/*
       - run: brew install just swiftformat swiftlint periphery
+      - run: swift --version
       - run: npm ci
       - run: just lint
       - run: swift build --jobs 4 -Xswiftc -warnings-as-errors

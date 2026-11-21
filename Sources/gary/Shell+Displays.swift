@@ -75,10 +75,10 @@ extension Shell {
     }
 
     func refreshDisplays(_ trace: Trace) {
+        let theme = theme
         let next = NSScreen.screens.enumerated().map { $1.display(index: $0, theme: theme) }
         let change = DisplayChange(from: displays, to: next)
         displays = next
-        let theme = theme
         let appearance = appearance
         let level = levels.bar
         let barChange = bars.sync(usesBuiltinBar ? next : [], open: { [weak self] display in
