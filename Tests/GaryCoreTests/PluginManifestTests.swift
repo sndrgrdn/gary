@@ -2,29 +2,31 @@ import Foundation
 @testable import GaryCore
 import Testing
 
-let testCapabilities = try! CapabilityNames([
-    ("battery", false, true),
-    ("clock", false, true),
-    ("exec", true, false),
-    ("files", true, false),
-    ("network", true, false),
-])
+func makeTestCapabilities() throws -> CapabilityNames {
+    try CapabilityNames([
+        ("battery", false, true),
+        ("clock", false, true),
+        ("exec", true, false),
+        ("files", true, false),
+        ("network", true, false),
+    ])
+}
 
 struct PluginManifestTests {
     private func manifest(
-        _ fields: [String: Any],
+        _ fields: [String: JSON],
         origin: PluginOrigin = .user,
-        capabilities: CapabilityNames = testCapabilities,
+        capabilities: CapabilityNames? = nil,
     ) throws -> PluginManifest {
-        var base: [String: Any] = [
+        var base: [String: JSON] = [
             "schemaVersion": 1, "id": "acme.media", "name": "Media", "version": "0.1.0",
             "kinds": ["bar-widget"], "entryPoints": ["bar-widget": "widget.js"],
         ]
         base.merge(fields) { $1 }
-        return try PluginManifest.parse(JSONSerialization.data(withJSONObject: base), origin: origin, capabilities: capabilities)
+        return try PluginManifest.parse(JSON.object(base).encoded(), origin: origin, capabilities: capabilities ?? makeTestCapabilities())
     }
 
-    private func rejects(_ fields: [String: Any], origin: PluginOrigin = .user, with error: ManifestError) {
+    private func rejects(_ fields: [String: JSON], with error: ManifestError, origin: PluginOrigin = .user) {
         #expect(throws: error) { try manifest(fields, origin: origin) }
     }
 
@@ -62,28 +64,29 @@ struct PluginManifestTests {
         rejects(["schemaVersion": -1e300], with: .unsupportedSchemaVersion(-1e300))
     }
 
-    @Test func `rejects missing and mistyped fields`() {
+    @Test func `rejects missing and mistyped fields`() throws {
+        let capabilities = try makeTestCapabilities()
         #expect(throws: ManifestError.missingField("name")) {
             try PluginManifest.parse(
                 Data(#"{"schemaVersion":1,"id":"a.b","version":"1","kinds":["panel"],"entryPoints":{"panel":"p.js"}}"#.utf8),
                 origin: .user,
-                capabilities: testCapabilities,
+                capabilities: capabilities,
             )
         }
         rejects(["version": 1], with: .wrongType("version"))
         rejects(["kinds": "panel"], with: .wrongType("kinds"))
-        #expect(throws: ManifestError.invalidJSON) { try PluginManifest.parse(Data("[1]".utf8), origin: .user, capabilities: testCapabilities) }
+        #expect(throws: ManifestError.invalidJSON) { try PluginManifest.parse(Data("[1]".utf8), origin: .user, capabilities: capabilities) }
     }
 
     @Test func `rejects malformed IDs`() {
         for id in ["acme", "Acme.media", "acme..media", ".acme", "acme.media.", "acme/media", "acme media.x"] {
-            rejects(["id": id], with: .invalidID(id))
+            rejects(["id": .string(id)], with: .invalidID(id))
         }
     }
 
     @Test func `reserves the gary namespace for builtins`() throws {
-        try rejects(["id": "gary.clock"], origin: .user, with: .reservedID(#require(PluginID("gary.clock"))))
-        try rejects(["id": "acme.clock"], origin: .builtin, with: .builtinOutsideNamespace(#require(PluginID("acme.clock"))))
+        try rejects(["id": "gary.clock"], with: .reservedID(#require(PluginID("gary.clock"))), origin: .user)
+        try rejects(["id": "acme.clock"], with: .builtinOutsideNamespace(#require(PluginID("acme.clock"))), origin: .builtin)
         #expect(try manifest(["id": "gary.clock"], origin: .builtin).id.isReserved)
     }
 
@@ -100,7 +103,7 @@ struct PluginManifestTests {
 
     @Test func `entry points stay inside the plugin as scripts`() {
         for path in ["../escape.js", "lib/../../escape.js", "/etc/x.js", "~/x.js", "widget.tsx", "widget.d", "./widget.js", "lib//w.js"] {
-            rejects(["entryPoints": ["bar-widget": path]], with: .unsafeEntryPoint(path))
+            rejects(["entryPoints": ["bar-widget": .string(path)]], with: .unsafeEntryPoint(path))
         }
     }
 
@@ -136,7 +139,7 @@ struct PluginManifestTests {
 
     @Test func `rejects hotkeys without A modifier or with unknown keys`() {
         for keys in ["space", "shift+a", "ctrl+", "ctrl+ctrl+a", "hyper+a", "ctrl+alt+spacebar"] {
-            rejects(["hotkeys": [["id": "x", "keys": keys]]], with: .invalidHotkey(keys))
+            rejects(["hotkeys": [["id": "x", "keys": .string(keys)]]], with: .invalidHotkey(keys))
         }
         rejects(["hotkeys": [["id": "x", "keys": "ctrl+a"], ["id": "x", "keys": "ctrl+b"]]], with: .duplicateHotkey("x"))
         rejects(["hotkeys": [["keys": "ctrl+a"]]], with: .wrongType("hotkeys[0]"))
@@ -165,24 +168,30 @@ struct PluginCatalogTests {
         return directory
     }
 
-    private func scan() -> PluginCatalog {
-        PluginCatalog.scan(builtin: root.appendingPathComponent("builtin"), user: root.appendingPathComponent("user"), capabilities: testCapabilities)
+    private func scan() throws -> PluginCatalog {
+        try PluginCatalog.scan(
+            builtin: root.appendingPathComponent("builtin"),
+            user: root.appendingPathComponent("user"),
+            capabilities: makeTestCapabilities(),
+        )
     }
 
     @Test func `finds builtin and user plugins`() throws {
         try plugin("clock", id: "gary.clock", in: "builtin")
         try plugin("media", id: "acme.media", entry: "src/widget.js")
-        let catalog = scan()
+        let catalog = try scan()
         #expect(catalog.sortedIDs.map(\.rawValue) == ["acme.media", "gary.clock"])
         #expect(catalog.problems.isEmpty)
-        let entry = try catalog.plugins[#require(PluginID("acme.media"))]!.entryPoint(.barWidget)
+        let mediaID = try #require(PluginID("acme.media"))
+        let bundle = try #require(catalog.plugins[mediaID])
+        let entry = try bundle.entryPoint(.barWidget)
         #expect(entry.path.hasSuffix("media/src/widget.js"))
     }
 
     @Test func `reports A user plugin that claims A builtin ID`() throws {
         try plugin("clock", id: "gary.clock", in: "builtin")
         try plugin("fake-clock", id: "gary.clock")
-        let catalog = scan()
+        let catalog = try scan()
         #expect(try catalog.plugins[#require(PluginID("gary.clock"))]?.origin == .builtin)
         #expect(catalog.problems.map(\.directory.lastPathComponent) == ["fake-clock"])
     }
@@ -190,7 +199,7 @@ struct PluginCatalogTests {
     @Test func `keeps the first of two user plugins with one ID`() throws {
         try plugin("a", id: "acme.media")
         try plugin("b", id: "acme.media")
-        let catalog = scan()
+        let catalog = try scan()
         #expect(try catalog.plugins[#require(PluginID("acme.media"))]?.directory.lastPathComponent == "a")
         #expect(catalog.problems.count == 1)
     }
@@ -203,7 +212,7 @@ struct PluginCatalogTests {
         let nested = try plugin("nested", id: "acme.nested", entry: "lib/widget.js", writeEntry: false)
         try FileManager.default.createSymbolicLink(at: nested.appendingPathComponent("lib"), withDestinationURL: root)
 
-        let catalog = scan()
+        let catalog = try scan()
         #expect(catalog.plugins.isEmpty)
         #expect(catalog.problems.map(\.reason).sorted() == ["lib/widget.js is a symlink", "widget.js is a symlink"])
     }
@@ -213,14 +222,15 @@ struct PluginCatalogTests {
         let bad = root.appendingPathComponent("user/bad")
         try FileManager.default.createDirectory(at: bad, withIntermediateDirectories: true)
         try "{".write(to: bad.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
-        let catalog = scan()
+        let catalog = try scan()
         #expect(catalog.plugins.isEmpty)
         #expect(catalog.problems.map(\.reason).sorted() == ["manifest is not a JSON object", "widget.js does not exist"])
     }
 
     @Test func `entry point is checked again at load`() throws {
         let directory = try plugin("media", id: "acme.media")
-        let bundle = try #require(scan().plugins[PluginID("acme.media")!])
+        let mediaID = try #require(PluginID("acme.media"))
+        let bundle = try #require(try scan().plugins[mediaID])
         try FileManager.default.removeItem(at: directory.appendingPathComponent("widget.js"))
         try FileManager.default.createSymbolicLink(at: directory.appendingPathComponent("widget.js"), withDestinationURL: root)
         #expect(throws: PluginFileError.symlink("widget.js")) { try bundle.entryPoint(.barWidget) }

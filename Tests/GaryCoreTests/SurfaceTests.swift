@@ -81,10 +81,10 @@ struct SurfaceTests {
     }
 
     @Test func `parses every field`() throws {
-        let parsed =
-            try spec(
-                #"{"screen":"all","anchors":{"bottom":true},"width":"fit","height":24,"margins":{"bottom":4},"layer":"notch","exclusionMode":"ignore","clickThrough":true,"focusable":true,"background":"none"}"#,
-            )
+        let parsed = try spec(#"""
+        {"screen":"all","anchors":{"bottom":true},"width":"fit","height":24,"margins":{"bottom":4},"layer":"notch",\#
+        "exclusionMode":"ignore","clickThrough":true,"focusable":true,"background":"none"}
+        """#)
         #expect(parsed.screen == .all)
         #expect(parsed.anchors == Edges(top: false, bottom: true, left: false, right: false))
         #expect(parsed.width == .fit && parsed.height == .points(24))

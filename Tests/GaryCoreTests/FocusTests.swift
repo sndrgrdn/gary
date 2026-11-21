@@ -5,12 +5,12 @@ import Testing
 struct FocusTests {
     static var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC")!
+        calendar.timeZone = .gmt
         return calendar
     }
 
-    static func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
-        calendar.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute))!
+    static func at(_ day: Int, _ hour: Int, _ minute: Int = 0) throws -> Date {
+        try #require(calendar.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute)))
     }
 
     static func assertions(_ modes: [(String, Double)]) -> Data {

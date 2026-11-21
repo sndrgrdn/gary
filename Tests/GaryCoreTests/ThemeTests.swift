@@ -3,18 +3,21 @@ import Foundation
 import Testing
 
 struct ThemeTests {
-    private static let bundled = try! JSON.parse(Data(contentsOf: URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Resources/theme.json")))
+    private static func bundled() throws -> JSON {
+        try JSON.parse(Data(contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("Resources/theme.json")))
+    }
 
     private static let tokens = ["background", "foreground", "accent", "dim", "bright", "good", "bad", "panel", "hover", "selected", "bar"]
 
     private func theme(_ override: String? = nil, palette: String? = nil) throws -> Theme {
-        try Theme.parse(Self.bundled, override: override.map { try JSON.parse($0) }, palette: Palette(palette.map(PaletteFile.parse), system: .dark))
+        let resolved = Palette(palette.map(PaletteFile.parse), system: .dark)
+        return try Theme.parse(Self.bundled(), override: override.map { try JSON.parse($0) }, palette: resolved)
     }
 
-    private func contrast(_ a: RGBA, _ b: RGBA) -> Double {
-        (max(a.luminance, b.luminance) + 0.05) / (min(a.luminance, b.luminance) + 0.05)
+    private func contrast(_ first: RGBA, _ second: RGBA) -> Double {
+        (max(first.luminance, second.luminance) + 0.05) / (min(first.luminance, second.luminance) + 0.05)
     }
 
     @Test func `parses hex colors`() {
@@ -37,7 +40,7 @@ struct ThemeTests {
         let foreground = theme.palette.foreground
         let accent = try #require(theme.palette.colors["accent"])
         #expect(theme.mode.rawValue == mode)
-        #expect(theme.warnings == [])
+        #expect(theme.warnings.isEmpty)
         for token in Self.tokens {
             #expect(colors[token] != nil, "\(token)")
         }
@@ -57,8 +60,8 @@ struct ThemeTests {
 
     @Test(arguments: [Palette.Mode.light, .dark])
     func `the built in palettes read on their own background`(_ mode: Palette.Mode) throws {
-        let theme = try Theme.parse(Self.bundled, palette: Palette(nil, system: mode))
-        #expect(theme.mode == mode && theme.warnings == [])
+        let theme = try Theme.parse(Self.bundled(), palette: Palette(nil, system: mode))
+        #expect(theme.mode == mode && theme.warnings.isEmpty)
         for token in Self.tokens {
             #expect(theme.colors[token] != nil, "\(token)")
         }

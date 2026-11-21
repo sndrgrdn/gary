@@ -62,7 +62,7 @@ struct PerDisplayTests {
             [builtIn],
             [builtIn, left],
             [builtIn, left, right],
-            [builtIn, right].enumerated().map { var s = $1; s.index = $0; return s },
+            [builtIn, right].enumerated().map { var display = $1; display.index = $0; return display },
             [builtIn],
             [],
             [builtIn, left],

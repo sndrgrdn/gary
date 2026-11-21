@@ -3,7 +3,16 @@ import Foundation
 import Testing
 
 struct NowPlayingTests {
-    static let full = #"{"type":"data","diff":false,"payload":{"bundleIdentifier":"com.spotify.client","playing":true,"title":"Song","artist":"Band","album":"Record","durationMicros":215000000,"elapsedTimeMicros":12500000,"timestampEpochMicros":1795280000123456,"playbackRate":1,"artworkMimeType":"image/png","artworkData":"iVBORw0K"}}"#
+    static let full = #"""
+    {"type":"data","diff":false,"payload":{"bundleIdentifier":"com.spotify.client","playing":true,"title":"Song","artist":"Band","album":"Record",\#
+    "durationMicros":215000000,"elapsedTimeMicros":12500000,"timestampEpochMicros":1795280000123456,"playbackRate":1,\#
+    "artworkMimeType":"image/png","artworkData":"iVBORw0K"}}
+    """#
+
+    static let helperMedia = #"""
+    {"type":"data","diff":false,"payload":{"bundleIdentifier":"com.apple.WebKit.GPU",\#
+    "parentApplicationBundleIdentifier":"com.apple.Safari","playing":true,"title":"Video"}}
+    """#
 
     @Test func `a full payload describes the track in seconds and epoch milliseconds`() throws {
         var state = NowPlaying()
@@ -47,10 +56,7 @@ struct NowPlayingTests {
 
     @Test func `media played through A helper belongs to its parent application`() throws {
         var state = NowPlaying()
-        try state
-            .apply(
-                #"{"type":"data","diff":false,"payload":{"bundleIdentifier":"com.apple.WebKit.GPU","parentApplicationBundleIdentifier":"com.apple.Safari","playing":true,"title":"Video"}}"#,
-            )
+        try state.apply(Self.helperMedia)
         #expect(state.track?.app == "com.apple.Safari")
     }
 

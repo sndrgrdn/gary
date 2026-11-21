@@ -3,7 +3,11 @@ import Foundation
 import Testing
 
 struct PluginTypesTests {
-    private let theme = try! JSON.parse(#"{"styles": {"default": {}, "title": {}}, "fonts": {"body": {}}, "colors": {"accent": "accent"}}"#)
+    private let theme: JSON
+
+    init() throws {
+        theme = try JSON.parse(#"{"styles": {"default": {}, "title": {}}, "fonts": {"body": {}}, "colors": {"accent": "accent"}}"#)
+    }
 
     @Test func `declares every node kind style prop kind and layer the runtime parses`() {
         let text = PluginTypes.declarations(capabilities: [], pluginTopics: [], theme: nil)
@@ -37,7 +41,7 @@ struct PluginTypesTests {
     }
 
     @Test func `the manifest schema lists the registered capabilities and kinds`() throws {
-        let schema = PluginTypes.manifestSchema(testCapabilities)
+        let schema = try PluginTypes.manifestSchema(makeTestCapabilities())
         let properties = try #require(schema["properties"])
         #expect(properties["uses"]?["items"]?["enum"] == .array(["exec", "files", "network"].map(JSON.string)))
         #expect(properties["subscribes"]?["items"]?["anyOf"]?.array?.first?["enum"] == .array(["battery", "clock"].map(JSON.string)))
@@ -48,6 +52,7 @@ struct PluginTypesTests {
 
 struct PluginScaffoldTests {
     @Test func `every scaffold passes the load time checks`() throws {
+        let capabilities = try makeTestCapabilities()
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("gary-scaffold-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
         for kinds in PluginKind.allCases.map({ [$0] }) + [[.service, .barWidget], [.panel, .service]] {
@@ -57,7 +62,7 @@ struct PluginScaffoldTests {
             for (name, text) in PluginScaffold.files(id: id, kinds: kinds) {
                 try Data(text.utf8).write(to: directory.appendingPathComponent(name))
             }
-            let bundle = try PluginBundle.load(directory, origin: .user, capabilities: testCapabilities)
+            let bundle = try PluginBundle.load(directory, origin: .user, capabilities: capabilities)
             #expect(bundle.manifest.id == id)
             #expect(bundle.manifest.name == "Hello World")
             #expect(bundle.manifest.kinds == kinds)
@@ -73,11 +78,12 @@ struct ExamplePluginTests {
         let examples = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../examples").standardizedFileURL
         let directories = try FileManager.default.contentsOfDirectory(at: examples, includingPropertiesForKeys: nil).filter(\.hasDirectoryPath)
         #expect(directories.count >= 3)
+        let capabilities = try makeTestCapabilities()
         for directory in directories {
             #expect(throws: Never.self, "\(directory.lastPathComponent)") { try PluginBundle.load(
                 directory,
                 origin: .user,
-                capabilities: testCapabilities,
+                capabilities: capabilities,
             ) }
         }
     }
