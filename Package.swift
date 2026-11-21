@@ -5,6 +5,11 @@ let package = Package(
     name: "gary",
     platforms: [.macOS(.v26)],
     targets: [
+        // Private SkyLight and JavaScriptCore calls, resolved with dlsym so a missing symbol disables a feature. Objective-C.
+        .target(
+            name: "GaryPrivate",
+            linkerSettings: [.linkedFramework("JavaScriptCore"), .linkedFramework("ApplicationServices")]
+        ),
         // Pure shell model: manifests, node trees, reconcile, theme, shell config, IPC messages. Foundation only. Unit tested.
         .target(
             name: "GaryCore",
