@@ -1,94 +1,170 @@
-let everything = host.storage.get("everything") === true;
-let waitingFor: Gary.PermissionName | null = null;
+type Status = Gary.PermissionStatus;
 
-function needed(permissions: Gary.PermissionStatus[]) {
-  return permissions.filter((permission) => everything || permission.plugins.length > 0);
+const permissions: Record<Gary.PermissionName, { symbol: string; general: string; uses: Record<string, string> }> = {
+  accessibility: {
+    symbol: "hand.raised.fill",
+    general: "Lets plugins use your volume and brightness keys, paste for you, and open menu bar items.",
+    uses: { mediakeys: "use your volume and brightness keys", paste: "paste into the app you're using", tray: "open your menu bar items" },
+  },
+  bluetooth: {
+    symbol: "antenna.radiowaves.left.and.right",
+    general: "Lets plugins show your Bluetooth devices and connect them.",
+    uses: { bluetooth: "show your Bluetooth devices and connect them" },
+  },
+  "full-disk-access": {
+    symbol: "internaldrive.fill",
+    general: "Lets plugins show your current Focus and the notifications you receive.",
+    uses: { focus: "show your current Focus", notifications: "show the notifications you receive" },
+  },
+  location: {
+    symbol: "location.fill",
+    general: "Lets plugins show the name of your Wi-Fi network.",
+    uses: { wifi: "show the name of your Wi-Fi network" },
+  },
+  "screen-recording": {
+    symbol: "rectangle.dashed.badge.record",
+    general: "Lets plugins show the icons of your menu bar items.",
+    uses: { tray: "show the icons of your menu bar items" },
+  },
+};
+
+let allowingAll = false;
+
+function listed(all: Status[]) {
+  const needed = all.filter((permission) => permission.plugins.length > 0);
+  return needed.length > 0 ? needed : all;
 }
 
-function request(name: Gary.PermissionName) {
-  host.permissions.request(name).then((message) => host.log(message));
+function isDone(permission: Status) {
+  return permission.status === "granted" || permission.status === "needsRestart";
 }
 
-function grantNext(permissions: Gary.PermissionStatus[]) {
-  const next = permissions.find((permission) => permission.status !== "granted");
-  if (next?.name === waitingFor) return;
-  waitingFor = next?.name ?? null;
-  if (next) request(next.name);
+function sentence(parts: string[]) {
+  return parts.length < 2 ? parts.join("") : parts.slice(0, -1).join(", ") + " and " + parts[parts.length - 1];
 }
 
-function rows(permission: Gary.PermissionStatus): Gary.Node[] {
-  const key = permission.name;
-  const used = new Set(permission.plugins.flatMap((plugin) => plugin.capabilities));
-  const capabilities = permission.capabilities.filter((capability) => used.size === 0 || used.has(capability.name));
-  const lines: Gary.Node[] = [
-    { type: "row", key, children: [{ type: "text", key: "title", text: permission.title, style: "bright" }, { type: "spacer", key: "gap" }, status(permission)] },
-    ...capabilities.map((capability): Gary.Node => (
-      { type: "text", key: `${key}-${capability.name}`, text: `${capability.name}: ${capability.summary.replace(/\. .*$/, ".")}`, style: "dim" }
-    )),
-  ];
-  if (permission.plugins.length > 0) {
-    lines.push({ type: "text", key: `${key}-plugins`, text: "Used by " + permission.plugins.map((plugin) => plugin.name).join(", "), style: "dim" });
+function benefit(permission: Status) {
+  const copy = permissions[permission.name];
+  const parts = permission.plugins.map((plugin) => {
+    const uses = [...new Set(plugin.capabilities.map((capability) => copy.uses[capability]).filter(Boolean))];
+    return uses.length > 0 ? `${plugin.name} ${sentence(uses)}` : null;
+  }).filter((part): part is string => part !== null);
+  return parts.length > 0 ? `Lets ${sentence(parts)}.` : copy.general;
+}
+
+function button(action: string, text: string, primary = false): Gary.Node {
+  return {
+    type: "button", key: action, action, style: primary ? "primary" : "button", hover: primary ? "primary-hover" : "button-hover", gap: 0,
+    children: [
+      { type: "spacer", key: "lead", width: 6 },
+      { type: "text", key: "text", text, color: primary ? "on-accent" : "foreground" },
+      { type: "spacer", key: "trail", width: 6 },
+    ],
+  };
+}
+
+function state(permission: Status): Gary.Node {
+  switch (permission.status) {
+    case "granted":
+      return {
+        type: "row", key: "state", gap: 4,
+        children: [{ type: "icon", key: "check", symbol: "checkmark.circle.fill", style: "good" }, { type: "text", key: "text", text: "Allowed", style: "good" }],
+      };
+    case "needsRestart":
+      return button("restart", "Restart Gary", true);
+    case "denied":
+      return button(permission.name, "Open Settings…");
+    default:
+      return button(permission.name, "Allow…");
   }
-  if (permission.restart && permission.status !== "granted") {
-    lines.push({ type: "text", key: `${key}-restart`, text: "Gary sees this grant after a restart: gary quit, then open Gary.", style: "dim" });
-  }
-  return lines;
 }
 
-function status(permission: Gary.PermissionStatus): Gary.Node {
-  if (permission.status === "granted") {
-    return { type: "row", key: "status", children: [{ type: "icon", key: "icon", symbol: "checkmark.circle.fill", style: "good" }, { type: "text", key: "text", text: "Granted", style: "good" }] };
-  }
-  const label = permission.status === "denied" ? "Open Settings" : "Grant";
-  return { type: "button", key: "status", style: "selected", padding: 6, action: permission.name, children: [{ type: "text", text: label }] };
+function row(permission: Status): Gary.Node {
+  return {
+    type: "row", key: permission.name, gap: 12,
+    children: [
+      { type: "icon", key: "symbol", symbol: permissions[permission.name].symbol, width: 30, height: 30, radius: 7, fontSize: 14, background: "accent", color: "on-accent" },
+      {
+        type: "column", key: "text", gap: 2,
+        children: [
+          { type: "text", key: "title", text: permission.title, style: "bright", font: "strong" },
+          { type: "text", key: "benefit", text: benefit(permission), style: "secondary" },
+        ],
+      },
+      { type: "spacer", key: "push" },
+      state(permission),
+    ],
+  };
 }
 
-function button(action: string, text: string): Gary.Node {
-  return { type: "button", key: action, action, style: "selected", padding: 6, children: [{ type: "text", text }] };
+function intro(shown: Status[], missing: Status[], restarting: boolean) {
+  const noneNeeded = shown.every((permission) => permission.plugins.length === 0);
+  if (missing.length > 0 && noneNeeded) return "None of your plugins need these yet. Allow them now, and plugins you add later work right away.";
+  if (missing.length > 0) return "Your plugins need a few permissions from macOS. Allow each one, and its row updates.";
+  if (restarting) return "Restart Gary to finish. macOS gives Gary these permissions when it starts.";
+  return noneNeeded ? "Gary has every permission a plugin can ask for." : "Gary has everything your plugins need.";
 }
+
+function allowNext(all: Status[]) {
+  const next = listed(all).find((permission) => !isDone(permission));
+  if (!next) allowingAll = false;
+  else host.permissions.request(next.name).then((message) => host.log(message));
+  return next;
+}
+
+let waitingFor: Gary.PermissionName | undefined;
 
 module.exports = {
-  surface: { anchors: { top: true, right: true }, margins: { top: 8, right: 16 }, layer: "normal" },
+  surface: { width: 520, layer: "normal" },
 
   onTopic(topic, value) {
-    if (topic === "permissions" && waitingFor) grantNext(value as unknown as Gary.PermissionStatus[]);
+    if (topic !== "permissions" || !allowingAll) return;
+    const all = value as unknown as Status[];
+    const waiting = all.find((permission) => permission.name === waitingFor);
+    if (!waiting || isDone(waiting)) waitingFor = allowNext(all)?.name;
   },
 
   render(state) {
-    const permissions = needed(state.permissions ?? []);
-    const missing = permissions.filter((permission) => permission.status !== "granted");
-    const intro = missing.length === 0
-      ? (permissions.length === 0 ? "Your enabled plugins need no macOS permissions." : "All granted. Gary has every permission listed here.")
-      : "macOS asks you to approve each permission for Gary. Grant one, and its row updates.";
+    const all = state.permissions ?? [];
+    const shown = listed(all);
+    const missing = shown.filter((permission) => !isDone(permission));
+    const restarting = shown.some((permission) => permission.status === "needsRestart");
+    const footer: Gary.Node[] = missing.length > 0 || restarting ? [button("close", "Not now")] : [];
+    footer.push({ type: "spacer", key: "push" });
+    if (missing.length > 1) footer.push(button("all", "Allow all", true));
+    if (missing.length === 0 && !restarting) footer.push(button("close", "Done", true));
     return {
-      type: "column",
-      style: "panel",
+      type: "column", key: "onboarding", padding: 22, gap: 18,
       children: [
-        { type: "text", key: "title", text: everything ? "Gary permissions" : "Permissions for your plugins", style: "title" },
-        { type: "text", key: "intro", text: intro, style: "dim" },
-        ...permissions.flatMap(rows),
         {
-          type: "row",
-          key: "actions",
+          type: "row", key: "header", gap: 14,
           children: [
-            everything && missing.length === 0 ? { type: "spacer", key: "none" } : button("everything", "Grant everything"),
-            { type: "spacer", key: "gap" },
-            button("close", missing.length === 0 ? "Done" : "Later"),
+            { type: "image", key: "icon", path: "../../Gary.icns", width: 64, height: 64 },
+            {
+              type: "column", key: "text", gap: 4,
+              children: [
+                { type: "text", key: "title", text: "Set up Gary", style: "title", fontSize: 20 },
+                { type: "text", key: "intro", text: intro(shown, missing, restarting), style: "secondary" },
+              ],
+            },
           ],
         },
+        { type: "column", key: "rows", gap: 16, padding: 14, radius: 10, background: "control", children: shown.map(row) },
+        { type: "row", key: "footer", gap: 8, children: footer },
       ],
     };
   },
 
   onAction(action, _payload, state) {
-    const permissions = state.permissions ?? [];
+    const all = state.permissions ?? [];
     if (action === "close") return host.hide();
-    if (action === "everything") {
-      everything = true;
-      host.storage.set("everything", true);
-      return grantNext(permissions);
+    if (action === "restart") return void host.permissions.restart().then((message) => host.log(message));
+    if (action === "all") {
+      allowingAll = true;
+      waitingFor = allowNext(all)?.name;
+      return;
     }
-    const permission = permissions.find((each) => each.name === action);
-    if (permission) request(permission.name);
+    const permission = all.find((each) => each.name === action);
+    if (permission) host.permissions.request(permission.name).then((message) => host.log(message));
   },
 } satisfies Gary.Panel;

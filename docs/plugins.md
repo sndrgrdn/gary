@@ -67,7 +67,7 @@ gary plugin add https://github.com/you/gary-hello.git --enable
 
 ## Grant permissions
 
-Some capabilities need a macOS permission, such as Accessibility for `tray` or Full Disk Access for `focus`. macOS grants it to Gary itself, so install Gary with `just install`, which keeps it at `~/Applications/Gary.app` where grants stick across rebuilds. `gary permissions` lists each permission, whether Gary has it, and the capabilities and enabled plugins that need it. `gary permissions request <name>` shows the macOS prompt, or opens the System Settings pane where macOS has none. `gary onboarding` opens the same list as a window with a Grant button per permission. Gary opens it on first launch and when an enabled plugin needs a permission it lacks.
+Some capabilities need a macOS permission, such as Accessibility for `tray` or Full Disk Access for `focus`. macOS grants it to Gary itself, so install Gary with `just install`, which keeps it at `~/Applications/Gary.app` where grants stick across rebuilds. `gary permissions` lists each permission, whether Gary has it, and the capabilities and enabled plugins that need it. `gary permissions request <name>` shows the macOS prompt, or opens the System Settings pane where macOS has none. `gary onboarding` opens the same list as a window that says what each permission lets your plugins do, with an Allow button for each. Gary opens it on first launch and when an enabled plugin needs a permission it lacks.
 
 ## Reference
 
