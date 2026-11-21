@@ -48,10 +48,10 @@ final class StateHub {
     }
 
     private func reconcile(_ topics: [Topic]) {
-        let managed = topics.filter { sources[$0] != nil }
+        let managed = topics.compactMap { topic in sources[topic].map { (topic, $0) } }
         guard !managed.isEmpty else { return }
         DispatchQueue.main.async { [self] in
-            for topic in managed {
+            for (topic, source) in managed {
                 let wanted = lock.withLock {
                     let wanted = !(subscribers[topic]?.isEmpty ?? true)
                     if wanted {
@@ -61,7 +61,7 @@ final class StateHub {
                 }
                 if wanted, running[topic] == nil {
                     log("topic \(topic): started")
-                    running[topic] = sources[topic]! { [weak self] value, trace in self?.publish(topic, value, trace) }
+                    running[topic] = source { [weak self] value, trace in self?.publish(topic, value, trace) }
                 } else if !wanted, running[topic] != nil {
                     lock.withLock {
                         live.remove(topic)
