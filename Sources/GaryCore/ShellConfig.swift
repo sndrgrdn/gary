@@ -169,7 +169,7 @@ public extension ShellConfig {
         case undeclare(PackageIdentity)
     }
 
-    private static func packages(_ change: Change, _ sources: [PackageSource], _ entries: [JSON]) -> JSON {
+    private static func packages(_ change: Change, _ sources: [PackageSource], _ entries: [JSON]) -> [JSON] {
         switch change {
         case let .declare(source):
             var entries = entries
@@ -178,11 +178,11 @@ public extension ShellConfig {
             } else {
                 entries.append(.string(source.declaration))
             }
-            return .array(entries)
+            return entries
         case let .undeclare(identity):
-            return .array(zip(entries, sources).filter { $0.1.identity != identity }.map(\.0))
+            return zip(entries, sources).filter { $0.1.identity != identity }.map(\.0)
         default:
-            return .array(entries)
+            return entries
         }
     }
 
@@ -216,7 +216,9 @@ public extension ShellConfig {
             plugins.removeAll { $0 == id }
             disabled.remove(id)
         case .declare, .undeclare:
-            return .object(fields.merging(["packages": packages(change, config.packages, fields["packages"]?.array ?? [])]) { $1 })
+            let entries = packages(change, config.packages, fields["packages"]?.array ?? [])
+            fields["packages"] = entries.isEmpty ? nil : .array(entries)
+            return .object(fields)
         }
         func ids(_ list: [PluginID]) -> JSON {
             .array(list.map { .string($0.rawValue) })

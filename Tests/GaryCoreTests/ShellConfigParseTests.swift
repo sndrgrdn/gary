@@ -52,5 +52,10 @@ struct ShellConfigParseTests {
         let removed = try ShellConfig.applying(.undeclare(PackageSource.parse("https://github.com/you/plugins", base: nil).identity), to: added)
         #expect(try ShellConfig.parse(removed).packages.map(\.declaration) == ["npm:gary-weather@2.0.0", "npm:other"])
         #expect(try removed["bar"] == JSON.parse(text)["bar"])
+        let emptied = try ["npm:gary-weather", "npm:other"].reduce(removed) { try ShellConfig.applying(
+            .undeclare(PackageSource.parse($1, base: nil).identity),
+            to: $0,
+        ) }
+        #expect(emptied["packages"] == nil)
     }
 }

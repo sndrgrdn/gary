@@ -117,7 +117,15 @@ enum PackageStore {
 
     static func remove(_ source: PackageSource) throws {
         guard source.managedPath != nil, isInstalled(source) else { return }
-        try FileManager.default.removeItem(at: directory(source))
+        var directory = directory(source)
+        try FileManager.default.removeItem(at: directory)
+        directory.deleteLastPathComponent()
+        while directory.path.hasPrefix(Paths.packages.path + "/"),
+              (try? FileManager.default.contentsOfDirectory(atPath: directory.path))?.isEmpty == true
+        {
+            try FileManager.default.removeItem(at: directory)
+            directory.deleteLastPathComponent()
+        }
     }
 
     private static func updateGit(_ source: GitSource, in directory: URL) throws {
