@@ -44,6 +44,13 @@
     "mono": { "font": "mono" },
     "panel": { "background": "panel", "radius": 12, "padding": 14 },
     "surface": { "background": "panel", "radius": 12 },
+    "tooltip": {
+      "background": "panel",
+      "radius": 6,
+      "padding": [4, 8],
+      "fontSize": 11,
+      "border": { "color": "border" }
+    },
     "hover": { "background": "hover", "radius": 6 },
     "selected": { "color": "bright", "background": "selected", "radius": 6 },
     "button": { "background": "control", "radius": 6, "padding": 6 },

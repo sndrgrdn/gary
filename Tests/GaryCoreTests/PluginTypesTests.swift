@@ -26,8 +26,8 @@ struct PluginTypesTests {
         for layer in SurfaceLayer.allCases {
             #expect(text.contains("\"\(layer.rawValue)\""))
         }
-        for gesture in Node.Gesture.allCases {
-            #expect(text.contains("\(gesture.rawValue)?: string;"))
+        for field in Node.Gesture.allCases.map(\.rawValue) + ["tooltip"] {
+            #expect(text.contains("\(field)?: string;"))
         }
     }
 

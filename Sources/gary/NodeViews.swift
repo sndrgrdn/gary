@@ -23,8 +23,8 @@ final class TreeHostingView: NSHostingView<TreeView> {
         rootView.tree
     }
 
-    convenience init(tree: MountedTree, onAction: @escaping ActionHandler, onDismiss: @escaping () -> Void) {
-        self.init(rootView: TreeView(tree: tree, onAction: onAction, onDismiss: onDismiss))
+    convenience init(tree: MountedTree, onAction: @escaping ActionHandler, tooltipPanel: TooltipPanel? = nil, onDismiss: @escaping () -> Void) {
+        self.init(rootView: TreeView(tree: tree, onAction: onAction, tooltipPanel: tooltipPanel, onDismiss: onDismiss))
         sizingOptions = [.intrinsicContentSize]
     }
 
@@ -51,11 +51,13 @@ final class TreeHostingView: NSHostingView<TreeView> {
 struct TreeView: View {
     @ObservedObject var tree: MountedTree
     let onAction: ActionHandler
+    let tooltipPanel: TooltipPanel?
     let onDismiss: () -> Void
 
     var body: some View {
         let root = NodeView(node: tree.root, theme: tree.theme)
             .environment(\.nodeAction, onAction)
+            .environment(\.tooltipPanel, tooltipPanel)
         if let fit = tree.fit, tree.backdrop {
             fit {
                 ZStack {
@@ -244,8 +246,8 @@ private extension View {
                 }
             }
             .overlay {
-                if !node.actions.isEmpty {
-                    GestureCatcher(actions: node.actions, anchor: anchor)
+                if !node.actions.isEmpty || node.tooltip != nil {
+                    GestureCatcher(actions: node.actions, tooltip: node.tooltip, anchor: anchor)
                 }
             }
             .interactive(box.action, hovering: hovering, pressing: pressing) { _ in anchor.view?.send(.click, .null) }

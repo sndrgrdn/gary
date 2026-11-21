@@ -28,7 +28,9 @@ extension Shell {
                 view.tree.root = tree
             }
         } else {
-            mounts[key] = TreeHostingView(tree: MountedTree(root: tree, theme: theme(for: slot.key.kind)), onAction: onAction) { [weak self] in
+            mounts[key] = TreeHostingView(
+                tree: MountedTree(root: tree, theme: theme(for: slot.key.kind)), onAction: onAction, tooltipPanel: tooltipPanel,
+            ) { [weak self] in
                 _ = self?.hide(slotKey.id, Trace("click-outside"))
             }
             changed = true
@@ -127,6 +129,9 @@ extension Shell {
     }
 
     func unmount(_ key: MountKey) {
+        if let view = mounts[key] {
+            tooltipPanel.hide(inside: view)
+        }
         if let window = windows.removeValue(forKey: key) {
             let hadFocus = window.panel.isKeyWindow
             window.close(fade: fade(key.slot))

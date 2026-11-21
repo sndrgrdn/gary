@@ -38,6 +38,7 @@ public struct Node: Equatable, Sendable {
     public var key: String?
     public var style: String?
     public var actions: [Gesture: String]
+    public var tooltip: String?
     public var props: StyleProps
     public var hovered: StyleProps?
     public var pressed: StyleProps?
@@ -47,6 +48,7 @@ public struct Node: Equatable, Sendable {
         key: String? = nil,
         style: String? = nil,
         actions: [Gesture: String] = [:],
+        tooltip: String? = nil,
         props: StyleProps = StyleProps(),
         hovered: StyleProps? = nil,
         pressed: StyleProps? = nil,
@@ -55,6 +57,7 @@ public struct Node: Equatable, Sendable {
         self.key = key
         self.style = style
         self.actions = actions
+        self.tooltip = tooltip
         self.props = props
         self.hovered = hovered
         self.pressed = pressed
@@ -174,6 +177,7 @@ private struct NodeReader {
             key: reader.string("key"),
             style: reader.string("style"),
             actions: reader.actions(),
+            tooltip: reader.string("tooltip"),
             props: reader.props(fields, ""),
             hovered: reader.state("hovered"),
             pressed: reader.state("pressed"),

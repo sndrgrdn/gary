@@ -57,6 +57,7 @@ public enum PluginTypes {
             key?: string;
             style?: StyleName;
         \(Node.Gesture.allCases.map { "    \($0.rawValue)?: string;" }.joined(separator: "\n"))
+            tooltip?: string;
             hovered?: StyleProps;
             pressed?: StyleProps;
           }

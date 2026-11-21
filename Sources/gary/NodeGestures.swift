@@ -15,6 +15,14 @@ final class GestureAnchor {
 final class GestureView: NSView {
     var actions: [Node.Gesture: String] = [:]
     var handler: ActionHandler?
+    weak var tooltipPanel: TooltipPanel?
+    var tooltip: String? {
+        didSet {
+            if tooltip != oldValue {
+                tooltipPanel?.refresh(self)
+            }
+        }
+    }
 
     static func gesture(of event: NSEvent) -> Node.Gesture? {
         switch event.type {
@@ -40,6 +48,23 @@ final class GestureView: NSView {
 
     override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
         true
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if trackingAreas.isEmpty {
+            addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+        }
+    }
+
+    override func mouseEntered(with _: NSEvent) {
+        if tooltip != nil {
+            tooltipPanel?.hover(self)
+        }
+    }
+
+    override func mouseExited(with _: NSEvent) {
+        tooltipPanel?.hide(for: self)
     }
 
     override func rightMouseDown(with _: NSEvent) {
@@ -70,8 +95,10 @@ private extension NSView {
 
 struct GestureCatcher: NSViewRepresentable {
     let actions: [Node.Gesture: String]
+    let tooltip: String?
     let anchor: GestureAnchor
     @Environment(\.nodeAction) private var perform
+    @Environment(\.tooltipPanel) private var tooltipPanel
 
     func makeNSView(context _: Context) -> GestureView {
         GestureView()
@@ -80,6 +107,12 @@ struct GestureCatcher: NSViewRepresentable {
     func updateNSView(_ view: GestureView, context _: Context) {
         view.actions = actions
         view.handler = perform
+        view.tooltipPanel = tooltipPanel
+        view.tooltip = tooltip
         anchor.view = view
+    }
+
+    static func dismantleNSView(_ view: GestureView, coordinator _: ()) {
+        view.tooltipPanel?.hide(for: view)
     }
 }

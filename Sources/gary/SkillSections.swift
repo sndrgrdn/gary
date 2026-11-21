@@ -12,7 +12,7 @@ extension Skill {
 
         Name a style with `style`, and a color with `color` or `background`. The user's `palette.toml` sets the palette colors, such as `accent`, `foreground`, `background`, `green`, and `red`, and `theme.json` maps them to the theme colors below. A color value that is a list uses the first entry that resolves.
 
-        A style holds any of the node style properties. The `surface` style paints panels, overlays, and menus whose `background` is `"solid"`, so a `material` in that style gives every surface that material.
+        A style holds any of the node style properties. The `surface` style paints panels, overlays, and menus whose `background` is `"solid"`, so a `material` in that style gives every surface that material. The `tooltip` style paints node tooltips.
 
         Styles:
 

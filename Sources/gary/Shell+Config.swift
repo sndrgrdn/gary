@@ -40,6 +40,7 @@ extension Shell {
             guard next != theme else { return .ok("theme unchanged") }
             theme = next
             AppDragTile.theme = theme
+            tooltipPanel.theme = theme
             for warning in theme.warnings {
                 log("theme \(warning)")
             }

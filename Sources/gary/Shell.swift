@@ -26,6 +26,7 @@ final class Shell {
     var barsAside: [String: Bool] = [:]
     var asideTimer: Timer?
     var mounts: [MountKey: TreeHostingView] = [:]
+    let tooltipPanel: TooltipPanel
     var clickMonitors: [Any] = []
     private var hotkeys: HotkeyCenter?
     var previousApp: NSRunningApplication?
@@ -39,6 +40,7 @@ final class Shell {
     init() throws {
         capabilities = try Capability.names()
         theme = try Theme.parse(JSON.parse(Data(contentsOf: Paths.defaultTheme)), palette: Palette(nil, system: systemMode))
+        tooltipPanel = TooltipPanel(theme: theme)
         resolution = config.resolve(catalog)
     }
 
