@@ -7,7 +7,7 @@ extension Capability {
 
 private final class ClockTopic {
     private let publish: (JSON, Trace) -> Void
-    private var timer: Timer?
+    private var observations: [Observation] = []
 
     init(_ publish: @escaping (JSON, Trace) -> Void) {
         self.publish = publish
@@ -16,11 +16,11 @@ private final class ClockTopic {
         let timer = Timer(fire: next, interval: 60, repeats: true) { [weak self] _ in self?.send(Trace("clock")) }
         timer.tolerance = 0.2
         RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
-        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
-            self?.send(Trace("wake"))
-        }
-        NotificationCenter.default.addObserver(forName: .NSSystemClockDidChange, object: nil, queue: .main) { [weak self] _ in self?.send(Trace("clock-change")) }
+        observations = [
+            Observation { timer.invalidate() },
+            Observation(NSWorkspace.shared.notificationCenter, NSWorkspace.didWakeNotification) { [weak self] in self?.send(Trace("wake")) },
+            Observation(.default, .NSSystemClockDidChange) { [weak self] in self?.send(Trace("clock-change")) },
+        ]
     }
 
     private func send(_ trace: Trace) {

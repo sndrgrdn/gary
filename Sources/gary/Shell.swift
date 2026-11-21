@@ -63,7 +63,7 @@ private struct Mount {
 }
 
 final class Shell {
-    private let hub = StateHub()
+    private let hub = StateHub(sources: Capability.topics)
     private let capabilities: CapabilityNames
     private let levels = SurfaceLevels.forSystem(ProcessInfo.processInfo.operatingSystemVersion)
     private var theme: Theme
@@ -85,7 +85,6 @@ final class Shell {
     private var previousApp: NSRunningApplication?
     private var server: LineServer?
     private var watcher: FileWatcher?
-    private var publishers: [AnyObject] = []
     private var signals: [DispatchSourceSignal] = []
 
     init() throws {
@@ -103,11 +102,6 @@ final class Shell {
         reloadTheme(Trace("start"))
         loadConfig()
         scan()
-
-        publishers = Capability.all.compactMap { capability in
-            capability.topic.map { start in start { [hub] value, trace in hub.publish(.capability(capability.name), value, trace) } }
-        }
-
         rebuildDisplays(Trace("start"))
         sync(Trace("start"))
 

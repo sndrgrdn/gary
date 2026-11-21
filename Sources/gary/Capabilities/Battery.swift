@@ -8,6 +8,7 @@ extension Capability {
 
 private final class BatteryTopic {
     private let publish: (JSON, Trace) -> Void
+    private var observation: Observation?
 
     init(_ publish: @escaping (JSON, Trace) -> Void) {
         self.publish = publish
@@ -16,6 +17,7 @@ private final class BatteryTopic {
             Unmanaged<BatteryTopic>.fromOpaque(context!).takeUnretainedValue().send(Trace("battery"))
         }, context).takeRetainedValue()
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        observation = Observation { CFRunLoopSourceInvalidate(source) }
         send(Trace("battery-start"))
     }
 
