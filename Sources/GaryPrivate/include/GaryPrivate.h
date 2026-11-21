@@ -4,6 +4,26 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+typedef NS_ENUM(NSInteger, GarySymbol) {
+    GarySymbolExecutionTimeLimit,
+    GarySymbolMainConnectionID,
+    GarySymbolSetMenuBarInsetAndAlpha,
+    GarySymbolGetDockRect,
+    GarySymbolSetDockRect,
+    GarySymbolDockGetAutoHide,
+    GarySymbolDockSetAutoHide,
+    GarySymbolWindowListCreateImage,
+    GarySymbolBluetoothGetPower,
+    GarySymbolBluetoothSetPower,
+    GarySymbolGetBrightness,
+    GarySymbolSetBrightness,
+    GarySymbolRegisterBrightnessChanges,
+    GarySymbolAVServiceCreate,
+    GarySymbolAVServiceReadI2C,
+    GarySymbolAVServiceWriteI2C,
+    GarySymbolDisplayInfo,
+};
+
 typedef struct {
     const char *library;
     const char *symbol;

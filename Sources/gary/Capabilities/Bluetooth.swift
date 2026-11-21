@@ -1,5 +1,6 @@
 import CoreBluetooth
 import GaryCore
+import GaryPrivate
 import IOBluetooth
 import IOKit
 import JavaScriptCore
@@ -41,13 +42,10 @@ extension Capability {
 private enum BluetoothPower {
     typealias Get = @convention(c) () -> Int32
     typealias Set = @convention(c) (Int32) -> Void
-    static let library = "/System/Library/Frameworks/IOBluetooth.framework/IOBluetooth"
-    static let get = privateSymbol(library, "IOBluetoothPreferenceGetControllerPowerState", as: Get.self)
-    static let set = privateSymbol(library, "IOBluetoothPreferenceSetControllerPowerState", as: Set.self)
+    static let get = privateSymbol(.bluetoothGetPower, as: Get.self)
+    static let set = privateSymbol(.bluetoothSetPower, as: Set.self)
 
-    static var missing: [String] {
-        [("IOBluetoothPreferenceGetControllerPowerState", get != nil), ("IOBluetoothPreferenceSetControllerPowerState", set != nil)].filter { !$0.1 }.map(\.0)
-    }
+    static var missing: [String] { missingSymbols([.bluetoothGetPower, .bluetoothSetPower]) }
 }
 
 private func connection(_ plugin: PluginRuntime?, _ address: String, open: Bool) -> JSValue {

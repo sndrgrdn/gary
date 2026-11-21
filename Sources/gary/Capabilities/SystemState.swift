@@ -1,25 +1,20 @@
 import AppKit
+import GaryPrivate
 
 enum SkyLight {
-    private static let handle = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY)
+    private static let connection = privateSymbol(.mainConnectionID, as: (@convention(c) () -> Int32).self)
+    private static let setAlpha = privateSymbol(.setMenuBarInsetAndAlpha, as: (@convention(c) (Int32, Double, Double, Float) -> Int32).self)
+    private static let getDock = privateSymbol(.getDockRect,
+                                               as: (@convention(c) (Int32, UnsafeMutablePointer<CGRect>, UnsafeMutablePointer<Int32>, UnsafeMutablePointer<Int32>) -> Int32).self)
+    private static let setDock = privateSymbol(.setDockRect, as: (@convention(c) (Int32, CGRect, Int32, Int32) -> Int32).self)
 
-    static func symbol<T>(_ name: String, _ type: T.Type) -> T? {
-        dlsym(handle, name).map { unsafeBitCast($0, to: type) }
-    }
-
-    private static let connection = symbol("SLSMainConnectionID", (@convention(c) () -> Int32).self)
-    private static let setAlpha = symbol("SLSSetMenuBarInsetAndAlpha", (@convention(c) (Int32, Double, Double, Float) -> Int32).self)
-    private static let getDock = symbol("SLSGetDockRectWithOrientation",
-                                        (@convention(c) (Int32, UnsafeMutablePointer<CGRect>, UnsafeMutablePointer<Int32>, UnsafeMutablePointer<Int32>) -> Int32).self)
-    private static let setDock = symbol("SLSSetDockRectWithOrientation", (@convention(c) (Int32, CGRect, Int32, Int32) -> Int32).self)
-
-    static func missing(_ names: [String]) -> String? {
-        let absent = names.filter { dlsym(handle, $0) == nil }
+    static func missing(_ symbols: [GarySymbol]) -> String? {
+        let absent = missingSymbols(symbols)
         return absent.isEmpty ? nil : "\(absent.joined(separator: ", ")) is missing from SkyLight on this macOS"
     }
 
-    static let menuBarSymbols = ["SLSMainConnectionID", "SLSSetMenuBarInsetAndAlpha"]
-    static let dockSymbols = ["SLSMainConnectionID", "SLSGetDockRectWithOrientation", "SLSSetDockRectWithOrientation"]
+    static let menuBarSymbols: [GarySymbol] = [.mainConnectionID, .setMenuBarInsetAndAlpha]
+    static let dockSymbols: [GarySymbol] = [.mainConnectionID, .getDockRect, .setDockRect]
 
     static func setMenuBarAlpha(_ alpha: Float) {
         guard let connection, let setAlpha else { return }
@@ -40,9 +35,8 @@ enum SkyLight {
 }
 
 enum CoreDock {
-    private static let handle = dlopen("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices", RTLD_LAZY)
-    private static let read = dlsym(handle, "CoreDockGetAutoHideEnabled").map { unsafeBitCast($0, to: (@convention(c) () -> Bool).self) }
-    private static let write = dlsym(handle, "CoreDockSetAutoHideEnabled").map { unsafeBitCast($0, to: (@convention(c) (Bool) -> Void).self) }
+    private static let read = privateSymbol(.dockGetAutoHide, as: (@convention(c) () -> Bool).self)
+    private static let write = privateSymbol(.dockSetAutoHide, as: (@convention(c) (Bool) -> Void).self)
 
     static var missing: String? {
         read == nil || write == nil ? "CoreDockGetAutoHideEnabled or CoreDockSetAutoHideEnabled is missing on this macOS" : nil

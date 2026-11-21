@@ -1,5 +1,6 @@
 import AppKit
 import GaryCore
+import GaryPrivate
 import IOKit
 import JavaScriptCore
 
@@ -37,22 +38,16 @@ private enum DisplayServices {
     typealias AVTransfer = @convention(c) (CFTypeRef, UInt32, UInt32, UnsafeMutableRawPointer, UInt32) -> IOReturn
     typealias DisplayInfo = @convention(c) (CGDirectDisplayID) -> Unmanaged<CFDictionary>?
 
-    static let library = "/System/Library/PrivateFrameworks/DisplayServices.framework/DisplayServices"
-    static let iokit = "/System/Library/Frameworks/IOKit.framework/IOKit"
-    static let coreDisplay = "/System/Library/Frameworks/CoreDisplay.framework/CoreDisplay"
-    static let get = privateSymbol(library, "DisplayServicesGetBrightness", as: Get.self)
-    static let set = privateSymbol(library, "DisplayServicesSetBrightness", as: Set.self)
-    static let register = privateSymbol(library, "DisplayServicesRegisterForBrightnessChangeNotifications", as: Register.self)
-    static let createAV = privateSymbol(iokit, "IOAVServiceCreateWithService", as: CreateAV.self)
-    static let readI2C = privateSymbol(iokit, "IOAVServiceReadI2C", as: AVTransfer.self)
-    static let writeI2C = privateSymbol(iokit, "IOAVServiceWriteI2C", as: AVTransfer.self)
-    static let displayInfo = privateSymbol(coreDisplay, "CoreDisplay_DisplayCreateInfoDictionary", as: DisplayInfo.self)
+    static let get = privateSymbol(.getBrightness, as: Get.self)
+    static let set = privateSymbol(.setBrightness, as: Set.self)
+    static let register = privateSymbol(.registerBrightnessChanges, as: Register.self)
+    static let createAV = privateSymbol(.avServiceCreate, as: CreateAV.self)
+    static let readI2C = privateSymbol(.avServiceReadI2C, as: AVTransfer.self)
+    static let writeI2C = privateSymbol(.avServiceWriteI2C, as: AVTransfer.self)
+    static let displayInfo = privateSymbol(.displayInfo, as: DisplayInfo.self)
 
     static var missing: [String] {
-        [("DisplayServicesGetBrightness", get != nil), ("DisplayServicesSetBrightness", set != nil),
-         ("DisplayServicesRegisterForBrightnessChangeNotifications", register != nil), ("IOAVServiceCreateWithService", createAV != nil),
-         ("IOAVServiceReadI2C", readI2C != nil), ("IOAVServiceWriteI2C", writeI2C != nil), ("CoreDisplay_DisplayCreateInfoDictionary", displayInfo != nil)]
-            .filter { !$0.1 }.map(\.0)
+        missingSymbols([.getBrightness, .setBrightness, .registerBrightnessChanges, .avServiceCreate, .avServiceReadI2C, .avServiceWriteI2C, .displayInfo])
     }
 
     static func brightness(_ display: CGDirectDisplayID) -> Float? {

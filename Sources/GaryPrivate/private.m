@@ -1,10 +1,28 @@
 #import "GaryPrivate.h"
 #include <dlfcn.h>
 
-enum { GaryExecutionTimeLimit };
+#define SKYLIGHT "/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight"
+#define DISPLAY_SERVICES "/System/Library/PrivateFrameworks/DisplayServices.framework/DisplayServices"
+#define IOKIT "/System/Library/Frameworks/IOKit.framework/IOKit"
 
 static const GaryPrivateSymbol symbols[] = {
-    [GaryExecutionTimeLimit] = {"/System/Library/Frameworks/JavaScriptCore.framework/JavaScriptCore", "JSContextGroupSetExecutionTimeLimit", "plugin script time limit"},
+    [GarySymbolExecutionTimeLimit] = {"/System/Library/Frameworks/JavaScriptCore.framework/JavaScriptCore", "JSContextGroupSetExecutionTimeLimit", "plugin script time limit"},
+    [GarySymbolMainConnectionID] = {SKYLIGHT, "SLSMainConnectionID", "menubar hide and dock reserve"},
+    [GarySymbolSetMenuBarInsetAndAlpha] = {SKYLIGHT, "SLSSetMenuBarInsetAndAlpha", "menubar hide"},
+    [GarySymbolGetDockRect] = {SKYLIGHT, "SLSGetDockRectWithOrientation", "dock reserve"},
+    [GarySymbolSetDockRect] = {SKYLIGHT, "SLSSetDockRectWithOrientation", "dock reserve"},
+    [GarySymbolDockGetAutoHide] = {"/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices", "CoreDockGetAutoHideEnabled", "dock hide"},
+    [GarySymbolDockSetAutoHide] = {"/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices", "CoreDockSetAutoHideEnabled", "dock hide"},
+    [GarySymbolWindowListCreateImage] = {SKYLIGHT, "SLWindowListCreateImageFromArray", "tray icons"},
+    [GarySymbolBluetoothGetPower] = {"/System/Library/Frameworks/IOBluetooth.framework/IOBluetooth", "IOBluetoothPreferenceGetControllerPowerState", "bluetooth power"},
+    [GarySymbolBluetoothSetPower] = {"/System/Library/Frameworks/IOBluetooth.framework/IOBluetooth", "IOBluetoothPreferenceSetControllerPowerState", "bluetooth power"},
+    [GarySymbolGetBrightness] = {DISPLAY_SERVICES, "DisplayServicesGetBrightness", "brightness of built-in displays"},
+    [GarySymbolSetBrightness] = {DISPLAY_SERVICES, "DisplayServicesSetBrightness", "brightness of built-in displays"},
+    [GarySymbolRegisterBrightnessChanges] = {DISPLAY_SERVICES, "DisplayServicesRegisterForBrightnessChangeNotifications", "brightness change events"},
+    [GarySymbolAVServiceCreate] = {IOKIT, "IOAVServiceCreateWithService", "brightness of external displays"},
+    [GarySymbolAVServiceReadI2C] = {IOKIT, "IOAVServiceReadI2C", "brightness of external displays"},
+    [GarySymbolAVServiceWriteI2C] = {IOKIT, "IOAVServiceWriteI2C", "brightness of external displays"},
+    [GarySymbolDisplayInfo] = {"/System/Library/Frameworks/CoreDisplay.framework/CoreDisplay", "CoreDisplay_DisplayCreateInfoDictionary", "brightness of external displays"},
 };
 
 size_t gary_private_symbol_count(void)
@@ -31,7 +49,7 @@ bool gary_script_time_limit(JSGlobalContextRef context, double seconds, GaryShou
     static SetTimeLimit setTimeLimit;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        setTimeLimit = (SetTimeLimit)gary_private_resolve(GaryExecutionTimeLimit);
+        setTimeLimit = (SetTimeLimit)gary_private_resolve(GarySymbolExecutionTimeLimit);
     });
     if (!setTimeLimit) return false;
     setTimeLimit(JSContextGetGroup(context), seconds, callback, info);

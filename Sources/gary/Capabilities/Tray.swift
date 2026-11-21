@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import GaryCore
+import GaryPrivate
 
 private let trayQueue = DispatchQueue(label: "gary.tray", qos: .userInitiated)
 
@@ -95,7 +96,7 @@ private func scan() throws -> [(item: TrayItem, press: AXUIElement)] {
 }
 
 private typealias CreateImage = @convention(c) (CGRect, CFArray, CGWindowImageOption) -> Unmanaged<CGImage>?
-private let createImage = SkyLight.symbol("SLWindowListCreateImageFromArray", CreateImage.self)
+private let createImage = privateSymbol(.windowListCreateImage, as: CreateImage.self)
 
 private func capture(_ items: [TrayItem]) -> (paths: [String: String], error: String?) {
     guard CGPreflightScreenCaptureAccess() else { return ([:], missingGrant("Screen Recording", "tray icons")) }

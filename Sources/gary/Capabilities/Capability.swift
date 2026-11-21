@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import GaryCore
+import GaryPrivate
 import JavaScriptCore
 
 enum Permission: String, CaseIterable {
@@ -46,12 +47,12 @@ struct Capability {
     }
 }
 
-func privateSymbol<T>(_ library: String, _ name: String, as type: T.Type) -> T? {
-    guard let handle = dlopen(library, RTLD_LAZY), let symbol = dlsym(handle, name) else {
-        log("private symbol \(name) is missing from \(library)")
-        return nil
-    }
-    return unsafeBitCast(symbol, to: type)
+func privateSymbol<T>(_ symbol: GarySymbol, as type: T.Type) -> T? {
+    gary_private_resolve(symbol.rawValue).map { unsafeBitCast($0, to: type) }
+}
+
+func missingSymbols(_ symbols: [GarySymbol]) -> [String] {
+    symbols.filter { gary_private_resolve($0.rawValue) == nil }.map { String(cString: gary_private_symbol($0.rawValue).symbol) }
 }
 
 final class Observation {
