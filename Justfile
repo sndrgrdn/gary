@@ -36,7 +36,7 @@ format:
 
 lint:
     swiftformat --lint .
-    swiftlint lint --quiet --strict --baseline .swiftlint-baseline.json
+    swiftlint lint --quiet --strict
     npx oxlint --deny-warnings
     npx oxfmt --check
 
@@ -59,10 +59,4 @@ anti-slop:
     set -euo pipefail
     test -f tools/anti-slop-swift/Package.resolved
     swift build --package-path tools/anti-slop-swift --force-resolved-versions --jobs 4
-    findings="$(tools/anti-slop-swift/.build/debug/anti-slop Sources Tests || true)"
-    count="$(grep -c ': error: ' <<< "$findings" || true)"
-    if [ "$count" -gt 25 ]; then
-        echo "$findings"
-        echo "anti-slop: $count findings, more than the 25 allowed"
-        exit 1
-    fi
+    tools/anti-slop-swift/.build/debug/anti-slop Sources Tests

@@ -9,7 +9,6 @@
     "tmp/**",
     "Vendor/**",
     "package-lock.json",
-    ".swiftlint-baseline.json",
     ".agent/**",
     ".agents/**",
     ".claude/**",
