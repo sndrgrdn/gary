@@ -44,7 +44,7 @@ private final class FocusTopic {
         } catch let error as FocusState.FileError {
             return publish(.object(["available": .bool(false), "reason": .string(error.description), "active": .bool(false)]), trace)
         } catch {
-            return publish(.object(["available": .bool(false), "reason": .string("Gary needs Full Disk Access to read Focus state"), "active": .bool(false)]), trace)
+            return publish(.object(["available": .bool(false), "reason": .string(missingGrant(.fullDiskAccess, "focus")), "active": .bool(false)]), trace)
         }
         guard let state else { return publish(.object(["available": .bool(true), "active": .bool(false), "mode": .null, "name": .null, "symbol": .null, "source": .null]), trace) }
         publish(.object([

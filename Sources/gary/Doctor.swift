@@ -1,6 +1,3 @@
-import ApplicationServices
-import CoreBluetooth
-import CoreLocation
 import Foundation
 import GaryCore
 import GaryPrivate
@@ -29,29 +26,9 @@ struct PrivateSymbolCheck {
     }
 }
 
-extension Permission {
-    var isGranted: Bool {
-        switch self {
-        case .accessibility:
-            return AXIsProcessTrusted()
-        case .bluetooth:
-            return CBManager.authorization == .allowedAlways
-        case .fullDiskAccess:
-            let database = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Application Support/com.apple.TCC/TCC.db")
-            let fd = open(database.path, O_RDONLY)
-            defer { if fd >= 0 { close(fd) } }
-            return fd >= 0
-        case .location:
-            return [.authorizedAlways, .authorized].contains(CLLocationManager().authorizationStatus)
-        case .screenRecording:
-            return CGPreflightScreenCaptureAccess()
-        }
-    }
-}
-
 struct DoctorRuntime {
     var pid: Int32
-    var capabilities: Set<String>
+    var enabled: [PluginManifest]
     var pluginStates: [(plugin: String, problem: String?)]
 }
 
@@ -92,17 +69,10 @@ struct Doctor {
 
         section("Permissions")
         if runtime == nil { info("grants unknown: macOS answers for the process that asks, so run Gary and ask again") }
-        for permission in Permission.allCases {
-            let users = Capability.all.filter { $0.permissions.contains(permission) }.map(\.name)
-            let needs = "needed by " + (users.isEmpty ? "no capability" : users.joined(separator: ", "))
-            guard let runtime else {
-                info("\(permission.name) \(needs)")
-                continue
-            }
-            let enabled = users.filter(runtime.capabilities.contains)
-            let granted = permission.isGranted
-            let line = "\(permission.name) \(granted ? "granted" : "not granted"); \(needs); " + (enabled.isEmpty ? "none enabled" : "enabled: \(enabled.joined(separator: ", "))")
-            if enabled.isEmpty { info(line) } else if granted { ok(line) } else { fail(line) }
+        if runtime != nil, let program = launchingProgram() { fail("\(program) started Gary, so macOS checks \(program)'s permissions instead of Gary's") }
+        for need in PermissionNeed.all(enabled: runtime?.enabled ?? [], checkGrants: runtime != nil) {
+            let line = "\(need.permission.name)" + (need.grant.map { " \($0.rawValue)" } ?? "") + "; \(need.summary)"
+            if need.plugins.isEmpty || need.grant == nil { info(line) } else if need.grant == .granted { ok(line) } else { fail(line + "; run gary permissions request \(need.permission.rawValue)") }
         }
 
         section("Plugins")

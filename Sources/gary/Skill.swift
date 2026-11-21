@@ -124,6 +124,7 @@ enum Skill {
     - `gary summon <id>`, `gary hide <id>`, and `gary toggle <id>` show and hide a panel, overlay, or menu.
     - `gary reloadPlugins <id>` reloads a plugin from disk. `gary rescanPlugins` finds added and removed plugin folders.
     - `gary doctor` reports private API, permission, plugin, `shell.json`, and theme problems.
+    - `gary permissions` shows which macOS permissions Gary has and which enabled plugins need them. A capability that lacks a permission says so in its error or topic value, with the `gary permissions request <name>` command that asks for it.
     - Take a screenshot to check the result. `screencapture -x /tmp/gary.png` captures the main display, and `screencapture -x -R 0,0,1728,40 /tmp/bar.png` captures a rectangle in points from the top left, such as the bar. The bar is `theme.bar.height` points tall, 32 by default. Summon a surface first. The screenshot needs Screen Recording for the program that runs `screencapture`, not for Gary.
     - When `gary` prints `not running`, start Gary with `open ~/Applications/Gary.app`.
     """
@@ -288,14 +289,15 @@ enum Skill {
         var lines = [
             "## Permissions",
             "",
-            "macOS grants each permission to Gary itself, `com.sndrgrdn.gary` at `~/Applications/Gary.app`, not to the terminal. The user grants it in System Settings > Privacy & Security. Without the grant, the capability reports the missing permission in its error or its topic value. `gary doctor` lists each permission with the capabilities that need it.",
+            "macOS grants each permission to Gary itself, `com.sndrgrdn.gary` at `~/Applications/Gary.app`, not to the terminal or the agent. `gary permissions` asks the running Gary, starting it if needed, and lists each permission with its state, the capabilities that need it, and the enabled plugins that use them. `gary permissions request <name>` shows the macOS prompt, or opens the System Settings pane where macOS has no prompt or the user refused before. Only the user can approve it, so tell the user what to approve. A grant shows in `gary permissions` at once, except Screen Recording and Full Disk Access, which can need a restart of Gary. If Gary runs from a terminal with `gary app`, macOS checks the terminal's permissions instead, and `gary permissions` warns about it.",
             "",
-            "| Name | Permission | Capabilities |",
-            "| --- | --- | --- |",
+            "| Name | Permission | Capabilities | How Gary asks |",
+            "| --- | --- | --- | --- |",
         ]
         for permission in Permission.allCases {
             let users = Capability.all.filter { $0.permissions.contains(permission) }.map { "`\($0.name)`" }
-            lines.append("| `\(permission.rawValue)` | \(permission.name) | \(users.joined(separator: ", ")) |")
+            let asks = permission.hasPrompt ? "the macOS prompt, or the Settings pane after a refusal" : "opens the System Settings pane"
+            lines.append("| `\(permission.rawValue)` | \(permission.name) | \(users.joined(separator: ", ")) | \(asks) |")
         }
         return lines.joined(separator: "\n")
     }

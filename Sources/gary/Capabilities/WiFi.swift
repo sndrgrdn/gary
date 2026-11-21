@@ -48,7 +48,7 @@ extension Capability {
                 let networks = try interface.scanForNetworks(withSSID: nil)
                 guard let network = networks.first(where: { $0.ssid == ssid }) else {
                     let hidden = !networks.isEmpty && networks.allSatisfy { $0.ssid == nil }
-                    throw WiFiError("no network \(ssid) in range" + (hidden ? "; macOS hides network names until Gary has Location access" : ""))
+                    throw WiFiError("no network \(ssid) in range" + (hidden ? "; macOS hides network names: " + missingGrant(.location, "wifi") : ""))
                 }
                 try interface.associate(to: network, password: password.optionalString)
                 return "joined"
@@ -82,7 +82,7 @@ private func promise(_ plugin: PluginRuntime?, _ cause: String, _ work: @escapin
     }
 }
 
-private final class LocationAccess: NSObject, CLLocationManagerDelegate {
+final class LocationAccess: NSObject, CLLocationManagerDelegate {
     static let shared = LocationAccess()
     private let manager = CLLocationManager()
     var onChange: (() -> Void)?

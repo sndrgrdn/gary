@@ -31,7 +31,7 @@ extension Capability {
         plugin.installAPI(host, "tray", TrayRequest.methods) { call in
             let request = try TrayRequest.parse(call)
             return .later(trayQueue) {
-                guard AXIsProcessTrusted() else { throw HostFailure(missingGrant("Accessibility", "the tray")) }
+                guard AXIsProcessTrusted() else { throw HostFailure(missingGrant(.accessibility, "the tray")) }
                 switch request {
                 case .items:
                     let items = try scan().map(\.item)
@@ -99,7 +99,7 @@ private typealias CreateImage = @convention(c) (CGRect, CFArray, CGWindowImageOp
 private let createImage = privateSymbol(.windowListCreateImage, as: CreateImage.self)
 
 private func capture(_ items: [TrayItem]) -> (paths: [String: String], error: String?) {
-    guard CGPreflightScreenCaptureAccess() else { return ([:], missingGrant("Screen Recording", "tray icons")) }
+    guard CGPreflightScreenCaptureAccess() else { return ([:], missingGrant(.screenRecording, "tray icons")) }
     guard let createImage else { return ([:], "SLWindowListCreateImageFromArray is missing from SkyLight on this macOS") }
     guard let agent = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MenuBarAgent").first?.processIdentifier else { return ([:], "MenuBarAgent is not running") }
     let windows = (CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { info -> (id: CGWindowID, bounds: CGRect)? in

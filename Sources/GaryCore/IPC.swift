@@ -15,6 +15,8 @@ public enum Request: Equatable, Sendable {
     case applyTheme(JSON?)
     case listPlugins
     case doctor
+    case permissions
+    case requestPermission(Permission)
     case call(PluginID, method: String, arguments: [String])
 
     public static let usage: [(syntax: String, description: String)] = [
@@ -28,6 +30,8 @@ public enum Request: Equatable, Sendable {
         ("applyTheme [json]", "Apply a theme override payload, or re-read the theme files."),
         ("listPlugins", "List every plugin with its state."),
         ("doctor", "Report the version, window levels, private API, permissions, plugin and config problems."),
+        ("permissions", "List each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Starts Gary if needed."),
+        ("permissions request <name>", "Show the macOS prompt for a permission, or open its System Settings pane where macOS has no prompt."),
         ("call <plugin> <method> [args...]", "Call a method a plugin exports, loading it first if needed."),
     ]
 
@@ -59,6 +63,13 @@ public enum Request: Equatable, Sendable {
             })
         case "listPlugins": try exactly(0); return .listPlugins
         case "doctor": try exactly(0); return .doctor
+        case "permissions":
+            if arguments.isEmpty { return .permissions }
+            guard arguments.count == 2, arguments[0] == "request" else { throw fail("permissions takes no arguments, or request and a permission name") }
+            guard let permission = Permission(rawValue: arguments[1]) else {
+                throw fail("unknown permission \"\(arguments[1])\"; use \(Permission.allCases.map(\.rawValue).joined(separator: ", "))")
+            }
+            return .requestPermission(permission)
         case "call":
             guard arguments.count >= 2 else { throw fail("call takes a plugin, a method and optional arguments") }
             return .call(try plugin(arguments[0]), method: arguments[1], arguments: Array(arguments.dropFirst(2)))
@@ -78,13 +89,15 @@ public enum Request: Equatable, Sendable {
         case .applyTheme: return "applyTheme"
         case .listPlugins: return "listPlugins"
         case .doctor: return "doctor"
+        case .permissions, .requestPermission: return "permissions"
         case .call: return "call"
         }
     }
 
     public var arguments: [String] {
         switch self {
-        case .ping, .rescanPlugins, .reloadConfig, .listPlugins, .doctor: return []
+        case .ping, .rescanPlugins, .reloadConfig, .listPlugins, .doctor, .permissions: return []
+        case .requestPermission(let permission): return ["request", permission.rawValue]
         case .summon(let id), .hide(let id), .toggle(let id): return [id.rawValue]
         case .reloadPlugins(let id): return id.map { [$0.rawValue] } ?? []
         case .applyTheme(let payload): return payload.map { [$0.text] } ?? []

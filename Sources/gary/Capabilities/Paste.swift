@@ -13,7 +13,7 @@ extension Capability {
 }
 
 private func pasteIntoFrontApp() throws -> JSON {
-    guard CGPreflightPostEventAccess() else { throw HostFailure(missingGrant("Accessibility", "paste")) }
+    guard CGPreflightPostEventAccess() else { throw HostFailure(missingGrant(.accessibility, "paste")) }
     let deadline = Date().addingTimeInterval(1)
     while NSWorkspace.shared.frontmostApplication?.processIdentifier == getpid(), Date() < deadline { usleep(20_000) }
     let front = NSWorkspace.shared.frontmostApplication

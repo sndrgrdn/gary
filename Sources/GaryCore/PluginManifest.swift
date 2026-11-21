@@ -96,6 +96,12 @@ public struct PluginManifest: Equatable, Sendable {
     public let uses: [String]
     public let hotkeys: [Hotkey]
 
+    public var capabilities: [String] {
+        var names = uses
+        for case .capability(let name) in subscribes where !names.contains(name) { names.append(name) }
+        return names
+    }
+
     public static func parse(_ data: Data, origin: PluginOrigin, capabilities: CapabilityNames) throws -> PluginManifest {
         guard let json = try? JSON.parse(data), case .object = json else { throw ManifestError.invalidJSON }
 

@@ -32,6 +32,13 @@ struct PluginManifestTests {
         #expect(parsed.uses == ["exec", "network", "files"])
     }
 
+    @Test func capabilitiesAreTheUsesThenTheSubscribedCapabilityTopics() throws {
+        let parsed = try manifest(["subscribes": ["clock", "acme.counter", "exec"], "uses": ["exec", "files"]], capabilities: try CapabilityNames([
+            ("clock", false, true), ("exec", true, true), ("files", true, false),
+        ]))
+        #expect(parsed.capabilities == ["exec", "files", "clock"])
+    }
+
     @Test func optionalFieldsDefaultToOff() throws {
         let parsed = try manifest([:])
         #expect(!parsed.keepLoaded)

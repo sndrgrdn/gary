@@ -10,6 +10,7 @@ struct IPCTests {
             .ping, .summon(today), .hide(today), .toggle(today), .reloadPlugins(nil), .reloadPlugins(today),
             .rescanPlugins, .reloadConfig, .applyTheme(nil), .applyTheme(.object(["colors": .object(["accent": .string("#ff0000")])])),
             .listPlugins, .call(today, method: "refresh", arguments: ["a b", "line\nbreak"]),
+            .doctor, .permissions, .requestPermission(.fullDiskAccess),
         ]
         for request in requests {
             #expect(!request.line.contains("\n"))
@@ -27,6 +28,7 @@ struct IPCTests {
         #expect(try Request.parse(verb: "toggle", arguments: ["gary.today"]) == .toggle(today))
         #expect(try Request.parse(verb: "call", arguments: ["gary.today", "refresh"]) == .call(today, method: "refresh", arguments: []))
         #expect(try Request.parse(verb: "applyTheme", arguments: [#"{"bar":{"height":28}}"#]) == .applyTheme(.object(["bar": .object(["height": .number(28)])])))
+        #expect(try Request.parse(verb: "permissions", arguments: ["request", "screen-recording"]) == .requestPermission(.screenRecording))
     }
 
     @Test func rejectsBadArguments() {
@@ -37,6 +39,8 @@ struct IPCTests {
             ("reloadPlugins", ["gary.a", "gary.b"], "reloadPlugins takes at most 1 argument"),
             ("applyTheme", ["[1]"], "applyTheme takes a JSON object"),
             ("call", ["gary.today"], "call takes a plugin, a method and optional arguments"),
+            ("permissions", ["accessibility"], "permissions takes no arguments, or request and a permission name"),
+            ("permissions", ["request", "camera"], "unknown permission \"camera\"; use accessibility, bluetooth, full-disk-access, location, screen-recording"),
             ("reboot", [], "unknown verb \"reboot\""),
         ]
         for (verb, arguments, message) in cases {

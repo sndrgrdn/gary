@@ -43,7 +43,7 @@ private enum NotificationStore {
         let opened = sqlite3_open_v2(directory.appending(path: "db").path, &db, SQLITE_OPEN_READONLY, nil)
         guard opened == SQLITE_OK, sqlite3_exec(db, "PRAGMA query_only = 1", nil, nil, nil) == SQLITE_OK else {
             let denied = opened == SQLITE_AUTH || opened == SQLITE_CANTOPEN || opened == SQLITE_PERM
-            return .failure(Failure(reason: denied ? "Gary needs Full Disk Access to read notifications" : "cannot open the notification database (\(opened))"))
+            return .failure(Failure(reason: denied ? missingGrant(.fullDiskAccess, "notifications") : "cannot open the notification database (\(opened))"))
         }
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }

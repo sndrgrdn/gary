@@ -65,6 +65,10 @@ gary plugin add https://github.com/you/gary-hello.git --enable
 | `gary plugin remove <id>` | Moves the folder to the Trash and drops the id from `shell.json`. Settings stay. |
 | `gary plugin types [folder]` | Writes `gary.d.ts` and `manifest.schema.json`. |
 
+## Grant permissions
+
+Some capabilities need a macOS permission, such as Accessibility for `tray` or Full Disk Access for `focus`. macOS grants it to Gary itself, so install Gary with `just install`, which keeps it at `~/Applications/Gary.app` where grants stick across rebuilds. `gary permissions` lists each permission, whether Gary has it, and the capabilities and enabled plugins that need it. `gary permissions request <name>` shows the macOS prompt, or opens the System Settings pane where macOS has none.
+
 ## Reference
 
 Run `gary skill show` for the full reference: concepts, every manifest field, `shell.json`, module exports, `state`, `host`, nodes, `surface`, the theme, each capability's functions, topics, types, and macOS permissions, and every command. The text comes from the installed Gary, so it matches that version, and it is the guide that `gary skill setup` points coding agents to.

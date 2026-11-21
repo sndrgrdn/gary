@@ -676,6 +676,10 @@ final class Shell {
             reply(.ok(listing()))
         case .doctor:
             reply(.ok(Doctor.report(doctorRuntime())))
+        case .permissions:
+            reply(.ok(permissionReport(enabled: enabledManifests)))
+        case .requestPermission(let permission):
+            reply(.ok(permission.request()))
         case .call(let id, let method, let arguments):
             guard let slot = handlerSlot(id) else { return reply(.failure("\(id) is not enabled")) }
             withRuntime(slot, trace) { runtime in
@@ -727,13 +731,6 @@ final class Shell {
     }
 
     private func doctorRuntime() -> DoctorRuntime {
-        let manifests = resolution.enabled.compactMap { catalog.plugins[$0]?.manifest }
-        let capabilities = manifests.flatMap { manifest in
-            manifest.uses + manifest.subscribes.compactMap { topic -> String? in
-                if case .capability(let name) = topic { return name }
-                return nil
-            }
-        }
         let states = slots.values.sorted { $0.key.description < $1.key.description }.map { slot -> (String, String?) in
             switch slot.phase {
             case .failed(let reason): return (slot.key.description, "failed: \(reason)")
@@ -741,8 +738,10 @@ final class Shell {
             case .stopped, .running: return (slot.key.description, nil)
             }
         }
-        return DoctorRuntime(pid: getpid(), capabilities: Set(capabilities), pluginStates: states)
+        return DoctorRuntime(pid: getpid(), enabled: enabledManifests, pluginStates: states)
     }
+
+    private var enabledManifests: [PluginManifest] { resolution.enabled.compactMap { catalog.plugins[$0]?.manifest } }
 
     private func listing() -> String {
         var lines = catalog.sortedIDs.map { id -> String in

@@ -94,8 +94,8 @@ struct HostFailure: Error, CustomStringConvertible {
 
 let home = FileManager.default.homeDirectoryForCurrentUser.path
 
-func missingGrant(_ permission: String, _ api: String) -> String {
-    "\(api) needs the \(permission) permission for \(Bundle.main.bundleIdentifier ?? "gary") in System Settings > Privacy & Security"
+func missingGrant(_ permission: Permission, _ api: String) -> String {
+    "\(api) needs \(permission.name) for Gary; run gary permissions request \(permission.rawValue)"
 }
 
 private func message(_ error: Error, _ call: HostCall) -> String {

@@ -17,7 +17,14 @@ func runCli(_ verb: String, _ arguments: [String]) -> Int32 {
         return 64
     }
     do {
-        switch try Response.decode(line: try requestLine(request.line, path: socketPath, timeout: 10)) {
+        let line: String
+        do {
+            line = try requestLine(request.line, path: socketPath, timeout: 10)
+        } catch SocketError.unreachable where request.verb == Request.permissions.verb {
+            try startApp()
+            line = try requestLine(request.line, path: socketPath, timeout: 10)
+        }
+        switch try Response.decode(line: line) {
         case .ok(let result):
             if !result.isEmpty { print(result) }
             return 0
@@ -32,6 +39,18 @@ func runCli(_ verb: String, _ arguments: [String]) -> Int32 {
         fputs("gary: \(error)\n", stderr)
         return 1
     }
+}
+
+private func startApp() throws {
+    guard Bundle.main.bundleIdentifier != nil else { throw SocketError.unreachable(socketPath) }
+    fputs("gary: starting \(Bundle.main.bundlePath)\n", stderr)
+    let open = try Process.run(URL(fileURLWithPath: "/usr/bin/open"), arguments: ["-g", Bundle.main.bundlePath])
+    open.waitUntilExit()
+    for _ in 0..<50 {
+        if (try? requestLine(Request.ping.line, path: socketPath, timeout: 1)) != nil { return }
+        Thread.sleep(forTimeInterval: 0.2)
+    }
+    throw SocketError.unreachable(socketPath)
 }
 
 let appUsage: [(syntax: String, description: String)] = [

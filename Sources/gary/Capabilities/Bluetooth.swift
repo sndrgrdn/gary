@@ -95,7 +95,7 @@ private final class Connector: NSObject {
     }
 }
 
-private final class BluetoothAccess: NSObject, CBCentralManagerDelegate {
+final class BluetoothAccess: NSObject, CBCentralManagerDelegate {
     static let shared = BluetoothAccess()
     private var manager: CBCentralManager?
 
