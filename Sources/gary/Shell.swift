@@ -420,7 +420,7 @@ final class Shell {
     private func keyPressed(_ key: String, _ slot: SlotKey) {
         if tracing { log("key plugin=\(slot) key=\(key)") }
         slots[slot]?.runtime?.key(key) { [weak self] in
-            if slot.kind == .menu && key == "escape" { _ = self?.hide(slot.id, Trace("escape")) }
+            if slot.kind.hides(onUnhandled: key) { _ = self?.hide(slot.id, Trace("escape")) }
         }
     }
 

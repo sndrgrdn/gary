@@ -5,6 +5,8 @@ public enum PluginKind: String, CaseIterable, Sendable {
     case bar, panel, overlay, menu, service
 
     public var isSurface: Bool { self == .panel || self == .overlay || self == .menu }
+
+    public func hides(onUnhandled key: String) -> Bool { key == "escape" && (self == .menu || self == .overlay) }
 }
 
 public enum Topic: Hashable, Sendable, CustomStringConvertible {

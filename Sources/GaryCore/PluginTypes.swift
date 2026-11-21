@@ -106,7 +106,7 @@ public enum PluginTypes {
           interface Module {
             render?(state: State): Node;
             onAction?(action: string, payload: ActionPayload, state: State): void;
-            onKey?(key: Key, state: State): void;
+            onKey?(key: Key, state: State): boolean | void;
             onScroll?(event: ScrollEvent, state: State): void;
             onHotkey?(id: string, state: State): void;
             onTopic?(topic: string, value: Json, state: State): void;

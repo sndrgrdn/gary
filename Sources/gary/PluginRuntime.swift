@@ -141,11 +141,9 @@ final class PluginRuntime: Subscriber {
         queue.async { [self] in
             guard let functions else { return }
             do {
-                guard try invoke(functions.dispatch, [handler, JSON.array(arguments).text, stateText(for: nil)]).toBool() else {
-                    if let unhandled { DispatchQueue.main.async(execute: unhandled) }
-                    return
-                }
-                renderAll(trace)
+                let handled = try invoke(functions.dispatch, [handler, JSON.array(arguments).text, stateText(for: nil)])
+                if !handled.isNull { renderAll(trace) }
+                if !handled.toBool(), let unhandled { DispatchQueue.main.async(execute: unhandled) }
             } catch {
                 fail("\(error)")
             }
@@ -265,9 +263,8 @@ final class PluginRuntime: Subscriber {
             function (state) { return JSON.stringify(e().render(JSON.parse(state))); },
             function (name, args, state) {
               var f = e()[name];
-              if (typeof f !== "function") return false;
-              f.apply(e(), JSON.parse(args).concat([JSON.parse(state)]));
-              return true;
+              if (typeof f !== "function") return null;
+              return f.apply(e(), JSON.parse(args).concat([JSON.parse(state)])) === true;
             },
             function (method, args, done) {
               var f = e().methods && e().methods[method];

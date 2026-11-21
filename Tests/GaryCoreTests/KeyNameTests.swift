@@ -38,4 +38,12 @@ struct KeyNameTests {
         #expect(name(0, nil) == nil)
         #expect(name(0, "") == nil)
     }
+
+    @Test func anUnhandledEscapeHidesAMenuOrOverlayOnly() {
+        #expect(PluginKind.menu.hides(onUnhandled: "escape"))
+        #expect(PluginKind.overlay.hides(onUnhandled: "escape"))
+        #expect(!PluginKind.panel.hides(onUnhandled: "escape"))
+        #expect(!PluginKind.menu.hides(onUnhandled: "enter"))
+        #expect(!PluginKind.menu.hides(onUnhandled: "shift+escape"))
+    }
 }
