@@ -59,6 +59,14 @@ gary skill setup
 
 The skill points the agent to `gary skill show`, which prints the plugin guide for the installed version. [`docs/plugins.md`](docs/plugins.md) covers the same ground for people.
 
+## Install plugins
+
+```sh
+gary plugin install git:github.com/you/gary-plugins
+```
+
+`gary plugin install` takes `npm:<name>[@version]`, `git:<host>/<owner>/<repo>[@ref]`, a git URL, or a local folder. It records the package in `packages` in `~/.config/gary/shell.json` and enables its plugins. `gary plugin update` updates every package, and `gary plugin remove <source>` removes one. [`docs/plugins.md`](docs/plugins.md) has the details.
+
 ## Update
 
 ```sh

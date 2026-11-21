@@ -18,10 +18,10 @@ The only built-in plugins are the `gary.clock` and `gary.battery` bar widgets, s
 1. Scaffold a bar widget and turn it on:
 
    ```sh
-   gary plugin new you.hello --enable
+   gary plugin new you.hello
    ```
 
-   Gary writes `~/.config/gary/plugins/you.hello/` with `manifest.json`, `widget.ts`, `gary.d.ts`, `manifest.schema.json`, `tsconfig.json`, and `README.md`. The widget appears at the right of the bar. To start from an example instead, pass `--from`, such as `gary plugin new you.timer --from timer --enable`. Gary replaces the example's id with yours in every file.
+   Gary writes `~/.config/gary/plugins/you.hello/` with `manifest.json`, `widget.ts`, `gary.d.ts`, `manifest.schema.json`, `tsconfig.json`, and `README.md`. The widget appears at the right of the bar. To start from an example instead, pass `--from`, such as `gary plugin new you.timer --from timer`. Gary replaces the example's id with yours in every file.
 
 2. Edit `widget.ts` and save. Gary reloads the plugin within about 40 ms. If the new version fails, Gary logs the reason and keeps the running version.
 3. Type-check the folder:
@@ -36,7 +36,7 @@ The only built-in plugins are the `gary.clock` and `gary.battery` bar widgets, s
    gary plugin validate ~/.config/gary/plugins/you.hello
    ```
 
-For another kind, pass `--kind`, for example `--kind panel` or `--kind service,bar-widget`. To scaffold outside the plugins folder, pass `--dir <path>`.
+For another kind, pass `--kind`, for example `--kind panel` or `--kind service,bar-widget`. To scaffold outside the plugins folder, pass `--dir <path>`. Gary then records that folder in `packages` in `shell.json` and loads it in place.
 
 Gary logs `host.log` lines and load failures. The app writes them to `~/Library/Logs/gary.log`. Run `gary app` in a terminal to see them live.
 
@@ -88,23 +88,31 @@ To give every panel, overlay, and menu a material, set it on the `surface` style
 
 `host.exec` finds commands in the PATH of your login shell, so `["dinky", "workspace", "2"]` runs `/opt/homebrew/bin/dinky`. Subscribe to `session` to act when the screen is locked or unlocked.
 
-## Share a plugin
+## Share and install plugins
 
-Put the plugin folder at the root of a git repository and push it. Others install it with:
+A package is a folder that holds plugins. If its root has a `manifest.json`, it is one plugin. Otherwise each folder directly inside it that has a `manifest.json` is a plugin. Push a package to a git repository or publish it to npm. Others install it with one of:
 
 ```sh
-gary plugin add https://github.com/you/gary-hello.git --enable
+gary plugin install git:github.com/you/gary-plugins
+gary plugin install git:github.com/you/gary-plugins@v1.0.0
+gary plugin install https://github.com/you/gary-plugins
+gary plugin install npm:gary-weather@1.2.0
+gary plugin install ~/src/gary-plugins
 ```
 
-`gary plugin add` also takes a local repository path, a `file://` URL, or a plain folder, which it copies. It clones into a staging folder and validates the plugin. It refuses an id that is already installed and any `gary.` id. It then prints a warning that plugins run unsandboxed, lists the capabilities in `uses` and `subscribes` with their macOS permissions, and moves the folder to `~/.config/gary/plugins/<id>`. It never runs plugin code.
+`gary plugin install` fetches the package and validates its plugins without running any of them. It warns that plugins run unsandboxed, lists each plugin's capabilities with their macOS permissions, and asks before it installs. `--yes` skips the question. It then adds the source to `packages` in `~/.config/gary/shell.json` and enables each plugin. A bar widget goes to the end of the bar section named by its manifest's `bar` field, `right` by default. A plugin that `shell.json` already places or disables keeps that setting.
 
-| Command                                               | What it does                                                                                                                                       |
-| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gary plugin list`                                    | Lists installed plugins, whether `shell.json` enables them, and where they came from.                                                              |
-| `gary plugin enable <id>`, `gary plugin disable <id>` | Edits `~/.config/gary/shell.json`. A bar widget goes to the right of the bar.                                                                      |
-| `gary plugin update <id> [--yes]`                     | Fetches, shows the log and the diff, validates the new revision, and fast-forwards. It refuses local changes. Without a terminal it needs `--yes`. |
-| `gary plugin remove <id>`                             | Moves the folder to the Trash and drops the id from `shell.json`. Settings stay.                                                                   |
-| `gary plugin types [folder]`                          | Writes `gary.d.ts` and `manifest.schema.json`.                                                                                                     |
+Gary keeps git and npm packages in `~/Library/Application Support/Gary/packages`. It clones git packages with the system `git`, and downloads npm packages from the registry without Node, checking each download against the registry's sha512 integrity. A local folder loads in place, and Gary reloads its plugins when you save, as it does for `~/.config/gary/plugins`. When Gary starts, it installs each declared package that is missing. If that fails, for example offline, Gary logs it, skips the package, and tries again on the next start.
+
+A source identifies its package: npm by name, git by repository without the ref, and a local folder by its absolute path. So `git:github.com/you/gary-plugins@v2` replaces `git:github.com/you/gary-plugins`, and one package never loads twice. When two plugins share an id, the first one wins: built-in plugins, then `~/.config/gary/plugins`, then packages in the order `shell.json` lists them.
+
+| Command                                               | What it does                                                                                                                                                                |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gary plugin list`                                    | Lists plugins with their version, whether `shell.json` enables them, their source, and whether the source is pinned.                                                        |
+| `gary plugin enable <id>`, `gary plugin disable <id>` | Edits `~/.config/gary/shell.json`. A bar widget goes to the bar section its manifest names.                                                                                 |
+| `gary plugin update [<source>]`                       | Updates every package, or one, and prints the old and new version or commit. An exact npm version, a git tag, or a commit stays put. A branch or no ref follows the remote. |
+| `gary plugin remove <source\|id>`                     | Removes a package and drops its plugins from `shell.json`, or moves a plugin in `~/.config/gary/plugins` to the Trash. Settings stay.                                       |
+| `gary plugin types [folder]`                          | Writes `gary.d.ts` and `manifest.schema.json`.                                                                                                                              |
 
 ## Grant permissions
 
