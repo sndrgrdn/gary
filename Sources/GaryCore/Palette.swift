@@ -69,54 +69,63 @@ public struct Palette: Equatable, Sendable {
 
     public let mode: Mode
     public let colors: [String: RGBA]
+    public let background: RGBA
+    public let foreground: RGBA
 
     public init(_ file: PaletteFile?, system: Mode) {
         let mode = file?.mode ?? file?.colors["background"].map { $0.isLight ? .light : .dark } ?? system
-        let builtin = Self.builtin(mode).colors
-        var colors = file?.colors ?? builtin
+        let builtin = Self.builtinColors(mode)
+        var colors = file?.colors ?? builtin.colors
         for key in Self.baseKeys where colors[key] == nil {
-            colors[key] = builtin[key]
+            colors[key] = builtin.colors[key]
         }
         self.mode = mode
         self.colors = colors
-    }
-
-    public var background: RGBA {
-        colors["background"]!
-    }
-
-    public var foreground: RGBA {
-        colors["foreground"]!
+        background = colors["background"] ?? builtin.background
+        foreground = colors["foreground"] ?? builtin.foreground
     }
 
     public static func builtin(_ mode: Mode) -> PaletteFile {
-        switch mode {
-        case .dark: builtinDark
-        case .light: builtinLight
-        }
+        PaletteFile(mode: mode, colors: builtinColors(mode).colors, ignored: [])
     }
 
-    private static let builtinDark = PaletteFile.parse("""
-    mode = "dark"
-    background = "#1a1b26"
-    foreground = "#a9b1d6"
-    accent = "#7aa2f7"
-    dark_foreground = "#565f89"
-    bright_foreground = "#c0caf5"
-    lighter_background = "#24283b"
-    green = "#9ece6a"
-    red = "#f7768e"
-    """)
+    private static func builtinColors(_ mode: Mode) -> BuiltinColors {
+        switch mode {
+        case .dark: .dark
+        case .light: .light
+        }
+    }
+}
 
-    private static let builtinLight = PaletteFile.parse("""
-    mode = "light"
-    background = "#f4f4f6"
-    foreground = "#383a42"
-    accent = "#2e6fd9"
-    dark_foreground = "#80838d"
-    bright_foreground = "#16171c"
-    lighter_background = "#ffffff"
-    green = "#3d8b40"
-    red = "#d73a49"
-    """)
+private struct BuiltinColors {
+    static let dark = BuiltinColors(background: 0x1A1B26, foreground: 0xA9B1D6, others: [
+        "accent": 0x7AA2F7,
+        "dark_foreground": 0x565F89,
+        "bright_foreground": 0xC0CAF5,
+        "lighter_background": 0x24283B,
+        "green": 0x9ECE6A,
+        "red": 0xF7768E,
+    ])
+
+    static let light = BuiltinColors(background: 0xF4F4F6, foreground: 0x383A42, others: [
+        "accent": 0x2E6FD9,
+        "dark_foreground": 0x80838D,
+        "bright_foreground": 0x16171C,
+        "lighter_background": 0xFFFFFF,
+        "green": 0x3D8B40,
+        "red": 0xD73A49,
+    ])
+
+    let background: RGBA
+    let foreground: RGBA
+    let colors: [String: RGBA]
+
+    init(background: UInt64, foreground: UInt64, others: [String: UInt64]) {
+        func opaque(_ rgb: UInt64) -> RGBA {
+            RGBA(rgba: rgb << 8 | 0xFF)
+        }
+        self.background = opaque(background)
+        self.foreground = opaque(foreground)
+        colors = others.mapValues(opaque).merging(["background": self.background, "foreground": self.foreground]) { $1 }
+    }
 }

@@ -20,7 +20,10 @@ public struct RGBA: Equatable, Sendable {
             digits = digits.map { "\($0)\($0)" }.joined()
         }
         guard digits.count == 6 || digits.count == 8, digits.allSatisfy(\.isHexDigit), let value = UInt64(digits, radix: 16) else { return nil }
-        let rgba = digits.count == 6 ? value << 8 | 0xFF : value
+        self.init(rgba: digits.count == 6 ? value << 8 | 0xFF : value)
+    }
+
+    init(rgba: UInt64) {
         func channel(_ shift: UInt64) -> Double {
             Double((rgba >> shift) & 0xFF) / 255
         }
