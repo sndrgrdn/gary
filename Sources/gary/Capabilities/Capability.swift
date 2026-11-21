@@ -107,16 +107,22 @@ func savePNG(_ data: Data, in folder: String) throws -> String {
     return url.path
 }
 
+extension JSContext {
+    func newError(_ message: String) -> JSValue {
+        JSValue(newErrorFromMessage: message, in: self)
+    }
+}
+
 extension PluginRuntime {
     func installAPI(_ host: JSValue, _ api: String?, _ methods: [String], _ handle: @escaping (HostCall) throws -> HostResult) {
-        let context = host.context!
+        let context: JSContext = host.context
         var target = host
         if let api {
             target = JSValue(newObjectIn: context)
             host.setObject(target, forKeyedSubscript: api as NSString)
         }
         let bridge: @convention(block) (String, String) -> JSValue? = { [weak self] method, text in
-            let context = JSContext.current()!
+            guard let context = JSContext.current() else { return nil }
             let call = HostCall(api: api, method: method, arguments: (try? JSON.parse(text))?.array ?? [])
             do {
                 switch try handle(call) {
@@ -124,7 +130,7 @@ extension PluginRuntime {
                 case let .later(queue, work): return self?.promise(in: context, on: queue, call: call, work)
                 }
             } catch {
-                context.exception = JSValue(newErrorFromMessage: message(error, call), in: context)
+                context.exception = context.newError(message(error, call))
                 return nil
             }
         }
@@ -142,17 +148,14 @@ extension PluginRuntime {
 
     private func promise(in context: JSContext, on worker: DispatchQueue, call: HostCall, _ work: @escaping () throws -> JSON) -> JSValue {
         JSValue(newPromiseIn: context) { [weak self] resolve, reject in
+            guard let resolve, let reject else { return }
             worker.async {
                 let result = Result { try work() }
                 self?.queue.async {
                     guard let self else { return }
                     switch result {
-                    case let .success(value): self.callBack(resolve!, [value.text], Trace(call.name))
-                    case let .failure(error): self.callBack(
-                            reject!,
-                            [JSValue(newErrorFromMessage: message(error, call), in: context)!],
-                            Trace(call.name),
-                        )
+                    case let .success(value): self.callBack(resolve, [value.text], Trace(call.name))
+                    case let .failure(error): self.callBack(reject, [context.newError(message(error, call))], Trace(call.name))
                     }
                 }
             }
