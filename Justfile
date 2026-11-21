@@ -28,3 +28,22 @@ release version:
 
 kill:
     pkill -f "Gary.app/Contents/MacOS/gary" || true
+
+format:
+    swiftformat .
+
+lint:
+    swiftformat --lint .
+
+check-examples: build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    gary="$(swift build --show-bin-path)/gary"
+    for dir in examples/*/; do
+        "$gary" plugin types "$dir" >/dev/null
+        npx --yes -p typescript@5 tsc -p "$dir"
+    done
+
+dead-code:
+    swift build --build-system native --jobs 4 --scratch-path .build/periphery
+    periphery scan --skip-build --quiet --strict --index-store-path .build/periphery/arm64-apple-macosx/debug/index/store --retain-public --retain-assign-only-properties --retain-objc-annotated --relative-results

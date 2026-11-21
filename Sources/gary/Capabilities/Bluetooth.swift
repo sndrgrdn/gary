@@ -159,12 +159,12 @@ private final class BluetoothTopic: NSObject {
         send(Trace("bluetooth-start"))
     }
 
-    @objc private func connected(_ notification: IOBluetoothUserNotification, device: IOBluetoothDevice) {
+    @objc private func connected(_: IOBluetoothUserNotification, device: IOBluetoothDevice) {
         if let disconnect = device.register(forDisconnectNotification: self, selector: #selector(disconnected(_:device:))) { notifications.append(disconnect) }
         send(Trace("bluetooth-connect"))
     }
 
-    @objc private func disconnected(_ notification: IOBluetoothUserNotification, device: IOBluetoothDevice) {
+    @objc private func disconnected(_ notification: IOBluetoothUserNotification, device _: IOBluetoothDevice) {
         notification.unregister()
         notifications.removeAll { $0 === notification }
         send(Trace("bluetooth-disconnect"))
