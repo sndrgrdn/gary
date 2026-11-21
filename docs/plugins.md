@@ -2,7 +2,16 @@
 
 A plugin is a folder with a `manifest.json` and one entry file per kind. Gary runs each entry file in its own JavaScriptCore context. It calls `render(state)` and draws the node tree that `render` returns. Entry files are TypeScript (`.ts`) or JavaScript (`.js`).
 
-Working examples live in [`examples/`](../examples): [`load`](../examples/load) is a bar widget that runs a command, [`timer`](../examples/timer) is a panel with buttons and a slider, and [`disk`](../examples/disk) is a service that feeds a bar widget.
+Gary.app bundles the plugins in [`examples/`](../examples) in `Contents/Resources/examples`. Gary does not load them. Copy one under your own id to start:
+
+| Example | Shows |
+| --- | --- |
+| [`load`](../examples/load) | A bar widget that runs a command with `host.exec`. |
+| [`disk`](../examples/disk) | A service that publishes a value and a bar widget that subscribes to it. |
+| [`timer`](../examples/timer) | A panel with buttons, a slider, a progress bar, and `host.storage`. |
+| [`today`](../examples/today) | A panel that subscribes to the `clock` and `battery` topics. |
+
+The only built-in plugins are the `gary.clock` and `gary.battery` bar widgets, so a fresh install shows a bar.
 
 ## Create a plugin
 
@@ -12,7 +21,7 @@ Working examples live in [`examples/`](../examples): [`load`](../examples/load) 
 	gary plugin new you.hello --enable
 	```
 
-	Gary writes `~/.config/gary/plugins/you.hello/` with `manifest.json`, `widget.ts`, `gary.d.ts`, `manifest.schema.json`, `tsconfig.json`, and `README.md`. The widget appears at the right of the bar.
+	Gary writes `~/.config/gary/plugins/you.hello/` with `manifest.json`, `widget.ts`, `gary.d.ts`, `manifest.schema.json`, `tsconfig.json`, and `README.md`. The widget appears at the right of the bar. To start from an example instead, pass `--from`, such as `gary plugin new you.timer --from timer --enable`. Gary replaces the example's id with yours in every file.
 2. Edit `widget.ts` and save. Gary reloads the plugin within about 40 ms. If the new version fails, Gary logs the reason and keeps the running version.
 3. Type-check the folder:
 

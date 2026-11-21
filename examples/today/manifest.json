@@ -1,9 +1,10 @@
 {
+  "$schema": "./manifest.schema.json",
   "schemaVersion": 1,
-  "id": "gary.today",
+  "id": "example.today",
   "name": "Today",
   "version": "0.1.0",
   "kinds": ["panel"],
-  "entryPoints": { "panel": "panel.js" },
+  "entryPoints": { "panel": "panel.ts" },
   "subscribes": ["clock", "battery"]
 }

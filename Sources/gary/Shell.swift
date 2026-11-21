@@ -9,6 +9,7 @@ enum Paths {
     static let userTheme = config.appending(path: "theme.json")
     static let palette = config.appending(path: "palette.toml")
     static let builtinPlugins = Bundle.main.resourceURL!.appending(path: "plugins")
+    static let examples = Bundle.main.resourceURL!.appending(path: "examples")
     static let defaultTheme = Bundle.main.resourceURL!.appending(path: "theme.json")
     static let storage = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appending(path: "Gary/storage")
     static let systemRestore = storage.deletingLastPathComponent().appending(path: "restore.json")

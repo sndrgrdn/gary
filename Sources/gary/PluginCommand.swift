@@ -2,7 +2,8 @@ import Foundation
 import GaryCore
 
 let pluginUsage: [(syntax: String, description: String)] = [
-    ("plugin new <id> [--kind <kind,...>] [--dir <path>] [--enable]", "Scaffold a TypeScript plugin in ~/.config/gary/plugins/<id>, or in <path>."),
+    ("plugin new <id> [--kind <kind,...> | --from <example>] [--dir <path>] [--enable]",
+     "Scaffold a TypeScript plugin, or copy a bundled example under a new id, in ~/.config/gary/plugins/<id> or in <path>."),
     ("plugin validate <path>", "Check a plugin folder with the checks Gary runs when it loads plugins."),
     ("plugin add <git-url|path> [--enable]", "Install a plugin from a git repository or a folder without running any of it."),
     ("plugin update <id> [--yes]", "Show what changed upstream, then fast-forward the plugin's checkout."),
@@ -49,7 +50,7 @@ func runPlugin(_ arguments: [String]) -> Int32 {
     do {
         let rest = Array(arguments.dropFirst())
         switch arguments.first {
-        case "new": try newPlugin(try Arguments(rest, flags: ["--enable"], options: ["--kind", "--dir"], count: 1...1))
+        case "new": try newPlugin(try Arguments(rest, flags: ["--enable"], options: ["--kind", "--from", "--dir"], count: 1...1))
         case "validate": try validate(try Arguments(rest, count: 1...1).positional[0])
         case "add": try add(try Arguments(rest, flags: ["--enable"], count: 1...1))
         case "update": try update(try Arguments(rest, flags: ["--yes"], count: 1...1))
@@ -95,6 +96,10 @@ private func userPlugin(_ id: PluginID) throws -> URL {
 private func newPlugin(_ arguments: Arguments) throws {
     let id = try pluginID(arguments.positional[0])
     guard !id.isReserved else { throw CommandError("\(id) uses the reserved gary. namespace") }
+    let example = try arguments.options["--from"].map { name in
+        guard arguments.options["--kind"] == nil else { throw CommandError("pass --kind or --from, not both", usage: true) }
+        return try bundledExample(name)
+    }
     let kinds = try (arguments.options["--kind"] ?? PluginKind.barWidget.rawValue).split(separator: ",").map { raw in
         guard let kind = PluginKind(rawValue: String(raw)) else {
             throw CommandError("unknown kind \(raw); use \(PluginKind.allCases.map(\.rawValue).joined(separator: ", "))")
@@ -103,15 +108,37 @@ private func newPlugin(_ arguments: Arguments) throws {
     }
     let directory = arguments.options["--dir"].map { URL(fileURLWithPath: $0).standardizedFileURL } ?? Paths.userPlugins.appending(path: id.rawValue)
     guard !FileManager.default.fileExists(atPath: directory.path) else { throw CommandError("\(directory.path) already exists") }
-    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    for (name, text) in PluginScaffold.files(id: id, kinds: kinds) {
-        try Data(text.utf8).write(to: directory.appending(path: name))
+    if let example {
+        try FileManager.default.createDirectory(at: directory.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: example.directory, to: directory)
+        try replace(example.manifest.id.rawValue, with: id.rawValue, in: directory)
+    } else {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for (name, text) in PluginScaffold.files(id: id, kinds: kinds) {
+            try Data(text.utf8).write(to: directory.appending(path: name))
+        }
     }
     _ = try writeTypes(directory)
-    _ = try PluginBundle.load(directory, origin: .user, capabilities: try Capability.names())
-    print("created \(id) in \(directory.path)")
+    let bundle = try PluginBundle.load(directory, origin: .user, capabilities: try Capability.names())
+    print("created \(id) in \(directory.path)" + (example.map { " from the \($0.directory.lastPathComponent) example" } ?? ""))
     if arguments.flags.contains("--enable") { try enable(id) }
-    print("edit \(kinds.map(PluginScaffold.entryFile).joined(separator: ", ")); Gary reloads the plugin on save")
+    print("edit \(bundle.manifest.kinds.compactMap { bundle.manifest.entryPoints[$0] }.joined(separator: ", ")); Gary reloads the plugin on save")
+}
+
+private func bundledExample(_ name: String) throws -> PluginBundle {
+    let names = ((try? FileManager.default.contentsOfDirectory(atPath: Paths.examples.path)) ?? []).filter { !$0.hasPrefix(".") }.sorted()
+    guard names.contains(name) else {
+        throw CommandError("no example \(name); " + (names.isEmpty ? "this gary has no bundled examples" : "use \(names.joined(separator: ", "))"))
+    }
+    return try PluginBundle.load(Paths.examples.appending(path: name), origin: .user, capabilities: try Capability.names())
+}
+
+private func replace(_ old: String, with new: String, in directory: URL) throws {
+    let files = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey])?.compactMap { $0 as? URL } ?? []
+    for file in files where (try? file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true {
+        guard let text = try? String(contentsOf: file, encoding: .utf8), text.contains(old) else { continue }
+        try Data(text.replacingOccurrences(of: old, with: new).utf8).write(to: file, options: .atomic)
+    }
 }
 
 private func validate(_ path: String) throws {
@@ -176,7 +203,7 @@ private func warnUnsandboxed(_ manifest: PluginManifest) {
     print("\(manifest.id) uses:")
     let width = manifest.uses.map(\.count).max()!
     for name in manifest.uses {
-        let permissions = Capability.all.first { $0.name == name }?.permissions.map(\.rawValue) ?? []
+        let permissions = Capability.all.first { $0.name == name }?.permissions.map(\.name) ?? []
         print("  \(name.padding(toLength: width, withPad: " ", startingAt: 0))  macOS permission: \(permissions.isEmpty ? "none" : permissions.joined(separator: ", "))")
     }
 }

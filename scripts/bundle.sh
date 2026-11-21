@@ -21,6 +21,7 @@ plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Inf
 plutil -replace CFBundleVersion -string "$BUILD" "$APP/Contents/Info.plist"
 cp Resources/theme.json "$APP/Contents/Resources/theme.json"
 cp -R Resources/plugins "$APP/Contents/Resources/plugins"
+rsync -a --exclude gary.d.ts --exclude manifest.schema.json --exclude node_modules examples/ "$APP/Contents/Resources/examples/"
 cp Resources/vendor/sucrase.js Resources/vendor/sucrase.LICENSE "$APP/Contents/Resources/"
 "$APP/Contents/MacOS/gary" plugin types "$APP/Contents/Resources/types" >/dev/null
 
