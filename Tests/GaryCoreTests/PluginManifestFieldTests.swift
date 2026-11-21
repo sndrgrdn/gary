@@ -9,7 +9,7 @@ struct PluginManifestFieldTests {
             throw JSON.ParseError(description: "not an object")
         }
         fields.merge(overrides) { $1 }
-        return try PluginManifest.parse(JSON.object(fields).encoded(), origin: .user, capabilities: testCapabilities)
+        return try PluginManifest.parse(JSON.object(fields).encoded(), origin: .user, capabilities: makeTestCapabilities())
     }
 
     @Test func `a field of the wrong shape names the field`() {
