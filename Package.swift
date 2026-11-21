@@ -4,13 +4,27 @@ import PackageDescription
 let package = Package(
     name: "gary",
     platforms: [.macOS(.v26)],
+    products: [
+        .executable(name: "gary", targets: ["gary"]),
+        .library(name: "MediaRemoteAdapter", type: .dynamic, targets: ["MediaRemoteAdapter"]),
+    ],
     targets: [
         // The private JavaScriptCore execution time limit, resolved with dlsym so a missing symbol disables it. Objective-C.
         .target(
             name: "GaryPrivate",
             linkerSettings: [.linkedFramework("JavaScriptCore")]
         ),
-        // Pure shell model: manifests, node trees, reconcile, theme, shell config, surfaces, IPC messages. Foundation and CoreGraphics geometry only. Unit tested.
+        // ungive/mediaremote-adapter at 6571499 (BSD-3-Clause), loaded by Apple's /usr/bin/perl to read and control now playing. Objective-C.
+        .target(
+            name: "MediaRemoteAdapter",
+            path: "Vendor/mediaremote-adapter",
+            exclude: ["LICENSE", "bin", "src/test"],
+            sources: ["src/adapter", "src/private", "src/utility"],
+            publicHeadersPath: "include",
+            cSettings: [.headerSearchPath("src")],
+            linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("UniformTypeIdentifiers"), .linkedFramework("ImageIO")]
+        ),
+        // Pure shell model: manifests, node trees, reconcile, theme, shell config, surfaces, IPC messages, and parsers for the data capabilities read. Foundation and CoreGraphics geometry only. Unit tested.
         .target(
             name: "GaryCore",
             swiftSettings: [.swiftLanguageMode(.v5)]

@@ -21,6 +21,7 @@ struct Capability {
         .files,
         .mediakeys,
         .network,
+        .nowplaying,
     ]
 
     static func names() throws -> CapabilityNames {
