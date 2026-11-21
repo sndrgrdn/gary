@@ -1,0 +1,10 @@
+{
+  "$schema": "./manifest.schema.json",
+  "schemaVersion": 1,
+  "id": "example.popover",
+  "name": "Popover",
+  "version": "0.1.0",
+  "kinds": ["bar-widget", "panel"],
+  "entryPoints": { "bar-widget": "widget.ts", "panel": "panel.ts" },
+  "subscribes": ["example.popover"]
+}
