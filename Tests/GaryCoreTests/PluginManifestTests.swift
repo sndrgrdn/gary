@@ -126,6 +126,7 @@ struct PluginCatalogTests {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
 
+    @discardableResult
     private func plugin(_ dir: String, id: String, in base: String = "user", entry: String = "widget.js", writeEntry: Bool = true) throws -> URL {
         let directory = root.appendingPathComponent(base).appendingPathComponent(dir)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

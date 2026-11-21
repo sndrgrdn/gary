@@ -3,7 +3,7 @@
 
 #define SKYLIGHT "/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight"
 #define DISPLAY_SERVICES "/System/Library/PrivateFrameworks/DisplayServices.framework/DisplayServices"
-#define IOKIT "/System/Library/Frameworks/IOKit.framework/IOKit"
+#define IOKIT_FRAMEWORK "/System/Library/Frameworks/IOKit.framework/IOKit"
 
 static const GaryPrivateSymbol symbols[] = {
     [GarySymbolExecutionTimeLimit] = {"/System/Library/Frameworks/JavaScriptCore.framework/JavaScriptCore", "JSContextGroupSetExecutionTimeLimit", "plugin script time limit"},
@@ -19,9 +19,9 @@ static const GaryPrivateSymbol symbols[] = {
     [GarySymbolGetBrightness] = {DISPLAY_SERVICES, "DisplayServicesGetBrightness", "brightness of built-in displays"},
     [GarySymbolSetBrightness] = {DISPLAY_SERVICES, "DisplayServicesSetBrightness", "brightness of built-in displays"},
     [GarySymbolRegisterBrightnessChanges] = {DISPLAY_SERVICES, "DisplayServicesRegisterForBrightnessChangeNotifications", "brightness change events"},
-    [GarySymbolAVServiceCreate] = {IOKIT, "IOAVServiceCreateWithService", "brightness of external displays"},
-    [GarySymbolAVServiceReadI2C] = {IOKIT, "IOAVServiceReadI2C", "brightness of external displays"},
-    [GarySymbolAVServiceWriteI2C] = {IOKIT, "IOAVServiceWriteI2C", "brightness of external displays"},
+    [GarySymbolAVServiceCreate] = {IOKIT_FRAMEWORK, "IOAVServiceCreateWithService", "brightness of external displays"},
+    [GarySymbolAVServiceReadI2C] = {IOKIT_FRAMEWORK, "IOAVServiceReadI2C", "brightness of external displays"},
+    [GarySymbolAVServiceWriteI2C] = {IOKIT_FRAMEWORK, "IOAVServiceWriteI2C", "brightness of external displays"},
     [GarySymbolDisplayInfo] = {"/System/Library/Frameworks/CoreDisplay.framework/CoreDisplay", "CoreDisplay_DisplayCreateInfoDictionary", "brightness of external displays"},
 };
 
