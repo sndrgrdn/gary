@@ -22,7 +22,8 @@ final class FileWatcher {
         )
         let flags = kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer | kFSEventStreamCreateFlagUseCFTypes
         stream = FSEventStreamCreate(nil, { _, info, count, paths, _, _ in
-            let watcher = Unmanaged<FileWatcher>.fromOpaque(info!).takeUnretainedValue()
+            guard let info else { return }
+            let watcher = Unmanaged<FileWatcher>.fromOpaque(info).takeUnretainedValue()
             let list = Unmanaged<NSArray>.fromOpaque(paths).takeUnretainedValue() as? [String] ?? []
             watcher.received(Array(list.prefix(count)))
         }, &context, [root.path] as CFArray, FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 0, FSEventStreamCreateFlags(flags))
