@@ -5,7 +5,7 @@ let package = Package(
     name: "gary",
     platforms: [.macOS(.v26)],
     targets: [
-        // The private JavaScriptCore execution time limit, resolved with dlsym so a missing symbol disables it. Objective-C.
+        // Every private symbol Gary uses, listed in one table and resolved with dlsym, so a missing one turns its feature off and shows in the self-test. Objective-C.
         .target(
             name: "GaryPrivate",
             linkerSettings: [.linkedFramework("JavaScriptCore")]

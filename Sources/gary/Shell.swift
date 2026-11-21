@@ -126,6 +126,7 @@ final class Shell {
             source.resume()
             signals.append(source)
         }
+        log(PrivateSymbolCheck.summary())
         log("ready pid=\(getpid()) levels=bar:\(levels.bar),\(SurfaceLayer.allCases.map { "\($0.rawValue):\(levels.level($0))" }.joined(separator: ",")) plugins=\(catalog.sortedIDs.map(\.rawValue).joined(separator: ","))")
     }
 
@@ -646,6 +647,8 @@ final class Shell {
             reply(reloadTheme(trace))
         case .listPlugins:
             reply(.ok(listing()))
+        case .doctor:
+            reply(.ok(Doctor.report(doctorRuntime())))
         case .call(let id, let method, let arguments):
             guard let slot = handlerSlot(id) else { return reply(.failure("\(id) is not enabled")) }
             withRuntime(slot, trace) { runtime in
@@ -693,6 +696,21 @@ final class Shell {
         }
         slot.answerWaiters(.ok("hidden"))
         return .ok("hidden")
+    }
+
+    private func doctorRuntime() -> DoctorRuntime {
+        let manifests = resolution.enabled.compactMap { catalog.plugins[$0]?.manifest }
+        let capabilities = manifests.flatMap { manifest in
+            manifest.uses + manifest.subscribes.compactMap { topic -> String? in
+                if case .capability(let name) = topic { return name }
+                return nil
+            }
+        }
+        let states = slots.values.sorted { $0.key.description < $1.key.description }.map { slot -> (String, String?) in
+            if case .failed(let reason) = slot.phase { return (slot.key.description, "failed: \(reason)") }
+            return (slot.key.description, nil)
+        }
+        return DoctorRuntime(pid: getpid(), capabilities: Set(capabilities), pluginStates: states)
     }
 
     private func listing() -> String {

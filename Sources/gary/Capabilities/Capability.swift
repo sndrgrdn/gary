@@ -1,8 +1,8 @@
 import GaryCore
 import JavaScriptCore
 
-enum Permission {
-    case accessibility, bluetooth, location, notifications
+enum Permission: CaseIterable {
+    case accessibility, bluetooth, fullDiskAccess, location, notifications
 }
 
 struct Capability {

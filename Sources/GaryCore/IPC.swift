@@ -14,6 +14,7 @@ public enum Request: Equatable, Sendable {
     case reloadConfig
     case applyTheme(JSON?)
     case listPlugins
+    case doctor
     case call(PluginID, method: String, arguments: [String])
 
     public static let usage: [(syntax: String, description: String)] = [
@@ -26,6 +27,7 @@ public enum Request: Equatable, Sendable {
         ("reloadConfig", "Re-read ~/.config/gary/shell.json."),
         ("applyTheme [json]", "Apply a theme override payload, or re-read the theme files."),
         ("listPlugins", "List every plugin with its state."),
+        ("doctor", "Report the version, window levels, private API, permissions, plugin and config problems."),
         ("call <plugin> <method> [args...]", "Call a method a plugin exports, loading it first if needed."),
     ]
 
@@ -56,6 +58,7 @@ public enum Request: Equatable, Sendable {
                 return json
             })
         case "listPlugins": try exactly(0); return .listPlugins
+        case "doctor": try exactly(0); return .doctor
         case "call":
             guard arguments.count >= 2 else { throw fail("call takes a plugin, a method and optional arguments") }
             return .call(try plugin(arguments[0]), method: arguments[1], arguments: Array(arguments.dropFirst(2)))
@@ -74,13 +77,14 @@ public enum Request: Equatable, Sendable {
         case .reloadConfig: return "reloadConfig"
         case .applyTheme: return "applyTheme"
         case .listPlugins: return "listPlugins"
+        case .doctor: return "doctor"
         case .call: return "call"
         }
     }
 
     public var arguments: [String] {
         switch self {
-        case .ping, .rescanPlugins, .reloadConfig, .listPlugins: return []
+        case .ping, .rescanPlugins, .reloadConfig, .listPlugins, .doctor: return []
         case .summon(let id), .hide(let id), .toggle(let id): return [id.rawValue]
         case .reloadPlugins(let id): return id.map { [$0.rawValue] } ?? []
         case .applyTheme(let payload): return payload.map { [$0.text] } ?? []
