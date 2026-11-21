@@ -50,3 +50,42 @@ struct FilesRequestTests {
         }
     }
 }
+
+struct ClipboardRequestTests {
+    @Test func readTakesNothingAndWriteTextTakesAString() throws {
+        #expect(try ClipboardRequest.parse(call("clipboard", "read")) == .read)
+        #expect(try ClipboardRequest.parse(call("clipboard", "writeText", .string("hello"))) == .writeText("hello"))
+        #expect(throws: ArgumentError("host.clipboard.writeText: text must be a string")) {
+            try ClipboardRequest.parse(call("clipboard", "writeText", .number(5)))
+        }
+        #expect(throws: ArgumentError.self) { try ClipboardRequest.parse(call("clipboard", "clear")) }
+    }
+}
+
+struct WallpaperRequestTests {
+    @Test func setTakesAnImagePathAndAnOptionalDisplay() throws {
+        #expect(try WallpaperRequest.parse(call("wallpaper", "get"), home: home) == .get)
+        #expect(try WallpaperRequest.parse(call("wallpaper", "set", .string("~/Pictures/a.png")), home: home)
+            == .set(path: "/Users/gary/Pictures/a.png", display: nil))
+        #expect(try WallpaperRequest.parse(call("wallpaper", "set", .string("/a.png"), .null), home: home) == .set(path: "/a.png", display: nil))
+        #expect(try WallpaperRequest.parse(call("wallpaper", "set", .string("/a.png"), .string("37D8")), home: home) == .set(path: "/a.png", display: "37D8"))
+        #expect(throws: ArgumentError.self) { try WallpaperRequest.parse(call("wallpaper", "set", .string("a.png")), home: home) }
+        #expect(throws: ArgumentError("host.wallpaper.set: display must be a string")) {
+            try WallpaperRequest.parse(call("wallpaper", "set", .string("/a.png"), .number(0)), home: home)
+        }
+    }
+}
+
+struct AppsRequestTests {
+    @Test func eachMethodTakesABundleID() throws {
+        let parsed = try AppsRequest.methods.map { try AppsRequest.parse(call("apps", $0, .string("com.apple.Calculator"))) }
+        #expect(parsed == [.launch(bundle: "com.apple.Calculator"), .activate(bundle: "com.apple.Calculator"), .quit(bundle: "com.apple.Calculator")])
+    }
+
+    @Test func rejectsWhatCannotBeABundleID() {
+        for value in [JSON.string(""), .string("com apple"), .string("com.apple/../x"), .number(1), .null] {
+            #expect(throws: ArgumentError.self) { try AppsRequest.parse(call("apps", "launch", value)) }
+        }
+        #expect(throws: ArgumentError("host.apps.hide is not a method")) { try AppsRequest.parse(call("apps", "hide", .string("com.apple.Calculator"))) }
+    }
+}

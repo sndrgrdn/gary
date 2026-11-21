@@ -1,0 +1,84 @@
+import AppKit
+import GaryCore
+
+extension Capability {
+    static let apps = Capability(name: "apps", install: { host, plugin in
+        plugin.installAPI(host, "apps", AppsRequest.methods) { call in
+            let request = try AppsRequest.parse(call)
+            return .later(.global(qos: .userInitiated)) { try perform(request) }
+        }
+    }, topic: { AppsTopic($0) })
+}
+
+private func json(_ app: NSRunningApplication) -> JSON {
+    .object([
+        "app": app.bundleIdentifier.map(JSON.string) ?? .null,
+        "name": .string(app.localizedName ?? ""),
+        "pid": .number(Double(app.processIdentifier)),
+        "path": app.bundleURL.map { .string($0.path) } ?? .null,
+        "active": .bool(app.isActive),
+        "hidden": .bool(app.isHidden),
+    ])
+}
+
+private func perform(_ request: AppsRequest) throws -> JSON {
+    switch request {
+    case .launch(let bundle):
+        return try launch(bundle)
+    case .activate(let bundle):
+        guard let app = running(bundle).first else { return try launch(bundle) }
+        app.activate()
+        return json(app)
+    case .quit(let bundle):
+        return .object(["asked": .number(Double(running(bundle).filter { $0.terminate() }.count))])
+    }
+}
+
+private func running(_ bundle: String) -> [NSRunningApplication] {
+    NSWorkspace.shared.runningApplications.filter { $0.bundleIdentifier?.caseInsensitiveCompare(bundle) == .orderedSame }
+}
+
+private func launch(_ bundle: String) throws -> JSON {
+    guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) else { throw HostFailure("no app with bundle id \(bundle)") }
+    let done = DispatchSemaphore(value: 0)
+    var result: Result<NSRunningApplication, Error> = .failure(HostFailure("\(bundle) did not launch within 10 s"))
+    NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { app, error in
+        if let app { result = .success(app) } else if let error { result = .failure(HostFailure(error.localizedDescription)) }
+        done.signal()
+    }
+    _ = done.wait(timeout: .now() + 10)
+    return json(try result.get())
+}
+
+private final class AppsTopic: DemandDrivenTopic {
+    private let publish: (JSON, Trace) -> Void
+    private var observers: [NSObjectProtocol] = []
+
+    init(_ publish: @escaping (JSON, Trace) -> Void) {
+        self.publish = publish
+    }
+
+    func demand(_ demanded: Bool) {
+        guard demanded != !observers.isEmpty else { return }
+        let center = NSWorkspace.shared.notificationCenter
+        for observer in observers { center.removeObserver(observer) }
+        observers = []
+        guard demanded else { return }
+        let names: [Notification.Name] = [
+            NSWorkspace.didActivateApplicationNotification, NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification,
+            NSWorkspace.didHideApplicationNotification, NSWorkspace.didUnhideApplicationNotification,
+        ]
+        observers = names.map { name in
+            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in self?.send(Trace("apps")) }
+        }
+        send(Trace("apps-start"))
+    }
+
+    private func send(_ trace: Trace) {
+        let workspace = NSWorkspace.shared
+        publish(.object([
+            "frontmost": workspace.frontmostApplication.map(json) ?? .null,
+            "running": .array(workspace.runningApplications.filter { $0.activationPolicy == .regular }.map(json)),
+        ]), trace)
+    }
+}

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import GaryCore
 import JavaScriptCore
@@ -13,11 +14,15 @@ struct Capability {
     var topic: ((@escaping (JSON, Trace) -> Void) -> AnyObject)?
 
     static let all: [Capability] = [
+        .apps,
         .battery,
+        .clipboard,
         .clock,
         .exec,
         .files,
         .network,
+        .paste,
+        .wallpaper,
     ]
 
     static func names() throws -> CapabilityNames {
@@ -41,8 +46,23 @@ struct HostFailure: Error, CustomStringConvertible {
 
 let home = FileManager.default.homeDirectoryForCurrentUser.path
 
+func missingGrant(_ permission: String, _ api: String) -> String {
+    "\(api) needs the \(permission) permission for \(Bundle.main.bundleIdentifier ?? "gary") in System Settings > Privacy & Security"
+}
+
 private func message(_ error: Error, _ call: HostCall) -> String {
     error is ArgumentError ? "\(error)" : "\(call.name): \(error)"
+}
+
+func savePNG(_ data: Data, in folder: String) throws -> String {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: "gary/\(folder)")
+    let name = SHA256.hash(data: data).prefix(12).map { String(format: "%02x", $0) }.joined()
+    let url = directory.appending(path: "\(name).png")
+    if !FileManager.default.fileExists(atPath: url.path) {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try data.write(to: url, options: .atomic)
+    }
+    return url.path
 }
 
 extension PluginRuntime {
