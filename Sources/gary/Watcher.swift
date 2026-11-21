@@ -59,7 +59,7 @@ final class PathWatch {
     }
 
     func stop() {
-        queue.sync {
+        queue.async { [self] in
             pending?.cancel()
             for source in sources { source.cancel() }
             sources = []
