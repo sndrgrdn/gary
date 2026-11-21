@@ -23,5 +23,8 @@ install: bundle
     ls -l ~/.local/bin/gary
     if $running; then open -g ~/Applications/Gary.app && echo "restarted Gary"; fi
 
+release version:
+    scripts/release.sh {{version}}
+
 kill:
     pkill -f "Gary.app/Contents/MacOS/gary" || true
