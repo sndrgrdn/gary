@@ -3,7 +3,12 @@ import GaryCore
 import JavaScriptCore
 
 extension Capability {
-    static let exec = Capability(name: "exec", install: { host, plugin in
+    static let exec = Capability(name: "exec", types: """
+    declare namespace Gary {
+      interface Host { exec(argv: string[], callback: (result: ExecResult) => void): void }
+      interface ExecResult { status: number; stdout: string; stderr: string }
+    }
+    """, install: { host, plugin in
         let exec: @convention(block) (JSValue, JSValue) -> Void = { [weak plugin] argv, callback in
             guard let argv = argv.toArray() as? [String], !argv.isEmpty, callback.isObject else {
                 let context = JSContext.current()!

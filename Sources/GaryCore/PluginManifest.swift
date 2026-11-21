@@ -74,7 +74,7 @@ public enum ManifestError: Error, Equatable, CustomStringConvertible {
         case .duplicateKind(let kind): return "kind \(kind.rawValue) is listed twice"
         case .missingEntryPoint(let kind): return "no entry point for kind \(kind.rawValue)"
         case .entryPointWithoutKind(let key): return "entry point \(key) has no matching kind"
-        case .unsafeEntryPoint(let path): return "entry point \(path) must be a relative .js path inside the plugin"
+        case .unsafeEntryPoint(let path): return "entry point \(path) must be a relative .js or .ts path inside the plugin"
         case .unknownTopic(let topic): return "unknown subscription \(topic)"
         case .unknownService(let service): return "unknown host service \(service)"
         case .invalidHotkey(let keys): return "hotkey \"\(keys)\" must be modifiers and a key, such as ctrl+alt+space"
@@ -173,6 +173,6 @@ public struct PluginManifest: Equatable, Sendable {
 
 func isSafeRelativeScriptPath(_ path: String) -> Bool {
     let components = path.split(separator: "/", omittingEmptySubsequences: false)
-    return !path.hasPrefix("/") && !path.hasPrefix("~") && path.hasSuffix(".js") && !path.contains("\0")
+    return !path.hasPrefix("/") && !path.hasPrefix("~") && (path.hasSuffix(".js") || path.hasSuffix(".ts")) && !path.contains("\0")
         && components.allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." }
 }

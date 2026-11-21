@@ -39,5 +39,7 @@ func runHelp() -> Int32 {
     for (syntax, description) in Request.usage { print("  \(syntax)\n      \(description)") }
     print("\n  app\n      Run the shell in the foreground, logging to the terminal, without the crash supervisor.")
     print("  login [on|off|status]\n      Start Gary at login, or stop doing so.")
+    print("\nPlugin commands work on ~/.config/gary without the running app:\n")
+    for (syntax, description) in pluginUsage { print("  \(syntax)\n      \(description)") }
     return 0
 }

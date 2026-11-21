@@ -3,7 +3,12 @@ import GaryCore
 import IOKit.ps
 
 extension Capability {
-    static let battery = Capability(name: "battery", topic: { BatteryTopic($0) })
+    static let battery = Capability(name: "battery", types: """
+    declare namespace Gary {
+      interface State { battery?: Battery }
+      interface Battery { present: boolean; percent: number | null; charging: boolean; source: "ac" | "battery" }
+    }
+    """, topic: { BatteryTopic($0) })
 }
 
 private final class BatteryTopic {

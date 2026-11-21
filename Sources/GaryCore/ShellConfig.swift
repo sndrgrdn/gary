@@ -100,3 +100,40 @@ public struct ShellConfig: Equatable, Sendable {
         return Resolution(enabled: enabled, bar: resolved, barPlugin: bars.first, warnings: warnings)
     }
 }
+
+extension ShellConfig {
+    public enum Change: Equatable, Sendable {
+        case enable(PluginID, inBar: Bool)
+        case disable(PluginID)
+        case remove(PluginID)
+    }
+
+    public static func applying(_ change: Change, to json: JSON) throws -> JSON {
+        let config = try parse(json)
+        var fields = json.object ?? [:]
+        var bar = config.bar, plugins = config.plugins, disabled = config.disabledPlugins
+        switch change {
+        case .enable(let id, let inBar):
+            disabled.remove(id)
+            if inBar {
+                if !bar.values.contains(where: { $0.contains(id) }) { bar[.right, default: []].insert(id, at: 0) }
+            } else if !plugins.contains(id) {
+                plugins.append(id)
+            }
+        case .disable(let id):
+            disabled.insert(id)
+        case .remove(let id):
+            bar = bar.mapValues { $0.filter { $0 != id } }
+            plugins.removeAll { $0 == id }
+            disabled.remove(id)
+        }
+        func ids(_ list: [PluginID]) -> JSON { .array(list.map { .string($0.rawValue) }) }
+        func set(_ key: String, _ value: JSON, changed: Bool) {
+            if changed || fields[key] != nil { fields[key] = value }
+        }
+        set("bar", .object(Dictionary(uniqueKeysWithValues: BarSection.allCases.map { ($0.rawValue, ids(bar[$0] ?? [])) })), changed: bar != config.bar)
+        set("plugins", ids(plugins), changed: plugins != config.plugins)
+        set("disabledPlugins", ids(disabled.sorted()), changed: disabled != config.disabledPlugins)
+        return .object(fields)
+    }
+}

@@ -21,12 +21,12 @@ struct PluginManifestTests {
     @Test func parsesEveryField() throws {
         let parsed = try manifest([
             "kinds": ["service", "bar-widget"],
-            "entryPoints": ["service": "lib/service.js", "bar-widget": "widget.js"],
+            "entryPoints": ["service": "lib/service.ts", "bar-widget": "widget.js"],
             "keepLoaded": true, "subscribes": ["clock", "battery", "acme.counter"], "uses": ["exec", "network", "files"],
         ])
         #expect(parsed.id.rawValue == "acme.media")
         #expect(parsed.kinds == [.service, .barWidget])
-        #expect(parsed.entryPoints == [.service: "lib/service.js", .barWidget: "widget.js"])
+        #expect(parsed.entryPoints == [.service: "lib/service.ts", .barWidget: "widget.js"])
         #expect(parsed.keepLoaded)
         #expect(parsed.subscribes == [.capability("clock"), .capability("battery"), .plugin(PluginID("acme.counter")!)])
         #expect(parsed.uses == ["exec", "network", "files"])
@@ -78,7 +78,7 @@ struct PluginManifestTests {
     }
 
     @Test func entryPointsStayInsideThePluginAsScripts() {
-        for path in ["../escape.js", "lib/../../escape.js", "/etc/x.js", "~/x.js", "widget.ts", "./widget.js", "lib//w.js"] {
+        for path in ["../escape.js", "lib/../../escape.js", "/etc/x.js", "~/x.js", "widget.tsx", "widget.d", "./widget.js", "lib//w.js"] {
             rejects(["entryPoints": ["bar-widget": path]], with: .unsafeEntryPoint(path))
         }
     }

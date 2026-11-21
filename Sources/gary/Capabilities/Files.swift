@@ -3,7 +3,14 @@ import GaryCore
 import JavaScriptCore
 
 extension Capability {
-    static let files = Capability(name: "files", install: { host, plugin in
+    static let files = Capability(name: "files", types: """
+    declare namespace Gary {
+      interface Host {
+        readFile(path: string): string;
+        watchFile(path: string, callback: (text: string | null) => void): void;
+      }
+    }
+    """, install: { host, plugin in
         let readFile: @convention(block) (String) -> String? = { path in
             let expanded = (path as NSString).expandingTildeInPath
             guard let text = try? String(contentsOfFile: expanded, encoding: .utf8) else {

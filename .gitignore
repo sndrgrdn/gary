@@ -2,3 +2,5 @@
 build/
 tmp/
 .DS_Store
+examples/*/gary.d.ts
+examples/*/manifest.schema.json

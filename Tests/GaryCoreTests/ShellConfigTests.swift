@@ -104,3 +104,41 @@ struct ShellConfigTests {
         }
     }
 }
+
+struct ShellConfigChangeTests {
+    private let widget = PluginID("acme.weather")!
+
+    private func apply(_ change: ShellConfig.Change, to text: String) throws -> JSON {
+        try ShellConfig.applying(change, to: try JSON.parse(text))
+    }
+
+    @Test func enablingABarWidgetKeepsTheDefaultBarAndPutsItFirstOnTheRight() throws {
+        let next = try apply(.enable(widget, inBar: true), to: "{}")
+        #expect(try ShellConfig.parse(next).bar == [.left: [], .center: [], .right: [widget, PluginID("gary.battery")!, PluginID("gary.clock")!]])
+        #expect(next["plugins"] == nil && next["disabledPlugins"] == nil)
+        #expect(try ShellConfig.applying(.enable(widget, inBar: true), to: next) == next)
+    }
+
+    @Test func enablingAnotherKindNamesItInPluginsAndClearsADisable() throws {
+        let next = try apply(.enable(widget, inBar: false), to: #"{"disabledPlugins": ["acme.weather"], "settings": {"acme.weather": {"unit": "c"}}}"#)
+        #expect(next["plugins"] == .array([.string("acme.weather")]))
+        #expect(next["disabledPlugins"] == .array([]))
+        #expect(next["settings"]?["acme.weather"]?["unit"] == .string("c"))
+        #expect(next["bar"] == nil)
+    }
+
+    @Test func disablingKeepsThePlacementAndRemovingDropsEveryMentionButSettings() throws {
+        let text = #"{"bar": {"left": ["acme.weather"]}, "plugins": ["acme.weather"], "settings": {"acme.weather": {}}}"#
+        let disabled = try apply(.disable(widget), to: text)
+        #expect(try ShellConfig.parse(disabled).disabledPlugins == [widget])
+        #expect(try ShellConfig.parse(disabled).bar[.left] == [widget])
+        let removed = try ShellConfig.applying(.remove(widget), to: disabled)
+        let config = try ShellConfig.parse(removed)
+        #expect(config.bar[.left] == [] && config.plugins == [] && config.disabledPlugins == [])
+        #expect(config.settings[widget] == .object([:]))
+    }
+
+    @Test func refusesToEditAnInvalidFile() {
+        #expect(throws: ShellConfigError.self) { try apply(.enable(widget, inBar: true), to: #"{"bar": []}"#) }
+    }
+}
