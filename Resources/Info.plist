@@ -22,5 +22,11 @@
 	<true/>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Gary shows and controls your Bluetooth devices for shell plugins that use the bluetooth capability.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>macOS shows Wi-Fi network names only to apps with Location access. Gary uses it for plugins that show Wi-Fi networks.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>macOS shows Wi-Fi network names only to apps with Location access. Gary uses it for plugins that show Wi-Fi networks.</string>
 </dict>
 </plist>
