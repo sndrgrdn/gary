@@ -53,3 +53,16 @@ typecheck: build
 dead-code:
     swift build --build-system native --jobs 4 --scratch-path .build/periphery
     periphery scan --skip-build --quiet --strict --index-store-path .build/periphery/arm64-apple-macosx/debug/index/store --retain-public --retain-assign-only-properties --retain-objc-annotated --relative-results
+
+anti-slop:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    test -f tools/anti-slop-swift/Package.resolved
+    swift build --package-path tools/anti-slop-swift --force-resolved-versions --jobs 4
+    findings="$(tools/anti-slop-swift/.build/debug/anti-slop Sources Tests || true)"
+    count="$(grep -c ': error: ' <<< "$findings" || true)"
+    if [ "$count" -gt 25 ]; then
+        echo "$findings"
+        echo "anti-slop: $count findings, more than the 25 allowed"
+        exit 1
+    fi

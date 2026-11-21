@@ -1,5 +1,5 @@
 --swiftversion 6.2
---exclude .build,build,Vendor,tmp,node_modules
+--exclude .build,build,Vendor,tmp,node_modules,tools
 
 --maxwidth 150
 --ranges no-space
