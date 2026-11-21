@@ -19,9 +19,11 @@ main() {
     installed=$(plutil -extract CFBundleShortVersionString raw "$APP/Contents/Info.plist" 2>/dev/null) || installed=none
     echo "installed: $installed, release: $version"
 
+    fresh=false
     if [ "$installed" = "$version" ] && codesign --verify --deep --strict "$APP" 2>/dev/null; then
         echo "Gary $version is up to date"
     else
+        fresh=true
         work=$(mktemp -d)
         trap 'rm -rf "$work"' EXIT
         gh release download "$tag" --repo "$REPO" --pattern "Gary-$version.zip*" --dir "$work"
@@ -57,6 +59,7 @@ main() {
         *":$HOME/.local/bin:"*) ;;
         *) echo "add ~/.local/bin to your PATH to run gary" ;;
     esac
+    [ "$fresh" = true ] || return 0
     cat <<EOF
 
 Next steps:
