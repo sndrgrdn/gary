@@ -42,6 +42,10 @@ public struct PluginID: Hashable, Comparable, CustomStringConvertible, Sendable 
         rawValue = raw
     }
 
+    init(builtin name: String) {
+        rawValue = "gary.\(name)"
+    }
+
     public var isReserved: Bool {
         rawValue.hasPrefix("gary.")
     }
@@ -50,8 +54,8 @@ public struct PluginID: Hashable, Comparable, CustomStringConvertible, Sendable 
         rawValue
     }
 
-    public static func < (a: PluginID, b: PluginID) -> Bool {
-        a.rawValue < b.rawValue
+    public static func < (lhs: PluginID, rhs: PluginID) -> Bool {
+        lhs.rawValue < rhs.rawValue
     }
 }
 

@@ -172,7 +172,7 @@ public enum Request: Equatable, Sendable {
 }
 
 public extension PluginID {
-    static let onboarding = PluginID("gary.onboarding")!
+    static let onboarding = PluginID(builtin: "onboarding")
 }
 
 public enum Response: Equatable, Sendable {

@@ -20,7 +20,7 @@ public struct ShellConfig: Equatable, Sendable {
     public var revealMenuBar: Bool
 
     public static let defaults = ShellConfig(
-        bar: [.left: [], .center: [], .right: [PluginID("gary.battery")!, PluginID("gary.clock")!]],
+        bar: [.left: [], .center: [], .right: [PluginID(builtin: "battery"), PluginID(builtin: "clock")]],
         plugins: [], disabledPlugins: [], settings: [:], revealMenuBar: true,
     )
 
