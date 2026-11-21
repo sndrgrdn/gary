@@ -63,6 +63,7 @@ Gary draws each node tree with SwiftUI. A `row` is a horizontal stack, a `column
 | `animation` | `"smooth"`, `"spring"`, or `"none"`: how the node animates what changes inside it between renders. `duration` sets its length in seconds. Reduce Motion turns it off. |
 | `transition` | `"opacity"`, `"scale"`, or `"none"`: how a child appears and disappears. |
 | `material` | `"vibrant"`, `"glass"`, or `"none"`: a material behind the node, inside its `radius`. |
+| `colorScheme` | `"dark"` or `"light"`: the appearance of the node and its children, whatever the theme's mode. A `material` and system colors follow it. |
 | `clip`, `border`, `shadow` | `clip: true` cuts the content to the rounded `radius`. `border` is `{ color, width }` and `shadow` is `{ color, radius, y }`. |
 | `fit` | `"fit"` or `"fill"`: how an `image` fills its size. Gary decodes images at the size they show, a file over 32 KB off the main thread. It appears when ready, faded only by the image's own `transition` and `animation`. |
 

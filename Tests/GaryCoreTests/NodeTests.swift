@@ -54,6 +54,8 @@ struct NodeTests {
             #expect(throws: NodeError(path: "root", reason: reason), "\(bad)") { try props(bad) }
         }
         #expect(try props(#""animation":"spring","material":"glass""#) == StyleProps(animation: .spring, material: .glass))
+        #expect(try props(#""material":"vibrant","colorScheme":"dark""#) == StyleProps(material: .vibrant, colorScheme: .dark))
+        #expect(throws: NodeError(path: "root", reason: "colorScheme must be one of \"dark\", \"light\"")) { try props(#""colorScheme":"auto""#) }
         #expect(throws: NodeError(path: "root", reason: "align must be one of \"leading\", \"center\", \"trailing\"")) { try props(#""align":"left""#) }
         #expect(throws: NodeError(path: "root", reason: "material must be one of \"vibrant\", \"glass\", \"none\"")) { try props(#""material":"blur""#) }
         #expect(throws: NodeError(path: "root", reason: "offset must be a number")) { try props(#""offset":"1""#) }

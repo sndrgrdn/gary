@@ -42,6 +42,10 @@ public enum Material: String, CaseIterable, Sendable {
     case vibrant, glass, none
 }
 
+public enum ColorScheme: String, CaseIterable, Sendable {
+    case dark, light
+}
+
 public enum Transition: String, CaseIterable, Sendable {
     case opacity, scale, none
 }
@@ -87,6 +91,7 @@ public struct StyleProps: Equatable, Sendable {
     public var align: Align?
     public var animation: Animation?
     public var material: Material?
+    public var colorScheme: ColorScheme?
     public var transition: Transition?
     public var fit: ImageFit?
     public var clip: Bool?
@@ -98,7 +103,8 @@ public struct StyleProps: Equatable, Sendable {
                 fontSize: Double? = nil, opacity: Double? = nil, offset: Double? = nil, align: Align? = nil, animation: Animation? = nil,
                 material: Material? = nil, background: String? = nil, color: String? = nil, font: String? = nil,
                 x: Double? = nil, y: Double? = nil, zIndex: Double? = nil, scale: Double? = nil, duration: Double? = nil,
-                transition: Transition? = nil, fit: ImageFit? = nil, clip: Bool? = nil, shadow: Shadow? = nil, border: Border? = nil) {
+                transition: Transition? = nil, fit: ImageFit? = nil, clip: Bool? = nil, shadow: Shadow? = nil, border: Border? = nil,
+                colorScheme: ColorScheme? = nil) {
         self.width = width
         self.height = height
         self.minWidth = minWidth
@@ -124,6 +130,7 @@ public struct StyleProps: Equatable, Sendable {
         self.clip = clip
         self.shadow = shadow
         self.border = border
+        self.colorScheme = colorScheme
     }
 
     public static let numbers: [(String, WritableKeyPath<StyleProps, Double?>)] = [
@@ -133,7 +140,7 @@ public struct StyleProps: Equatable, Sendable {
     public static let signed: [(String, WritableKeyPath<StyleProps, Double?>)] = [("offset", \.offset), ("x", \.x), ("y", \.y), ("zIndex", \.zIndex)]
     public static let colors: [(String, WritableKeyPath<StyleProps, String?>)] = [("background", \.background), ("color", \.color)]
     public static let names = numbers.map(\.0) + ["padding"] + signed.map(\.0)
-        + ["align", "animation", "material", "transition", "fit", "clip", "shadow", "border"] + colors.map(\.0) + ["font"]
+        + ["align", "animation", "material", "colorScheme", "transition", "fit", "clip", "shadow", "border"] + colors.map(\.0) + ["font"]
 
     public static func parse(_ fields: [String: JSON], fail: (String, String) -> Error) throws -> StyleProps {
         var props = StyleProps()
@@ -162,6 +169,7 @@ public struct StyleProps: Equatable, Sendable {
         props.align = try choice("align")
         props.animation = try choice("animation")
         props.material = try choice("material")
+        props.colorScheme = try choice("colorScheme")
         props.transition = try choice("transition")
         props.fit = try choice("fit")
         if let value = fields["clip"], value != .null {
@@ -210,6 +218,7 @@ public struct StyleProps: Equatable, Sendable {
         merged.align = align ?? base.align
         merged.animation = animation ?? base.animation
         merged.material = material ?? base.material
+        merged.colorScheme = colorScheme ?? base.colorScheme
         merged.transition = transition ?? base.transition
         merged.fit = fit ?? base.fit
         merged.clip = clip ?? base.clip

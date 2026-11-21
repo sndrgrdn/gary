@@ -228,6 +228,7 @@ private extension View {
             .frame(minWidth: look.minWidth.map { CGFloat($0) }, alignment: Alignment(horizontal: horizontal, vertical: vertical))
             .background { if let background { shape.fill(Color(background)) } }
             .material(look.material, radius: look.radius ?? 0)
+            .appearance(look.colorScheme)
             .clipped(to: clip ? shape : nil)
             .overlay { if let border = look.border, let color = look.borderColor { shape.strokeBorder(Color(color), lineWidth: border.width) } }
             .interactive(clickable, hovering: hovering, pressing: pressing) { perform($0, .null) }
@@ -246,6 +247,10 @@ private extension View {
 
     @ViewBuilder func dropShadow(_ shadow: Shadow?, _ color: RGBA?) -> some View {
         if let shadow, let color { self.shadow(color: Color(color), radius: shadow.radius, y: shadow.y) } else { self }
+    }
+
+    @ViewBuilder func appearance(_ scheme: GaryCore.ColorScheme?) -> some View {
+        if let scheme { environment(\.colorScheme, scheme == .dark ? .dark : .light) } else { self }
     }
 
     @ViewBuilder func clipped(to shape: RoundedRectangle?) -> some View {
@@ -345,6 +350,7 @@ private struct Vibrancy: NSViewRepresentable {
     }
 
     func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        view.appearance = NSAppearance(named: context.environment.colorScheme == .dark ? .darkAqua : .aqua)
         view.maskImage = radius > 0 ? Self.roundedMask(radius) : nil
     }
 

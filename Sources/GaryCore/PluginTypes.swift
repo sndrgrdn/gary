@@ -14,7 +14,8 @@ public enum PluginTypes {
             "padding?: number | [number, number] | [number, number, number, number];",
         ] + StyleProps.signed.map { "\($0.0)?: number;" } + [
             "align?: \(union(Align.allCases.map(\.rawValue)));", "animation?: \(union(Animation.allCases.map(\.rawValue)));",
-            "material?: \(union(Material.allCases.map(\.rawValue)));", "transition?: \(union(Transition.allCases.map(\.rawValue)));",
+            "material?: \(union(Material.allCases.map(\.rawValue)));", "colorScheme?: \(union(ColorScheme.allCases.map(\.rawValue)));",
+            "transition?: \(union(Transition.allCases.map(\.rawValue)));",
             "fit?: \(union(ImageFit.allCases.map(\.rawValue)));", "clip?: boolean;",
             "shadow?: { color: Color; radius?: number; y?: number };", "border?: { color: Color; width?: number };",
         ] + StyleProps.colors.map { "\($0.0)?: Color;" } + ["font?: FontName;"])
