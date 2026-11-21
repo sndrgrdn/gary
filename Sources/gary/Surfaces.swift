@@ -30,22 +30,8 @@ final class SurfacePanel: NSPanel {
     }
 
     override func sendEvent(_ event: NSEvent) {
-        if event.type == .scrollWheel, let onScroll {
-            let phase = if !event.momentumPhase.isEmpty {
-                "momentum"
-            } else if event.phase.contains(.began) || event.phase.contains(.mayBegin) {
-                "began"
-            } else if event.phase.contains(.changed) {
-                "changed"
-            } else if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
-                "ended"
-            } else {
-                "none"
-            }
-            onScroll(.object([
-                "x": .number(event.scrollingDeltaX), "y": .number(event.scrollingDeltaY),
-                "precise": .bool(event.hasPreciseScrollingDeltas), "phase": .string(phase),
-            ]))
+        if event.type == .scrollWheel, let onScroll, !(contentView?.hitTest(event.locationInWindow) is GestureView) {
+            onScroll(event.scrollEvent)
         }
         super.sendEvent(event)
     }
@@ -53,6 +39,26 @@ final class SurfacePanel: NSPanel {
     override func resignKey() {
         super.resignKey()
         onResignKey?()
+    }
+}
+
+extension NSEvent {
+    var scrollEvent: JSON {
+        let phase = if !momentumPhase.isEmpty {
+            "momentum"
+        } else if phase.contains(.began) || phase.contains(.mayBegin) {
+            "began"
+        } else if phase.contains(.changed) {
+            "changed"
+        } else if phase.contains(.ended) || phase.contains(.cancelled) {
+            "ended"
+        } else {
+            "none"
+        }
+        return .object([
+            "x": .number(scrollingDeltaX), "y": .number(scrollingDeltaY),
+            "precise": .bool(hasPreciseScrollingDeltas), "phase": .string(phase),
+        ])
     }
 }
 

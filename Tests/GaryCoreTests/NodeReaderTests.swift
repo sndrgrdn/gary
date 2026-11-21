@@ -19,4 +19,15 @@ struct NodeReaderTests {
         #expect(try Node.parse(JSON.parse(#"{"type":"input","value":7}"#)).content == .input(Node.Input(value: "7")))
         #expect(throws: NodeError(path: "root", reason: "key must be a string")) { try Node.parse(JSON.parse(#"{"type":"spacer","key":1}"#)) }
     }
+
+    @Test func `each gesture reads its action from its own field`() throws {
+        let node = try Node.parse(JSON.parse(#"""
+        {"type":"text","text":"a","action":"open","rightAction":"menu","middleAction":"close","scrollAction":"volume"}
+        """#))
+        #expect(node.actions == [.click: "open", .rightClick: "menu", .middleClick: "close", .scroll: "volume"])
+        #expect(try Node.parse(JSON.parse(#"{"type":"spacer","rightAction":null}"#)).actions.isEmpty)
+        #expect(throws: NodeError(path: "root", reason: "scrollAction must be a string")) {
+            try Node.parse(JSON.parse(#"{"type":"spacer","scrollAction":1}"#))
+        }
+    }
 }

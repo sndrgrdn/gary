@@ -199,7 +199,7 @@ struct NodeView: View {
                 transition: AnyTransition(look.transition ?? .opacity),
             )
         case let .slider(value):
-            SliderNode(value: value, action: node.action, tint: node.props.color == nil ? nil : Color(look.color))
+            SliderNode(value: value, action: node.actions[.click], tint: node.props.color == nil ? nil : Color(look.color))
         case let .progress(value):
             let shape = RoundedRectangle(cornerRadius: look.radius ?? 3)
             shape.fill(Color(look.background ?? RGBA(red: look.color.red, green: look.color.green, blue: look.color.blue, alpha: 0.25)))
@@ -241,6 +241,11 @@ private extension View {
             .overlay {
                 if let border = look.border, let color = look.borderColor {
                     shape.strokeBorder(Color(color), lineWidth: border.width)
+                }
+            }
+            .overlay {
+                if !node.actions.isEmpty {
+                    GestureCatcher(actions: node.actions)
                 }
             }
             .interactive(box.action, hovering: hovering, pressing: pressing) { perform?($0, .null) }

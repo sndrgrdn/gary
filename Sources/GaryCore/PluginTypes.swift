@@ -56,7 +56,7 @@ public enum PluginTypes {
           interface Style extends StyleProps {
             key?: string;
             style?: StyleName;
-            action?: string;
+        \(Node.Gesture.allCases.map { "    \($0.rawValue)?: string;" }.joined(separator: "\n"))
             hovered?: StyleProps;
             pressed?: StyleProps;
           }
@@ -109,7 +109,7 @@ public enum PluginTypes {
         let modules = PluginKind.allCases.map { "  type \(typeName($0.rawValue)) = \($0 == .service ? "Module" : "Rendered");" }
             .joined(separator: "\n")
         return """
-          type ActionPayload = null | number | string;
+          type ActionPayload = null | number | string | ScrollEvent;
           interface Storage {
             get(key: string): Json | undefined;
             set(key: string, value: Json | undefined): void;

@@ -15,7 +15,7 @@ struct NodeBox: Equatable {
         height = look.height
         padding = look.padding ?? Insets(0)
         background = look.background
-        action = node.action
+        action = node.actions[.click]
         alignment = Alignment(horizontal: HorizontalAlignment(look.align ?? .leading), vertical: .center)
         clip = look.clip == true
         switch node.content {

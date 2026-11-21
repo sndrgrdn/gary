@@ -14,7 +14,7 @@ struct NodeBoxTests {
 
     private func box(_ content: Node.Content, action: String? = "open", _ props: StyleProps = StyleProps()) throws -> NodeBox {
         let theme = try #require(Self.theme)
-        let node = Node(content, action: action, props: props)
+        let node = Node(content, actions: action.map { [.click: $0] } ?? [:], props: props)
         return NodeBox(theme.resolve(nil, props), node)
     }
 

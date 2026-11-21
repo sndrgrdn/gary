@@ -37,7 +37,7 @@ public struct Node: Equatable, Sendable {
     public var content: Content
     public var key: String?
     public var style: String?
-    public var action: String?
+    public var actions: [Gesture: String]
     public var props: StyleProps
     public var hovered: StyleProps?
     public var pressed: StyleProps?
@@ -46,7 +46,7 @@ public struct Node: Equatable, Sendable {
         _ content: Content,
         key: String? = nil,
         style: String? = nil,
-        action: String? = nil,
+        actions: [Gesture: String] = [:],
         props: StyleProps = StyleProps(),
         hovered: StyleProps? = nil,
         pressed: StyleProps? = nil,
@@ -54,7 +54,7 @@ public struct Node: Equatable, Sendable {
         self.content = content
         self.key = key
         self.style = style
-        self.action = action
+        self.actions = actions
         self.props = props
         self.hovered = hovered
         self.pressed = pressed
@@ -173,7 +173,7 @@ private struct NodeReader {
             content(&reader),
             key: reader.string("key"),
             style: reader.string("style"),
-            action: reader.string("action"),
+            actions: reader.actions(),
             props: reader.props(fields, ""),
             hovered: reader.state("hovered"),
             pressed: reader.state("pressed"),
@@ -208,6 +208,10 @@ private struct NodeReader {
         case let .number(value)? where name == "text" || name == "value": Self.text(value)
         default: throw fail("\(name) must be a string")
         }
+    }
+
+    func actions() throws -> [Node.Gesture: String] {
+        try Node.Gesture.allCases.reduce(into: [:]) { actions, gesture in actions[gesture] = try string(gesture.rawValue) }
     }
 
     func required(_ name: String) throws -> String {

@@ -9,7 +9,7 @@ struct PluginTypesTests {
         theme = try JSON.parse(#"{"styles": {"default": {}, "title": {}}, "fonts": {"body": {}}, "colors": {"accent": "accent"}}"#)
     }
 
-    @Test func `declares every node kind style prop kind and layer the runtime parses`() {
+    @Test func `declares every node kind style prop kind layer and gesture the runtime parses`() {
         let text = PluginTypes.declarations(capabilities: [], pluginTopics: [], theme: nil)
         for kind in Node.Kind.allCases {
             #expect(text.contains("type: \"\(kind.rawValue)\";"))
@@ -25,6 +25,9 @@ struct PluginTypesTests {
         }
         for layer in SurfaceLayer.allCases {
             #expect(text.contains("\"\(layer.rawValue)\""))
+        }
+        for gesture in Node.Gesture.allCases {
+            #expect(text.contains("\(gesture.rawValue)?: string;"))
         }
     }
 

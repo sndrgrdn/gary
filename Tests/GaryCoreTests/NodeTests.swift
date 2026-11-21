@@ -17,7 +17,7 @@ struct NodeTests {
         ]}
         """)
         #expect(node == Node(.row([
-            Node(.text("1"), key: "ws1", style: "active", action: "1"),
+            Node(.text("1"), key: "ws1", style: "active", actions: [.click: "1"]),
             Node(.icon("battery.100")),
             Node(.spacer),
             Node(.column([Node(.text("42"))])),
@@ -37,10 +37,10 @@ struct NodeTests {
         #expect(node == Node(.column([
             Node(
                 .button([Node(.image("/Applications/Safari.app"), props: StyleProps(width: 24, height: 24))], hover: "selected"),
-                action: "open",
+                actions: [.click: "open"],
                 props: StyleProps(radius: 6),
             ),
-            Node(.slider(0.25), action: "volume"),
+            Node(.slider(0.25), actions: [.click: "volume"]),
             Node(.progress(1), props: StyleProps(opacity: 0.5, color: "accent")),
             Node(.input(Node.Input(value: "saf", placeholder: "Search", change: "query", submit: "run")), props: StyleProps(fontSize: 16)),
             Node(.scroll([Node(.text("a"))], reveal: "a"), props: StyleProps(height: 200)),

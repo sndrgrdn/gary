@@ -170,9 +170,9 @@ extension Skill {
     | Export | Gary calls it |
     | --- | --- |
     | `render(state)` | After every change, once per display. It returns a node. A service needs no `render`. |
-    | `onAction(action, payload, state)` | When the user clicks a node with `action`, moves a slider, or types in an input. |
+    | `onAction(action, payload, state)` | When the user clicks a node with `action`, right-clicks, middle-clicks, or scrolls a node with `rightAction`, `middleAction`, or `scrollAction`, moves a slider, or types in an input. |
     | `onKey(key, state)` | When a focused surface gets a key that no `input` takes. `key` names the key: \(Set(KeyName.named.values).sorted().map { "`\($0)`" }.joined(separator: ", ")), or else the typed character, such as `a`, `A`, or a space. `ctrl+`, `alt+`, `shift+`, and `cmd+` prefixes, in that order, give the held modifiers, such as `shift+tab` or `cmd+k`. `shift+` appears only before a named key, since a typed character already shows it. Return `true` when the plugin handled the key. Otherwise Gary handles it, so escape hides a menu or overlay. |
-    | `onScroll(event, state)` | When the user scrolls with a mouse wheel or trackpad over a panel, overlay, or menu. `event` has `x` and `y`, the distance in points, or in lines when `precise` is `false`, and `phase`: `began`, `changed`, and `ended` for a trackpad gesture, `momentum` for the glide after it, and `none` for a mouse wheel. A `scroll` node under the pointer scrolls as well. |
+    | `onScroll(event, state)` | When the user scrolls with a mouse wheel or trackpad over a panel, overlay, or menu, except over a node with `scrollAction`. `event` has `x` and `y`, the distance in points, or in lines when `precise` is `false`, and `phase`: `began`, `changed`, and `ended` for a trackpad gesture, `momentum` for the glide after it, and `none` for a mouse wheel. A `scroll` node under the pointer scrolls as well. |
     | `onHotkey(id, state)` | When a manifest hotkey fires. |
     | `onTopic(topic, value, state)` | When a subscribed topic changes, and once per topic at load. |
     | `onMediaKey(event, state)` | When a key that `host.mediakeys.intercept` claimed is pressed. |
@@ -224,7 +224,7 @@ extension Skill {
 
     ## Nodes
 
-    `render` returns a node: a plain object with a `type`. Every node takes `key`, `style`, `action`, and the style properties \(StyleProps.names.map { "`\($0)`" }.joined(separator: ", ")). Numbers are points, except `opacity` from 0 to 1. A property on the node overrides the same property in its `style`.
+    `render` returns a node: a plain object with a `type`. Every node takes `key`, `style`, \(Node.Gesture.allCases.map { "`\($0.rawValue)`" }.joined(separator: ", ")), and the style properties \(StyleProps.names.map { "`\($0)`" }.joined(separator: ", ")). Numbers are points, except `opacity` from 0 to 1. A property on the node overrides the same property in its `style`.
 
     | `type` | Own fields | `onAction` payload |
     | --- | --- | --- |
@@ -258,6 +258,7 @@ extension Skill {
     - A `text` node is exactly as wide as its text and as tall as its lines, with no padding of its own. A `text` node with its own `width` keeps its text on one line, placed by `align`, and text wider than that spills over the edge. To wrap text at a width, give the width to its row or column.
     - Give siblings unique `key` values so Gary keeps each child's view, and its state such as hover or typed text, when the order changes.
     - A node with `action` is clickable. Gary calls `onAction(action, payload)`.
+    - `rightAction` and `middleAction` name the action for a right click and a middle click on the node, with a `null` payload. `scrollAction` names the action for a scroll over the node, and its payload is the event that `onScroll` gets. A scroll that a node takes does not reach `onScroll`. When nested nodes name an action for the same gesture, the innermost node under the pointer takes it. These work in bar widgets, bars, panels, overlays, and menus.
     - An `image` path that does not start with `/` or `~` is relative to the plugin folder and must stay inside it, so a plugin can ship its own images. A path that ends in `.app` shows that app's icon.
     - Text wraps when its surface is narrower than the text, such as a surface with a fixed `width` or one at the display's edge. Text in a `button` stays on one line.
     - A tree holds at most 1000 nodes and 16 levels.
