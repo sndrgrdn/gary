@@ -132,9 +132,18 @@ final class InputNodeView: NSTextField, NodeView, NSTextFieldDelegate {
         onAction?(change, .string(stringValue))
     }
 
+    private static let keys: [Selector: String] = [
+        #selector(NSResponder.moveUp(_:)): "up", #selector(NSResponder.moveDown(_:)): "down", #selector(NSResponder.insertTab(_:)): "tab",
+        #selector(NSResponder.cancelOperation(_:)): "escape", #selector(NSResponder.insertNewline(_:)): "enter",
+    ]
+
     func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
-        guard selector == #selector(NSResponder.insertNewline(_:)), let submit = input.submit else { return false }
-        onAction?(submit, .string(stringValue))
+        if selector == #selector(NSResponder.insertNewline(_:)), let submit = input.submit {
+            onAction?(submit, .string(stringValue))
+            return true
+        }
+        guard let key = Self.keys[selector], let onKey = (window as? SurfacePanel)?.onKey else { return false }
+        onKey(key)
         return true
     }
 }

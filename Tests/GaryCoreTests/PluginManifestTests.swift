@@ -84,6 +84,23 @@ struct PluginManifestTests {
         rejects(["subscribes": ["Acme.Counter"]], with: .unknownTopic("Acme.Counter"))
         rejects(["uses": ["dbus"]], with: .unknownService("dbus"))
     }
+
+    @Test func parsesHotkeysIntoModifiersAndKeyCodes() throws {
+        let parsed = try manifest(["hotkeys": [["id": "open", "keys": "ctrl+alt+space"], ["id": "next", "keys": "Cmd+Shift+F"], ["id": "f", "keys": "f5"]]])
+        #expect(parsed.hotkeys.map(\.id) == ["open", "next", "f"])
+        #expect(parsed.hotkeys[0].keys.modifiers == [.control, .option] && parsed.hotkeys[0].keys.keyCode == 49)
+        #expect(parsed.hotkeys[1].keys.modifiers == [.command, .shift] && parsed.hotkeys[1].keys.keyCode == 3)
+        #expect(parsed.hotkeys[2].keys.modifiers.isEmpty && parsed.hotkeys[2].keys.keyCode == 96)
+        #expect(parsed.hotkeys[0].keys.description == "ctrl+alt+space")
+    }
+
+    @Test func rejectsHotkeysWithoutAModifierOrWithUnknownKeys() {
+        for keys in ["space", "shift+a", "ctrl+", "ctrl+ctrl+a", "hyper+a", "ctrl+alt+spacebar"] {
+            rejects(["hotkeys": [["id": "x", "keys": keys]]], with: .invalidHotkey(keys))
+        }
+        rejects(["hotkeys": [["id": "x", "keys": "ctrl+a"], ["id": "x", "keys": "ctrl+b"]]], with: .duplicateHotkey("x"))
+        rejects(["hotkeys": [["keys": "ctrl+a"]]], with: .wrongType("hotkeys[0]"))
+    }
 }
 
 struct PluginCatalogTests {
@@ -167,4 +184,5 @@ struct PluginCatalogTests {
         try FileManager.default.createSymbolicLink(at: directory.appendingPathComponent("widget.js"), withDestinationURL: root)
         #expect(throws: PluginFileError.symlink("widget.js")) { try bundle.entryPoint(.barWidget) }
     }
+
 }

@@ -35,7 +35,7 @@ let package = Package(
             name: "gary",
             dependencies: ["GaryCore", "GarySocket", "GaryPrivate"],
             swiftSettings: [.swiftLanguageMode(.v5)],
-            linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("JavaScriptCore"), .linkedFramework("IOKit")]
+            linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("JavaScriptCore"), .linkedFramework("IOKit"), .linkedFramework("Carbon")]
         ),
     ]
 )

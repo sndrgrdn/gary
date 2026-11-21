@@ -14,9 +14,14 @@ struct RuntimeOutput: Equatable {
     var trees: [String: Node] = [:]
 }
 
+enum SurfaceRequest: String {
+    case show, hide, toggle
+}
+
 enum RuntimeEvent {
     case loaded(RuntimeOutput, Trace)
     case output(RuntimeOutput, Trace)
+    case surface(SurfaceRequest)
     case failed(String)
 }
 
@@ -35,9 +40,10 @@ final class PluginRuntime: Subscriber {
     private let queue: DispatchQueue
     private let watchdog = Watchdog()
     private var context: JSContext?
-    private var functions: (render: JSValue, action: JSValue, call: JSValue, surface: JSValue)?
+    private var functions: (render: JSValue, dispatch: JSValue, call: JSValue, surface: JSValue)?
     private var exception: String?
     private var state: [Topic: JSON] = [:]
+    let initialScene: Scene
     private var scene: Scene
     private var output = RuntimeOutput()
 
@@ -47,6 +53,7 @@ final class PluginRuntime: Subscriber {
         self.bundle = bundle
         self.kind = kind
         self.scene = scene
+        initialScene = scene
         self.settings = settings
         self.hub = hub
         self.deliver = deliver
@@ -86,11 +93,23 @@ final class PluginRuntime: Subscriber {
     }
 
     func perform(_ action: String, _ payload: JSON) {
+        dispatch("onAction", [.string(action), payload], Trace("action"))
+    }
+
+    func key(_ key: String) {
+        dispatch("onKey", [.string(key)], Trace("key"))
+    }
+
+    func hotkey(_ id: String) {
+        dispatch("onHotkey", [.string(id)], Trace("hotkey"))
+    }
+
+    private func dispatch(_ handler: String, _ arguments: [JSON], _ trace: Trace) {
         queue.async { [self] in
             guard let functions else { return }
             do {
-                try invoke(functions.action, [action, payload.text, stateText(for: nil)])
-                renderAll(Trace("action"))
+                try invoke(functions.dispatch, [handler, JSON.array(arguments).text, stateText(for: nil)])
+                renderAll(trace)
             } catch {
                 fail("\(error)")
             }
@@ -168,7 +187,10 @@ final class PluginRuntime: Subscriber {
           if (typeof e().render !== "function") throw new Error("module.exports.render is not a function");
           return [
             function (state) { return JSON.stringify(e().render(JSON.parse(state))); },
-            function (action, payload, state) { if (typeof e().onAction === "function") e().onAction(action, JSON.parse(payload), JSON.parse(state)); },
+            function (name, args, state) {
+              var f = e()[name];
+              if (typeof f === "function") f.apply(e(), JSON.parse(args).concat([JSON.parse(state)]));
+            },
             function (method, args) {
               var f = e().methods && e().methods[method];
               if (typeof f !== "function") throw new Error("no method " + method);
@@ -198,6 +220,13 @@ final class PluginRuntime: Subscriber {
             hub.publish(.plugin(id), json, Trace("publish"))
         }
         host.setObject(publishBlock, forKeyedSubscript: "publish" as NSString)
+        for request in [SurfaceRequest.show, .hide, .toggle] {
+            let block: @convention(block) () -> Void = { [weak self] in
+                guard let self else { return }
+                deliver(self, .surface(request))
+            }
+            host.setObject(block, forKeyedSubscript: request.rawValue as NSString)
+        }
         if bundle.manifest.uses.contains(.exec) {
             let execBlock: @convention(block) (JSValue, JSValue) -> Void = { [weak self] argv, callback in
                 guard let argv = argv.toArray() as? [String], !argv.isEmpty, callback.isObject else {

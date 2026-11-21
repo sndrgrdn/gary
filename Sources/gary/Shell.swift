@@ -75,6 +75,8 @@ final class Shell {
     private var windows: [MountKey: SurfaceWindow] = [:]
     private var mounts: [MountKey: Mount] = [:]
     private var clickMonitors: [Any] = []
+    private var hotkeys: HotkeyCenter?
+    private var previousApp: NSRunningApplication?
     private var server: LineServer?
     private var watcher: FileWatcher?
     private var providers: [AnyObject] = []
@@ -87,6 +89,7 @@ final class Shell {
     }
 
     func start() throws {
+        hotkeys = HotkeyCenter { [weak self] binding in self?.hotkeyPressed(binding) }
         server = try LineServer(path: socketPath) { [weak self] line in self?.serve(line) ?? Response.failure("shutting down").line }
         try FileManager.default.createDirectory(at: Paths.config, withIntermediateDirectories: true)
         reloadTheme()
@@ -131,6 +134,27 @@ final class Shell {
     private func resolve() {
         resolution = config.resolve(catalog)
         for warning in resolution.warnings { log("shell.json: \(warning)") }
+        hotkeys?.update(resolution.enabled.sorted().flatMap { id in
+            catalog.plugins[id]!.manifest.hotkeys.map { HotkeyBinding(owner: id, hotkey: $0) }
+        })
+    }
+
+    private func hotkeyPressed(_ binding: HotkeyBinding) {
+        let trace = Trace("hotkey")
+        if tracing { log("hotkey \(binding.hotkey.keys) plugin=\(binding.owner) id=\(binding.hotkey.id)") }
+        guard let slot = handlerSlot(binding.owner) else { return }
+        withRuntime(slot, trace) { runtime in runtime?.hotkey(binding.hotkey.id) }
+    }
+
+    private func handlerSlot(_ id: PluginID) -> PluginSlot? {
+        let order: [PluginKind] = [.service, .panel, .overlay, .menu, .bar, .barWidget]
+        return order.lazy.compactMap { self.slots[SlotKey(id: id, kind: $0)] }.first
+    }
+
+    private func withRuntime(_ slot: PluginSlot, _ trace: Trace, _ body: @escaping (PluginRuntime?) -> Void) {
+        if let runtime = slot.runtime { return body(runtime) }
+        slot.waiters.append { [weak slot] _ in body(slot?.runtime) }
+        if slot.candidate == nil { load(slot, trace) }
     }
 
     private var usesBuiltinBar: Bool {
@@ -217,11 +241,19 @@ final class Shell {
             slot.phase = .running(runtime)
             log("plugin \(key): loaded \(slot.bundle.manifest.version)")
             present(slot, output, trace)
+            if runtime.initialScene != scene(for: slot) { runtime.setScene(scene(for: slot), trace) }
             slot.answerWaiters(.ok(slot.visible ? "shown" : "loaded"))
             if key.kind == .bar { sync(trace) }
         case .output(let output, let trace):
             guard slot.runtime === runtime else { return }
             present(slot, output, trace)
+        case .surface(let request):
+            let trace = Trace("host-\(request.rawValue)")
+            switch request {
+            case .show: summon(key.id, trace) { _ in }
+            case .hide: _ = hide(key.id, trace)
+            case .toggle: toggle(key.id, trace) { _ in }
+            }
         case .failed(let reason):
             if slot.candidate === runtime {
                 slot.candidate = nil
@@ -305,17 +337,41 @@ final class Shell {
         }
         if isNew {
             window.show(fade: fade(key.slot))
+            if key.slot.kind.isSurface, slot.surface?.focusable == true { focus(window, key.slot) }
             watchClicks()
         }
     }
 
+    private func focus(_ window: SurfaceWindow, _ slot: SlotKey) {
+        let front = NSWorkspace.shared.frontmostApplication
+        if front?.processIdentifier != getpid() { previousApp = front }
+        window.panel.onKey = { [weak self] key in self?.keyPressed(key, slot) }
+        if slot.kind == .menu { window.panel.onResignKey = { [weak self] in _ = self?.hide(slot.id, Trace("resign-key")) } }
+        window.focus()
+    }
+
+    private func keyPressed(_ key: String, _ slot: SlotKey) {
+        if tracing { log("key plugin=\(slot) key=\(key)") }
+        slots[slot]?.runtime?.key(key)
+        if slot.kind == .menu && key == "escape" { _ = hide(slot.id, Trace("escape")) }
+    }
+
     private func unmount(_ key: MountKey) {
         if let window = windows.removeValue(forKey: key) {
+            let hadFocus = window.panel.isKeyWindow
             window.close(fade: fade(key.slot))
             mounts[key] = nil
+            if hadFocus { returnFocus() }
         } else {
             mounts.removeValue(forKey: key)?.view.removeFromSuperview()
         }
+    }
+
+    private func returnFocus() {
+        guard !windows.values.contains(where: { $0.panel.isKeyWindow }) else { return }
+        NSApp.deactivate()
+        if NSWorkspace.shared.frontmostApplication?.processIdentifier == getpid() { previousApp?.activate() }
+        previousApp = nil
     }
 
     private func fade(_ slot: SlotKey) -> Double { slot.kind.isSurface ? theme.motion.fade : 0 }
@@ -510,7 +566,7 @@ final class Shell {
         case .hide(let id):
             reply(hide(id, trace))
         case .toggle(let id):
-            if surfaceSlot(id)?.visible == true { reply(hide(id, trace)) } else { summon(id, trace, reply) }
+            toggle(id, trace, reply)
         case .reloadPlugins(let id):
             let live = slots.values.filter { (id == nil || $0.key.id == id) && isLive($0) }
             guard id == nil || !live.isEmpty else { return reply(.failure("\(id!) is not loaded")) }
@@ -528,10 +584,11 @@ final class Shell {
         case .listPlugins:
             reply(.ok(listing()))
         case .call(let id, let method, let arguments):
-            guard let runtime = slots.values.compactMap({ $0.key.id == id ? $0.runtime : nil }).first else {
-                return reply(.failure("\(id) is not running"))
+            guard let slot = handlerSlot(id) else { return reply(.failure("\(id) is not enabled")) }
+            withRuntime(slot, trace) { runtime in
+                guard let runtime else { return reply(.failure("\(id) did not load")) }
+                DispatchQueue.global(qos: .userInitiated).async { reply(runtime.call(method, arguments)) }
             }
-            DispatchQueue.global(qos: .userInitiated).async { reply(runtime.call(method, arguments)) }
         }
     }
 
@@ -542,6 +599,10 @@ final class Shell {
     private func pointerDisplay() -> String? {
         let pointer = NSEvent.mouseLocation
         return displays.first { NSMouseInRect(pointer, $0.frame, false) }?.id
+    }
+
+    private func toggle(_ id: PluginID, _ trace: Trace, _ reply: @escaping (Response) -> Void) {
+        if surfaceSlot(id)?.visible == true { reply(hide(id, trace)) } else { summon(id, trace, reply) }
     }
 
     private func summon(_ id: PluginID, _ trace: Trace, _ reply: @escaping (Response) -> Void) {

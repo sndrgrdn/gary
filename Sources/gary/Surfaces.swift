@@ -2,8 +2,22 @@ import AppKit
 import GaryCore
 
 final class SurfacePanel: NSPanel {
+    static let keys: [UInt16: String] = [126: "up", 125: "down", 36: "enter", 76: "enter", 53: "escape", 48: "tab"]
+
     var focusable = false
+    var onKey: ((String) -> Void)?
+    var onResignKey: (() -> Void)?
+
     override var canBecomeKey: Bool { focusable }
+
+    override func keyDown(with event: NSEvent) {
+        if let key = Self.keys[event.keyCode], let onKey { onKey(key) } else { super.keyDown(with: event) }
+    }
+
+    override func resignKey() {
+        super.resignKey()
+        onResignKey?()
+    }
 }
 
 func makeSurfacePanel(level: Int) -> SurfacePanel {
@@ -176,8 +190,24 @@ final class SurfaceWindow {
         }
     }
 
+    func focus() {
+        panel.makeKey()
+        var queue = content.map { [$0] } ?? []
+        while !queue.isEmpty {
+            let view = queue.removeFirst()
+            if view is InputNodeView {
+                panel.makeFirstResponder(view)
+                return
+            }
+            queue += view.subviews
+        }
+    }
+
     func close(fade: Double) {
         let panel = panel
+        panel.ignoresMouseEvents = true
+        panel.onKey = nil
+        panel.onResignKey = nil
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = fade
             panel.animator().alphaValue = 0

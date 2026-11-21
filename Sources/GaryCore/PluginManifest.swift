@@ -72,6 +72,8 @@ public enum ManifestError: Error, Equatable, CustomStringConvertible {
     case unsafeEntryPoint(String)
     case unknownTopic(String)
     case unknownService(String)
+    case invalidHotkey(String)
+    case duplicateHotkey(String)
 
     public var description: String {
         switch self {
@@ -90,6 +92,8 @@ public enum ManifestError: Error, Equatable, CustomStringConvertible {
         case .unsafeEntryPoint(let path): return "entry point \(path) must be a relative .js path inside the plugin"
         case .unknownTopic(let topic): return "unknown subscription \(topic)"
         case .unknownService(let service): return "unknown host service \(service)"
+        case .invalidHotkey(let keys): return "hotkey \"\(keys)\" must be modifiers and a key, such as ctrl+alt+space"
+        case .duplicateHotkey(let id): return "hotkey id \(id) is listed twice"
         }
     }
 }
@@ -105,6 +109,7 @@ public struct PluginManifest: Equatable, Sendable {
     public let keepLoaded: Bool
     public let subscribes: [Topic]
     public let uses: [HostService]
+    public let hotkeys: [Hotkey]
 
     public static func parse(_ data: Data, origin: PluginOrigin) throws -> PluginManifest {
         guard let json = try? JSON.parse(data), case .object = json else { throw ManifestError.invalidJSON }
@@ -167,9 +172,17 @@ public struct PluginManifest: Equatable, Sendable {
             return service
         }
 
+        var hotkeys: [Hotkey] = []
+        for (index, entry) in try optional("hotkeys", \.array, default: []).enumerated() {
+            guard let id = entry["id"]?.string, !id.isEmpty, let raw = entry["keys"]?.string else { throw ManifestError.wrongType("hotkeys[\(index)]") }
+            guard let keys = KeyCombo.parse(raw) else { throw ManifestError.invalidHotkey(raw) }
+            guard !hotkeys.contains(where: { $0.id == id }) else { throw ManifestError.duplicateHotkey(id) }
+            hotkeys.append(Hotkey(id: id, keys: keys))
+        }
+
         return PluginManifest(
             id: id, name: name, version: version, kinds: kinds, entryPoints: entryPoints,
-            keepLoaded: keepLoaded, subscribes: subscribes, uses: uses
+            keepLoaded: keepLoaded, subscribes: subscribes, uses: uses, hotkeys: hotkeys
         )
     }
 }
