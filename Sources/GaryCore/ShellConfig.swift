@@ -1,0 +1,100 @@
+import Foundation
+
+public enum BarSection: String, CaseIterable, Sendable {
+    case left, center, right
+}
+
+public struct ShellConfigError: Error, Equatable, CustomStringConvertible {
+    public let path: String
+    public let reason: String
+    public var description: String { "shell.json \(path): \(reason)" }
+}
+
+/// `~/.config/gary/shell.json`, which records only where the user departs from the defaults. A key the
+/// file leaves out keeps its default; a `bar` in the file replaces the default bar whole, with no merge.
+public struct ShellConfig: Equatable, Sendable {
+    public var bar: [BarSection: [PluginID]]
+    /// Third-party plugins that are not bar widgets, enabled by listing them here.
+    public var plugins: [PluginID]
+    public var disabledPlugins: Set<PluginID>
+    public var settings: [PluginID: JSON]
+
+    public static let defaults = ShellConfig(
+        bar: [.left: [PluginID("gary.workspaces")!], .center: [], .right: [PluginID("gary.battery")!, PluginID("gary.clock")!]],
+        plugins: [], disabledPlugins: [], settings: [:]
+    )
+
+    public static func parse(_ json: JSON) throws -> ShellConfig {
+        func fail(_ path: String, _ reason: String) -> ShellConfigError { ShellConfigError(path: path, reason: reason) }
+        guard let fields = json.object else { throw fail("root", "must be an object") }
+        func ids(_ value: JSON, _ path: String) throws -> [PluginID] {
+            guard let items = value.array else { throw fail(path, "must be an array of plugin ids") }
+            return try items.enumerated().map { index, item in
+                guard let raw = item.string, let id = PluginID(raw) else { throw fail("\(path)[\(index)]", "is not a plugin id") }
+                return id
+            }
+        }
+
+        var config = defaults
+        if let bar = fields["bar"] {
+            guard let sections = bar.object else { throw fail("bar", "must be an object") }
+            if let unknown = sections.keys.sorted().first(where: { BarSection(rawValue: $0) == nil }) {
+                throw fail("bar.\(unknown)", "is not left, center or right")
+            }
+            config.bar = Dictionary(uniqueKeysWithValues: try BarSection.allCases.map { section in
+                (section, try sections[section.rawValue].map { try ids($0, "bar.\(section.rawValue)") } ?? [])
+            })
+        }
+        if let plugins = fields["plugins"] { config.plugins = try ids(plugins, "plugins") }
+        if let disabled = fields["disabledPlugins"] { config.disabledPlugins = Set(try ids(disabled, "disabledPlugins")) }
+        if let settings = fields["settings"] {
+            guard let entries = settings.object else { throw fail("settings", "must be an object keyed by plugin id") }
+            config.settings = Dictionary(uniqueKeysWithValues: try entries.map { key, value in
+                guard let id = PluginID(key) else { throw fail("settings.\(key)", "is not a plugin id") }
+                return (id, value)
+            })
+        }
+        return config
+    }
+
+    public struct Resolution: Equatable, Sendable {
+        public var enabled: Set<PluginID>
+        /// Enabled bar widgets, in order, each placed once.
+        public var bar: [BarSection: [PluginID]]
+        public var warnings: [String]
+    }
+
+    /// A built-in plugin runs unless disabled. A third-party plugin runs only when the bar or `plugins`
+    /// names it, and it is not disabled.
+    public func resolve(_ catalog: PluginCatalog) -> Resolution {
+        var warnings: [String] = []
+        let named = Set(bar.values.joined()).union(plugins)
+        let enabled = Set(catalog.plugins.values.filter { bundle in
+            let id = bundle.manifest.id
+            return !disabledPlugins.contains(id) && (bundle.origin == .builtin || named.contains(id))
+        }.map(\.manifest.id))
+
+        var placed = Set<PluginID>()
+        var resolved: [BarSection: [PluginID]] = [:]
+        for section in BarSection.allCases {
+            resolved[section] = (bar[section] ?? []).filter { id in
+                guard let bundle = catalog.plugins[id] else {
+                    warnings.append("bar.\(section.rawValue): no plugin \(id)")
+                    return false
+                }
+                guard bundle.manifest.kinds.contains(.barWidget) else {
+                    warnings.append("bar.\(section.rawValue): \(id) is not a bar widget")
+                    return false
+                }
+                guard enabled.contains(id) else { return false }
+                guard placed.insert(id).inserted else {
+                    warnings.append("bar.\(section.rawValue): \(id) is already in the bar")
+                    return false
+                }
+                return true
+            }
+        }
+        for id in plugins where catalog.plugins[id] == nil { warnings.append("plugins: no plugin \(id)") }
+        return Resolution(enabled: enabled, bar: resolved, warnings: warnings)
+    }
+}

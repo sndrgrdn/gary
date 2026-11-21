@@ -21,7 +21,7 @@ public struct CatalogProblem: Equatable, Sendable {
 /// Every plugin found under the built-in and user roots, keyed by id. A directory that fails validation, or
 /// repeats an id already found, becomes a problem instead of a plugin.
 public struct PluginCatalog: Equatable, Sendable {
-    public private(set) var plugins: [PluginID: PluginBundle] = [:]
+    public internal(set) var plugins: [PluginID: PluginBundle] = [:]
     public private(set) var problems: [CatalogProblem] = []
 
     public init() {}
