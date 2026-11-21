@@ -6,6 +6,7 @@ protocol Subscriber: AnyObject {
 }
 
 final class StateHub {
+    var demandChanged: ((Topic) -> Void)?
     private let lock = NSLock()
     private var latest: [Topic: JSON] = [:]
     private var subscribers: [Topic: [ObjectIdentifier: Subscriber]] = [:]
@@ -20,15 +21,27 @@ final class StateHub {
     }
 
     func subscribe(_ subscriber: Subscriber, to topics: [Topic]) -> [Topic: JSON] {
-        lock.withLock {
+        let (values, started): ([Topic: JSON], [Topic]) = lock.withLock {
+            let started = topics.filter { subscribers[$0, default: [:]].isEmpty }
             for topic in topics { subscribers[topic, default: [:]][ObjectIdentifier(subscriber)] = subscriber }
-            return latest.filter { topics.contains($0.key) }
+            return (latest.filter { topics.contains($0.key) }, started)
         }
+        for topic in started { demandChanged?(topic) }
+        return values
     }
 
     func unsubscribe(_ subscriber: Subscriber) {
-        lock.withLock {
-            for topic in subscribers.keys { subscribers[topic]?[ObjectIdentifier(subscriber)] = nil }
+        let stopped: [Topic] = lock.withLock {
+            var stopped: [Topic] = []
+            for topic in subscribers.keys where subscribers[topic]?.removeValue(forKey: ObjectIdentifier(subscriber)) != nil {
+                if subscribers[topic]!.isEmpty { stopped.append(topic) }
+            }
+            return stopped
         }
+        for topic in stopped { demandChanged?(topic) }
+    }
+
+    func isDemanded(_ topic: Topic) -> Bool {
+        lock.withLock { !(subscribers[topic]?.isEmpty ?? true) }
     }
 }

@@ -4,16 +4,7 @@ import JavaScriptCore
 
 extension Capability {
     static let files = Capability(name: "files", install: { host, plugin in
-        let readFile: @convention(block) (String) -> String? = { path in
-            let expanded = (path as NSString).expandingTildeInPath
-            guard let text = try? String(contentsOfFile: expanded, encoding: .utf8) else {
-                let context = JSContext.current()!
-                context.exception = JSValue(newErrorFromMessage: "cannot read \(path)", in: context)
-                return nil
-            }
-            return text
-        }
-        host.setObject(readFile, forKeyedSubscript: "readFile" as NSString)
+        plugin.installAPI(host, nil, FilesRequest.methods) { call in .now(try perform(try FilesRequest.parse(call, home: home))) }
         let watchFile: @convention(block) (String, JSValue) -> Void = { [weak plugin] path, callback in
             guard let plugin, callback.isObject else { return }
             let watch = FileWatch(path: (path as NSString).expandingTildeInPath, callback: callback)
@@ -25,6 +16,37 @@ extension Capability {
         }
         host.setObject(watchFile, forKeyedSubscript: "watchFile" as NSString)
     })
+}
+
+private func perform(_ request: FilesRequest) throws -> JSON {
+    let files = FileManager.default
+    do {
+        switch request {
+        case .read(let path):
+            return .string(try String(contentsOfFile: path, encoding: .utf8))
+        case .write(let path, let text):
+            try Data(text.utf8).write(to: URL(fileURLWithPath: path), options: .atomic)
+        case .makeDirectory(let path):
+            try files.createDirectory(atPath: path, withIntermediateDirectories: true)
+        case .remove(let path):
+            guard (try? files.attributesOfItem(atPath: path)) != nil else { return .bool(false) }
+            try files.removeItem(atPath: path)
+            return .bool(true)
+        case .list(let path):
+            return .array(try files.contentsOfDirectory(atPath: path).sorted().map { name in
+                let attributes = try? files.attributesOfItem(atPath: path + "/" + name)
+                let type = attributes?[.type] as? FileAttributeType
+                return .object([
+                    "name": .string(name),
+                    "type": .string(type == .typeDirectory ? "directory" : type == .typeSymbolicLink ? "link" : type == .typeRegular ? "file" : "other"),
+                    "size": .number(Double(attributes?[.size] as? Int ?? 0)),
+                ])
+            })
+        }
+    } catch {
+        throw HostFailure(error.localizedDescription)
+    }
+    return .null
 }
 
 private final class FileWatch {

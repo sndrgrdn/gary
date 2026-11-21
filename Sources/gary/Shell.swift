@@ -85,7 +85,7 @@ final class Shell {
     private var previousApp: NSRunningApplication?
     private var server: LineServer?
     private var watcher: FileWatcher?
-    private var publishers: [AnyObject] = []
+    private var publishers: [String: AnyObject] = [:]
     private var signals: [DispatchSourceSignal] = []
 
     init() throws {
@@ -98,14 +98,15 @@ final class Shell {
     func start() throws {
         hotkeys = HotkeyCenter { [weak self] binding in self?.hotkeyPressed(binding) }
         server = try LineServer(path: socketPath) { [weak self] line in self?.serve(line) ?? Response.failure("shutting down").line }
+        hub.demandChanged = { [weak self] topic in DispatchQueue.main.async { self?.demandChanged(topic) } }
         try FileManager.default.createDirectory(at: Paths.config, withIntermediateDirectories: true)
         loadPalette()
         reloadTheme(Trace("start"))
         loadConfig()
         scan()
 
-        publishers = Capability.all.compactMap { capability in
-            capability.topic.map { start in start { [hub] value, trace in hub.publish(.capability(capability.name), value, trace) } }
+        for capability in Capability.all {
+            publishers[capability.name] = capability.topic.map { start in start { [hub] value, trace in hub.publish(.capability(capability.name), value, trace) } }
         }
 
         rebuildDisplays(Trace("start"))
@@ -133,6 +134,13 @@ final class Shell {
         server?.stop()
         unlink(socketPath)
         exit(0)
+    }
+
+    private func demandChanged(_ topic: Topic) {
+        guard case .capability(let name) = topic, let publisher = publishers[name] as? DemandDrivenTopic else { return }
+        let demanded = hub.isDemanded(topic)
+        publisher.demand(demanded)
+        log("topic \(name) \(demanded ? "has subscribers" : "has no subscribers")")
     }
 
 
