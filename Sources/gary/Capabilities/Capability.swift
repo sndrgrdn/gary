@@ -15,6 +15,7 @@ struct Capability {
     static let all: [Capability] = [
         .audio,
         .battery,
+        .brightness,
         .clock,
         .exec,
         .files,
@@ -28,6 +29,14 @@ struct Capability {
     static var topics: [Topic: TopicSource] {
         Dictionary(uniqueKeysWithValues: all.compactMap { capability in capability.topic.map { (Topic.capability(capability.name), $0) } })
     }
+}
+
+func privateSymbol<T>(_ library: String, _ name: String, as type: T.Type) -> T? {
+    guard let handle = dlopen(library, RTLD_LAZY), let symbol = dlsym(handle, name) else {
+        log("private symbol \(name) is missing from \(library)")
+        return nil
+    }
+    return unsafeBitCast(symbol, to: type)
 }
 
 final class Observation {
