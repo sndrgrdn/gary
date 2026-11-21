@@ -64,6 +64,7 @@ private struct Mount {
 
 final class Shell {
     private let hub = StateHub()
+    private let capabilities: CapabilityNames
     private let levels = SurfaceLevels.forSystem(ProcessInfo.processInfo.operatingSystemVersion)
     private var theme: Theme
     private var renderer: ViewRenderer
@@ -88,6 +89,7 @@ final class Shell {
     private var signals: [DispatchSourceSignal] = []
 
     init() throws {
+        capabilities = try Capability.names()
         theme = try Theme.parse(try JSON.parse(Data(contentsOf: Paths.defaultTheme)), palette: Palette(nil, system: systemMode))
         renderer = ViewRenderer(theme: theme)
         resolution = config.resolve(catalog)
@@ -136,7 +138,7 @@ final class Shell {
 
 
     private func scan() {
-        catalog = PluginCatalog.scan(builtin: Paths.builtinPlugins, user: Paths.userPlugins)
+        catalog = PluginCatalog.scan(builtin: Paths.builtinPlugins, user: Paths.userPlugins, capabilities: capabilities)
         for problem in catalog.problems { log("plugin \(problem.directory.path): \(problem.reason)") }
         resolve()
     }

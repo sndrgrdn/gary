@@ -40,12 +40,12 @@ final class PluginRuntime: Subscriber {
     let queue: DispatchQueue
     private let watchdog = Watchdog()
     private var context: JSContext?
-    var functions: (render: JSValue, dispatch: JSValue, call: JSValue, surface: JSValue)?
+    private var functions: (render: JSValue, dispatch: JSValue, call: JSValue, surface: JSValue)?
     private var exception: String?
     private var state: [Topic: JSON] = [:]
     private var theme: JSON
     private var timers: [Int: DispatchSourceTimer] = [:]
-    var watches: [FileWatch] = []
+    private var stops: [() -> Void] = []
     private var nextTimer = 1
     let initialScene: Scene
     private var scene: Scene
@@ -177,11 +177,8 @@ final class PluginRuntime: Subscriber {
         hub.unsubscribe(self)
         for timer in timers.values { timer.cancel() }
         timers = [:]
-        for watch in watches {
-            watch.source?.cancel()
-            watch.pending?.cancel()
-        }
-        watches = []
+        for stop in stops { stop() }
+        stops = []
         functions = nil
         context = nil
     }
@@ -193,7 +190,7 @@ final class PluginRuntime: Subscriber {
         let timer = DispatchSource.makeTimerSource(queue: queue)
         timer.schedule(deadline: .now() + interval, repeating: repeats ? interval : .infinity, leeway: .milliseconds(max(1, min(100, Int(interval * 100)))))
         timer.setEventHandler { [weak self] in
-            guard let self, functions != nil else { return }
+            guard let self, isRunning else { return }
             if !repeats { timers.removeValue(forKey: id)?.cancel() }
             callBack(callback, [], Trace("timer"))
         }
@@ -202,7 +199,14 @@ final class PluginRuntime: Subscriber {
         return id
     }
 
+    var isRunning: Bool { functions != nil }
+
+    func onStop(_ stop: @escaping () -> Void) {
+        stops.append(stop)
+    }
+
     func callBack(_ callback: JSValue, _ arguments: [Any], _ trace: Trace) {
+        guard isRunning else { return }
         do {
             try invoke(callback, arguments)
             renderAll(trace)
@@ -224,11 +228,9 @@ final class PluginRuntime: Subscriber {
             log("plugin \(id): no script time limit on this system")
         }
         let host = makeHost(in: context)
-        if bundle.manifest.uses.contains(.files) { installFiles(on: host) }
-        if bundle.manifest.uses.contains(.exec) { installExec(on: host) }
+        for capability in Capability.all where bundle.manifest.uses.contains(capability.name) { capability.install?(host, self) }
         context.setObject(host, forKeyedSubscript: "host" as NSString)
         installTimers(in: context)
-        if bundle.manifest.uses.contains(.network) { installFetch(in: context) }
         context.evaluateScript("var module = { exports: {} }; var exports = module.exports;")
         try check { context.evaluateScript(source, withSourceURL: url) }
         let wrappers = try check { context.evaluateScript("""

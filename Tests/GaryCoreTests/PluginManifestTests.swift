@@ -2,14 +2,16 @@ import Foundation
 import Testing
 @testable import GaryCore
 
+let testCapabilities = try! CapabilityNames(uses: ["exec", "network", "files"])
+
 struct PluginManifestTests {
-    private func manifest(_ fields: [String: Any], origin: PluginOrigin = .user) throws -> PluginManifest {
+    private func manifest(_ fields: [String: Any], origin: PluginOrigin = .user, capabilities: CapabilityNames = testCapabilities) throws -> PluginManifest {
         var base: [String: Any] = [
             "schemaVersion": 1, "id": "acme.media", "name": "Media", "version": "0.1.0",
             "kinds": ["bar-widget"], "entryPoints": ["bar-widget": "widget.js"],
         ]
         base.merge(fields) { $1 }
-        return try PluginManifest.parse(try JSONSerialization.data(withJSONObject: base), origin: origin)
+        return try PluginManifest.parse(try JSONSerialization.data(withJSONObject: base), origin: origin, capabilities: capabilities)
     }
 
     private func rejects(_ fields: [String: Any], origin: PluginOrigin = .user, with error: ManifestError) {
@@ -27,7 +29,7 @@ struct PluginManifestTests {
         #expect(parsed.entryPoints == [.service: "lib/service.js", .barWidget: "widget.js"])
         #expect(parsed.keepLoaded)
         #expect(parsed.subscribes == [.clock, .battery, .plugin(PluginID("acme.counter")!)])
-        #expect(parsed.uses == [.exec, .network, .files])
+        #expect(parsed.uses == ["exec", "network", "files"])
     }
 
     @Test func optionalFieldsDefaultToOff() throws {
@@ -43,11 +45,11 @@ struct PluginManifestTests {
 
     @Test func rejectsMissingAndMistypedFields() {
         #expect(throws: ManifestError.missingField("name")) {
-            try PluginManifest.parse(Data(#"{"schemaVersion":1,"id":"a.b","version":"1","kinds":["panel"],"entryPoints":{"panel":"p.js"}}"#.utf8), origin: .user)
+            try PluginManifest.parse(Data(#"{"schemaVersion":1,"id":"a.b","version":"1","kinds":["panel"],"entryPoints":{"panel":"p.js"}}"#.utf8), origin: .user, capabilities: testCapabilities)
         }
         rejects(["version": 1], with: .wrongType("version"))
         rejects(["kinds": "panel"], with: .wrongType("kinds"))
-        #expect(throws: ManifestError.invalidJSON) { try PluginManifest.parse(Data("[1]".utf8), origin: .user) }
+        #expect(throws: ManifestError.invalidJSON) { try PluginManifest.parse(Data("[1]".utf8), origin: .user, capabilities: testCapabilities) }
     }
 
     @Test func rejectsMalformedIDs() {
@@ -83,6 +85,12 @@ struct PluginManifestTests {
         rejects(["subscribes": ["weather"]], with: .unknownTopic("weather"))
         rejects(["subscribes": ["Acme.Counter"]], with: .unknownTopic("Acme.Counter"))
         rejects(["uses": ["dbus"]], with: .unknownService("dbus"))
+    }
+
+    @Test func usesAcceptsExactlyTheRegisteredCapabilities() throws {
+        let wifi = try CapabilityNames(uses: ["wifi"])
+        #expect(try manifest(["uses": ["wifi"]], capabilities: wifi).uses == ["wifi"])
+        #expect(throws: ManifestError.unknownService("exec")) { try manifest(["uses": ["wifi", "exec"]], capabilities: wifi) }
     }
 
     @Test func parsesHotkeysIntoModifiersAndKeyCodes() throws {
@@ -125,7 +133,7 @@ struct PluginCatalogTests {
     }
 
     private func scan() -> PluginCatalog {
-        PluginCatalog.scan(builtin: root.appendingPathComponent("builtin"), user: root.appendingPathComponent("user"))
+        PluginCatalog.scan(builtin: root.appendingPathComponent("builtin"), user: root.appendingPathComponent("user"), capabilities: testCapabilities)
     }
 
     @Test func findsBuiltinAndUserPlugins() throws {

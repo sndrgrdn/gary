@@ -2,28 +2,21 @@ import Foundation
 import GaryCore
 import JavaScriptCore
 
-extension PluginRuntime {
-    func installExec(on host: JSValue) {
-        let execBlock: @convention(block) (JSValue, JSValue) -> Void = { [weak self] argv, callback in
+extension Capability {
+    static let exec = Capability(name: "exec", install: { host, plugin in
+        let exec: @convention(block) (JSValue, JSValue) -> Void = { [weak plugin] argv, callback in
             guard let argv = argv.toArray() as? [String], !argv.isEmpty, callback.isObject else {
                 let context = JSContext.current()!
                 context.exception = JSValue(newErrorFromMessage: "host.exec takes an array of strings and a callback", in: context)
                 return
             }
-            self?.exec(argv, callback)
-        }
-        host.setObject(execBlock, forKeyedSubscript: "exec" as NSString)
-    }
-
-    private func exec(_ argv: [String], _ callback: JSValue) {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let result = runProcess(argv)
-            self?.queue.async { [weak self] in
-                guard let self, functions != nil else { return }
-                callBack(callback, [result], Trace("exec"))
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result = runProcess(argv)
+                plugin?.queue.async { plugin?.callBack(callback, [result], Trace("exec")) }
             }
         }
-    }
+        host.setObject(exec, forKeyedSubscript: "exec" as NSString)
+    })
 }
 
 private func runProcess(_ argv: [String]) -> [String: Any] {

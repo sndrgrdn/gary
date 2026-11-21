@@ -2,20 +2,8 @@ import Foundation
 import GaryCore
 import JavaScriptCore
 
-final class FileWatch {
-    let path: String
-    let callback: JSValue
-    var source: DispatchSourceFileSystemObject?
-    var pending: DispatchWorkItem?
-
-    init(path: String, callback: JSValue) {
-        self.path = path
-        self.callback = callback
-    }
-}
-
-extension PluginRuntime {
-    func installFiles(on host: JSValue) {
+extension Capability {
+    static let files = Capability(name: "files", install: { host, plugin in
         let readFile: @convention(block) (String) -> String? = { path in
             let expanded = (path as NSString).expandingTildeInPath
             guard let text = try? String(contentsOfFile: expanded, encoding: .utf8) else {
@@ -26,44 +14,59 @@ extension PluginRuntime {
             return text
         }
         host.setObject(readFile, forKeyedSubscript: "readFile" as NSString)
-        let watchFile: @convention(block) (String, JSValue) -> Void = { [weak self] path, callback in
-            guard let self, callback.isObject else { return }
+        let watchFile: @convention(block) (String, JSValue) -> Void = { [weak plugin] path, callback in
+            guard let plugin, callback.isObject else { return }
             let watch = FileWatch(path: (path as NSString).expandingTildeInPath, callback: callback)
-            watches.append(watch)
-            arm(watch, attempts: 10)
+            plugin.onStop {
+                watch.source?.cancel()
+                watch.pending?.cancel()
+            }
+            watch.arm(in: plugin, attempts: 10)
         }
         host.setObject(watchFile, forKeyedSubscript: "watchFile" as NSString)
+    })
+}
+
+private final class FileWatch {
+    let path: String
+    let callback: JSValue
+    var source: DispatchSourceFileSystemObject?
+    var pending: DispatchWorkItem?
+
+    init(path: String, callback: JSValue) {
+        self.path = path
+        self.callback = callback
     }
 
-    private func arm(_ watch: FileWatch, attempts: Int) {
-        let descriptor = open(watch.path, O_EVTONLY)
+    func arm(in plugin: PluginRuntime, attempts: Int) {
+        let descriptor = open(path, O_EVTONLY)
         guard descriptor >= 0 else {
             if attempts > 0 {
-                queue.asyncAfter(deadline: .now() + 0.5) { [weak self, weak watch] in
-                    guard let self, let watch, functions != nil else { return }
-                    arm(watch, attempts: attempts - 1)
+                plugin.queue.asyncAfter(deadline: .now() + 0.5) { [weak self, weak plugin] in
+                    guard let self, let plugin, plugin.isRunning else { return }
+                    arm(in: plugin, attempts: attempts - 1)
                 }
             }
             return
         }
-        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: descriptor, eventMask: [.write, .extend, .delete, .rename, .attrib], queue: queue)
-        source.setEventHandler { [weak self, weak watch, weak source] in
-            guard let self, let watch, let source else { return }
+        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: descriptor, eventMask: [.write, .extend, .delete, .rename, .attrib], queue: plugin.queue)
+        source.setEventHandler { [weak self, weak plugin, weak source] in
+            guard let self, let plugin, let source else { return }
             if !source.data.isDisjoint(with: [.delete, .rename]) {
                 source.cancel()
-                arm(watch, attempts: 10)
+                arm(in: plugin, attempts: 10)
             }
-            watch.pending?.cancel()
-            let work = DispatchWorkItem { [weak self, weak watch] in
-                guard let self, let watch, functions != nil else { return }
-                let text = try? String(contentsOfFile: watch.path, encoding: .utf8)
-                callBack(watch.callback, [text ?? NSNull()], Trace("file"))
+            pending?.cancel()
+            let work = DispatchWorkItem { [weak self, weak plugin] in
+                guard let self, let plugin else { return }
+                let text = try? String(contentsOfFile: path, encoding: .utf8)
+                plugin.callBack(callback, [text ?? NSNull()], Trace("file"))
             }
-            watch.pending = work
-            queue.asyncAfter(deadline: .now() + 0.02, execute: work)
+            pending = work
+            plugin.queue.asyncAfter(deadline: .now() + 0.02, execute: work)
         }
         source.setCancelHandler { close(descriptor) }
-        watch.source = source
+        self.source = source
         source.resume()
     }
 }

@@ -22,22 +22,22 @@ public struct PluginCatalog: Equatable, Sendable {
 
     public init() {}
 
-    public static func scan(builtin: URL?, user: URL?) -> PluginCatalog {
+    public static func scan(builtin: URL?, user: URL?, capabilities: CapabilityNames) -> PluginCatalog {
         var catalog = PluginCatalog()
-        if let builtin { catalog.add(root: builtin, origin: .builtin) }
-        if let user { catalog.add(root: user, origin: .user) }
+        if let builtin { catalog.add(root: builtin, origin: .builtin, capabilities: capabilities) }
+        if let user { catalog.add(root: user, origin: .user, capabilities: capabilities) }
         return catalog
     }
 
     public var sortedIDs: [PluginID] { plugins.keys.sorted() }
 
-    private mutating func add(root: URL, origin: PluginOrigin) {
+    private mutating func add(root: URL, origin: PluginOrigin, capabilities: CapabilityNames) {
         let entries = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
         for directory in entries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
             guard !directory.lastPathComponent.hasPrefix("."), isDirectory(directory) else { continue }
             do {
                 let manifestURL = try resolveInside(directory, "manifest.json")
-                let manifest = try PluginManifest.parse(try Data(contentsOf: manifestURL), origin: origin)
+                let manifest = try PluginManifest.parse(try Data(contentsOf: manifestURL), origin: origin, capabilities: capabilities)
                 let bundle = PluginBundle(manifest: manifest, directory: directory, origin: origin)
                 for kind in manifest.kinds { _ = try bundle.entryPoint(kind) }
                 if let existing = plugins[manifest.id] {

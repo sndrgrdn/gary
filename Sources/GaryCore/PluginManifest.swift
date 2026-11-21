@@ -30,10 +30,6 @@ public enum Topic: Hashable, Sendable, CustomStringConvertible {
     }
 }
 
-public enum HostService: String, CaseIterable, Sendable {
-    case exec, network, files
-}
-
 public enum PluginOrigin: Sendable {
     case builtin, user
 }
@@ -108,10 +104,10 @@ public struct PluginManifest: Equatable, Sendable {
     public let entryPoints: [PluginKind: String]
     public let keepLoaded: Bool
     public let subscribes: [Topic]
-    public let uses: [HostService]
+    public let uses: [String]
     public let hotkeys: [Hotkey]
 
-    public static func parse(_ data: Data, origin: PluginOrigin) throws -> PluginManifest {
+    public static func parse(_ data: Data, origin: PluginOrigin, capabilities: CapabilityNames) throws -> PluginManifest {
         guard let json = try? JSON.parse(data), case .object = json else { throw ManifestError.invalidJSON }
 
         func field<T>(_ name: String, _ read: (JSON) -> T?) throws -> T {
@@ -167,10 +163,8 @@ public struct PluginManifest: Equatable, Sendable {
             guard let topic = Topic(raw) else { throw ManifestError.unknownTopic(raw) }
             return topic
         }
-        let uses = try optional("uses", strings, default: []).map { raw in
-            guard let service = HostService(rawValue: raw) else { throw ManifestError.unknownService(raw) }
-            return service
-        }
+        let uses = try optional("uses", strings, default: [])
+        if let unknown = uses.first(where: { !capabilities.uses.contains($0) }) { throw ManifestError.unknownService(unknown) }
 
         var hotkeys: [Hotkey] = []
         for (index, entry) in try optional("hotkeys", \.array, default: []).enumerated() {
