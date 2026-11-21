@@ -43,7 +43,7 @@ struct NodeTests {
         #expect(try parse(#"{"type":"input"}"#) == Node(.input(Node.Input(value: ""))))
     }
 
-    @Test func parsesPaddingPerSideASignedOffsetAndAlignment() throws {
+    @Test func parsesPaddingPerSideASignedOffsetAlignmentAnimationAndMaterial() throws {
         func props(_ fields: String) throws -> StyleProps { try parse(#"{"type":"text","text":"a",\#(fields)}"#).props }
         #expect(try props(#""padding":4"#).padding == Insets(4))
         #expect(try props(#""padding":[2,6]"#).padding == Insets(top: 2, right: 6, bottom: 2, left: 6))
@@ -53,7 +53,9 @@ struct NodeTests {
         for bad in [#""padding":[1,2,3]"#, #""padding":[1,-2]"#, #""padding":"4""#] {
             #expect(throws: NodeError(path: "root", reason: reason), "\(bad)") { try props(bad) }
         }
-        #expect(throws: NodeError(path: "root", reason: "align must be \"leading\", \"center\" or \"trailing\"")) { try props(#""align":"left""#) }
+        #expect(try props(#""animation":"spring","material":"glass""#) == StyleProps(animation: .spring, material: .glass))
+        #expect(throws: NodeError(path: "root", reason: "align must be one of \"leading\", \"center\", \"trailing\"")) { try props(#""align":"left""#) }
+        #expect(throws: NodeError(path: "root", reason: "material must be one of \"vibrant\", \"glass\", \"none\"")) { try props(#""material":"blur""#) }
         #expect(throws: NodeError(path: "root", reason: "offset must be a number")) { try props(#""offset":"1""#) }
     }
 

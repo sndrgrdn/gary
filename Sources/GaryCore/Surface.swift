@@ -57,7 +57,7 @@ public enum ExclusionMode: String, Sendable {
 }
 
 public enum SurfaceBackground: String, CaseIterable, Sendable {
-    case solid, vibrant, none
+    case solid, none
 }
 
 public struct Edges<Value: Equatable & Sendable>: Equatable, Sendable {

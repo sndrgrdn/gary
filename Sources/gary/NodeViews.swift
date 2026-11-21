@@ -9,6 +9,7 @@ final class MountedTree: ObservableObject {
     @Published var root: Node
     @Published var theme: Theme
     @Published var fit: Fit?
+    @Published var card: Card?
 
     init(root: Node, theme: Theme) {
         self.root = root
@@ -36,6 +37,10 @@ final class TreeHostingView: NSHostingView<TreeView> {
     func fit(_ fit: Fit) {
         if tree.fit != fit { tree.fit = fit }
     }
+
+    func paint(_ card: Card?) {
+        if tree.card != card { tree.card = card }
+    }
 }
 
 struct TreeView: View {
@@ -47,11 +52,17 @@ struct TreeView: View {
             .environment(\.nodeTheme, tree.theme)
             .environment(\.nodeAction, onAction)
         if let fit = tree.fit {
-            fit { root.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading) }
+            fit { root.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).card(tree.card) }
         } else {
             root
         }
     }
+}
+
+struct Card: Equatable {
+    var look: ResolvedStyle
+    var radius: Double
+    var border: RGBA?
 }
 
 struct Fit: Layout, Equatable {
@@ -187,10 +198,39 @@ private extension View {
             .frame(width: width.map { CGFloat($0) }, height: height.map { CGFloat($0) }, alignment: Alignment(horizontal: horizontal, vertical: vertical))
             .frame(minWidth: look.minWidth.map { CGFloat($0) }, alignment: Alignment(horizontal: horizontal, vertical: vertical))
             .background { if let background { RoundedRectangle(cornerRadius: look.radius ?? 0).fill(Color(background)) } }
+            .material(look.material, radius: look.radius ?? 0)
             .opacity(look.opacity ?? 1)
             .offset(y: look.offset ?? 0)
+            .transaction(value: node) { transaction in
+                switch look.animation {
+                case .smooth?: transaction.animation = .smooth
+                case .spring?: transaction.animation = .spring
+                case GaryCore.Animation.none?: transaction.animation = nil
+                case nil: break
+                }
+            }
             .pressable(clickable) { perform($0, .null) }
             .layoutPriority(node.kind == .spacer ? -1 : 0)
+    }
+
+    @ViewBuilder func material(_ material: GaryCore.Material?, radius: Double) -> some View {
+        switch material {
+        case .vibrant?: background(Vibrancy(radius: radius))
+        case .glass?: glassEffect(.regular, in: RoundedRectangle(cornerRadius: radius))
+        case GaryCore.Material.none?, nil: self
+        }
+    }
+
+    @ViewBuilder func card(_ card: Card?) -> some View {
+        if let card {
+            let shape = RoundedRectangle(cornerRadius: card.radius)
+            background { if let background = card.look.background { shape.fill(Color(background)) } }
+                .material(card.look.material, radius: card.radius)
+                .clipShape(shape)
+                .overlay { if let border = card.border { shape.strokeBorder(Color(border), lineWidth: 1) } }
+        } else {
+            self
+        }
     }
 
     @ViewBuilder func pressable(_ action: String?, _ perform: @escaping (String) -> Void) -> some View {
@@ -241,6 +281,33 @@ private struct ScrollNode: View {
                 }
             }
         }
+    }
+}
+
+private struct Vibrancy: NSViewRepresentable {
+    let radius: Double
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .popover
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        view.maskImage = radius > 0 ? Self.roundedMask(radius) : nil
+    }
+
+    private static func roundedMask(_ radius: CGFloat) -> NSImage {
+        let edge = radius * 2 + 1
+        let image = NSImage(size: NSSize(width: edge, height: edge), flipped: false) { rect in
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        image.resizingMode = .stretch
+        return image
     }
 }
 

@@ -71,7 +71,7 @@ public struct Theme: Equatable, Sendable {
         return ResolvedStyle(
             color: color(merged.color) ?? color(fallback.color) ?? palette.foreground, font: font, background: color(merged.background),
             width: merged.width, height: merged.height, minWidth: merged.minWidth, gap: merged.gap, radius: merged.radius, opacity: merged.opacity,
-            offset: merged.offset, padding: merged.padding, align: merged.align
+            offset: merged.offset, padding: merged.padding, align: merged.align, animation: merged.animation, material: merged.material
         )
     }
 

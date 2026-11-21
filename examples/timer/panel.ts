@@ -42,6 +42,7 @@ module.exports = {
       type: "column",
       style: "panel",
       gap: 10,
+      animation: "smooth",
       children: [
         { type: "text", key: "title", text: "Timer", style: "title" },
         { type: "text", key: "left", text: format(left), style: "bright", fontSize: 28 },

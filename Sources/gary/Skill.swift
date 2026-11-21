@@ -260,6 +260,8 @@ enum Skill {
     - `padding` is one number for every side, `[vertical, horizontal]`, or `[top, right, bottom, left]`.
     - `align` places the content of a node that is wider than its content, such as text with a `width`: `"leading"`, `"center"`, or `"trailing"`. It also aligns the lines of wrapped text. A node aligns to `"leading"`, and an icon to `"center"`.
     - `offset` moves a node down by that many points, or up when it is negative, without moving its siblings.
+    - `animation` animates what changes inside the node when `render` returns a different tree: `"smooth"`, `"spring"`, or `"none"`, which turns off an animation that an enclosing node set. Sizes, positions, colors, and progress values move, and changed text cross-fades.
+    - `material` paints a material behind the node, inside its `radius` and under its `background`: `"vibrant"` blurs what is behind the window, `"glass"` is Liquid Glass, and `"none"` removes a material that the node's `style` sets. Give `background` a translucent color, such as `alpha(panel, 0.4)`, to tint it.
     - A `text` node is exactly as wide as its text and as tall as its lines, with no padding of its own.
     - Give siblings unique `key` values so Gary keeps each child's view, and its state such as hover or typed text, when the order changes.
     - A node with `action` is clickable. Gary calls `onAction(action, payload)`.
@@ -280,7 +282,7 @@ enum Skill {
     | `exclusionMode` | `"normal"` keeps clear of the bar, and `"ignore"` covers it | `"normal"`. An overlay uses `"ignore"`. |
     | `clickThrough` | boolean | `false` |
     | `focusable` | boolean. A focusable surface takes keys. | `false`. A menu is focusable. |
-    | `background` | `"solid"` paints the theme's `surface` style with a border and a shadow, `"vibrant"` blurs what is behind the window, and `"none"` leaves the window clear for the tree to paint | `"solid"` |
+    | `background` | `"solid"` paints the theme's `surface` style, including its `material`, with a border and a shadow. `"none"` leaves the window clear for the tree to paint, so a root node with `material` and `radius` gives one surface its own material. | `"solid"` |
     """
 
     private static func themeSection(_ theme: JSON?) -> String {

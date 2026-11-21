@@ -135,7 +135,6 @@ final class BarWindow {
 final class SurfaceWindow {
     let panel = makeSurfacePanel(level: 0)
     private let card = NSView()
-    private var blur: NSVisualEffectView?
     private var content: TreeHostingView?
 
     init() {
@@ -172,41 +171,9 @@ final class SurfaceWindow {
 
     private func paint(_ spec: SurfaceSpec, _ theme: Theme) {
         let look = theme.style("surface")
-        let radius = spec.background == .none || spec.anchors == SurfaceSpec.all ? 0 : look.radius ?? 0
-        let layer = card.layer!
-        layer.cornerRadius = radius
-        layer.masksToBounds = radius > 0
-        layer.backgroundColor = spec.background == .solid ? look.background.map { NSColor($0).cgColor } : nil
-        layer.borderWidth = spec.background == .none ? 0 : 1
-        layer.borderColor = theme.color("border").map { NSColor($0).cgColor }
+        let radius = spec.anchors == SurfaceSpec.all ? 0 : look.radius ?? 0
+        content?.paint(spec.background == .solid ? Card(look: look, radius: radius, border: theme.color("border")) : nil)
         panel.hasShadow = spec.background != .none
-        guard spec.background == .vibrant else {
-            blur?.removeFromSuperview()
-            blur = nil
-            return
-        }
-        let blur = self.blur ?? NSVisualEffectView()
-        if self.blur == nil {
-            blur.material = .popover
-            blur.blendingMode = .behindWindow
-            blur.state = .active
-            blur.autoresizingMask = [.width, .height]
-            blur.frame = card.bounds
-            card.addSubview(blur, positioned: .below, relativeTo: nil)
-            self.blur = blur
-        }
-        blur.maskImage = radius > 0 ? Self.roundedMask(radius) : nil
-    }
-
-    private static func roundedMask(_ radius: CGFloat) -> NSImage {
-        let edge = radius * 2 + 1
-        let image = NSImage(size: NSSize(width: edge, height: edge), flipped: false) { rect in
-            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
-            return true
-        }
-        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
-        image.resizingMode = .stretch
-        return image
     }
 
     private func measure(_ fit: Fit) -> CGSize {

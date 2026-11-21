@@ -33,15 +33,25 @@ public enum Align: String, CaseIterable, Sendable {
     case leading, center, trailing
 }
 
+public enum Animation: String, CaseIterable, Sendable {
+    case smooth, spring, none
+}
+
+public enum Material: String, CaseIterable, Sendable {
+    case vibrant, glass, none
+}
+
 public struct StyleProps: Equatable, Sendable {
     public var width, height, minWidth, gap, radius, fontSize, opacity, offset: Double?
     public var padding: Insets?
     public var align: Align?
+    public var animation: Animation?
+    public var material: Material?
     public var background, color, font: String?
 
     public init(width: Double? = nil, height: Double? = nil, minWidth: Double? = nil, padding: Insets? = nil, gap: Double? = nil, radius: Double? = nil,
-                fontSize: Double? = nil, opacity: Double? = nil, offset: Double? = nil, align: Align? = nil,
-                background: String? = nil, color: String? = nil, font: String? = nil) {
+                fontSize: Double? = nil, opacity: Double? = nil, offset: Double? = nil, align: Align? = nil, animation: Animation? = nil,
+                material: Material? = nil, background: String? = nil, color: String? = nil, font: String? = nil) {
         self.width = width
         self.height = height
         self.minWidth = minWidth
@@ -52,6 +62,8 @@ public struct StyleProps: Equatable, Sendable {
         self.opacity = opacity
         self.offset = offset
         self.align = align
+        self.animation = animation
+        self.material = material
         self.background = background
         self.color = color
         self.font = font
@@ -62,7 +74,7 @@ public struct StyleProps: Equatable, Sendable {
         ("radius", \.radius), ("fontSize", \.fontSize), ("opacity", \.opacity),
     ]
     public static let colors: [(String, WritableKeyPath<StyleProps, String?>)] = [("background", \.background), ("color", \.color)]
-    public static let names = numbers.map(\.0) + ["padding", "offset", "align"] + colors.map(\.0) + ["font"]
+    public static let names = numbers.map(\.0) + ["padding", "offset", "align", "animation", "material"] + colors.map(\.0) + ["font"]
 
     public static func parse(_ fields: [String: JSON], fail: (String, String) -> Error) throws -> StyleProps {
         var props = StyleProps()
@@ -80,10 +92,16 @@ public struct StyleProps: Equatable, Sendable {
             guard let offset = value.number, offset.isFinite else { throw fail("offset", "must be a number") }
             props.offset = offset
         }
-        if let value = fields["align"], value != .null {
-            guard let align = value.string.flatMap(Align.init(rawValue:)) else { throw fail("align", "must be \"leading\", \"center\" or \"trailing\"") }
-            props.align = align
+        func choice<Value: RawRepresentable & CaseIterable>(_ name: String) throws -> Value? where Value.RawValue == String {
+            guard let value = fields[name], value != .null else { return nil }
+            guard let choice = value.string.flatMap(Value.init(rawValue:)) else {
+                throw fail(name, "must be one of " + Value.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: ", "))
+            }
+            return choice
         }
+        props.align = try choice("align")
+        props.animation = try choice("animation")
+        props.material = try choice("material")
         for (name, path) in colors {
             guard let value = fields[name], value != .null else { continue }
             guard let color = value.string, ColorExpr(color) != nil else { throw fail(name, "must be \(ColorExpr.syntax)") }
@@ -103,6 +121,8 @@ public struct StyleProps: Equatable, Sendable {
         merged.padding = padding ?? base.padding
         merged.offset = offset ?? base.offset
         merged.align = align ?? base.align
+        merged.animation = animation ?? base.animation
+        merged.material = material ?? base.material
         merged.font = font ?? base.font
         return merged
     }
@@ -115,4 +135,6 @@ public struct ResolvedStyle: Equatable, Sendable {
     public var width, height, minWidth, gap, radius, opacity, offset: Double?
     public var padding: Insets?
     public var align: Align?
+    public var animation: Animation?
+    public var material: Material?
 }

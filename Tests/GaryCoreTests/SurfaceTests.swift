@@ -81,12 +81,12 @@ struct SurfaceTests {
     }
 
     @Test func parsesEveryField() throws {
-        let parsed = try spec(#"{"screen":"all","anchors":{"bottom":true},"width":"fit","height":24,"margins":{"bottom":4},"layer":"notch","exclusionMode":"ignore","clickThrough":true,"focusable":true,"background":"vibrant"}"#)
+        let parsed = try spec(#"{"screen":"all","anchors":{"bottom":true},"width":"fit","height":24,"margins":{"bottom":4},"layer":"notch","exclusionMode":"ignore","clickThrough":true,"focusable":true,"background":"none"}"#)
         #expect(parsed.screen == .all)
         #expect(parsed.anchors == Edges(top: false, bottom: true, left: false, right: false))
         #expect(parsed.width == .fit && parsed.height == .points(24))
         #expect(parsed.margins == Edges(top: 0, bottom: 4, left: 0, right: 0))
-        #expect(parsed.layer == .notch && parsed.exclusionMode == .ignore && parsed.clickThrough && parsed.focusable && parsed.background == .vibrant)
+        #expect(parsed.layer == .notch && parsed.exclusionMode == .ignore && parsed.clickThrough && parsed.focusable && parsed.background == SurfaceBackground.none)
         #expect(try spec(#"{"screen":1}"#).screen == .index(1))
         #expect(try spec("null") == SurfaceSpec.defaults(for: .panel))
     }
@@ -100,7 +100,7 @@ struct SurfaceTests {
             (#"{"width":-3}"#, SurfaceError(path: "surface.width", reason: "must be a positive number or \"fit\"")),
             (#"{"margins":{"left":-1}}"#, SurfaceError(path: "surface.margins.left", reason: "must be a non-negative number")),
             (#"{"layer":"floating"}"#, SurfaceError(path: "surface.layer", reason: "must be one of desktop, below, normal, top, overlay, notch")),
-            (#"{"background":"glass"}"#, SurfaceError(path: "surface.background", reason: "must be one of \"solid\", \"vibrant\", \"none\"")),
+            (#"{"background":"vibrant"}"#, SurfaceError(path: "surface.background", reason: "must be one of \"solid\", \"none\"")),
             (#"{"anchor":{}}"#, SurfaceError(path: "surface.anchor", reason: "is not a surface field")),
         ]
         for (text, error) in cases {
