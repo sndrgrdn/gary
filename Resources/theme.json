@@ -9,6 +9,9 @@
     "bad": ["red", "color1", "#d9534f"],
     "panel": ["lighter_background", "mix(background, foreground, 0.06)"],
     "border": "alpha(foreground, 0.12)",
+    "secondary": "mix(foreground, background, 0.3)",
+    "control": "alpha(foreground, 0.1)",
+    "on-accent": "contrast(accent)",
     "hover": "alpha(foreground, 0.1)",
     "selected": "alpha(accent, 0.25)",
     "bar": "background"
@@ -33,6 +36,7 @@
     "default": { "color": "foreground", "font": "body" },
     "active": { "color": "accent", "font": "strong" },
     "dim": { "color": "dim" },
+    "secondary": { "color": "secondary" },
     "bright": { "color": "bright" },
     "good": { "color": "good" },
     "bad": { "color": "bad" },
@@ -41,6 +45,10 @@
     "panel": { "background": "panel", "radius": 12, "padding": 14 },
     "surface": { "background": "panel", "radius": 12 },
     "hover": { "background": "hover", "radius": 6 },
-    "selected": { "color": "bright", "background": "selected", "radius": 6 }
+    "selected": { "color": "bright", "background": "selected", "radius": 6 },
+    "button": { "background": "control", "radius": 6, "padding": 6 },
+    "button-hover": { "background": "alpha(foreground, 0.18)" },
+    "primary": { "color": "on-accent", "background": "accent", "radius": 6, "padding": 6 },
+    "primary-hover": { "background": "mix(accent, foreground, 0.15)" }
   }
 }
