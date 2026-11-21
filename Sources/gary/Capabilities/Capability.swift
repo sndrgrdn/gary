@@ -15,6 +15,7 @@ struct Capability {
     static let all: [Capability] = [
         .audio,
         .battery,
+        .bluetooth,
         .brightness,
         .clock,
         .exec,
