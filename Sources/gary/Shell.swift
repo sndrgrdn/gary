@@ -77,7 +77,7 @@ final class Shell {
     private var resolution: ShellConfig.Resolution
     private var slots: [SlotKey: PluginSlot] = [:]
     private var displays: [DisplayInfo] = []
-    private var bars: [String: BarWindow] = [:]
+    private var bars = PerDisplay<BarWindow>()
     private var windows: [MountKey: SurfaceWindow] = [:]
     private var mounts: [MountKey: Mount] = [:]
     private var clickMonitors: [Any] = []
@@ -108,7 +108,7 @@ final class Shell {
             capability.topic.map { start in start { [hub] value, trace in hub.publish(.capability(capability.name), value, trace) } }
         }
 
-        rebuildDisplays(Trace("start"))
+        refreshDisplays(Trace("start"))
         sync(Trace("start"))
 
         watcher = FileWatcher(root: Paths.config) { [weak self] paths, trace in self?.filesChanged(paths, trace) }
@@ -117,7 +117,7 @@ final class Shell {
             DispatchQueue.main.async { self?.systemAppearanceChanged(mode) }
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
-            self?.rebuildDisplays(Trace("screens"))
+            self?.refreshDisplays(Trace("screens"))
         }
         for number in [SIGTERM, SIGINT] {
             signal(number, SIG_IGN)
@@ -175,7 +175,7 @@ final class Shell {
     }
 
     private func sync(_ trace: Trace) {
-        if usesBuiltinBar == bars.isEmpty { rebuildDisplays(trace) }
+        refreshDisplays(trace)
         var wanted: [SlotKey: PluginBundle] = [:]
         if usesBuiltinBar {
             for id in resolution.bar.values.joined() { wanted[SlotKey(id: id, kind: .barWidget)] = catalog.plugins[id] }
@@ -426,14 +426,14 @@ final class Shell {
     }
 
     private func arrangeBars() {
-        for bar in bars.values {
+        for bar in bars.surfaces.values {
             for (section, ids) in resolution.bar {
                 bar.setSection(section, ids.compactMap { mounts[MountKey(slot: SlotKey(id: $0, kind: .barWidget), display: bar.display.id)]?.view })
             }
         }
     }
 
-    private var panels: [NSPanel] { bars.values.map(\.panel) + windows.values.map(\.panel) }
+    private var panels: [NSPanel] { bars.surfaces.values.map(\.panel) + windows.values.map(\.panel) }
 
     private var appearance: NSAppearance? { NSAppearance(named: theme.mode == .dark ? .darkAqua : .aqua) }
 
@@ -446,22 +446,27 @@ final class Shell {
     }
 
 
-    private func rebuildDisplays(_ trace: Trace) {
-        for bar in bars.values { bar.close() }
-        bars = [:]
-        for key in mounts.keys where key.slot.kind == .barWidget { mounts[key] = nil }
-        displays = NSScreen.screens.enumerated().map { $1.display(index: $0, theme: theme) }
-        for (screen, display) in zip(NSScreen.screens, displays) where usesBuiltinBar {
-            let bar = BarWindow(display: display, level: levels.bar)
+    private func refreshDisplays(_ trace: Trace) {
+        let next = NSScreen.screens.enumerated().map { $1.display(index: $0, theme: theme) }
+        let change = DisplayChange(from: displays, to: next)
+        displays = next
+        let theme = theme, appearance = appearance, level = levels.bar
+        let barChange = bars.sync(usesBuiltinBar ? next : [], open: { display in
+            let bar = BarWindow(display: display, level: level)
             bar.panel.appearance = appearance
-            bar.layout(on: screen, theme: theme)
-            bars[display.id] = bar
+            bar.layout(theme: theme)
+            return bar
+        }, update: { bar, display in
+            bar.display = display
+            bar.layout(theme: theme)
+        }, close: { $0.close() })
+        guard !change.isEmpty || !barChange.isEmpty else { return }
+        for key in mounts.keys where change.removed.contains(key.display) || (key.slot.kind == .barWidget && bars[key.display] == nil) {
+            unmount(key)
         }
-        for slot in slots.values {
-            if slot.candidate != nil { load(slot, trace) }
-            slot.runtime?.setScene(scene(for: slot), trace)
-        }
-        log("screens: " + NSScreen.screens.map { "\($0.localizedName) \(Int($0.frame.width))x\(Int($0.frame.height)) notch=\($0.notch != nil)" }.joined(separator: "; "))
+        for slot in slots.values { slot.runtime?.setScene(scene(for: slot), trace) }
+        log("screens added=\(change.added.count) removed=\(change.removed.count) changed=\(change.changed.count) bars=\(bars.surfaces.count): "
+            + displays.map { "\($0.id.prefix(8)) \(Int($0.frame.width))x\(Int($0.frame.height))@\(Int($0.frame.minX)),\(Int($0.frame.minY)) notch=\($0.notch != nil)" }.joined(separator: "; "))
     }
 
     private func loadPalette() {
@@ -498,16 +503,12 @@ final class Shell {
                 try JSON.parse(Data(contentsOf: Paths.defaultTheme)), override: override, palette: Palette(paletteFile, system: systemMode)
             )
             guard next != theme else { return .ok("theme unchanged") }
-            let bandChanged = next.bar.height != theme.bar.height
             theme = next
             for warning in theme.warnings { log("theme \(warning)") }
             renderer = ViewRenderer(theme: theme)
             for panel in panels { panel.appearance = appearance }
-            if bandChanged {
-                rebuildDisplays(trace)
-            } else {
-                for (screen, display) in zip(NSScreen.screens, displays) { bars[display.id]?.layout(on: screen, theme: theme) }
-            }
+            refreshDisplays(trace)
+            for bar in bars.surfaces.values { bar.layout(theme: theme) }
             for mount in mounts.values { renderer.restyle(mount.view, mount.node) }
             for key in mounts.keys { place(key) }
             commitFrame()

@@ -36,7 +36,8 @@ func makeSurfacePanel(level: Int) -> SurfacePanel {
 extension NSScreen {
     var uuid: String {
         let number = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
-        guard let id = number?.uint32Value, let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue() else { return "unknown" }
+        guard let id = number?.uint32Value else { return "unknown" }
+        guard let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue() else { return "display-\(id)" }
         return CFUUIDCreateString(nil, uuid) as String
     }
 
@@ -70,7 +71,7 @@ extension NSStackView {
 }
 
 final class BarWindow {
-    let display: DisplayInfo
+    var display: DisplayInfo
     let panel: NSPanel
     private let sections: [BarSection: NSStackView]
     private var constraints: [NSLayoutConstraint] = []
@@ -91,8 +92,8 @@ final class BarWindow {
         })
     }
 
-    func layout(on screen: NSScreen, theme: Theme) {
-        let frame = screen.frame
+    func layout(theme: Theme) {
+        let frame = display.frame
         let height = display.band
         panel.setFrame(NSRect(x: frame.minX, y: frame.maxY - height, width: frame.width, height: height), display: false)
         let content = panel.contentView!
@@ -107,10 +108,10 @@ final class BarWindow {
             right.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -edge),
             right.leadingAnchor.constraint(greaterThanOrEqualTo: center.trailingAnchor, constant: gap),
         ]
-        if display.notch != nil, let beforeNotch = screen.auxiliaryTopLeftArea, let afterNotch = screen.auxiliaryTopRightArea {
+        if let notch = display.notch {
             constraints += [
-                left.trailingAnchor.constraint(lessThanOrEqualTo: content.leadingAnchor, constant: beforeNotch.maxX - frame.minX - edge),
-                center.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: afterNotch.minX - frame.minX + edge),
+                left.trailingAnchor.constraint(lessThanOrEqualTo: content.leadingAnchor, constant: notch.lowerBound - edge),
+                center.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: notch.upperBound + edge),
             ]
         } else {
             constraints += [
