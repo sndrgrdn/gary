@@ -152,51 +152,50 @@ public enum PluginTypes {
     }
 
     public static func manifestSchema(_ capabilities: CapabilityNames) -> JSON {
-        func strings(_ values: [String]) -> String {
-            JSON.array(values.map(JSON.string)).text
-        }
         let kinds = strings(PluginKind.allCases.map(\.rawValue))
-        return try! JSON.parse(#"""
-        {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "title": "Gary plugin manifest",
-          "type": "object",
-          "required": ["schemaVersion", "id", "name", "version", "kinds", "entryPoints"],
-          "$defs": {
-            "id": { "type": "string", "maxLength": 128, "pattern": "^[a-z0-9][a-z0-9-]*(\\.[a-z0-9][a-z0-9-]*)+$" }
-          },
-          "properties": {
-            "$schema": { "type": "string" },
-            "schemaVersion": { "const": \#(PluginManifest.schemaVersion) },
-            "id": { "allOf": [{ "$ref": "#/$defs/id" }, { "not": { "type": "string", "pattern": "^gary\\." } }] },
-            "name": { "type": "string" },
-            "version": { "type": "string" },
-            "kinds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": \#(kinds) } },
-            "entryPoints": {
-              "type": "object",
-              "propertyNames": { "enum": \#(kinds) },
-              "additionalProperties": { "type": "string", "pattern": "^(?![/~])(?!.*(^|/)\\.{0,2}(/|$))[^\\u0000]*\\.(js|ts)$" }
-            },
-            "keepLoaded": { "type": "boolean" },
-            "subscribes": {
-              "type": "array",
-              "items": { "anyOf": [{ "enum": \#(strings(capabilities.topics.sorted())) }, { "$ref": "#/$defs/id" }] }
-            },
-            "uses": { "type": "array", "items": { "enum": \#(strings(capabilities.uses.sorted())) } },
-            "hotkeys": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "required": ["id", "keys"],
-                "properties": {
-                  "id": { "type": "string", "minLength": 1 },
-                  "keys": { "type": "string", "pattern": "^(([A-Za-z]+\\+)+[^+]+|[Ff]([1-9]|1[0-2]))$" }
-                }
-              }
-            }
-          }
-        }
-        """#)
+        let id = JSON.object(["$ref": .string("#/$defs/id")])
+        let string = type("string")
+        return .object([
+            "$schema": .string("https://json-schema.org/draft/2020-12/schema"),
+            "title": .string("Gary plugin manifest"),
+            "type": .string("object"),
+            "required": strings(["schemaVersion", "id", "name", "version", "kinds", "entryPoints"]),
+            "$defs": .object(["id": type("string", [
+                "maxLength": .number(128), "pattern": .string(#"^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$"#),
+            ])]),
+            "properties": .object([
+                "$schema": string,
+                "schemaVersion": .object(["const": .number(Double(PluginManifest.schemaVersion))]),
+                "id": .object(["allOf": .array([id, .object(["not": type("string", ["pattern": .string(#"^gary\."#)])])])]),
+                "name": string,
+                "version": string,
+                "kinds": type("array", ["minItems": .number(1), "uniqueItems": .bool(true), "items": .object(["enum": kinds])]),
+                "entryPoints": type("object", [
+                    "propertyNames": .object(["enum": kinds]),
+                    "additionalProperties": type("string", ["pattern": .string(#"^(?![/~])(?!.*(^|/)\.{0,2}(/|$))[^\u0000]*\.(js|ts)$"#)]),
+                ]),
+                "keepLoaded": type("boolean"),
+                "subscribes": type("array", [
+                    "items": .object(["anyOf": .array([.object(["enum": strings(capabilities.topics.sorted())]), id])]),
+                ]),
+                "uses": type("array", ["items": .object(["enum": strings(capabilities.uses.sorted())])]),
+                "hotkeys": type("array", ["items": type("object", [
+                    "required": strings(["id", "keys"]),
+                    "properties": .object([
+                        "id": type("string", ["minLength": .number(1)]),
+                        "keys": type("string", ["pattern": .string(#"^(([A-Za-z]+\+)+[^+]+|[Ff]([1-9]|1[0-2]))$"#)]),
+                    ]),
+                ])]),
+            ]),
+        ])
+    }
+
+    private static func type(_ name: String, _ fields: [String: JSON] = [:]) -> JSON {
+        .object(fields.merging(["type": .string(name)]) { $1 })
+    }
+
+    private static func strings(_ values: [String]) -> JSON {
+        .array(values.map(JSON.string))
     }
 
     static func typeName(_ raw: String) -> String {
