@@ -36,11 +36,9 @@ func watchTopEdge(of view: NSView, _ onEnter: @escaping () -> Void) {
 enum NativeMenuBar {
     static func revealed(on frame: CGRect) -> Bool {
         let top = (NSScreen.screens.first?.frame.maxY ?? 0) - frame.maxY
-        let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[CFString: Any]] ?? []
-        return windows.contains { window in
-            guard window[kCGWindowOwnerName] as? String == "Window Server",
-                  window[kCGWindowLayer] as? Int == Int(CGWindowLevelForKey(.mainMenuWindow)),
-                  let bounds = (window[kCGWindowBounds] as? NSDictionary).flatMap({ CGRect(dictionaryRepresentation: $0) }) else { return false }
+        return OnScreenWindow.list(.optionOnScreenOnly).contains { window in
+            guard window.ownerName == "Window Server", window.layer == Int(CGWindowLevelForKey(.mainMenuWindow)), let bounds = window.bounds
+            else { return false }
             return abs(bounds.minX - frame.minX) < 1 && bounds.maxY > top + 1
         }
     }
