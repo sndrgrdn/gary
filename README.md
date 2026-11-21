@@ -71,3 +71,7 @@ To also delete your settings, plugins, plugin storage, log, and permission grant
 rm -rf ~/.config/gary ~/Library/Application\ Support/Gary ~/Library/Logs/gary.log
 tccutil reset All com.sndrgrdn.gary
 ```
+
+## License
+
+Gary is released under the [MIT License](LICENSE). It includes [mediaremote-adapter](https://github.com/ungive/mediaremote-adapter) under the [BSD 3-Clause License](Vendor/mediaremote-adapter/LICENSE).
