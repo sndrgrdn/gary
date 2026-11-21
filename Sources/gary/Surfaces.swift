@@ -109,42 +109,50 @@ extension NSStackView {
 final class BarWindow {
     var display: DisplayInfo
     let panel: NSPanel
-    private let sections: [BarSection: NSStackView]
+    let content = NSView()
+    private let left = NSStackView()
+    private let center = NSStackView()
+    private let right = NSStackView()
     private var constraints: [NSLayoutConstraint] = []
 
     init(display: DisplayInfo, level: Int) {
         self.display = display
         panel = makeSurfacePanel(level: level)
-        let content = NSView()
         content.wantsLayer = true
         panel.contentView = content
-        sections = Dictionary(uniqueKeysWithValues: BarSection.allCases.map { section in
-            let stack = NSStackView()
+        for stack in sections {
             stack.orientation = .horizontal
             stack.alignment = .centerY
             stack.translatesAutoresizingMaskIntoConstraints = false
             content.addSubview(stack)
-            return (section, stack)
-        })
+        }
+    }
+
+    private var sections: [NSStackView] {
+        [left, center, right]
+    }
+
+    private func stack(_ section: BarSection) -> NSStackView {
+        switch section {
+        case .left: left
+        case .center: center
+        case .right: right
+        }
     }
 
     func layout(theme: Theme) {
         let frame = display.frame
         let height = display.band
         panel.setFrame(NSRect(x: frame.minX, y: frame.maxY - height, width: frame.width, height: height), display: false)
-        let content = panel.contentView!
         content.layer?.backgroundColor = NSColor(theme.bar.background).cgColor
-        let left = sections[.left]!
-        let center = sections[.center]!
-        let right = sections[.right]!
-        for stack in sections.values {
+        for stack in sections {
             stack.spacing = theme.spacing.section
         }
         let edge = theme.spacing.edge
         let gap = theme.spacing.section
 
         NSLayoutConstraint.deactivate(constraints)
-        constraints = sections.values.map { $0.centerYAnchor.constraint(equalTo: content.centerYAnchor) } + [
+        constraints = sections.map { $0.centerYAnchor.constraint(equalTo: content.centerYAnchor) } + [
             left.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: edge),
             right.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -edge),
             right.leadingAnchor.constraint(greaterThanOrEqualTo: center.trailingAnchor, constant: gap),
@@ -165,7 +173,7 @@ final class BarWindow {
     }
 
     func setSection(_ section: BarSection, _ views: [NSView]) {
-        sections[section]!.arrange(views)
+        stack(section).arrange(views)
     }
 
     func close() {
@@ -175,7 +183,7 @@ final class BarWindow {
 
 final class SurfaceWindow {
     let panel = makeSurfacePanel(level: 0)
-    private let card = NSView()
+    let card = NSView()
     private var content: TreeHostingView?
 
     init() {

@@ -461,7 +461,7 @@ final class Shell {
         }
         if isNew {
             if key.slot.kind == .bar {
-                watchTopEdge(of: window.panel.contentView!) { [weak self] in self?.pointerReachedTop(key.display) }
+                watchTopEdge(of: window.card) { [weak self] in self?.pointerReachedTop(key.display) }
             }
             window.show(fade: fade(key.slot))
             if key.slot.kind.isSurface {
@@ -649,7 +649,7 @@ final class Shell {
         let level = levels.bar
         let barChange = bars.sync(usesBuiltinBar ? next : [], open: { [weak self] display in
             let bar = BarWindow(display: display, level: level)
-            watchTopEdge(of: bar.panel.contentView!) { [weak self, weak bar] in
+            watchTopEdge(of: bar.content) { [weak self, weak bar] in
                 if let bar {
                     self?.pointerReachedTop(bar.display.id)
                 }
