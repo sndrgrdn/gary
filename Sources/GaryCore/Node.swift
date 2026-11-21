@@ -18,7 +18,7 @@ public struct Node: Equatable, Sendable {
     public enum Content: Equatable, Sendable {
         case row([Node])
         case column([Node])
-        case scroll([Node])
+        case scroll([Node], reveal: String?)
         case button([Node], hover: String?)
         case text(String)
         case icon(String)
@@ -65,7 +65,7 @@ public struct Node: Equatable, Sendable {
 
     public var children: [Node] {
         switch content {
-        case .row(let children), .column(let children), .scroll(let children), .button(let children, _): return children
+        case .row(let children), .column(let children), .scroll(let children, _), .button(let children, _): return children
         case .text, .icon, .image, .slider, .progress, .input, .spacer: return []
         }
     }
@@ -75,7 +75,7 @@ public struct Node: Equatable, Sendable {
         switch content {
         case .row: node.content = .row(children)
         case .column: node.content = .column(children)
-        case .scroll: node.content = .scroll(children)
+        case .scroll(_, let reveal): node.content = .scroll(children, reveal: reveal)
         case .button(_, let hover): node.content = .button(children, hover: hover)
         case .text, .icon, .image, .slider, .progress, .input, .spacer: break
         }
@@ -83,6 +83,11 @@ public struct Node: Equatable, Sendable {
     }
 
     public var own: Node { with(children: []) }
+
+    public var revealedChild: Int? {
+        guard case .scroll(let children, let reveal) = content else { return nil }
+        return children.firstIndex { child in reveal.map { child.key == $0 } ?? (child.style == "selected") }
+    }
 }
 
 public struct NodeError: Error, Equatable, CustomStringConvertible {
@@ -148,7 +153,7 @@ extension Node {
         switch Kind(rawValue: type) {
         case .row?: content = .row(try children())
         case .column?: content = .column(try children())
-        case .scroll?: content = .scroll(try children())
+        case .scroll?: content = .scroll(try children(), reveal: try string("reveal"))
         case .button?: content = .button(try children(), hover: try string("hover"))
         case .text?: content = .text(try required("text"))
         case .icon?: content = .icon(try required("symbol"))

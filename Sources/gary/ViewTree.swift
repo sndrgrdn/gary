@@ -53,7 +53,23 @@ class StackNodeView: NSStackView, NodeView {
 }
 
 final class FlippedStackView: StackNodeView {
+    private var pendingReveal = false
+    var reveal: Int? {
+        didSet {
+            guard reveal != oldValue, reveal != nil else { return }
+            pendingReveal = true
+            needsLayout = true
+        }
+    }
+
     override var isFlipped: Bool { true }
+
+    override func layout() {
+        super.layout()
+        guard pendingReveal, let reveal, reveal < arrangedSubviews.count else { return }
+        pendingReveal = false
+        scrollToVisible(arrangedSubviews[reveal].frame)
+    }
 }
 
 final class ButtonNodeView: StackNodeView {
@@ -187,7 +203,7 @@ final class ViewRenderer {
             stack.alignment = node.kind == .column ? .leading : .centerY
             stack.setHuggingPriority(.required, for: node.kind == .column ? .vertical : .horizontal)
             view = stack
-        case .scroll(let children):
+        case .scroll(let children, _):
             let scroll = ScrollNodeView()
             scroll.drawsBackground = false
             scroll.hasVerticalScroller = true
@@ -196,6 +212,7 @@ final class ViewRenderer {
             scroll.stack.orientation = .vertical
             scroll.stack.alignment = .leading
             scroll.stack.setViews(children.map { build($0, onAction: onAction) }, in: .leading)
+            scroll.stack.reveal = node.revealedChild
             scroll.stack.translatesAutoresizingMaskIntoConstraints = false
             scroll.documentView = scroll.stack
             NSLayoutConstraint.activate([
@@ -252,9 +269,9 @@ final class ViewRenderer {
         return view
     }
 
-    func apply(_ patch: Patch, to view: NSView, onAction: @escaping ActionHandler) -> (view: NSView, mutations: Int) {
+    func apply(_ patch: Patch, to view: NSView, node: Node, onAction: @escaping ActionHandler) -> (view: NSView, mutations: Int) {
         switch patch {
-        case .replace(let node):
+        case .replace:
             return (build(node, onAction: onAction), 1)
         case .update(let own, let children):
             var mutations = 0
@@ -264,19 +281,20 @@ final class ViewRenderer {
             }
             if let children, let stack = childStack(view) {
                 let old = stack.arrangedSubviews
-                let next = children.map { child -> NSView in
+                let next = zip(children, node.children).map { child, childNode -> NSView in
                     switch child {
                     case .reuse(let index, let patch):
-                        if let patch { mutations += apply(patch, to: old[index], onAction: onAction).mutations }
+                        if let patch { mutations += apply(patch, to: old[index], node: childNode, onAction: onAction).mutations }
                         return old[index]
-                    case .create(let node):
+                    case .create:
                         mutations += 1
-                        return build(node, onAction: onAction)
+                        return build(childNode, onAction: onAction)
                     }
                 }
                 mutations += stack.arrange(next)
                 (stack as? StackNodeView)?.pinCrossAxis()
             }
+            (view as? ScrollNodeView)?.stack.reveal = node.revealedChild
             return (view, mutations)
         }
     }

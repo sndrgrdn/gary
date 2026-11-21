@@ -29,7 +29,7 @@ struct NodeTests {
           {"type":"slider","value":0.25,"action":"volume"},
           {"type":"progress","value":1.5,"color":"accent","opacity":0.5},
           {"type":"input","value":"saf","placeholder":"Search","change":"query","submit":"run","fontSize":16},
-          {"type":"scroll","height":200,"children":[{"type":"text","text":"a"}]}
+          {"type":"scroll","height":200,"reveal":"a","children":[{"type":"text","text":"a"}]}
         ]}
         """)
         #expect(node == Node(.column([
@@ -38,9 +38,18 @@ struct NodeTests {
             Node(.slider(0.25), action: "volume"),
             Node(.progress(1), props: StyleProps(opacity: 0.5, color: "accent")),
             Node(.input(Node.Input(value: "saf", placeholder: "Search", change: "query", submit: "run")), props: StyleProps(fontSize: 16)),
-            Node(.scroll([Node(.text("a"))]), props: StyleProps(height: 200)),
+            Node(.scroll([Node(.text("a"))], reveal: "a"), props: StyleProps(height: 200)),
         ]), style: "panel", props: StyleProps(padding: 8, gap: 4, background: "#000000")))
         #expect(try parse(#"{"type":"input"}"#) == Node(.input(Node.Input(value: ""))))
+    }
+
+    @Test func aScrollRevealsTheChildItNamesOrElseTheFirstSelectedOne() throws {
+        let rows = (0..<12).map { index in Node(.text("\(index)"), key: "r\(index)", style: index == 9 || index == 11 ? "selected" : nil) }
+        #expect(Node(.scroll(rows, reveal: nil)).revealedChild == 9)
+        #expect(Node(.scroll(rows, reveal: "r3")).revealedChild == 3)
+        #expect(Node(.scroll(rows, reveal: "gone")).revealedChild == nil)
+        #expect(Node(.scroll(Array(rows.prefix(8)), reveal: nil)).revealedChild == nil)
+        #expect(Node(.column(rows)).revealedChild == nil)
     }
 
     @Test func nullOptionalFieldsAreAbsent() throws {
@@ -203,7 +212,7 @@ struct ReconcileTests {
         #expect(reconcile(old, new) == .update(own: new.own, children: nil))
         let slider = reconcile(Node(.slider(0.2), action: "v"), Node(.slider(0.6), action: "v"))
         #expect(slider == .update(own: Node(.slider(0.6), action: "v"), children: nil))
-        let result = mountAndPatch(Node(.scroll(row)), Node(.scroll([text("Safari", key: "name")])))
+        let result = mountAndPatch(Node(.scroll(row, reveal: nil)), Node(.scroll([text("Safari", key: "name")], reveal: nil)))
         #expect(result.built == 0)
     }
 
@@ -229,7 +238,7 @@ struct ReconcileTests {
                 if let key = child.key, !keys.insert(key).inserted { continue }
                 children.append(child)
             }
-            let containers: [Node.Content] = [.row(children), .column(children), .scroll(children), .button(children, hover: nil)]
+            let containers: [Node.Content] = [.row(children), .column(children), .scroll(children, reveal: nil), .button(children, hover: nil)]
             return Node(containers[random.next(4)], key: key, style: style, props: props)
         case 2: return Node(.text(["1", "2", "3"][random.next(3)]), key: key, style: style, action: random.next(2) == 0 ? "go" : nil)
         case 3: return Node(.icon(["bolt", "wifi"][random.next(2)]), key: key, style: style, props: props)

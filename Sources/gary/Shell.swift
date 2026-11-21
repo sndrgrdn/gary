@@ -304,7 +304,7 @@ final class Shell {
         let mutations: Int
         if let mounted = mounts[key] {
             if let patch = reconcile(mounted.node, tree) {
-                let (view, count) = renderer.apply(patch, to: mounted.view, onAction: onAction)
+                let (view, count) = renderer.apply(patch, to: mounted.view, node: tree, onAction: onAction)
                 mounts[key] = Mount(node: tree, view: view)
                 mutations = count
             } else {
@@ -720,7 +720,7 @@ extension Palette.Mode {
 extension Node {
     var summary: String {
         switch content {
-        case .row(let children), .column(let children), .scroll(let children), .button(let children, _):
+        case .row(let children), .column(let children), .scroll(let children, _), .button(let children, _):
             return children.map(\.summary).filter { !$0.isEmpty }.joined(separator: " ")
         case .text(let value), .icon(let value), .image(let value): return value.replacingOccurrences(of: " ", with: "_") + ":" + (style ?? "default")
         case .slider(let value), .progress(let value): return "\(kind.rawValue)=\(value)"
