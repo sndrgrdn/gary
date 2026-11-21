@@ -43,6 +43,8 @@ final class IconNodeView: NSImageView, NodeView {
     var nodeAction: String?
     var onAction: ActionHandler?
     var sizing: [NSLayoutConstraint] = []
+    var sized = false { didSet { if sized != oldValue { invalidateIntrinsicContentSize() } } }
+    override var alignmentRectInsets: NSEdgeInsets { sized ? NSEdgeInsets() : super.alignmentRectInsets }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) { click(event) }
 }
@@ -62,7 +64,8 @@ class StackNodeView: NSStackView, NodeView {
             let fills = child.grows(along: cross)
             return orientation == .vertical
                 ? [fills ? trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: edgeInsets.right)
-                         : trailingAnchor.constraint(greaterThanOrEqualTo: view.trailingAnchor, constant: edgeInsets.right)]
+                         : trailingAnchor.constraint(greaterThanOrEqualTo: view.trailingAnchor, constant: edgeInsets.right),
+                   view.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: edgeInsets.left)]
                 : [fills ? bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: edgeInsets.bottom)
                          : bottomAnchor.constraint(greaterThanOrEqualTo: view.bottomAnchor, constant: edgeInsets.bottom),
                    fills ? view.topAnchor.constraint(equalTo: topAnchor, constant: edgeInsets.top)
@@ -351,6 +354,8 @@ final class ViewRenderer {
             icon.image = NSImage(systemSymbolName: symbol, accessibilityDescription: symbol)
             icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: look.font.size, weight: .init(look.font.weight))
             icon.contentTintColor = NSColor(look.color)
+            icon.sized = width != nil || height != nil
+            icon.setContentHuggingPriority(width == nil ? .required : .defaultLow, for: .horizontal)
         case (let image as IconNodeView, .image(let path)):
             image.image = self.image(path)
             width = width ?? height ?? 16
@@ -359,6 +364,7 @@ final class ViewRenderer {
             button.spacing = look.gap ?? theme.spacing.item
             button.edgeInsets = insets(look.padding)
             button.setHuggingPriority(width == nil ? .required : .defaultLow, for: .horizontal)
+            button.setHuggingPriority(height == nil ? .required : .defaultLow, for: .vertical)
             button.looks = (look, theme.resolve(node.style, node.props, hover: hover ?? "hover"))
             button.pinCrossAxis(node)
         case (let scroll as ScrollNodeView, _):
