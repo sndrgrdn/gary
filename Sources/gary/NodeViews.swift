@@ -176,7 +176,9 @@ struct NodeView: View {
         case .icon(let symbol):
             Image(systemName: symbol).font(.system(size: look.font.size, weight: .init(look.font.weight))).foregroundStyle(Color(look.color))
         case .image(let path):
-            ImageNode(path: path, fit: look.fit ?? .fit, size: CGSize(width: look.width ?? look.height ?? 16, height: look.height ?? look.width ?? 16))
+            ImageNode(path: path, fit: look.fit ?? .fit, size: CGSize(width: look.width ?? look.height ?? 16, height: look.height ?? look.width ?? 16),
+                      arrival: reduceMotion ? nil : look.animation.flatMap { SwiftUI.Animation($0, duration: look.duration) },
+                      transition: AnyTransition(look.transition ?? .opacity))
         case .slider(let value):
             SliderNode(value: value, action: node.action, tint: node.props.color == nil ? nil : Color(look.color))
         case .progress(let value):
@@ -520,26 +522,28 @@ private let images: NSCache<NSString, NSImage> = {
 }()
 
 private let decoder = DispatchQueue(label: "gary.images", qos: .userInitiated)
+private let decodeAtOnceLimit = 32 << 10
 
 private struct ImageNode: View {
     let path: String
     let fit: ImageFit
     let size: CGSize
+    let arrival: SwiftUI.Animation?
+    let transition: AnyTransition
     @Environment(\.displayScale) private var scale
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let shown = State<NSImage?>(initialValue: nil)
 
     var body: some View {
         let pixels = CGSize(width: (size.width * scale).rounded(.up), height: (size.height * scale).rounded(.up))
         let key = "\(path)|\(Int(pixels.width))x\(Int(pixels.height))|\(fit.rawValue)" as NSString
         ZStack {
-            if let image = images.object(forKey: key) ?? shown.wrappedValue {
-                Image(nsImage: image).resizable().interpolation(.high).aspectRatio(contentMode: fit == .fill ? .fill : .fit).transition(.opacity)
+            if let image = images.object(forKey: key) ?? (isSmall(path) ? decoded(path, pixels, fit, key) : nil) ?? shown.wrappedValue {
+                Image(nsImage: image).resizable().interpolation(.high).aspectRatio(contentMode: fit == .fill ? .fill : .fit).transition(transition)
             }
         }
         .task(id: key) {
             guard images.object(forKey: key) == nil, let image = await decode(path, pixels, fit, key) else { return }
-            withAnimation(shown.wrappedValue == nil && !reduceMotion ? .easeOut(duration: 0.2) : nil) { shown.wrappedValue = image }
+            withAnimation(shown.wrappedValue == nil ? arrival : nil) { shown.wrappedValue = image }
         }
     }
 }
@@ -558,15 +562,23 @@ private func decode(_ path: String, _ pixels: CGSize, _ fit: ImageFit, _ key: NS
     return await withTaskCancellationHandler {
         await withCheckedContinuation { continuation in
             decoder.async {
-                guard !cancellation.isCancelled, let image = load(path, pixels, fit) else { return continuation.resume(returning: nil) }
-                let cost = Int(image.size.width * image.size.height * 4)
-                images.setObject(image, forKey: key, cost: cost)
-                continuation.resume(returning: image)
+                continuation.resume(returning: cancellation.isCancelled ? nil : decoded(path, pixels, fit, key))
             }
         }
     } onCancel: {
         cancellation.cancel()
     }
+}
+
+private func isSmall(_ path: String) -> Bool {
+    let attributes = try? FileManager.default.attributesOfItem(atPath: (path as NSString).expandingTildeInPath)
+    return attributes?[.type] as? FileAttributeType == .typeRegular && (attributes?[.size] as? Int ?? .max) <= decodeAtOnceLimit
+}
+
+private func decoded(_ path: String, _ pixels: CGSize, _ fit: ImageFit, _ key: NSString) -> NSImage? {
+    guard let image = load(path, pixels, fit) else { return nil }
+    images.setObject(image, forKey: key, cost: Int(image.size.width * image.size.height * 4))
+    return image
 }
 
 private func load(_ path: String, _ pixels: CGSize, _ fit: ImageFit) -> NSImage? {

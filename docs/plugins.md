@@ -64,7 +64,7 @@ Gary draws each node tree with SwiftUI. A `row` is a horizontal stack, a `column
 | `transition` | `"opacity"`, `"scale"`, or `"none"`: how a child appears and disappears. |
 | `material` | `"vibrant"`, `"glass"`, or `"none"`: a material behind the node, inside its `radius`. |
 | `clip`, `border`, `shadow` | `clip: true` cuts the content to the rounded `radius`. `border` is `{ color, width }` and `shadow` is `{ color, radius, y }`. |
-| `fit` | `"fit"` or `"fill"`: how an `image` fills its size. Gary decodes images off the main thread at the size they show. |
+| `fit` | `"fit"` or `"fill"`: how an `image` fills its size. Gary decodes images at the size they show, a file over 32 KB off the main thread. It appears when ready, faded only by the image's own `transition` and `animation`. |
 
 A node also takes `hovered` and `pressed`: objects of style properties that apply while the pointer is over it, and while a node with `action` is held down.
 
