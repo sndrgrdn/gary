@@ -1,53 +1,88 @@
 import Foundation
 
 public struct Node: Equatable, Sendable {
+    public struct Input: Equatable, Sendable {
+        public var value: String
+        public var placeholder: String?
+        public var change: String?
+        public var submit: String?
+
+        public init(value: String, placeholder: String? = nil, change: String? = nil, submit: String? = nil) {
+            self.value = value
+            self.placeholder = placeholder
+            self.change = change
+            self.submit = submit
+        }
+    }
+
     public enum Content: Equatable, Sendable {
         case row([Node])
         case column([Node])
+        case scroll([Node])
+        case button([Node], hover: String?)
         case text(String)
         case icon(String)
+        case image(String)
+        case slider(Double)
+        case progress(Double)
+        case input(Input)
         case spacer
     }
 
     public enum Kind: String, Sendable {
-        case row, column, text, icon, spacer
+        case row, column, scroll, button, text, icon, image, slider, progress, input, spacer
     }
 
     public var content: Content
     public var key: String?
     public var style: String?
     public var action: String?
+    public var props: StyleProps
 
-    public init(_ content: Content, key: String? = nil, style: String? = nil, action: String? = nil) {
+    public init(_ content: Content, key: String? = nil, style: String? = nil, action: String? = nil, props: StyleProps = StyleProps()) {
         self.content = content
         self.key = key
         self.style = style
         self.action = action
+        self.props = props
     }
 
     public var kind: Kind {
         switch content {
         case .row: return .row
         case .column: return .column
+        case .scroll: return .scroll
+        case .button: return .button
         case .text: return .text
         case .icon: return .icon
+        case .image: return .image
+        case .slider: return .slider
+        case .progress: return .progress
+        case .input: return .input
         case .spacer: return .spacer
         }
     }
 
     public var children: [Node] {
         switch content {
-        case .row(let children), .column(let children): return children
-        case .text, .icon, .spacer: return []
+        case .row(let children), .column(let children), .scroll(let children), .button(let children, _): return children
+        case .text, .icon, .image, .slider, .progress, .input, .spacer: return []
         }
     }
 
-    public var value: String? {
+    public func with(children: [Node]) -> Node {
+        var node = self
         switch content {
-        case .text(let value), .icon(let value): return value
-        case .row, .column, .spacer: return nil
+        case .row: node.content = .row(children)
+        case .column: node.content = .column(children)
+        case .scroll: node.content = .scroll(children)
+        case .button(_, let hover): node.content = .button(children, hover: hover)
+        case .text, .icon, .image, .slider, .progress, .input, .spacer: break
         }
+        return node
     }
+
+    public var own: Node { with(children: []) }
 }
 
 public struct NodeError: Error, Equatable, CustomStringConvertible {
@@ -82,7 +117,7 @@ extension Node {
             switch fields[name] {
             case nil, .null?: return nil
             case .string(let value)?: return value
-            case .number(let value)? where name == "text":
+            case .number(let value)? where name == "text" || name == "value":
                 return value.rounded() == value && abs(value) < 1e15 ? String(Int64(value)) : String(value)
             default: throw fail("\(name) must be a string")
             }
@@ -90,6 +125,10 @@ extension Node {
         func required(_ name: String) throws -> String {
             guard let value = try string(name) else { throw fail("\(name) is required") }
             return value
+        }
+        func fraction() throws -> Double {
+            guard let value = fields["value"]?.number, value.isFinite else { throw fail("value must be a number from 0 to 1") }
+            return min(1, max(0, value))
         }
         func children() throws -> [Node] {
             guard let items = fields["children"] else { return [] }
@@ -109,11 +148,19 @@ extension Node {
         switch Kind(rawValue: type) {
         case .row?: content = .row(try children())
         case .column?: content = .column(try children())
+        case .scroll?: content = .scroll(try children())
+        case .button?: content = .button(try children(), hover: try string("hover"))
         case .text?: content = .text(try required("text"))
         case .icon?: content = .icon(try required("symbol"))
+        case .image?: content = .image(try required("path"))
+        case .slider?: content = .slider(try fraction())
+        case .progress?: content = .progress(try fraction())
+        case .input?:
+            content = .input(Input(value: try string("value") ?? "", placeholder: try string("placeholder"), change: try string("change"), submit: try string("submit")))
         case .spacer?: content = .spacer
         case nil: throw fail("unknown type \"\(type)\"")
         }
-        return Node(content, key: try string("key"), style: try string("style"), action: try string("action"))
+        let props = try StyleProps.parse(fields) { field, reason in NodeError(path: path, reason: "\(field) \(reason)") }
+        return Node(content, key: try string("key"), style: try string("style"), action: try string("action"), props: props)
     }
 }

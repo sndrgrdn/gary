@@ -125,7 +125,6 @@ final class SurfaceWindow {
     private var size: [NSLayoutConstraint] = []
 
     init() {
-        card.wantsLayer = true
         panel.contentView = card
     }
 
@@ -145,10 +144,7 @@ final class SurfaceWindow {
         NSLayoutConstraint.activate(edges)
     }
 
-    func place(_ spec: SurfaceSpec, on display: DisplayInfo, level: Int, chrome: (background: RGBA, radius: Double, padding: Double)) {
-        card.layer?.backgroundColor = NSColor(chrome.background).cgColor
-        card.layer?.cornerRadius = chrome.radius
-        for edge in edges { edge.constant = chrome.padding }
+    func place(_ spec: SurfaceSpec, on display: DisplayInfo, level: Int) {
         panel.level = NSWindow.Level(rawValue: level)
         panel.ignoresMouseEvents = spec.clickThrough
         panel.focusable = spec.focusable
@@ -170,7 +166,23 @@ final class SurfaceWindow {
         return (constraints, fitting)
     }
 
-    func show() { panel.orderFrontRegardless() }
-    func close() { panel.close() }
+    func show(fade: Double) {
+        panel.alphaValue = 0
+        panel.orderFrontRegardless()
+        let panel = panel
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = fade
+            panel.animator().alphaValue = 1
+        }
+    }
+
+    func close(fade: Double) {
+        let panel = panel
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = fade
+            panel.animator().alphaValue = 0
+        }, completionHandler: { panel.close() })
+    }
+
     func contains(_ point: NSPoint) -> Bool { panel.isVisible && NSMouseInRect(point, panel.frame, false) }
 }

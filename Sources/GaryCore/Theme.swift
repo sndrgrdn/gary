@@ -20,8 +20,8 @@ public struct RGBA: Equatable, Sendable {
     }
 }
 
-public struct FontToken: Equatable, Sendable {
-    public enum Family: Equatable, Sendable {
+public struct FontToken: Hashable, Sendable {
+    public enum Family: Hashable, Sendable {
         case system, monospaced
         case named(String)
     }
@@ -33,11 +33,6 @@ public struct FontToken: Equatable, Sendable {
     public var family: Family
     public var size: Double
     public var weight: Weight
-}
-
-public struct Style: Equatable, Sendable {
-    public var color: RGBA
-    public var font: FontToken
 }
 
 public struct ThemeError: Error, Equatable, CustomStringConvertible {
@@ -58,21 +53,30 @@ public struct Theme: Equatable, Sendable {
         public var background: RGBA
     }
 
-    public struct Panel: Equatable, Sendable {
-        public var background: RGBA
-        public var radius: Double
-        public var padding: Double
+    public struct Motion: Equatable, Sendable {
+        public var fade: Double
     }
 
     public var colors: [String: RGBA]
     public var fonts: [String: FontToken]
     public var spacing: Spacing
     public var bar: Bar
-    public var panel: Panel
-    public var styles: [String: Style]
+    public var motion: Motion
+    public var styles: [String: StyleProps]
 
-    public func style(_ name: String?) -> Style {
-        name.flatMap { styles[$0] } ?? styles["default"]!
+    public func style(_ name: String?) -> ResolvedStyle { resolve(name) }
+
+    public func resolve(_ name: String?, _ props: StyleProps = StyleProps(), hover: String? = nil) -> ResolvedStyle {
+        let fallback = styles["default"]!
+        var merged = props.over(name.flatMap { styles[$0] }?.over(fallback) ?? fallback)
+        if let hover, let hovered = styles[hover] { merged = hovered.over(merged) }
+        func color(_ reference: String?) -> RGBA? { reference.flatMap { colors[$0] ?? RGBA(hex: $0) } }
+        var font = merged.font.flatMap { fonts[$0] } ?? fonts[fallback.font!]!
+        if let size = merged.fontSize { font.size = size }
+        return ResolvedStyle(
+            color: color(merged.color) ?? color(fallback.color)!, font: font, background: color(merged.background),
+            width: merged.width, height: merged.height, padding: merged.padding, gap: merged.gap, radius: merged.radius, opacity: merged.opacity
+        )
     }
 
     public static func parse(_ base: JSON, override: JSON? = nil) throws -> Theme {
@@ -97,6 +101,9 @@ public struct Theme: Equatable, Sendable {
             guard let color = colors[reference] ?? RGBA(hex: reference) else { throw fail(path, "unknown color \(reference)") }
             return color
         }
+        func checkColor(_ reference: String?, _ path: String) throws {
+            if let reference { _ = try color(.string(reference), path) }
+        }
 
         var fonts: [String: FontToken] = [:]
         for (name, value) in try object(json["fonts"], "fonts") {
@@ -112,27 +119,23 @@ public struct Theme: Equatable, Sendable {
             guard let weight = FontToken.Weight(rawValue: weightName) else { throw fail("fonts.\(name).weight", "unknown weight \(weightName)") }
             fonts[name] = FontToken(family: family, size: try number(fields["size"], "fonts.\(name).size"), weight: weight)
         }
-        func font(_ value: JSON?, _ path: String) throws -> FontToken {
-            guard let name = value?.string else { throw fail(path, "must name a font") }
-            guard let font = fonts[name] else { throw fail(path, "unknown font \(name)") }
-            return font
-        }
-
         let spacing = try object(json["spacing"], "spacing")
         let bar = try object(json["bar"], "bar")
-        let panel = try object(json["panel"], "panel")
+        let motion = try object(json["motion"], "motion")
 
         let styleFields = try object(json["styles"], "styles")
-        let defaultFields = try object(styleFields["default"], "styles.default")
-        let fallback = Style(color: try color(defaultFields["color"], "styles.default.color"), font: try font(defaultFields["font"], "styles.default.font"))
-        var styles: [String: Style] = [:]
+        var styles: [String: StyleProps] = [:]
         for (name, value) in styleFields {
-            let fields = try object(value, "styles.\(name)")
-            styles[name] = Style(
-                color: try fields["color"].map { try color($0, "styles.\(name).color") } ?? fallback.color,
-                font: try fields["font"].map { try font($0, "styles.\(name).font") } ?? fallback.font
-            )
+            let path = "styles.\(name)"
+            let props = try StyleProps.parse(try object(value, path)) { field, reason in fail("\(path).\(field)", reason) }
+            try checkColor(props.color, "\(path).color")
+            try checkColor(props.background, "\(path).background")
+            if let font = props.font, fonts[font] == nil { throw fail("\(path).font", "unknown font \(font)") }
+            styles[name] = props
         }
+        let fallback = try styles["default"] ?? { throw fail("styles.default", "must be an object") }()
+        if fallback.color == nil { throw fail("styles.default.color", "must name a color") }
+        if fallback.font == nil { throw fail("styles.default.font", "must name a font") }
 
         return Theme(
             colors: colors,
@@ -143,11 +146,7 @@ public struct Theme: Equatable, Sendable {
                 edge: try number(spacing["edge"], "spacing.edge")
             ),
             bar: Bar(height: try number(bar["height"], "bar.height"), background: try color(bar["background"], "bar.background")),
-            panel: Panel(
-                background: try color(panel["background"], "panel.background"),
-                radius: try number(panel["radius"], "panel.radius"),
-                padding: try number(panel["padding"], "panel.padding")
-            ),
+            motion: Motion(fade: try number(motion["fade"], "motion.fade")),
             styles: styles
         )
     }

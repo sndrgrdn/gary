@@ -16,7 +16,7 @@
   },
   "spacing": { "item": 8, "section": 14, "edge": 16 },
   "bar": { "height": 32, "background": "background" },
-  "panel": { "background": "panel", "radius": 12, "padding": 14 },
+  "motion": { "fade": 0.15 },
   "styles": {
     "default": { "color": "foreground", "font": "body" },
     "active": { "color": "accent", "font": "strong" },
@@ -24,6 +24,9 @@
     "bright": { "color": "bright" },
     "good": { "color": "good" },
     "bad": { "color": "bad" },
-    "title": { "color": "bright", "font": "title" }
+    "title": { "color": "bright", "font": "title" },
+    "panel": { "background": "panel", "radius": 12, "padding": 14 },
+    "hover": { "background": "#ffffff1a", "radius": 6 },
+    "selected": { "color": "bright", "background": "#7aa2f740", "radius": 6 }
   }
 }

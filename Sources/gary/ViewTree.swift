@@ -1,62 +1,191 @@
 import AppKit
 import GaryCore
 
+typealias ActionHandler = (String, JSON) -> Void
+
 protocol NodeView: NSView {
     var nodeAction: String? { get set }
-    var onAction: ((String) -> Void)? { get set }
+    var onAction: ActionHandler? { get set }
+    var sizing: [NSLayoutConstraint] { get set }
 }
 
 extension NodeView {
     func click(_ event: NSEvent) {
-        if let nodeAction { onAction?(nodeAction) } else { nextResponder?.mouseDown(with: event) }
+        if let nodeAction { onAction?(nodeAction, .null) } else { nextResponder?.mouseDown(with: event) }
     }
 }
 
 final class TextNodeView: NSTextField, NodeView {
     var nodeAction: String?
-    var onAction: ((String) -> Void)?
+    var onAction: ActionHandler?
+    var sizing: [NSLayoutConstraint] = []
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) { click(event) }
 }
 
 final class IconNodeView: NSImageView, NodeView {
     var nodeAction: String?
-    var onAction: ((String) -> Void)?
+    var onAction: ActionHandler?
+    var sizing: [NSLayoutConstraint] = []
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) { click(event) }
 }
 
-final class StackNodeView: NSStackView, NodeView {
+class StackNodeView: NSStackView, NodeView {
     var nodeAction: String?
-    var onAction: ((String) -> Void)?
+    var onAction: ActionHandler?
+    var sizing: [NSLayoutConstraint] = []
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) { click(event) }
+}
+
+final class FlippedStackView: StackNodeView {
+    override var isFlipped: Bool { true }
+}
+
+final class ButtonNodeView: StackNodeView {
+    var looks: (normal: ResolvedStyle, hovered: ResolvedStyle)? { didSet { paint() } }
+    private var hovered = false
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for area in trackingAreas { removeTrackingArea(area) }
+        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+
+    override func mouseEntered(with event: NSEvent) { hovered = true; paint() }
+    override func mouseExited(with event: NSEvent) { hovered = false; paint() }
+
+    private func paint() {
+        guard let looks else { return }
+        paintBox(self, hovered ? looks.hovered : looks.normal)
+    }
+}
+
+final class ScrollNodeView: NSScrollView, NodeView {
+    var nodeAction: String?
+    var onAction: ActionHandler?
+    var sizing: [NSLayoutConstraint] = []
+    let stack = FlippedStackView()
 }
 
 final class SpacerNodeView: NSView, NodeView {
     var nodeAction: String?
-    var onAction: ((String) -> Void)?
+    var onAction: ActionHandler?
+    var sizing: [NSLayoutConstraint] = []
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) { click(event) }
 }
 
+final class SliderNodeView: NSSlider, NodeView {
+    var nodeAction: String?
+    var onAction: ActionHandler?
+    var sizing: [NSLayoutConstraint] = []
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    @objc func changed(_ sender: Any?) {
+        if let nodeAction { onAction?(nodeAction, .number(doubleValue)) }
+    }
+}
+
+final class ProgressNodeView: NSView, NodeView {
+    var nodeAction: String?
+    var onAction: ActionHandler?
+    var sizing: [NSLayoutConstraint] = []
+    let fill = CALayer()
+    var fraction = 0.0 { didSet { needsLayout = true } }
+
+    override var intrinsicContentSize: NSSize { NSSize(width: 120, height: 6) }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func mouseDown(with event: NSEvent) { click(event) }
+
+    override func layout() {
+        super.layout()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        fill.frame = CGRect(x: 0, y: 0, width: bounds.width * fraction, height: bounds.height)
+        fill.cornerRadius = layer?.cornerRadius ?? 0
+        CATransaction.commit()
+    }
+}
+
+final class InputNodeView: NSTextField, NodeView, NSTextFieldDelegate {
+    var nodeAction: String?
+    var onAction: ActionHandler?
+    var sizing: [NSLayoutConstraint] = []
+    var input = Node.Input(value: "")
+    private var sent: [String] = []
+
+    func show(_ next: Node.Input) {
+        input = next
+        placeholderString = next.placeholder
+        if let index = sent.firstIndex(of: next.value) {
+            sent.removeFirst(index + 1)
+            return
+        }
+        sent = []
+        if stringValue != next.value { stringValue = next.value }
+    }
+
+    func controlTextDidChange(_ notification: Notification) {
+        guard let change = input.change else { return }
+        sent.append(stringValue)
+        onAction?(change, .string(stringValue))
+    }
+
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+        guard selector == #selector(NSResponder.insertNewline(_:)), let submit = input.submit else { return false }
+        onAction?(submit, .string(stringValue))
+        return true
+    }
+}
+
+func paintBox(_ view: NSView, _ look: ResolvedStyle) {
+    if look.background != nil || look.radius != nil || view.layer != nil {
+        view.wantsLayer = true
+        view.layer?.backgroundColor = look.background.map { NSColor($0).cgColor }
+        view.layer?.cornerRadius = look.radius ?? 0
+    }
+    view.alphaValue = look.opacity ?? 1
+}
+
 final class ViewRenderer {
     let theme: Theme
-    private var resolved: [String: (font: NSFont, color: NSColor)] = [:]
+    private var fonts: [FontToken: NSFont] = [:]
+    private let images = NSCache<NSString, NSImage>()
 
     init(theme: Theme) { self.theme = theme }
 
-    func build(_ node: Node, onAction: @escaping (String) -> Void) -> NSView {
+    func build(_ node: Node, onAction: @escaping ActionHandler) -> NSView {
         let view: NodeView
         switch node.content {
-        case .row(let children), .column(let children):
-            let stack = StackNodeView(views: children.map { build($0, onAction: onAction) })
-            stack.orientation = node.kind == .row ? .horizontal : .vertical
-            stack.alignment = node.kind == .row ? .centerY : .leading
-            stack.setHuggingPriority(.required, for: node.kind == .row ? .horizontal : .vertical)
+        case .row(let children), .column(let children), .button(let children, _):
+            let stack = node.kind == .button ? ButtonNodeView() : StackNodeView()
+            stack.setViews(children.map { build($0, onAction: onAction) }, in: .leading)
+            stack.orientation = node.kind == .column ? .vertical : .horizontal
+            stack.alignment = node.kind == .column ? .leading : .centerY
+            stack.setHuggingPriority(.required, for: node.kind == .column ? .vertical : .horizontal)
             view = stack
-        case .text(let text):
-            let label = TextNodeView(labelWithString: text)
+        case .scroll(let children):
+            let scroll = ScrollNodeView()
+            scroll.drawsBackground = false
+            scroll.hasVerticalScroller = true
+            scroll.autohidesScrollers = true
+            scroll.scrollerStyle = .overlay
+            scroll.stack.orientation = .vertical
+            scroll.stack.alignment = .leading
+            scroll.stack.setViews(children.map { build($0, onAction: onAction) }, in: .leading)
+            scroll.stack.translatesAutoresizingMaskIntoConstraints = false
+            scroll.documentView = scroll.stack
+            NSLayoutConstraint.activate([
+                scroll.stack.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
+                scroll.stack.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
+            ])
+            let fitWidth = scroll.widthAnchor.constraint(equalTo: scroll.stack.widthAnchor)
+            fitWidth.priority = .defaultHigh
+            fitWidth.isActive = true
+            view = scroll
+        case .text:
+            let label = TextNodeView(labelWithString: "")
             label.setContentHuggingPriority(.required, for: .horizontal)
             label.setContentCompressionResistancePriority(.required, for: .horizontal)
             view = label
@@ -65,6 +194,31 @@ final class ViewRenderer {
             icon.imageScaling = .scaleNone
             icon.setContentHuggingPriority(.required, for: .horizontal)
             view = icon
+        case .image:
+            let image = IconNodeView()
+            image.imageScaling = .scaleProportionallyUpOrDown
+            view = image
+        case .slider:
+            let slider = SliderNodeView()
+            slider.minValue = 0
+            slider.maxValue = 1
+            slider.isContinuous = true
+            slider.target = slider
+            slider.action = #selector(SliderNodeView.changed(_:))
+            view = slider
+        case .progress:
+            let progress = ProgressNodeView()
+            progress.wantsLayer = true
+            progress.layer?.addSublayer(progress.fill)
+            view = progress
+        case .input:
+            let input = InputNodeView()
+            input.delegate = input
+            input.isBordered = false
+            input.drawsBackground = false
+            input.focusRingType = .none
+            input.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            view = input
         case .spacer:
             let spacer = SpacerNodeView()
             spacer.setContentHuggingPriority(.init(1), for: .horizontal)
@@ -72,21 +226,21 @@ final class ViewRenderer {
             view = spacer
         }
         view.onAction = onAction
-        style(view, value: node.value, style: node.style, action: node.action)
+        style(view, node)
         return view
     }
 
-    func apply(_ patch: Patch, to view: NSView, onAction: @escaping (String) -> Void) -> (view: NSView, mutations: Int) {
+    func apply(_ patch: Patch, to view: NSView, onAction: @escaping ActionHandler) -> (view: NSView, mutations: Int) {
         switch patch {
         case .replace(let node):
             return (build(node, onAction: onAction), 1)
-        case .update(let attributes, let children):
+        case .update(let own, let children):
             var mutations = 0
-            if let attributes {
-                style(view, value: attributes.value, style: attributes.style, action: attributes.action)
+            if let own {
+                style(view, own)
                 mutations += 1
             }
-            if let children, let stack = view as? NSStackView {
+            if let children, let stack = childStack(view) {
                 let old = stack.arrangedSubviews
                 let next = children.map { child -> NSView in
                     switch child {
@@ -105,37 +259,101 @@ final class ViewRenderer {
     }
 
     func restyle(_ view: NSView, _ node: Node) {
-        style(view, value: node.value, style: node.style, action: node.action)
-        guard let stack = view as? NSStackView else { return }
+        style(view, node)
+        guard let stack = childStack(view) else { return }
         for (child, childNode) in zip(stack.arrangedSubviews, node.children) { restyle(child, childNode) }
     }
 
-    private func style(_ view: NSView, value: String?, style name: String?, action: String?) {
-        (view as? NodeView)?.nodeAction = action
-        let style = resolve(name)
-        switch view {
-        case let label as TextNodeView:
-            label.stringValue = value ?? ""
-            label.font = style.font
-            label.textColor = style.color
-        case let icon as IconNodeView:
-            icon.image = value.flatMap { NSImage(systemSymbolName: $0, accessibilityDescription: $0) }
-            icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: style.font.pointSize, weight: .init(theme.style(name).font.weight))
-            icon.contentTintColor = style.color
-        case let stack as NSStackView:
-            stack.spacing = theme.spacing.item
+    private func childStack(_ view: NSView) -> NSStackView? {
+        (view as? ScrollNodeView)?.stack ?? view as? NSStackView
+    }
+
+    private func style(_ view: NSView, _ node: Node) {
+        guard let view = view as? NodeView else { return }
+        view.nodeAction = node.action
+        let look = theme.resolve(node.style, node.props)
+        paintBox(view, look)
+        var width = look.width, height = look.height
+        switch (view, node.content) {
+        case (let label as TextNodeView, .text(let text)):
+            label.stringValue = text
+            label.font = font(look.font)
+            label.textColor = NSColor(look.color)
+        case (let icon as IconNodeView, .icon(let symbol)):
+            icon.image = NSImage(systemSymbolName: symbol, accessibilityDescription: symbol)
+            icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: look.font.size, weight: .init(look.font.weight))
+            icon.contentTintColor = NSColor(look.color)
+        case (let image as IconNodeView, .image(let path)):
+            image.image = self.image(path)
+            width = width ?? height ?? 16
+            height = height ?? width
+        case (let button as ButtonNodeView, .button(_, let hover)):
+            button.spacing = look.gap ?? theme.spacing.item
+            button.edgeInsets = insets(look.padding)
+            button.looks = (look, theme.resolve(node.style, node.props, hover: hover ?? "hover"))
+        case (let scroll as ScrollNodeView, _):
+            scroll.stack.spacing = look.gap ?? theme.spacing.item
+            scroll.stack.edgeInsets = insets(look.padding)
+            let fit = scroll.heightAnchor.constraint(equalTo: scroll.stack.heightAnchor)
+            fit.priority = .defaultHigh
+            scroll.sizing = replace(scroll.sizing, with: [
+                fit,
+                height.map { scroll.heightAnchor.constraint(lessThanOrEqualToConstant: $0) },
+                width.map { scroll.widthAnchor.constraint(equalToConstant: $0) },
+            ].compactMap { $0 })
+            return
+        case (let stack as StackNodeView, _):
+            stack.spacing = look.gap ?? theme.spacing.item
+            stack.edgeInsets = insets(look.padding)
+        case (let slider as SliderNodeView, .slider(let value)):
+            slider.doubleValue = value
+            slider.trackFillColor = node.props.color == nil ? nil : NSColor(look.color)
+            width = width ?? 120
+        case (let progress as ProgressNodeView, .progress(let value)):
+            progress.fraction = value
+            progress.fill.backgroundColor = NSColor(look.color).cgColor
+            if look.background == nil { progress.layer?.backgroundColor = NSColor(look.color).withAlphaComponent(0.25).cgColor }
+            progress.layer?.cornerRadius = look.radius ?? 3
+        case (let input as InputNodeView, .input(let value)):
+            input.show(value)
+            input.font = font(look.font)
+            input.textColor = NSColor(look.color)
+            width = width ?? 240
         default:
             break
         }
+        view.sizing = replace(view.sizing, with: [
+            width.map { view.widthAnchor.constraint(equalToConstant: $0) },
+            height.map { view.heightAnchor.constraint(equalToConstant: $0) },
+        ].compactMap { $0 })
     }
 
-    private func resolve(_ name: String?) -> (font: NSFont, color: NSColor) {
-        let key = name ?? "default"
-        if let cached = resolved[key] { return cached }
-        let style = theme.style(name)
-        let value = (makeFont(style.font), NSColor(style.color))
-        resolved[key] = value
-        return value
+    private func replace(_ old: [NSLayoutConstraint], with new: [NSLayoutConstraint]) -> [NSLayoutConstraint] {
+        guard old.map(\.constant) != new.map(\.constant) || old.count != new.count else { return old }
+        NSLayoutConstraint.deactivate(old)
+        for constraint in new where constraint.priority == .required { constraint.priority = .init(999) }
+        NSLayoutConstraint.activate(new)
+        return new
+    }
+
+    private func insets(_ padding: Double?) -> NSEdgeInsets {
+        let value = padding ?? 0
+        return NSEdgeInsets(top: value, left: value, bottom: value, right: value)
+    }
+
+    private func font(_ token: FontToken) -> NSFont {
+        if let cached = fonts[token] { return cached }
+        let font = makeFont(token)
+        fonts[token] = font
+        return font
+    }
+
+    private func image(_ path: String) -> NSImage? {
+        if let cached = images.object(forKey: path as NSString) { return cached }
+        let expanded = (path as NSString).expandingTildeInPath
+        let image = expanded.hasSuffix(".app") ? NSWorkspace.shared.icon(forFile: expanded) : NSImage(contentsOfFile: expanded)
+        if let image { images.setObject(image, forKey: path as NSString) }
+        return image
     }
 }
 

@@ -22,6 +22,27 @@ struct NodeTests {
         ]), style: "bar"))
     }
 
+    @Test func parsesTheControlsAndStyleProperties() throws {
+        let node = try parse("""
+        {"type":"column","style":"panel","padding":8,"gap":4,"background":"#000000","children":[
+          {"type":"button","action":"open","hover":"selected","radius":6,"children":[{"type":"image","path":"/Applications/Safari.app","width":24,"height":24}]},
+          {"type":"slider","value":0.25,"action":"volume"},
+          {"type":"progress","value":1.5,"color":"accent","opacity":0.5},
+          {"type":"input","value":"saf","placeholder":"Search","change":"query","submit":"run","fontSize":16},
+          {"type":"scroll","height":200,"children":[{"type":"text","text":"a"}]}
+        ]}
+        """)
+        #expect(node == Node(.column([
+            Node(.button([Node(.image("/Applications/Safari.app"), props: StyleProps(width: 24, height: 24))], hover: "selected"),
+                 action: "open", props: StyleProps(radius: 6)),
+            Node(.slider(0.25), action: "volume"),
+            Node(.progress(1), props: StyleProps(opacity: 0.5, color: "accent")),
+            Node(.input(Node.Input(value: "saf", placeholder: "Search", change: "query", submit: "run")), props: StyleProps(fontSize: 16)),
+            Node(.scroll([Node(.text("a"))]), props: StyleProps(height: 200)),
+        ]), style: "panel", props: StyleProps(padding: 8, gap: 4, background: "#000000")))
+        #expect(try parse(#"{"type":"input"}"#) == Node(.input(Node.Input(value: ""))))
+    }
+
     @Test func nullOptionalFieldsAreAbsent() throws {
         #expect(try parse(#"{"type":"text","text":"a","style":null,"key":null}"#) == Node(.text("a")))
     }
@@ -30,7 +51,12 @@ struct NodeTests {
         let cases: [(String, NodeError)] = [
             (#"[]"#, NodeError(path: "root", reason: "node must be an object")),
             (#"{"text":"a"}"#, NodeError(path: "root", reason: "type is required")),
-            (#"{"type":"button"}"#, NodeError(path: "root", reason: "unknown type \"button\"")),
+            (#"{"type":"knob"}"#, NodeError(path: "root", reason: "unknown type \"knob\"")),
+            (#"{"type":"slider"}"#, NodeError(path: "root", reason: "value must be a number from 0 to 1")),
+            (#"{"type":"image"}"#, NodeError(path: "root", reason: "path is required")),
+            (#"{"type":"spacer","width":-1}"#, NodeError(path: "root", reason: "width must be a non-negative number")),
+            (#"{"type":"spacer","opacity":2}"#, NodeError(path: "root", reason: "opacity must be between 0 and 1")),
+            (##"{"type":"spacer","color":"#12"}"##, NodeError(path: "root", reason: "color must be a theme color name, #rrggbb or #rrggbbaa")),
             (#"{"type":"text"}"#, NodeError(path: "root", reason: "text is required")),
             (#"{"type":"icon","text":"x"}"#, NodeError(path: "root", reason: "symbol is required")),
             (#"{"type":"text","text":"a","style":3}"#, NodeError(path: "root", reason: "style must be a string")),
@@ -60,15 +86,11 @@ struct NodeTests {
 }
 
 private final class FakeView {
-    var kind: Node.Kind
-    var key: String?
-    var attributes: (value: String?, style: String?, action: String?)
+    var own: Node
     var children: [FakeView]
 
     init(_ node: Node) {
-        kind = node.kind
-        key = node.key
-        attributes = (node.value, node.style, node.action)
+        own = node.own
         children = node.children.map(FakeView.init)
     }
 
@@ -76,8 +98,8 @@ private final class FakeView {
         switch patch {
         case .replace(let node):
             return FakeView(node)
-        case .update(let attributes, let children):
-            if let attributes { self.attributes = (attributes.value, attributes.style, attributes.action) }
+        case .update(let own, let children):
+            if let own { self.own = own }
             if let children {
                 let old = self.children
                 self.children = children.map { child in
@@ -92,18 +114,7 @@ private final class FakeView {
     }
 
     var subtree: [FakeView] { [self] + children.flatMap(\.subtree) }
-
-    var node: Node {
-        let content: Node.Content
-        switch kind {
-        case .row: content = .row(children.map(\.node))
-        case .column: content = .column(children.map(\.node))
-        case .text: content = .text(attributes.value!)
-        case .icon: content = .icon(attributes.value!)
-        case .spacer: content = .spacer
-        }
-        return Node(content, key: key, style: attributes.style, action: attributes.action)
-    }
+    var node: Node { own.with(children: children.map(\.node)) }
 }
 
 struct ReconcileTests {
@@ -127,8 +138,8 @@ struct ReconcileTests {
     @Test func aTextChangeUpdatesOneViewInPlace() {
         let old = Node(.row([text("12:00"), text("80%")]))
         let new = Node(.row([text("12:01"), text("80%")]))
-        #expect(reconcile(old, new) == .update(attributes: nil, children: [
-            .reuse(from: 0, patch: .update(attributes: Attributes(value: "12:01", style: nil, action: nil), children: nil)),
+        #expect(reconcile(old, new) == .update(own: nil, children: [
+            .reuse(from: 0, patch: .update(own: text("12:01"), children: nil)),
             .reuse(from: 1, patch: nil),
         ]))
         let result = mountAndPatch(old, new)
@@ -156,7 +167,7 @@ struct ReconcileTests {
     @Test func insertingAKeyedChildBuildsOnlyThatChild() {
         let old = Node(.row([text("2", key: "2"), text("3", key: "3")]))
         let new = Node(.row([text("1", key: "1"), text("2", key: "2"), text("3", key: "3")]))
-        #expect(reconcile(old, new) == .update(attributes: nil, children: [
+        #expect(reconcile(old, new) == .update(own: nil, children: [
             .create(text("1", key: "1")), .reuse(from: 0, patch: nil), .reuse(from: 1, patch: nil),
         ]))
         #expect(mountAndPatch(old, new).built == 1)
@@ -165,14 +176,14 @@ struct ReconcileTests {
     @Test func removingAChildReusesTheRest() {
         let old = Node(.row([text("1", key: "1"), text("2", key: "2"), text("3", key: "3")]))
         let new = Node(.row([text("1", key: "1"), text("3", key: "3")]))
-        #expect(reconcile(old, new) == .update(attributes: nil, children: [.reuse(from: 0, patch: nil), .reuse(from: 2, patch: nil)]))
+        #expect(reconcile(old, new) == .update(own: nil, children: [.reuse(from: 0, patch: nil), .reuse(from: 2, patch: nil)]))
         #expect(mountAndPatch(old, new).built == 0)
     }
 
     @Test func unkeyedChildrenMatchByPositionAndKind() {
         let old = Node(.row([text("a"), Node(.icon("bolt")), text("b")]))
         let new = Node(.row([Node(.icon("bolt")), text("a"), text("b")]))
-        #expect(reconcile(old, new) == .update(attributes: nil, children: [
+        #expect(reconcile(old, new) == .update(own: nil, children: [
             .create(Node(.icon("bolt"))),
             .create(text("a")),
             .reuse(from: 2, patch: nil),
@@ -182,7 +193,18 @@ struct ReconcileTests {
 
     @Test func clearingAStyleIsAnAttributeChange() {
         let patch = reconcile(text("a", style: "active"), text("a"))
-        #expect(patch == .update(attributes: Attributes(value: "a", style: nil, action: nil), children: nil))
+        #expect(patch == .update(own: text("a"), children: nil))
+    }
+
+    @Test func aControlValueOrPropertyChangeUpdatesInPlaceAndKeepsChildren() {
+        let row = [Node(.image("/a.app"), key: "icon"), text("Safari", key: "name")]
+        let old = Node(.button(row, hover: nil), key: "r1", props: StyleProps(background: "selected"))
+        let new = Node(.button(row, hover: nil), key: "r1")
+        #expect(reconcile(old, new) == .update(own: new.own, children: nil))
+        let slider = reconcile(Node(.slider(0.2), action: "v"), Node(.slider(0.6), action: "v"))
+        #expect(slider == .update(own: Node(.slider(0.6), action: "v"), children: nil))
+        let result = mountAndPatch(Node(.scroll(row)), Node(.scroll([text("Safari", key: "name")])))
+        #expect(result.built == 0)
     }
 
     @Test func anyPatchTurnsTheOldTreeIntoTheNewOne() {
@@ -197,7 +219,8 @@ struct ReconcileTests {
     private func randomTree(_ random: inout SeededRandom, depth: Int) -> Node {
         let style = ["a", "b", nil][random.next(3)]
         let key = random.next(3) == 0 ? ["k1", "k2", "k3", "k4"][random.next(4)] : nil
-        switch depth < 3 ? random.next(5) : 2 + random.next(3) {
+        let props = random.next(3) == 0 ? StyleProps(padding: Double(random.next(3))) : StyleProps()
+        switch depth < 3 ? random.next(5) : 2 + random.next(4) {
         case 0, 1:
             var children: [Node] = []
             var keys = Set<String>()
@@ -206,9 +229,11 @@ struct ReconcileTests {
                 if let key = child.key, !keys.insert(key).inserted { continue }
                 children.append(child)
             }
-            return Node(random.next(2) == 0 ? .row(children) : .column(children), key: key, style: style)
+            let containers: [Node.Content] = [.row(children), .column(children), .scroll(children), .button(children, hover: nil)]
+            return Node(containers[random.next(4)], key: key, style: style, props: props)
         case 2: return Node(.text(["1", "2", "3"][random.next(3)]), key: key, style: style, action: random.next(2) == 0 ? "go" : nil)
-        case 3: return Node(.icon(["bolt", "wifi"][random.next(2)]), key: key, style: style)
+        case 3: return Node(.icon(["bolt", "wifi"][random.next(2)]), key: key, style: style, props: props)
+        case 4: return Node(random.next(2) == 0 ? .slider(Double(random.next(3)) / 2) : .progress(0.5), key: key)
         default: return Node(.spacer, key: key)
         }
     }

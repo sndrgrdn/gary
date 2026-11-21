@@ -85,11 +85,11 @@ final class PluginRuntime: Subscriber {
         }
     }
 
-    func perform(_ action: String) {
+    func perform(_ action: String, _ payload: JSON) {
         queue.async { [self] in
             guard let functions else { return }
             do {
-                try invoke(functions.action, [action, stateText(for: nil)])
+                try invoke(functions.action, [action, payload.text, stateText(for: nil)])
                 renderAll(Trace("action"))
             } catch {
                 fail("\(error)")
@@ -168,7 +168,7 @@ final class PluginRuntime: Subscriber {
           if (typeof e().render !== "function") throw new Error("module.exports.render is not a function");
           return [
             function (state) { return JSON.stringify(e().render(JSON.parse(state))); },
-            function (action, state) { if (typeof e().onAction === "function") e().onAction(action, JSON.parse(state)); },
+            function (action, payload, state) { if (typeof e().onAction === "function") e().onAction(action, JSON.parse(payload), JSON.parse(state)); },
             function (method, args) {
               var f = e().methods && e().methods[method];
               if (typeof f !== "function") throw new Error("no method " + method);

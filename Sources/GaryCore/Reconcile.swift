@@ -1,24 +1,6 @@
 public indirect enum Patch: Equatable, Sendable {
     case replace(Node)
-    case update(attributes: Attributes?, children: [ChildPatch]?)
-}
-
-public struct Attributes: Equatable, Sendable {
-    public var value: String?
-    public var style: String?
-    public var action: String?
-
-    init(value: String?, style: String?, action: String?) {
-        self.value = value
-        self.style = style
-        self.action = action
-    }
-
-    init(_ node: Node) {
-        value = node.value
-        style = node.style
-        action = node.action
-    }
+    case update(own: Node?, children: [ChildPatch]?)
 }
 
 public enum ChildPatch: Equatable, Sendable {
@@ -32,10 +14,10 @@ public func reconcile(_ old: Node, _ new: Node) -> Patch? {
 }
 
 private func update(_ old: Node, _ new: Node) -> Patch? {
-    let attributes = Attributes(old) == Attributes(new) ? nil : Attributes(new)
+    let own = old.own == new.own ? nil : new.own
     let children = reconcileChildren(old.children, new.children)
-    if attributes == nil && children == nil { return nil }
-    return .update(attributes: attributes, children: children)
+    if own == nil && children == nil { return nil }
+    return .update(own: own, children: children)
 }
 
 private enum Identity: Hashable {

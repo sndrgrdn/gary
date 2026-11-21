@@ -27,6 +27,6 @@ module.exports = {
         ],
       });
     }
-    return { type: "column", children: lines };
+    return { type: "column", style: "panel", children: lines };
   },
 };

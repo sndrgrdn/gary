@@ -240,9 +240,9 @@ final class Shell {
         }
     }
 
-    private func perform(_ action: String, _ key: SlotKey) {
-        if tracing { log("action plugin=\(key) action=\(action)") }
-        slots[key]?.runtime?.perform(action)
+    private func perform(_ action: String, _ payload: JSON, _ key: SlotKey) {
+        if tracing { log("action plugin=\(key) action=\(action) payload=\(payload.text)") }
+        slots[key]?.runtime?.perform(action, payload)
     }
 
 
@@ -257,7 +257,7 @@ final class Shell {
     private func mount(_ slot: PluginSlot, _ display: String, _ tree: Node, _ trace: Trace) {
         let key = MountKey(slot: slot.key, display: display)
         let slotKey = slot.key
-        let onAction: (String) -> Void = { [weak self] action in self?.perform(action, slotKey) }
+        let onAction: ActionHandler = { [weak self] action, payload in self?.perform(action, payload, slotKey) }
         let started = now()
         let mutations: Int
         if let mounted = mounts[key] {
@@ -299,20 +299,26 @@ final class Shell {
             spec.anchors = Edges(top: true, bottom: false, left: true, right: true)
             spec.height = .points(display.band)
             spec.exclusionMode = .ignore
-            window.place(spec, on: display, level: levels.bar, chrome: (theme.bar.background, 0, 0))
+            window.place(spec, on: display, level: levels.bar)
         } else if let spec = slot.surface {
-            window.place(spec, on: display, level: levels.level(spec.layer), chrome: (theme.panel.background, theme.panel.radius, theme.panel.padding))
+            window.place(spec, on: display, level: levels.level(spec.layer))
         }
         if isNew {
-            window.show()
+            window.show(fade: fade(key.slot))
             watchClicks()
         }
     }
 
     private func unmount(_ key: MountKey) {
-        mounts.removeValue(forKey: key)?.view.removeFromSuperview()
-        windows.removeValue(forKey: key)?.close()
+        if let window = windows.removeValue(forKey: key) {
+            window.close(fade: fade(key.slot))
+            mounts[key] = nil
+        } else {
+            mounts.removeValue(forKey: key)?.view.removeFromSuperview()
+        }
     }
+
+    private func fade(_ slot: SlotKey) -> Double { slot.kind.isSurface ? theme.motion.fade : 0 }
 
     private func watchClicks() {
         let open = windows.keys.contains { $0.slot.kind == .menu }
@@ -589,8 +595,11 @@ final class Shell {
 extension Node {
     var summary: String {
         switch content {
-        case .row(let children), .column(let children): return children.map(\.summary).filter { !$0.isEmpty }.joined(separator: " ")
-        case .text(let value), .icon(let value): return value.replacingOccurrences(of: " ", with: "_") + ":" + (style ?? "default")
+        case .row(let children), .column(let children), .scroll(let children), .button(let children, _):
+            return children.map(\.summary).filter { !$0.isEmpty }.joined(separator: " ")
+        case .text(let value), .icon(let value), .image(let value): return value.replacingOccurrences(of: " ", with: "_") + ":" + (style ?? "default")
+        case .slider(let value), .progress(let value): return "\(kind.rawValue)=\(value)"
+        case .input(let input): return "input=\(input.value)"
         case .spacer: return ""
         }
     }
