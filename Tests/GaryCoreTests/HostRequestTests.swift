@@ -76,6 +76,109 @@ struct WallpaperRequestTests {
     }
 }
 
+struct MenuBarRequestTests {
+    @Test func hideRestoreAndStateTakeNoArguments() throws {
+        #expect(try MenuBarRequest.methods.map { try MenuBarRequest.parse(call("menubar", $0)) } == [.hide, .restore, .state])
+        #expect(throws: ArgumentError("host.menubar.show is not a method")) { try MenuBarRequest.parse(call("menubar", "show")) }
+    }
+}
+
+struct DockRequestTests {
+    private let screen = CGSize(width: 1728, height: 1117)
+
+    private func reservation(_ edge: String, _ size: Double) throws -> DockReservation {
+        guard case .reserve(let reservation) = try DockRequest.parse(call("dock", "reserve", .string(edge), .number(size))) else {
+            throw ArgumentError("not a reservation")
+        }
+        return reservation
+    }
+
+    @Test func reservationsBecomeDockRectsAlongTheirEdgeInWindowServerCoordinates() throws {
+        let bottom = try reservation("bottom", 60)
+        #expect(bottom.rect(in: screen) == CGRect(x: 0, y: 1057, width: 1728, height: 60))
+        #expect(bottom.orientation == 2)
+        let left = try reservation("left", 60)
+        #expect(left.rect(in: screen) == CGRect(x: 0, y: 0, width: 60, height: 1117))
+        #expect(left.orientation == 3)
+        let right = try reservation("right", 60)
+        #expect(right.rect(in: screen) == CGRect(x: 1668, y: 0, width: 60, height: 1117))
+        #expect(right.orientation == 4)
+    }
+
+    @Test func aReservationTakesAtMostHalfTheScreen() throws {
+        #expect(try reservation("bottom", 558.5).rect(in: screen) != nil)
+        #expect(try reservation("bottom", 559).rect(in: screen) == nil)
+        #expect(try reservation("left", 865).rect(in: screen) == nil)
+    }
+
+    @Test func rejectsTheTopEdgeAndSizesThatAreNotPositiveNumbers() {
+        #expect(throws: ArgumentError("host.dock.reserve: edge must be one of bottom, left, right")) {
+            try DockRequest.parse(call("dock", "reserve", .string("top"), .number(30)))
+        }
+        for size in [JSON.number(0), .number(-4), .string("60"), .null] {
+            #expect(throws: ArgumentError.self) { try DockRequest.parse(call("dock", "reserve", .string("bottom"), size)) }
+        }
+    }
+
+    @Test func theOtherMethodsTakeNoArguments() throws {
+        let parsed = try DockRequest.methods.dropFirst().map { try DockRequest.parse(call("dock", $0)) }
+        #expect(parsed == [.release, .hide, .show, .restore, .state])
+    }
+}
+
+struct ClaimsTests {
+    @Test func theLatestClaimWinsAndReleasingItFallsBackToTheOneBefore() {
+        var claims = Claims<String, Bool>()
+        #expect(claims.current == nil)
+        claims.claim(true, by: "dock")
+        claims.claim(false, by: "launcher")
+        #expect(claims.current == false)
+        claims.release("launcher")
+        #expect(claims.current == true)
+        claims.release("dock")
+        #expect(claims.current == nil)
+    }
+
+    @Test func claimingAgainMovesAnOwnerToTheFront() {
+        var claims = Claims<String, Int>()
+        claims.claim(1, by: "a")
+        claims.claim(2, by: "b")
+        claims.claim(3, by: "a")
+        #expect(claims.current == 3)
+        claims.release("a")
+        #expect(claims.current == 2)
+    }
+}
+
+struct TrayRequestTests {
+    private func element(_ x: Double, _ app: String, title: String? = nil, detail: String? = nil) -> TrayElement {
+        TrayElement(frame: CGRect(x: x, y: 0, width: 30, height: 33), app: app, name: app, pid: 1, title: title, detail: detail)
+    }
+
+    @Test func itemsSeenInSeveralMenuBarWindowsMergeKeepingTheirLabels() {
+        let items = TrayItem.merge([
+            element(1300, "io.tailscale"), element(1065, "anomaly.hex"),
+            element(1065, "anomaly.hex", detail: "Hex"), element(1300, "io.tailscale", title: ""),
+        ])
+        #expect(items.map(\.id) == ["anomaly.hex#1", "io.tailscale#1"])
+        #expect(items[0].element.detail == "Hex")
+        #expect(items[1].element.title == nil)
+    }
+
+    @Test func idsCountEachAppsItemsFromLeftToRight() {
+        let items = TrayItem.merge([element(1597, "com.apple.MenuBarAgent"), element(1443, "com.apple.MenuBarAgent"), element(1239, "com.brnbw.dinky", title: "2")])
+        #expect(items.map(\.id) == ["com.brnbw.dinky#1", "com.apple.MenuBarAgent#1", "com.apple.MenuBarAgent#2"])
+        #expect(items.map(\.element.frame.minX) == [1239, 1443, 1597])
+        #expect(items[0].json(icon: nil)["title"] == .string("2"))
+    }
+
+    @Test func pressTakesAnItemID() throws {
+        #expect(try TrayRequest.parse(call("tray", "items")) == .items)
+        #expect(try TrayRequest.parse(call("tray", "press", .string("com.brnbw.dinky#1"))) == .press(id: "com.brnbw.dinky#1"))
+        #expect(throws: ArgumentError("host.tray.press: id must be a string")) { try TrayRequest.parse(call("tray", "press")) }
+    }
+}
+
 struct AppsRequestTests {
     @Test func eachMethodTakesABundleID() throws {
         let parsed = try AppsRequest.methods.map { try AppsRequest.parse(call("apps", $0, .string("com.apple.Calculator"))) }

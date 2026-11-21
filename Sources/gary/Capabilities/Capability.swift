@@ -4,7 +4,7 @@ import GaryCore
 import JavaScriptCore
 
 enum Permission {
-    case accessibility, bluetooth, location, notifications
+    case accessibility, bluetooth, location, notifications, screenRecording
 }
 
 struct Capability {
@@ -18,10 +18,13 @@ struct Capability {
         .battery,
         .clipboard,
         .clock,
+        .dock,
         .exec,
         .files,
+        .menubar,
         .network,
         .paste,
+        .tray,
         .wallpaper,
     ]
 

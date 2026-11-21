@@ -11,6 +11,7 @@ enum Paths {
     static let builtinPlugins = Bundle.main.resourceURL!.appending(path: "plugins")
     static let defaultTheme = Bundle.main.resourceURL!.appending(path: "theme.json")
     static let storage = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appending(path: "Gary/storage")
+    static let systemRestore = storage.deletingLastPathComponent().appending(path: "restore.json")
 }
 
 struct SlotKey: Hashable, CustomStringConvertible {
@@ -98,6 +99,7 @@ final class Shell {
     func start() throws {
         hotkeys = HotkeyCenter { [weak self] binding in self?.hotkeyPressed(binding) }
         server = try LineServer(path: socketPath) { [weak self] line in self?.serve(line) ?? Response.failure("shutting down").line }
+        SystemState.restore()
         hub.demandChanged = { [weak self] topic in DispatchQueue.main.async { self?.demandChanged(topic) } }
         try FileManager.default.createDirectory(at: Paths.config, withIntermediateDirectories: true)
         loadPalette()
@@ -120,6 +122,9 @@ final class Shell {
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             self?.rebuildDisplays(Trace("screens"))
         }
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
+            SystemState.restore(SystemState.saved)
+        }
         for number in [SIGTERM, SIGINT] {
             signal(number, SIG_IGN)
             let source = DispatchSource.makeSignalSource(signal: number, queue: .main)
@@ -131,6 +136,7 @@ final class Shell {
     }
 
     private func quit() {
+        SystemState.restore(SystemState.saved)
         server?.stop()
         unlink(socketPath)
         exit(0)

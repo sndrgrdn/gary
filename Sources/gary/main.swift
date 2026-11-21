@@ -26,6 +26,7 @@ guard let verb = args.first else {
 
 switch verb {
 case "app": exit(runApp())
+case "restore-after": exit(runRestoreAfter(Array(args.dropFirst())))
 case "help", "--help", "-h": exit(runHelp())
 default: exit(runCli(verb, Array(args.dropFirst())))
 }
