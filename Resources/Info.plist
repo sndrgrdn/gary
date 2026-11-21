@@ -22,5 +22,9 @@
 	<true/>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSLocationUsageDescription</key>
+	<string>macOS shows Wi-Fi network names only to apps with Location access. Gary uses it for plugins that show Wi-Fi networks.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>macOS shows Wi-Fi network names only to apps with Location access. Gary uses it for plugins that show Wi-Fi networks.</string>
 </dict>
 </plist>

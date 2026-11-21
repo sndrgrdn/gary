@@ -23,6 +23,7 @@ struct Capability {
         .network,
         .notifications,
         .nowplaying,
+        .wifi,
     ]
 
     static func names() throws -> CapabilityNames {
