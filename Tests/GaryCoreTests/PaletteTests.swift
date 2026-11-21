@@ -30,25 +30,100 @@ struct PaletteTests {
         border = "rgba(798186ee) rgba(caccccee)"
         theme_type = "dark"
         mode = "sepia"
-        short = "#123"
+        short = "#1234"
         open = "#ffffff
         two words = "#ffffff"
         trailing = "#ffffff" junk
-        foreground = "#cacccc"
+        foreground = "#ccc"
         background = "#000000"
         """)
-        #expect(file.colors == ["background": RGBA(hex: "#000000")!, "foreground": RGBA(hex: "#cacccc")!])
+        #expect(file.colors == ["background": RGBA(hex: "#000000")!, "foreground": RGBA(hex: "#cccccc")!])
         #expect(file.mode == nil)
         #expect(file.ignored == [
             "line 2: not key = \"value\"",
-            "line 3: border is not #rrggbb or #rrggbbaa",
-            "line 4: theme_type is not #rrggbb or #rrggbbaa",
+            "line 3: border is not #rgb, #rrggbb or #rrggbbaa",
+            "line 4: theme_type is not #rgb, #rrggbb or #rrggbbaa",
             "line 5: mode must be light or dark",
-            "line 6: short is not #rrggbb or #rrggbbaa",
+            "line 6: short is not #rgb, #rrggbb or #rrggbbaa",
             "line 7: open has an unterminated string",
             "line 8: \"two words\" is not a bare key",
             "line 9: trailing has text after its value",
         ])
+    }
+
+    @Test func keepsTheColoursAndModeOfAFullOmarchyPaletteWithAliasesAndNonColourValues() {
+        let file = PaletteFile.parse("""
+        accent = "#798186"
+        active_border_color = "#a8adb0"
+        active_tab_background = "#798186"
+        background = "#101315"
+        bg = "#101315"
+        blue = "#798186"
+        bright_blue = "#5d6367"
+        bright_cyan = "#707070"
+        bright_fg = "#a5aeb4"
+        bright_foreground = "#a5aeb4"
+        bright_green = "#343d41"
+        bright_magenta = "#9a9a9a"
+        bright_purple = "#9a9a9a"
+        bright_red = "#de6145"
+        bright_yellow = "#c9c2b4"
+        brown = "#6d6e6e"
+        color0 = "#101315"
+        color1 = "#565d60"
+        color10 = "#343d41"
+        color11 = "#c9c2b4"
+        color12 = "#5d6367"
+        color13 = "#9a9a9a"
+        color14 = "#707070"
+        color15 = "#a5aeb4"
+        color2 = "#9fa5a9"
+        color3 = "#d9dbdc"
+        color4 = "#798186"
+        color5 = "#aeaeae"
+        color6 = "#707070"
+        color7 = "#cacccc"
+        color8 = "#4b4e55"
+        color9 = "#de6145"
+        cursor = "#a5aeb4"
+        cyan = "#707070"
+        dark_background = "#0c0e10"
+        dark_bg = "#0c0e10"
+        dark_fg = "#4b4e55"
+        dark_foreground = "#4b4e55"
+        darker_background = "#080a0b"
+        darker_bg = "#080a0b"
+        fg = "#cacccc"
+        foreground = "#cacccc"
+        green = "#9fa5a9"
+        hyprland_active_border = "rgba(798186ee) rgba(caccccee)"
+        hyprland_inactive_border = "rgb(1e1e1e)"
+        light_fg = "#cbc2be"
+        light_foreground = "#cbc2be"
+        lighter_background = "#101315"
+        lighter_bg = "#101315"
+        magenta = "#aeaeae"
+        mode = "dark"
+        muted = "#4b4e55"
+        orange = "#d9dbdc"
+        purple = "#aeaeae"
+        red = "#565d60"
+        selection = "#343d41"
+        selection_background = "#343d41"
+        selection_foreground = "#a5aeb4"
+        theme_type = "dark"
+        yellow = "#d9dbdc"
+        """)
+        #expect(file.mode == .dark)
+        #expect(file.ignored == [
+            "line 44: hyprland_active_border is not #rgb, #rrggbb or #rrggbbaa",
+            "line 45: hyprland_inactive_border is not #rgb, #rrggbb or #rrggbbaa",
+            "line 59: theme_type is not #rgb, #rrggbb or #rrggbbaa",
+        ])
+        #expect(file.colors.count == 56)
+        #expect(file.colors["background"] == RGBA(hex: "#101315") && file.colors["bg"] == file.colors["background"])
+        #expect(file.colors["color15"] == RGBA(hex: "#a5aeb4"))
+        #expect(file.colors["hyprland_active_border"] == nil && file.colors["theme_type"] == nil && file.colors["mode"] == nil)
     }
 
     @Test func theModeComesFromTheFileThenItsBackgroundThenTheSystem() {

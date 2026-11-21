@@ -12,7 +12,8 @@ public struct RGBA: Equatable, Sendable {
 
     public init?(hex: String) {
         guard hex.hasPrefix("#") else { return nil }
-        let digits = hex.dropFirst()
+        var digits = String(hex.dropFirst())
+        if digits.count == 3 { digits = digits.map { "\($0)\($0)" }.joined() }
         guard digits.count == 6 || digits.count == 8, digits.allSatisfy(\.isHexDigit), let value = UInt64(digits, radix: 16) else { return nil }
         let rgba = digits.count == 6 ? value << 8 | 0xff : value
         func channel(_ shift: UInt64) -> Double { Double((rgba >> shift) & 0xff) / 255 }
@@ -44,7 +45,7 @@ public indirect enum ColorExpr: Equatable, Sendable {
     case alpha(ColorExpr, Double)
     case contrast(ColorExpr)
 
-    public static let syntax = "a theme or palette colour name, #rrggbb, #rrggbbaa, mix(a, b, t), alpha(a, t) or contrast(a)"
+    public static let syntax = "a theme or palette colour name, #rgb, #rrggbb, #rrggbbaa, mix(a, b, t), alpha(a, t) or contrast(a)"
 
     public init?(_ text: String) {
         var parser = Parser(rest: Substring(text))

@@ -20,7 +20,8 @@ struct ThemeTests {
     @Test func parsesHexColors() {
         #expect(RGBA(hex: "#ff8000") == RGBA(red: 1, green: 128.0 / 255, blue: 0, alpha: 1))
         #expect(RGBA(hex: "#00000080")?.alpha == 128.0 / 255)
-        for bad in ["ff8000", "#ff80", "#gg8000", "#ff800000ff", "#+f8000"] { #expect(RGBA(hex: bad) == nil) }
+        #expect(RGBA(hex: "#f80") == RGBA(hex: "#ff8800"))
+        for bad in ["ff8000", "#ff80", "#gg8000", "#ff800000ff", "#+f8000", "#f8", "#g80"] { #expect(RGBA(hex: bad) == nil) }
     }
 
     @Test(arguments: [
