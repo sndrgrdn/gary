@@ -49,7 +49,7 @@ Gary strips types with a bundled copy of [sucrase](https://github.com/alangpierc
 
 ## Lay out nodes
 
-Gary draws each node tree with SwiftUI. A `row` is a horizontal stack, a `column` is a vertical stack, and a `spacer` takes the free space. Every node takes these style properties, as does every style in `theme.json`:
+Gary draws each node tree with SwiftUI. A `row` is a horizontal stack, a `column` is a vertical stack, a `stack` layers its children from its top left corner, and a `spacer` takes the free space. Every node takes these style properties, as does every style in `theme.json`:
 
 | Property | Value |
 | --- | --- |
@@ -57,9 +57,16 @@ Gary draws each node tree with SwiftUI. A `row` is a horizontal stack, a `column
 | `width`, `height` | The exact size in points, padding included. |
 | `minWidth` | The smallest width in points. |
 | `align` | `"leading"`, `"center"`, or `"trailing"`: where the content sits in a node wider than its content, and how wrapped lines align. |
-| `offset` | Points to move the node down, or up when negative, without moving its siblings. |
-| `animation` | `"smooth"`, `"spring"`, or `"none"`: how the node animates what changes inside it between renders. |
+| `x`, `y` | Points to move the node right and down, or left and up when negative, without moving its siblings. In a `stack` they place the child. `offset` is an older name for `y`. |
+| `zIndex` | Draws the node above siblings with a lower `zIndex`. |
+| `scale` | Draws the node larger or smaller around its center without changing its layout size. |
+| `animation` | `"smooth"`, `"spring"`, or `"none"`: how the node animates what changes inside it between renders. `duration` sets its length in seconds. Reduce Motion turns it off. |
+| `transition` | `"opacity"`, `"scale"`, or `"none"`: how a child appears and disappears. |
 | `material` | `"vibrant"`, `"glass"`, or `"none"`: a material behind the node, inside its `radius`. |
+| `clip`, `border`, `shadow` | `clip: true` cuts the content to the rounded `radius`. `border` is `{ color, width }` and `shadow` is `{ color, radius, y }`. |
+| `fit` | `"fit"` or `"fill"`: how an `image` fills its size. Gary decodes images off the main thread at the size they show. |
+
+A node also takes `hovered` and `pressed`: objects of style properties that apply while the pointer is over it, and while a node with `action` is held down.
 
 A `text` node is exactly as wide as its text, with no padding of its own. This row centers each workspace number in a 20-point cell and moves it down 1 point:
 
