@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import GaryCore
+@testable import GaryCore
 
 struct NodeTests {
     private func parse(_ text: String) throws -> Node { try Node.parse(Data(text.utf8)) }

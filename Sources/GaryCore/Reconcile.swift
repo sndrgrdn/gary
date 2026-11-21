@@ -12,7 +12,7 @@ public struct Attributes: Equatable, Sendable {
     public var style: String?
     public var action: String?
 
-    public init(value: String?, style: String?, action: String?) {
+    init(value: String?, style: String?, action: String?) {
         self.value = value
         self.style = style
         self.action = action
