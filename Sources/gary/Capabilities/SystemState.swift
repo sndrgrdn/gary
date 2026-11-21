@@ -51,12 +51,28 @@ enum CoreDock {
         read == nil || write == nil ? "CoreDockGetAutoHideEnabled or CoreDockSetAutoHideEnabled is missing on this macOS" : nil
     }
 
-    static var autohide: Bool {
-        read?() ?? false
+    static var visibility: DockVisibility {
+        DockVisibility(rawValue: read?() ?? false)
     }
 
-    static func setAutohide(_ on: Bool) {
-        write?(on)
+    static func setVisibility(_ visibility: DockVisibility) {
+        write?(visibility.rawValue)
+    }
+}
+
+enum DockVisibility: RawRepresentable, Codable, Equatable {
+    case autohide
+    case shown
+
+    init(rawValue autohide: Bool) {
+        self = autohide ? .autohide : .shown
+    }
+
+    var rawValue: Bool {
+        switch self {
+        case .autohide: true
+        case .shown: false
+        }
     }
 }
 
@@ -72,9 +88,14 @@ struct SavedSystemState: Codable, Equatable {
         var reserved: DockRect
     }
 
+    private enum CodingKeys: String, CodingKey {
+        case menuBarHidden, dock
+        case dockVisibility = "autohide"
+    }
+
     var menuBarHidden = false
     var dock: Dock?
-    var autohide: Bool?
+    var dockVisibility: DockVisibility?
 }
 
 enum SystemState {
@@ -108,13 +129,13 @@ enum SystemState {
         if let dock = state.dock, SkyLight.dockRect()?.rect == dock.reserved.rect {
             SkyLight.setDockRect(dock.own)
         }
-        if let autohide = state.autohide, CoreDock.autohide != autohide {
-            CoreDock.setAutohide(autohide)
+        if let visibility = state.dockVisibility, CoreDock.visibility != visibility {
+            CoreDock.setVisibility(visibility)
         }
         try? FileManager.default.removeItem(at: Paths.systemRestore)
         saved = SavedSystemState()
         log(
-            "restored the system state Gary had changed: menubar hidden=\(state.menuBarHidden) dock=\(state.dock?.own.rect.debugDescription ?? "-") autohide=\(state.autohide.map(String.init) ?? "-")",
+            "restored the system state Gary had changed: menubar hidden=\(state.menuBarHidden) dock=\(state.dock?.own.rect.debugDescription ?? "-") autohide=\(state.dockVisibility.map { String($0.rawValue) } ?? "-")",
         )
     }
 

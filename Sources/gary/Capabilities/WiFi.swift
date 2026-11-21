@@ -50,7 +50,7 @@ extension Capability {
         install: { host, plugin in
             plugin.installAPI(host, "wifi", WiFiRequest.methods) { call in
                 switch try WiFiRequest.parse(call) {
-                case let .setPower(on): try .now(setPower(on))
+                case let .setPower(enabled): try .now(setPower(enabled))
                 case .scan: .later(.global(qos: .userInitiated)) { try scan() }
                 case let .join(ssid, password): .later(.global(qos: .userInitiated)) { try join(ssid, password) }
                 case .requestLocation: .later(.main) { .string(Permission.location.request()) }
@@ -66,8 +66,10 @@ private func wifiInterface() throws -> CWInterface {
     return interface
 }
 
-private func setPower(_ on: Bool) throws -> JSON {
-    do { try wifiInterface().setPower(on) } catch { throw HostFailure("cannot turn Wi-Fi \(on ? "on" : "off"): \(error.localizedDescription)") }
+private func setPower(_ enabled: Bool) throws -> JSON {
+    do { try wifiInterface().setPower(enabled) } catch {
+        throw HostFailure("cannot turn Wi-Fi \(enabled ? "on" : "off"): \(error.localizedDescription)")
+    }
     return .null
 }
 

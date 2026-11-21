@@ -27,7 +27,8 @@ private final class BatteryTopic {
         self.publish = publish
         let context = Unmanaged.passUnretained(self).toOpaque()
         let source = IOPSNotificationCreateRunLoopSource({ context in
-            Unmanaged<BatteryTopic>.fromOpaque(context!).takeUnretainedValue().send(Trace("battery"))
+            guard let context else { return }
+            Unmanaged<BatteryTopic>.fromOpaque(context).takeUnretainedValue().send(Trace("battery"))
         }, context).takeRetainedValue()
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         observation = Observation { CFRunLoopSourceInvalidate(source) }
@@ -41,23 +42,34 @@ private final class BatteryTopic {
     private static func read() -> JSON {
         let info = IOPSCopyPowerSourcesInfo().takeRetainedValue()
         let list = IOPSCopyPowerSourcesList(info).takeRetainedValue() as [CFTypeRef]
-        let acPower = (IOPSGetProvidingPowerSourceType(info)?.takeUnretainedValue() as String?) == kIOPMACPowerKey
-        for source in list {
-            guard let description = IOPSGetPowerSourceDescription(info, source)?.takeUnretainedValue() as? [String: Any],
-                  description[kIOPSTypeKey] as? String == kIOPSInternalBatteryType,
-                  let current = description[kIOPSCurrentCapacityKey] as? Int,
-                  let maximum = description[kIOPSMaxCapacityKey] as? Int, maximum > 0 else { continue }
-            return snapshot(percent: min(100, current * 100 / maximum), charging: description[kIOPSIsChargingKey] as? Bool ?? false, ac: acPower)
-        }
-        return snapshot(percent: nil, charging: false, ac: true)
+        let onACPower = (IOPSGetProvidingPowerSourceType(info)?.takeUnretainedValue() as String?) == kIOPMACPowerKey
+        let battery = list.lazy
+            .compactMap { IOPSGetPowerSourceDescription(info, $0)?.takeUnretainedValue() as NSDictionary? }
+            .compactMap(InternalBattery.init(description:))
+            .first
+        guard let battery else { return snapshot(percent: nil, charging: false, onACPower: true) }
+        return snapshot(percent: battery.percent, charging: battery.charging, onACPower: onACPower)
     }
 
-    private static func snapshot(percent: Int?, charging: Bool, ac: Bool) -> JSON {
+    private static func snapshot(percent: Int?, charging: Bool, onACPower: Bool) -> JSON {
         .object([
             "present": .bool(percent != nil),
             "percent": percent.map { .number(Double($0)) } ?? .null,
             "charging": .bool(charging),
-            "source": .string(ac ? "ac" : "battery"),
+            "source": .string(onACPower ? "ac" : "battery"),
         ])
+    }
+}
+
+struct InternalBattery {
+    let percent: Int
+    let charging: Bool
+
+    init?(description: NSDictionary) {
+        guard description[kIOPSTypeKey] as? String == kIOPSInternalBatteryType,
+              let current = description[kIOPSCurrentCapacityKey] as? Int,
+              let maximum = description[kIOPSMaxCapacityKey] as? Int, maximum > 0 else { return nil }
+        percent = min(100, current * 100 / maximum)
+        charging = description[kIOPSIsChargingKey] as? Bool ?? false
     }
 }

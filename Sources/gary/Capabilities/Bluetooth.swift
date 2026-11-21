@@ -51,11 +51,11 @@ extension Capability {
         install: { host, plugin in
             plugin.installAPI(host, "bluetooth", BluetoothRequest.methods) { call in
                 switch try BluetoothRequest.parse(call) {
-                case let .setPower(on):
+                case let .setPower(enabled):
                     guard CBManager.authorization == .allowedAlways else { throw HostFailure(missingGrant(.bluetooth, "bluetooth")) }
                     guard let set = BluetoothPower.set
                     else { throw HostFailure("IOBluetoothPreferenceSetControllerPowerState is missing on this macOS") }
-                    set(on ? 1 : 0)
+                    set(enabled ? 1 : 0)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { BluetoothTopic.current?.send(Trace("bluetooth-power")) }
                     return .now(.null)
                 case let .connect(address):
@@ -146,6 +146,15 @@ final class BluetoothAccess: NSObject, CBCentralManagerDelegate {
         BluetoothTopic.current?.restart()
     }
 }
+
+@objc private protocol BluetoothBatteryPercents {
+    @objc optional var batteryPercentSingle: UInt8 { get }
+    @objc optional var batteryPercentCombined: UInt8 { get }
+    @objc optional var batteryPercentLeft: UInt8 { get }
+    @objc optional var batteryPercentRight: UInt8 { get }
+}
+
+extension IOBluetoothDevice: BluetoothBatteryPercents {}
 
 private final class BluetoothTopic: NSObject {
     weak static var current: BluetoothTopic?
@@ -238,12 +247,9 @@ private final class BluetoothTopic: NSObject {
     }
 
     private func battery(_ device: IOBluetoothDevice) -> Int? {
-        let levels = ["batteryPercentSingle", "batteryPercentCombined", "batteryPercentLeft", "batteryPercentRight"].compactMap { key -> Int? in
-            guard device.responds(to: NSSelectorFromString(key)), let value = device.value(forKey: key) as? NSNumber,
-                  value.intValue > 0 else { return nil }
-            return value.intValue
-        }
-        return levels.first
+        let percents: BluetoothBatteryPercents = device
+        let levels = [percents.batteryPercentSingle, percents.batteryPercentCombined, percents.batteryPercentLeft, percents.batteryPercentRight]
+        return levels.compactMap(\.self).first { $0 > 0 }.map(Int.init)
     }
 
     private func hidBatteries() -> [String: Int] {
