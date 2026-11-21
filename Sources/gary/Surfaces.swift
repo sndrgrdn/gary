@@ -211,12 +211,12 @@ final class SurfaceWindow {
         card.addSubview(view)
     }
 
-    func place(_ spec: SurfaceSpec, on display: DisplayInfo, level: Int, theme: Theme) {
+    func place(_ spec: SurfaceSpec, on display: DisplayInfo, origin: CGRect?, level: Int, theme: Theme) {
         paint(spec, theme)
         panel.level = NSWindow.Level(rawValue: level)
         panel.ignoresMouseEvents = spec.clickThrough
         panel.focusable = spec.focusable
-        let frame = spec.frame(on: display) { width, height, limit in
+        let frame = spec.frame(on: display, attachedTo: origin, edge: theme.spacing.edge) { width, height, limit in
             measure(Fit(width: width, height: height, limit: limit))
         }
         content?.fit(Fit(width: frame.width, height: frame.height, limit: frame.size))

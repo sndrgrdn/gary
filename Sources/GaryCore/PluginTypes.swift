@@ -101,6 +101,7 @@ public enum PluginTypes {
             clickThrough?: boolean;
             focusable?: boolean;
             background?: \(union(SurfaceBackground.allCases.map(\.rawValue)));
+            attach?: boolean;
           }
         """
     }

@@ -72,9 +72,9 @@ extension Shell {
             spec.anchors = Edges(top: true, bottom: false, left: true, right: true)
             spec.height = .points(display.band)
             spec.exclusionMode = .ignore
-            window.place(spec, on: display, level: barLevel(display.id), theme: theme)
+            window.place(spec, on: display, origin: nil, level: barLevel(display.id), theme: theme)
         } else if let spec = slot.surface {
-            window.place(spec, on: display, level: levels.level(spec.layer), theme: theme)
+            window.place(spec, on: display, origin: slot.origin, level: levels.level(spec.layer), theme: theme)
         }
         if isNew {
             open(window, key, slot)

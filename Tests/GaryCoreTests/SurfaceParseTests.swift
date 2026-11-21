@@ -17,6 +17,7 @@ struct SurfaceParseTests {
             (#"{"anchors":true}"#, SurfaceError(path: "surface.anchors", reason: "must be an object with top, bottom, left and right")),
             (#"{"screen":64}"#, SurfaceError(path: "surface.screen", reason: "must be \"main\", \"focused\", \"all\" or a display index")),
             (#"{"focusable":"yes"}"#, SurfaceError(path: "surface.focusable", reason: "must be true or false")),
+            (#"{"attach":"below"}"#, SurfaceError(path: "surface.attach", reason: "must be true or false")),
             (#"{"height":0}"#, SurfaceError(path: "surface.height", reason: "must be a positive number or \"fit\"")),
             (#"{"margins":-2}"#, SurfaceError(path: "surface.margins", reason: "must be a non-negative number")),
             (#"{"clickThrough":1,"anchors":2}"#, SurfaceError(path: "surface.anchors", reason: "must be an object with top, bottom, left and right")),

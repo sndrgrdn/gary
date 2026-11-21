@@ -70,6 +70,34 @@ struct SurfaceTests {
         #expect(limits == [CGSize(width: 984, height: 760)])
     }
 
+    private func attached(_ origin: CGRect?, _ text: String = #"{"attach":true,"margins":{"top":8}}"#) throws -> CGRect {
+        try spec(text).frame(on: display, attachedTo: origin, edge: 16) { width, height, _ in
+            CGSize(width: width ?? content.width, height: height ?? content.height)
+        }
+    }
+
+    @Test func `an attached surface opens centred below the node it was shown from`() throws {
+        #expect(try attached(CGRect(x: 480, y: 772, width: 40, height: 24)) == CGRect(x: 400, y: 664, width: 200, height: 100))
+    }
+
+    @Test func `an attached surface flips above the node when there is no room below`() throws {
+        #expect(try attached(CGRect(x: 480, y: 20, width: 40, height: 24)) == CGRect(x: 400, y: 52, width: 200, height: 100))
+    }
+
+    @Test func `an attached surface stays inside the display edges`() throws {
+        #expect(try attached(CGRect(x: 0, y: 772, width: 40, height: 24)).minX == 16)
+        #expect(try attached(CGRect(x: 980, y: 772, width: 20, height: 24)).maxX == 1000 - 16)
+    }
+
+    @Test func `without an origin on its display an attached surface uses its anchors`() throws {
+        let anchored = #"{"attach":true,"anchors":{"top":true,"right":true},"margins":{"top":8,"right":16}}"#
+        let placed = CGRect(x: 784, y: 800 - 32 - 8 - 100, width: 200, height: 100)
+        #expect(try attached(nil, anchored) == placed)
+        #expect(try attached(CGRect(x: 1480, y: 772, width: 40, height: 24), anchored) == placed)
+        #expect(try attached(CGRect(x: 480, y: 772, width: 40, height: 24), #"{"anchors":{"top":true,"right":true},"margins":{"top":8,"right":16}}"#)
+            == placed)
+    }
+
     @Test func `kinds have their own defaults`() {
         #expect(SurfaceSpec.defaults(for: .menu).focusable)
         #expect(SurfaceSpec.defaults(for: .menu).layer == .overlay)
@@ -83,7 +111,7 @@ struct SurfaceTests {
     @Test func `parses every field`() throws {
         let parsed = try spec(#"""
         {"screen":"all","anchors":{"bottom":true},"width":"fit","height":24,"margins":{"bottom":4},"layer":"notch",\#
-        "exclusionMode":"ignore","clickThrough":true,"focusable":true,"background":"none"}
+        "exclusionMode":"ignore","clickThrough":true,"focusable":true,"background":"none","attach":true}
         """#)
         #expect(parsed.screen == .all)
         #expect(parsed.anchors == Edges(top: false, bottom: true, left: false, right: false))
@@ -91,6 +119,8 @@ struct SurfaceTests {
         #expect(parsed.margins == Edges(top: 0, bottom: 4, left: 0, right: 0))
         #expect(parsed.layer == .notch && parsed.exclusionMode == .ignore && parsed.clickThrough && parsed.focusable && parsed
             .background == SurfaceBackground.transparent)
+        #expect(parsed.attach)
+        #expect(!SurfaceSpec.defaults(for: .panel).attach)
         #expect(try spec(#"{"screen":1}"#).screen == .index(1))
         #expect(try spec("null") == SurfaceSpec.defaults(for: .panel))
     }

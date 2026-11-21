@@ -217,7 +217,7 @@ extension Skill {
     | `host.log(message)` | Writes `plugin <id>: <message>` to Gary's log. |
     | `host.storage.get(key)`, `host.storage.set(key, value)` | Keeps JSON values in `~/Library/Application Support/Gary/storage/<id>.json`. Setting `undefined` deletes the key. |
     | `host.publish(value)` | Publishes a JSON value as the topic named by the plugin's id. |
-    | `host.show()`, `host.hide()`, `host.toggle()` | Shows or hides the plugin's surface. |
+    | `host.show()`, `host.hide()`, `host.toggle()` | Shows or hides the plugin's surface. Called from `onAction`, `show` and `toggle` pass on the frame of the node the user clicked, which a surface with `attach` opens at. Called later, such as after a promise or a timer, they pass on no frame. |
     | `host.call(method, ...args)` | Runs a function from the plugin's own `methods`, in the kind that `gary call` would run, loading it if needed, and returns a promise of its result. It rejects with the error the function threw or rejected with, or after 60 seconds. Plugins reach each other only through `host.publish` and `subscribes`. |
 
     `setTimeout`, `setInterval`, `clearTimeout`, and `clearInterval` work as in a browser. An interval is at least 10 ms.
@@ -276,6 +276,7 @@ extension Skill {
     | `exclusionMode` | `"normal"` keeps clear of the bar, and `"ignore"` covers it | `"normal"`. An overlay uses `"ignore"`. |
     | `clickThrough` | boolean | `false` |
     | `focusable` | boolean. A focusable surface takes keys. | `false`. A menu is focusable. |
+    | `attach` | boolean. When `host.show()` or `host.toggle()` runs in `onAction`, the surface opens centred below the node the user clicked, `margins.top` points away, or above it when there is no room below, and stays `theme.spacing.edge` points inside the display. Shown without a click, such as by `gary summon`, a hotkey, or a timer, it uses `anchors` and `margins`. | `false` |
     | `background` | `"solid"` paints the theme's `surface` style, including its `material`, with a border and a shadow. `"none"` leaves the window clear for the tree to paint, so a root node with `material` and `radius` gives one surface its own material. `"backdrop"` leaves the window clear too, centres the root node in it, catches every click, and hides the surface when a click lands where no node paints or takes the click. With `anchors` on every edge and `exclusionMode` `"ignore"`, it gives a full-display picker: `{ anchors: { top: true, bottom: true, left: true, right: true }, exclusionMode: "ignore", background: "backdrop" }`. | `"solid"` |
     """
 }

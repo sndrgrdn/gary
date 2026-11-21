@@ -95,6 +95,7 @@ public struct SurfaceSpec: Equatable, Sendable {
     public var clickThrough: Bool
     public var focusable: Bool
     public var background: SurfaceBackground
+    public var attach = false
 
     public static let all = Edges(top: true, bottom: true, left: true, right: true)
 
@@ -146,6 +147,7 @@ public struct SurfaceSpec: Equatable, Sendable {
         "exclusionMode": { spec, value, path in spec.exclusionMode = try choice(value, path, "must be \"normal\" or \"ignore\"") },
         "clickThrough": { spec, value, path in spec.clickThrough = try bool(value, path) },
         "focusable": { spec, value, path in spec.focusable = try bool(value, path) },
+        "attach": { spec, value, path in spec.attach = try bool(value, path) },
         "background": { spec, value, path in
             spec.background = try choice(
                 value,
@@ -235,6 +237,43 @@ public struct SurfaceSpec: Equatable, Sendable {
         let fitted = width == nil || height == nil ? fitting(width.map { min($0, limit.width) }, height.map { min($0, limit.height) }, limit) : .zero
         let size = CGSize(width: min(width ?? fitted.width, limit.width), height: min(height ?? fitted.height, limit.height))
         return CGRect(x: horizontal.origin(size.width), y: vertical.origin(size.height), width: size.width, height: size.height)
+    }
+
+    public func frame(
+        on display: DisplayInfo,
+        attachedTo origin: CGRect?,
+        edge: Double,
+        fitting: (_ width: Double?, _ height: Double?, _ limit: CGSize) -> CGSize,
+    ) -> CGRect {
+        guard attach, let origin, display.frame.contains(CGPoint(x: origin.midX, y: origin.midY)) else { return frame(on: display, fitting: fitting) }
+        let bounds = display.frame.insetBy(dx: edge, dy: edge)
+        let limit = CGSize(
+            width: max(0, bounds.width),
+            height: max(0, origin.minY - margins.top - bounds.minY, bounds.maxY - origin.maxY - margins.top),
+        )
+        func fixed(_ dimension: Dimension, _ limit: Double) -> Double? {
+            if case let .points(value) = dimension {
+                min(value, limit)
+            } else {
+                nil
+            }
+        }
+        let width = fixed(width, limit.width)
+        let height = fixed(height, limit.height)
+        let fitted = width == nil || height == nil ? fitting(width, height, limit) : .zero
+        let size = CGSize(width: min(width ?? fitted.width, limit.width), height: min(height ?? fitted.height, limit.height))
+        return Self.attached(size, to: origin, gap: margins.top, within: bounds)
+    }
+
+    public static func attached(_ size: CGSize, to origin: CGRect, gap: Double, within bounds: CGRect) -> CGRect {
+        let below = origin.minY - gap - size.height
+        let y = below >= bounds.minY ? below : origin.maxY + gap
+        return CGRect(
+            x: max(bounds.minX, min((origin.midX - size.width / 2).rounded(), bounds.maxX - size.width)),
+            y: max(bounds.minY, min(y.rounded(), bounds.maxY - size.height)),
+            width: size.width,
+            height: size.height,
+        )
     }
 }
 
