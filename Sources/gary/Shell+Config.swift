@@ -96,7 +96,12 @@ extension Shell {
     func refresh(config reloadsConfig: Bool, catalog rescans: Bool, _ trace: Trace) -> Response {
         let previous = config
         let response = reloadsConfig ? loadConfig() : .ok("config unchanged")
-        if rescans {
+        let packagesChanged = config.packages != previous.packages
+        if packagesChanged {
+            watch()
+            installMissingPackages()
+        }
+        if rescans || packagesChanged {
             scan()
         }
         guard rescans || config != previous else { return response }
@@ -135,12 +140,12 @@ extension Shell {
 
     func filesChanged(_ paths: Set<String>, _ trace: Trace) {
         let configRoot = Paths.config.resolvingSymlinksInPath().path
-        let pluginsRoot = Paths.userPlugins.resolvingSymlinksInPath().path
-        let changes = paths.compactMap { ConfigFileChange(path: $0, configRoot: configRoot, pluginsRoot: pluginsRoot) }
+        let roots = pluginRoots.map { $0.resolvingSymlinksInPath().path }
+        let changes = paths.compactMap { ConfigFileChange(path: $0, configRoot: configRoot, pluginRoots: roots) }
         var rescan = false
         var reloads = Set<SlotKey>()
-        for case let .plugin(directory, rescansCatalog) in changes {
-            let owners = slots.values.filter { $0.bundle.origin == .user && $0.bundle.directory.lastPathComponent == directory }
+        for case let .plugin(path, rescansCatalog) in changes {
+            let owners = slots.values.filter { $0.bundle.origin == .user && path.hasPrefix($0.bundle.directory.path + "/") }
             if owners.isEmpty || rescansCatalog {
                 rescan = true
             } else {

@@ -56,6 +56,13 @@ struct PluginManifestTests {
         #expect(parsed.capabilities == ["exec", "files", "clock"])
     }
 
+    @Test func `a bar widget goes to the bar section the manifest names and to the right by default`() throws {
+        #expect(try manifest([:]).barPlacement == .right)
+        #expect(try manifest(["bar": "left"]).barPlacement == .left)
+        #expect(try manifest(["bar": "left", "kinds": ["panel"], "entryPoints": ["panel": "p.js"]]).barPlacement == nil)
+        rejects(["bar": "top"], with: .wrongType("bar"))
+    }
+
     @Test func `optional fields default to off`() throws {
         let parsed = try manifest([:])
         #expect(!parsed.keepLoaded)
@@ -177,10 +184,11 @@ struct PluginCatalogTests {
         return directory
     }
 
-    private func scan() throws -> PluginCatalog {
+    private func scan(packages: [String] = []) throws -> PluginCatalog {
         try PluginCatalog.scan(
             builtin: root.appendingPathComponent("builtin"),
             user: root.appendingPathComponent("user"),
+            packages: packages.map { root.appendingPathComponent($0) },
             capabilities: makeTestCapabilities(),
         )
     }
@@ -220,6 +228,27 @@ struct PluginCatalogTests {
         let catalog = try scan()
         #expect(try catalog.plugins[#require(PluginID("acme.media"))]?.directory.lastPathComponent == "a")
         #expect(catalog.problems.count == 1)
+    }
+
+    @Test func `a package with A root manifest is one plugin and otherwise each subfolder with A manifest is one`() throws {
+        try plugin("single", id: "acme.single", in: "packages")
+        try plugin("a", id: "acme.a", in: "packages/multi")
+        try plugin("b", id: "acme.b", in: "packages/multi")
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("packages/multi/docs"), withIntermediateDirectories: true)
+        try plugin(".hidden", id: "acme.hidden", in: "packages/multi")
+        #expect(PluginCatalog.pluginDirectories(inPackage: root.appendingPathComponent("packages/multi")).map(\.lastPathComponent) == ["a", "b"])
+        let catalog = try scan(packages: ["packages/single", "packages/multi"])
+        #expect(catalog.sortedIDs.map(\.rawValue) == ["acme.a", "acme.b", "acme.single"])
+        #expect(catalog.problems.isEmpty)
+    }
+
+    @Test func `the plugins folder wins over packages and the first package wins over later ones`() throws {
+        try plugin("media", id: "acme.media")
+        try plugin("media", id: "acme.media", in: "packages/one")
+        try plugin("media", id: "acme.media", in: "packages/two")
+        let catalog = try scan(packages: ["packages/one/media", "packages/two"])
+        #expect(try catalog.plugins[#require(PluginID("acme.media"))]?.directory.path.contains("/user/") == true)
+        #expect(catalog.problems.map { $0.directory.deletingLastPathComponent().lastPathComponent } == ["one", "two"])
     }
 
     @Test func `rejects symlinked entry points and directories`() throws {

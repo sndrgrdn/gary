@@ -18,10 +18,11 @@ public struct ShellConfig: Equatable, Sendable {
     public var disabledPlugins: Set<PluginID>
     public var settings: [PluginID: JSON]
     public var revealMenuBar: Bool
+    public var packages: [PackageSource]
 
     public static let defaults = ShellConfig(
         bar: [.left: [], .center: [], .right: [PluginID(builtin: "battery"), PluginID(builtin: "clock")]],
-        plugins: [], disabledPlugins: [], settings: [:], revealMenuBar: true,
+        plugins: [], disabledPlugins: [], settings: [:], revealMenuBar: true, packages: [],
     )
 
     private static let revealMenuBarKey = "revealMenuBar"
@@ -41,7 +42,31 @@ public struct ShellConfig: Equatable, Sendable {
         if let settings = fields["settings"] {
             config.settings = try parseSettings(settings)
         }
+        if let packages = fields["packages"] {
+            config.packages = try parsePackages(packages)
+        }
         return config
+    }
+
+    private static func parsePackages(_ value: JSON) throws -> [PackageSource] {
+        guard let entries = value.array else { throw ShellConfigError(path: "packages", reason: "must be an array of package sources") }
+        var identities = Set<PackageIdentity>()
+        return try entries.enumerated().map { index, entry in
+            let path = "packages[\(index)]"
+            guard let raw = entry.string ?? entry["source"]?.string else {
+                throw ShellConfigError(path: path, reason: "must be a source string or an object with a source")
+            }
+            let source: PackageSource
+            do {
+                source = try PackageSource.parse(raw, base: nil)
+            } catch {
+                throw ShellConfigError(path: path, reason: "\(error)")
+            }
+            guard identities.insert(source.identity).inserted else {
+                throw ShellConfigError(path: path, reason: "declares \(source.identity) twice")
+            }
+            return source
+        }
     }
 
     private mutating func parseBar(_ bar: JSON) throws {
@@ -136,9 +161,29 @@ public struct ShellConfig: Equatable, Sendable {
 
 public extension ShellConfig {
     enum Change: Equatable, Sendable {
-        case enable(PluginID, inBar: Bool)
+        case enable(PluginID, bar: BarSection?)
+        case install(PluginID, bar: BarSection?)
         case disable(PluginID)
         case remove(PluginID)
+        case declare(PackageSource)
+        case undeclare(PackageIdentity)
+    }
+
+    private static func packages(_ change: Change, _ sources: [PackageSource], _ entries: [JSON]) -> JSON {
+        switch change {
+        case let .declare(source):
+            var entries = entries
+            if let index = sources.firstIndex(where: { $0.identity == source.identity }) {
+                entries[index] = .string(source.declaration)
+            } else {
+                entries.append(.string(source.declaration))
+            }
+            return .array(entries)
+        case let .undeclare(identity):
+            return .array(zip(entries, sources).filter { $0.1.identity != identity }.map(\.0))
+        default:
+            return .array(entries)
+        }
     }
 
     static func applying(_ change: Change, to json: JSON) throws -> JSON {
@@ -147,15 +192,22 @@ public extension ShellConfig {
         var bar = config.bar
         var plugins = config.plugins
         var disabled = config.disabledPlugins
-        switch change {
-        case let .enable(id, inBar):
+        func enable(_ id: PluginID, _ section: BarSection?) {
             disabled.remove(id)
-            if inBar {
+            if let section {
                 if !bar.values.contains(where: { $0.contains(id) }) {
-                    bar[.right, default: []].insert(id, at: 0)
+                    bar[section, default: []].append(id)
                 }
             } else if !plugins.contains(id) {
                 plugins.append(id)
+            }
+        }
+        switch change {
+        case let .enable(id, section):
+            enable(id, section)
+        case let .install(id, section):
+            if !bar.values.contains(where: { $0.contains(id) }), !plugins.contains(id), !disabled.contains(id) {
+                enable(id, section)
             }
         case let .disable(id):
             disabled.insert(id)
@@ -163,12 +215,14 @@ public extension ShellConfig {
             bar = bar.mapValues { $0.filter { $0 != id } }
             plugins.removeAll { $0 == id }
             disabled.remove(id)
+        case .declare, .undeclare:
+            return .object(fields.merging(["packages": packages(change, config.packages, fields["packages"]?.array ?? [])]) { $1 })
         }
         func ids(_ list: [PluginID]) -> JSON {
             .array(list.map { .string($0.rawValue) })
         }
         func set(_ key: String, _ value: JSON, changed: Bool) {
-            if changed || fields[key] != nil {
+            if changed {
                 fields[key] = value
             }
         }

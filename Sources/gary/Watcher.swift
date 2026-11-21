@@ -41,6 +41,17 @@ final class FileWatcher {
         }
     }
 
+    func stop() {
+        queue.sync {
+            guard let stream else { return }
+            FSEventStreamStop(stream)
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+            self.stream = nil
+            flush?.cancel()
+        }
+    }
+
     private func received(_ paths: [String]) {
         let time = now()
         if firstEvent == nil {

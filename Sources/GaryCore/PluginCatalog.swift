@@ -38,25 +38,39 @@ public struct PluginCatalog: Equatable, Sendable {
         problems = []
     }
 
-    public static func scan(builtin: URL?, user: URL?, capabilities: CapabilityNames) -> PluginCatalog {
+    public static func scan(builtin: URL?, user: URL?, packages: [URL], capabilities: CapabilityNames) -> PluginCatalog {
         var catalog = PluginCatalog()
         if let builtin {
-            catalog.add(root: builtin, origin: .builtin, capabilities: capabilities)
+            catalog.add(children(of: builtin), origin: .builtin, capabilities: capabilities)
         }
         if let user {
-            catalog.add(root: user, origin: .user, capabilities: capabilities)
+            catalog.add(children(of: user), origin: .user, capabilities: capabilities)
+        }
+        for package in packages {
+            catalog.add(pluginDirectories(inPackage: package), origin: .user, capabilities: capabilities)
         }
         return catalog
+    }
+
+    public static func pluginDirectories(inPackage root: URL) -> [URL] {
+        let root = root.resolvingSymlinksInPath()
+        if FileManager.default.fileExists(atPath: root.appending(path: "manifest.json").path) {
+            return [root]
+        }
+        return children(of: root).filter { FileManager.default.fileExists(atPath: $0.appending(path: "manifest.json").path) }
     }
 
     public var sortedIDs: [PluginID] {
         plugins.keys.sorted()
     }
 
-    private mutating func add(root: URL, origin: PluginOrigin, capabilities: CapabilityNames) {
+    private static func children(of root: URL) -> [URL] {
         let entries = (try? FileManager.default.contentsOfDirectory(at: root.resolvingSymlinksInPath(), includingPropertiesForKeys: nil)) ?? []
-        for directory in entries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-            guard !directory.lastPathComponent.hasPrefix("."), isDirectory(directory) else { continue }
+        return entries.filter { !$0.lastPathComponent.hasPrefix(".") && isDirectory($0) }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    private mutating func add(_ directories: [URL], origin: PluginOrigin, capabilities: CapabilityNames) {
+        for directory in directories {
             do {
                 let bundle = try PluginBundle.load(directory, origin: origin, capabilities: capabilities)
                 if let existing = plugins[bundle.manifest.id] {

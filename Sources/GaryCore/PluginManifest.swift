@@ -113,6 +113,11 @@ public struct PluginManifest: Equatable, Sendable {
     public let subscribes: [Topic]
     public let uses: [String]
     public let hotkeys: [Hotkey]
+    public var bar: BarSection = .right
+
+    public var barPlacement: BarSection? {
+        kinds.contains(.barWidget) ? bar : nil
+    }
 
     public var capabilities: [String] {
         var names = uses
@@ -141,10 +146,11 @@ public struct PluginManifest: Equatable, Sendable {
             throw ManifestError.unknownService(unknown)
         }
         let hotkeys = try parseHotkeys(fields.optional("hotkeys", \.array, default: []))
+        let bar = try fields.optional("bar", { $0.string.flatMap(BarSection.init(rawValue:)) }, default: .right)
 
         return PluginManifest(
             id: id, name: name, version: version, kinds: kinds, entryPoints: entryPoints,
-            keepLoaded: keepLoaded, subscribes: subscribes, uses: uses, hotkeys: hotkeys,
+            keepLoaded: keepLoaded, subscribes: subscribes, uses: uses, hotkeys: hotkeys, bar: bar,
         )
     }
 

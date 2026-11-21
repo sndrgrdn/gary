@@ -3,29 +3,36 @@ import GaryCore
 
 let pluginUsage: [CommandUsage] = [
     CommandUsage(
-        "plugin new <id> [--kind <kind,...> | --from <example>] [--dir <folder>] [--enable]",
+        "plugin new <id> [--kind <kind,...> | --from <example>] [--dir <folder>]",
         """
-        Scaffold a TypeScript plugin with one or more kinds, or copy a bundled example under a new id, \
-        into ~/.config/gary/plugins/<id>, or into <folder>, which must not exist yet \
-        and which Gary does not load until gary plugin add copies it.
+        Scaffold a TypeScript plugin with one or more kinds, or copy a bundled example under a new id, and enable it. \
+        It goes into ~/.config/gary/plugins/<id>, or into <folder>, which must not exist yet and which Gary then loads in place as a local package.
         """,
-        "gary plugin new you.weather --from load --enable",
+        "gary plugin new you.weather --from load",
     ),
     CommandUsage("plugin validate <path>", "Check a plugin folder with the checks Gary runs when it loads plugins.", nil),
     CommandUsage(
-        "plugin add <git-url|path> [--enable]",
-        "Install a plugin from a git repository or a folder without running any of it.",
-        "gary plugin add https://github.com/you/gary-weather --enable",
+        "plugin install <source> [--yes]",
+        """
+        Install a package from npm:<name>[@version|@tag], git:<host>/<owner>/<repo>[@ref], a git URL, or a local folder, \
+        add it to packages in shell.json, and enable its plugins. It shows each plugin's capabilities and permissions and asks first; \
+        --yes skips the question.
+        """,
+        "gary plugin install git:github.com/you/gary-plugins",
     ),
     CommandUsage(
-        "plugin update <id> [--yes]",
-        "Show what changed upstream, then fast-forward the plugin's checkout.",
-        "gary plugin update you.weather",
+        "plugin update [<source>]",
+        "Bring every package in shell.json, or one, up to date and report each change. A pinned version, tag, or commit stays put.",
+        "gary plugin update",
     ),
-    CommandUsage("plugin remove <id>", "Move a plugin to the Trash and drop it from shell.json.", nil),
-    CommandUsage("plugin enable <id>", "Turn a plugin on in shell.json; a bar widget goes to the right of the bar.", nil),
+    CommandUsage(
+        "plugin remove <source|id>",
+        "Remove a package and drop its plugins from shell.json, or move a plugin in ~/.config/gary/plugins to the Trash.",
+        "gary plugin remove git:github.com/you/gary-plugins",
+    ),
+    CommandUsage("plugin enable <id>", "Turn a plugin on in shell.json; a bar widget goes to the bar section its manifest names.", nil),
     CommandUsage("plugin disable <id>", "Turn a plugin off in shell.json.", nil),
-    CommandUsage("plugin list", "List installed plugins and whether shell.json enables them.", nil),
+    CommandUsage("plugin list", "List plugins with their version, whether shell.json enables them, their source, and whether it is pinned.", nil),
     CommandUsage(
         "plugin types [path]",
         "Write gary.d.ts and manifest.schema.json into a plugin folder.",
@@ -36,11 +43,11 @@ let pluginUsage: [CommandUsage] = [
 private func dispatch(_ arguments: [String]) throws {
     let rest = Array(arguments.dropFirst())
     switch arguments.first {
-    case "new": try newPlugin(Arguments(rest, count: 1...1, flags: ["--enable"], options: ["--kind", "--from", "--dir"]))
+    case "new": try newPlugin(Arguments(rest, count: 1...1, options: ["--kind", "--from", "--dir"]))
     case "validate": try validate(Arguments(rest, count: 1...1).positional[0])
-    case "add": try add(Arguments(rest, count: 1...1, flags: ["--enable"]))
-    case "update": try update(Arguments(rest, count: 1...1, flags: ["--yes"]))
-    case "remove": try remove(pluginID(Arguments(rest, count: 1...1).positional[0]))
+    case "install": try install(Arguments(rest, count: 1...1, flags: ["--yes"]))
+    case "update": try update(Arguments(rest, count: 0...1).positional.first)
+    case "remove": try remove(Arguments(rest, count: 1...1).positional[0])
     case "enable": try enable(pluginID(Arguments(rest, count: 1...1).positional[0]))
     case "disable": try disable(pluginID(Arguments(rest, count: 1...1).positional[0]))
     case "list": _ = try Arguments(rest, count: 0...0); try list()
@@ -72,18 +79,19 @@ private func pluginID(_ raw: String) throws -> PluginID {
     return id
 }
 
-private func installed() throws -> PluginCatalog {
-    try PluginCatalog.scan(builtin: Paths.builtinPlugins, user: Paths.userPlugins, capabilities: Capability.names())
+private func shellConfig() throws -> ShellConfig {
+    try FileManager.default.fileExists(atPath: Paths.shellConfig.path) ? ShellConfig
+        .parse(JSON.parse(Data(contentsOf: Paths.shellConfig))) : .defaults
 }
 
-private func userPlugin(_ id: PluginID) throws -> URL {
-    if let bundle = try installed().plugins[id] {
-        guard bundle.origin == .user else { throw CommandError("\(id) is built into Gary; use gary plugin disable \(id)") }
-        return bundle.directory
-    }
-    let directory = Paths.userPlugins.appending(path: id.rawValue)
-    guard FileManager.default.fileExists(atPath: directory.path) else { throw CommandError("no installed plugin \(id)") }
-    return directory
+private func installed(_ packages: [PackageSource]) throws -> PluginCatalog {
+    try PluginCatalog.scan(
+        builtin: Paths.builtinPlugins, user: Paths.userPlugins, packages: packages.map(PackageStore.directory), capabilities: Capability.names(),
+    )
+}
+
+private var workingDirectory: URL {
+    URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 }
 
 private func newPlugin(_ arguments: Arguments) throws {
@@ -114,9 +122,9 @@ private func newPlugin(_ arguments: Arguments) throws {
     _ = try writeTypes(directory)
     let bundle = try PluginBundle.load(directory, origin: .user, capabilities: Capability.names())
     print("created \(id) in \(directory.path)" + (example.map { " from the \($0.directory.lastPathComponent) example" } ?? ""))
-    if arguments.flags.contains("--enable") {
-        try enable(id)
-    }
+    let package = arguments.options["--dir"] == nil ? [] : [ShellConfig.Change.declare(.local(directory))]
+    try editShellConfig(package + [.enable(id, bar: bundle.manifest.barPlacement)])
+    print("enabled \(id)\(bundle.manifest.barPlacement.map { " in bar.\($0.rawValue)" } ?? "") in \(Paths.shellConfig.path)")
     print("edit \(bundle.manifest.kinds.compactMap { bundle.manifest.entryPoints[$0] }.joined(separator: ", ")); Gary reloads the plugin on save")
 }
 
@@ -148,65 +156,79 @@ private func validate(_ path: String) throws {
     print("ok \(manifest.id) \(manifest.version) \(manifest.kinds.map(\.rawValue).joined(separator: ","))")
 }
 
-private func add(_ arguments: Arguments) throws {
-    let source = arguments.positional[0]
-    let staging = FileManager.default.temporaryDirectory.appending(path: "gary-plugin-\(UUID().uuidString)")
-    defer { try? FileManager.default.removeItem(at: staging) }
-    try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
-    let checkout = staging.appending(path: "plugin")
-    let local = URL(fileURLWithPath: source).standardizedFileURL
-    var isDirectory: ObjCBool = false
-    if FileManager.default.fileExists(atPath: local.path, isDirectory: &isDirectory), isDirectory.boolValue {
-        if let top = try? git(["rev-parse", "--show-toplevel"], in: local),
-           URL(fileURLWithPath: top).resolvingSymlinksInPath() == local.resolvingSymlinksInPath()
-        {
-            try git(["clone", "--quiet", "--", local.path, checkout.path], in: staging)
-        } else {
-            try FileManager.default.copyItem(at: local, to: checkout)
+private func install(_ arguments: Arguments) throws {
+    let source = try PackageSource.parse(arguments.positional[0], base: workingDirectory)
+    let config = try shellConfig()
+    let staged: URL?
+    if case let .local(directory) = source {
+        guard FileManager.default.fileExists(atPath: directory.path) else { throw CommandError("\(directory.path) does not exist") }
+        staged = nil
+    } else {
+        print("fetching \(source.declaration)")
+        staged = try PackageStore.stage(source)
+    }
+    defer { staged.map(PackageStore.discard) }
+    let directory = staged ?? PackageStore.directory(source)
+    let bundles = try packagePlugins(directory, of: source)
+    try review(bundles, existing: installed(config.packages.filter { $0.identity != source.identity }))
+    if !arguments.flags.contains("--yes") {
+        guard isatty(STDIN_FILENO) != 0 else { throw CommandError("rerun with --yes to install \(source.declaration)") }
+        print(
+            "install \(source.declaration) and enable \(bundles.count == 1 ? "this plugin" : "these \(bundles.count) plugins")? [y/N] ",
+            terminator: "",
+        )
+        fflush(stdout)
+        guard readLine()?.lowercased().hasPrefix("y") == true else { print("not installed")
+            return
         }
-    } else {
-        guard !source.hasPrefix("-"), !source.contains("::") else { throw CommandError("refusing \(source): not a git URL or a folder") }
-        try git(["clone", "--quiet", "--", source, checkout.path], in: staging)
     }
-    let capabilities = try Capability.names()
-    let manifest: PluginManifest
-    do {
-        manifest = try PluginBundle.load(checkout, origin: .user, capabilities: capabilities).manifest
-    } catch {
-        throw CommandError("\(source) is not a valid plugin: \(error)")
+    let revision = PackageStore.revision(source, at: directory)
+    if let staged {
+        try PackageStore.commit(staged, as: source)
     }
-    if let existing = try installed().plugins[manifest.id] {
-        throw CommandError("\(manifest.id) is already installed at \(existing.directory.path)")
-    }
-    let target = Paths.userPlugins.appending(path: manifest.id.rawValue)
-    guard !FileManager.default.fileExists(atPath: target.path) else { throw CommandError("\(target.path) already exists") }
-    warnUnsandboxed(manifest)
-    try FileManager.default.createDirectory(at: Paths.userPlugins, withIntermediateDirectories: true)
-    try FileManager.default.moveItem(at: checkout, to: target)
-    print("installed \(manifest.id) \(manifest.version) in \(target.path)")
-    if Capability.all.contains(where: { manifest.capabilities.contains($0.name) && !$0.permissions.isEmpty }) {
-        print("when it is enabled, Gary's permissions window asks for what it needs; open it any time with: gary onboarding")
-    }
-    if arguments.flags.contains("--enable") {
-        try enable(manifest.id)
-    } else {
-        print("read it, then turn it on with: gary plugin enable \(manifest.id)")
+    try editShellConfig([.declare(source)] + bundles.map { .install($0.manifest.id, bar: $0.manifest.barPlacement) })
+    print("installed \(source.declaration)\(revision.map { " \($0)" } ?? "") in \(PackageStore.directory(source).path)")
+    print("enabled \(bundles.map(\.manifest.id.rawValue).joined(separator: ", ")) unless shell.json already placed or disabled them")
+    if bundles.contains(where: { bundle in Capability.all.contains { bundle.manifest.capabilities.contains($0.name) && !$0.permissions.isEmpty } }) {
+        print("Gary's permissions window asks for what they need; open it any time with: gary onboarding")
     }
 }
 
-private func warnUnsandboxed(_ manifest: PluginManifest) {
+private func packagePlugins(_ directory: URL, of source: PackageSource) throws -> [PluginBundle] {
+    let capabilities = try Capability.names()
+    var bundles: [PluginBundle] = []
+    for plugin in PluginCatalog.pluginDirectories(inPackage: directory) {
+        do {
+            try bundles.append(PluginBundle.load(plugin, origin: .user, capabilities: capabilities))
+        } catch {
+            print("warning: skipping \(plugin.lastPathComponent): \(error)")
+        }
+    }
+    guard !bundles.isEmpty else {
+        throw CommandError("\(source.declaration) has no valid plugin: no manifest.json at its root or in a folder directly inside it")
+    }
+    return bundles
+}
+
+private func review(_ bundles: [PluginBundle], existing: PluginCatalog) {
     print("""
     warning: plugins run unsandboxed inside Gary, with your user account's access to files, \
     the network and other programs, and with every macOS permission you granted Gary.
     """)
-    guard !manifest.capabilities.isEmpty else { print("\(manifest.id) uses no capabilities")
-        return
+    for bundle in bundles {
+        let manifest = bundle.manifest
+        print("\(manifest.id) \(manifest.version) (\(manifest.kinds.map(\.rawValue).joined(separator: ",")))")
+        printCapabilities(manifest.capabilities)
+        if let other = existing.plugins[manifest.id] {
+            print("  warning: \(other.directory.path) already has this id and wins over this package")
+        }
     }
-    print("\(manifest.id) uses these capabilities in uses and subscribes:")
-    printCapabilities(manifest.capabilities)
 }
 
 private func printCapabilities(_ names: [String]) {
+    guard !names.isEmpty else { print("  uses no capabilities")
+        return
+    }
     let width = names.map(\.count).max() ?? 0
     for name in names {
         let permissions = Capability.all.first { $0.name == name }?.permissions.map(\.name) ?? []
@@ -216,108 +238,125 @@ private func printCapabilities(_ names: [String]) {
     }
 }
 
-private func update(_ arguments: Arguments) throws {
-    let id = try pluginID(arguments.positional[0])
-    let directory = try userPlugin(id)
-    guard (try? git(["rev-parse", "--is-inside-work-tree"], in: directory)) == "true" else { throw CommandError("\(id) was not installed from git") }
-    guard try git(["status", "--porcelain"], in: directory).isEmpty
-    else { throw CommandError("\(id) has local changes; commit or discard them first") }
-    try git(["fetch", "--quiet"], in: directory)
-    let head = try git(["rev-parse", "HEAD"], in: directory)
-    let upstream = try git(["rev-parse", "@{upstream}"], in: directory)
-    guard head != upstream else { print("\(id) is up to date")
+private func update(_ raw: String?) throws {
+    let config = try shellConfig()
+    var sources = config.packages
+    if let raw {
+        let identity = try PackageSource.parse(raw, base: workingDirectory).identity
+        sources = sources.filter { $0.identity == identity }
+        guard !sources.isEmpty else { throw CommandError("shell.json declares no package \(raw)") }
+    }
+    guard !sources.isEmpty else { print("shell.json declares no packages")
         return
     }
-    guard (try? git(["merge-base", "--is-ancestor", "HEAD", upstream], in: directory)) != nil else {
-        throw CommandError("\(id) cannot fast-forward to \(upstream.prefix(12))")
+    var failed = 0
+    for source in sources {
+        guard source.managedPath != nil else { print("\(source.declaration)\tlocal, loads in place")
+            continue
+        }
+        do {
+            let change = try PackageStore.update(source)
+            let to = change.to ?? "?"
+            print("\(source.declaration)\t" + (change.from == change.to ? "\(to), up to date" : "\(change.from ?? "not installed") -> \(to)"))
+        } catch {
+            failed += 1
+            fputs("gary plugin: \(source.declaration): \(error)\n", stderr)
+        }
     }
-    try show(["log", "--oneline", "HEAD..\(upstream)"], in: directory)
-    try show(["diff", "--stat", "HEAD", upstream], in: directory)
-    try show(["diff", "--no-ext-diff", "--no-textconv", "HEAD", upstream], in: directory)
+    guard failed == 0 else { throw CommandError("\(failed) of \(sources.count) packages did not update") }
+}
 
-    let staging = FileManager.default.temporaryDirectory.appending(path: "gary-plugin-\(UUID().uuidString)")
-    defer { try? FileManager.default.removeItem(at: staging) }
-    let tree = staging.appending(path: "tree")
-    try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)
-    let index = staging.appending(path: "index").path
-    try git(["read-tree", "--index-output=\(index)", upstream], in: directory)
-    try git(["checkout-index", "--all", "--prefix=\(tree.path)/"], in: directory, environment: ["GIT_INDEX_FILE": index])
-    let capabilities = try Capability.names()
-    let next: PluginManifest
-    do {
-        next = try PluginBundle.load(tree, origin: .user, capabilities: capabilities).manifest
-    } catch {
-        throw CommandError("not updating \(id): \(upstream.prefix(12)) is not a valid plugin: \(error)")
-    }
-    guard next.id == id else { throw CommandError("not updating \(id): \(upstream.prefix(12)) changes its id to \(next.id)") }
-    let current = (try? PluginBundle.load(directory, origin: .user, capabilities: capabilities))?.manifest
-    let added = next.capabilities.filter { !(current?.capabilities ?? []).contains($0) }
-    if !added.isEmpty {
-        print("warning: this update also uses:")
-        printCapabilities(added)
-    }
-
-    if !arguments.flags.contains("--yes") {
-        guard isatty(STDIN_FILENO) != 0 else { throw CommandError("rerun with --yes to apply this update") }
-        print("apply this update to \(id)? [y/N] ", terminator: "")
-        fflush(stdout)
-        guard readLine()?.lowercased().hasPrefix("y") == true else { print("not updated")
+private func remove(_ raw: String) throws {
+    let config = try shellConfig()
+    if let id = PluginID(raw) {
+        let bundle = try installed(config.packages).plugins[id]
+        guard bundle?.origin != .builtin else { throw CommandError("\(id) is built into Gary; use gary plugin disable \(id)") }
+        if let source = bundle.flatMap({ package(holding: $0.directory, in: config.packages) }) {
+            guard PluginCatalog.pluginDirectories(inPackage: PackageStore.directory(source)).count == 1 else {
+                throw CommandError(
+                    "\(id) is one plugin of \(source.declaration); turn it off with gary plugin disable \(id), or remove the package with gary plugin remove \(source.declaration)",
+                )
+            }
+            try removePackage(source)
+            return
+        }
+        let directory = bundle?.directory ?? Paths.userPlugins.appending(path: id.rawValue)
+        if FileManager.default.fileExists(atPath: directory.path) {
+            try editShellConfig([.remove(id)])
+            var trashed: NSURL?
+            try FileManager.default.trashItem(at: directory, resultingItemURL: &trashed)
+            print("moved \(directory.path) to \(trashed?.path ?? "the Trash")")
             return
         }
     }
-    try git(["merge", "--ff-only", "--quiet", upstream], in: directory)
-    print("updated \(id) \(current?.version ?? "?") -> \(next.version)")
+    let identity = try PackageSource.parse(raw, base: workingDirectory).identity
+    guard let source = config.packages.first(where: { $0.identity == identity })
+    else { throw CommandError("no plugin or package \(raw) in shell.json") }
+    try removePackage(source)
 }
 
-private func remove(_ id: PluginID) throws {
-    let directory = try userPlugin(id)
-    try editShellConfig(.remove(id))
-    var trashed: NSURL?
-    try FileManager.default.trashItem(at: directory, resultingItemURL: &trashed)
-    print("moved \(directory.path) to \(trashed?.path ?? "the Trash")")
+private func package(holding directory: URL, in packages: [PackageSource]) -> PackageSource? {
+    packages.first { (directory.path + "/").hasPrefix(PackageStore.directory($0).resolvingSymlinksInPath().path + "/") }
+}
+
+private func removePackage(_ source: PackageSource) throws {
+    let capabilities = try Capability.names()
+    let ids = PluginCatalog.pluginDirectories(inPackage: PackageStore.directory(source)).compactMap {
+        try? PluginBundle.load($0, origin: .user, capabilities: capabilities).manifest.id
+    }
+    try editShellConfig([.undeclare(source.identity)] + ids.map { .remove($0) })
+    try PackageStore.remove(source)
+    print("removed \(source.declaration)" + (ids.isEmpty ? "" : " and dropped \(ids.map(\.rawValue).joined(separator: ", ")) from shell.json"))
 }
 
 private func enable(_ id: PluginID) throws {
-    guard let bundle = try installed().plugins[id] else { throw CommandError("no installed plugin \(id)") }
-    let inBar = bundle.manifest.kinds.contains(.barWidget)
-    try editShellConfig(.enable(id, inBar: inBar))
-    print("enabled \(id)\(inBar ? " in the bar" : "") in \(Paths.shellConfig.path)")
+    guard let bundle = try installed(shellConfig().packages).plugins[id] else { throw CommandError("no installed plugin \(id)") }
+    let section = bundle.manifest.barPlacement
+    try editShellConfig([.enable(id, bar: section)])
+    print("enabled \(id)\(section.map { " in bar.\($0.rawValue)" } ?? "") in \(Paths.shellConfig.path)")
 }
 
 private func disable(_ id: PluginID) throws {
-    guard try installed().plugins[id] != nil else { throw CommandError("no installed plugin \(id)") }
-    try editShellConfig(.disable(id))
+    guard try installed(shellConfig().packages).plugins[id] != nil else { throw CommandError("no installed plugin \(id)") }
+    try editShellConfig([.disable(id)])
     print("disabled \(id) in \(Paths.shellConfig.path)")
 }
 
-private func editShellConfig(_ change: ShellConfig.Change) throws {
+private func editShellConfig(_ changes: [ShellConfig.Change]) throws {
     let exists = FileManager.default.fileExists(atPath: Paths.shellConfig.path)
     let current = exists ? try JSON.parse(Data(contentsOf: Paths.shellConfig)) : JSON.object([:])
-    let next = try ShellConfig.applying(change, to: current)
+    let next = try changes.reduce(current) { try ShellConfig.applying($1, to: $0) }
     guard next != current else { return }
     try FileManager.default.createDirectory(at: Paths.config, withIntermediateDirectories: true)
     try Data(next.prettyText.utf8).write(to: Paths.shellConfig, options: .atomic)
 }
 
 private func list() throws {
-    let catalog = try installed()
-    let config = try FileManager.default.fileExists(atPath: Paths.shellConfig.path)
-        ? ShellConfig.parse(JSON.parse(Data(contentsOf: Paths.shellConfig))) : ShellConfig.defaults
+    let config = try shellConfig()
+    let catalog = try installed(config.packages)
     let enabled = config.resolve(catalog).enabled
+    func origin(_ bundle: PluginBundle) -> (source: String, tracking: String) {
+        guard bundle.origin == .user else { return ("builtin", "-") }
+        guard let source = package(holding: bundle.directory, in: config.packages) else { return (bundle.directory.path, "local") }
+        return (source.declaration, PackageStore.tracking(source))
+    }
     for bundle in catalog.sortedIDs.compactMap({ catalog.plugins[$0] }) {
         let id = bundle.manifest.id
-        let source = bundle.origin == .builtin ? "builtin" : (try? git(["remote", "get-url", "origin"], in: bundle.directory)) ?? bundle.directory
-            .path
+        let (source, tracking) = origin(bundle)
         print([
             id.rawValue,
             bundle.manifest.version,
             enabled.contains(id) ? "enabled" : "disabled",
             bundle.manifest.kinds.map(\.rawValue).joined(separator: ","),
             source,
+            tracking,
         ].joined(separator: "\t"))
     }
     for problem in catalog.problems {
-        print("\(problem.directory.lastPathComponent)\t-\tinvalid\t\(problem.reason)")
+        print("\(problem.directory.path)\t-\tinvalid\t\(problem.reason)")
+    }
+    for source in config.packages where !PackageStore.isInstalled(source) {
+        print("\(source.declaration)\t-\tmissing\tnot installed yet; run gary plugin update")
     }
 }
 
@@ -349,41 +388,4 @@ private func writeTypes(_ directory: URL) throws -> String {
     try Data(declarations.utf8).write(to: directory.appending(path: PluginTypes.declarationsFile))
     try Data(PluginTypes.manifestSchema(capabilities).prettyText.utf8).write(to: directory.appending(path: PluginTypes.schemaFile))
     return "wrote \(PluginTypes.declarationsFile) and \(PluginTypes.schemaFile) to \(directory.path) for \(scope)"
-}
-
-@discardableResult
-private func git(_ arguments: [String], in directory: URL, environment: [String: String] = [:]) throws -> String {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = ["git"] + arguments
-    process.currentDirectoryURL = directory
-    process.environment = ProcessInfo.processInfo.environment.merging(environment) { $1 }
-    let output = Pipe()
-    let errors = Pipe()
-    process.standardOutput = output
-    process.standardError = errors
-    process.standardInput = FileHandle.nullDevice
-    try process.run()
-    let data = output.fileHandleForReading.readDataToEndOfFile()
-    let message = errors.fileHandleForReading.readDataToEndOfFile()
-    process.waitUntilExit()
-    guard process.terminationStatus == 0 else {
-        throw CommandError(
-            "git \(arguments.first ?? "") failed: \(text(message))",
-        )
-    }
-    return text(data)
-}
-
-private func text(_ data: Data) -> String {
-    (String(bytes: data, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-}
-
-private func show(_ arguments: [String], in directory: URL) throws {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = ["git", "--no-pager", "-c", "color.ui=auto"] + arguments
-    process.currentDirectoryURL = directory
-    try process.run()
-    process.waitUntilExit()
 }

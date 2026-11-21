@@ -61,7 +61,7 @@ public enum PluginScaffold {
         ## Install
 
         ```sh
-        gary plugin add <git-url> --enable
+        gary plugin install git:<host>/<owner>/<repo>
         ```
 
         ## Develop

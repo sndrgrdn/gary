@@ -175,6 +175,7 @@ public enum PluginTypes {
                     "additionalProperties": type("string", ["pattern": .string(#"^(?![/~])(?!.*(^|/)\.{0,2}(/|$))[^\u0000]*\.(js|ts)$"#)]),
                 ]),
                 "keepLoaded": type("boolean"),
+                "bar": .object(["enum": strings(BarSection.allCases.map(\.rawValue))]),
                 "subscribes": type("array", [
                     "items": .object(["anyOf": .array([.object(["enum": strings(capabilities.topics.sorted())]), id])]),
                 ]),

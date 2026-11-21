@@ -31,6 +31,8 @@ final class Shell {
     var previousApp: NSRunningApplication?
     private var server: LineServer?
     private var watcher: FileWatcher?
+    private var watchedRoots: [URL] = []
+    private var installingPackages: Set<PackageIdentity> = []
     private var signals: [DispatchSourceSignal] = []
     private var observers: [NSObjectProtocol] = []
 
@@ -45,6 +47,7 @@ final class Shell {
         server = try LineServer(path: socketPath) { [weak self] line in self?.serve(line) ?? Response.failure("shutting down").line }
         SystemState.restore()
         try FileManager.default.createDirectory(at: Paths.config, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: Paths.packages, withIntermediateDirectories: true)
         loadPalette()
         reloadTheme(Trace("start"))
         loadConfig()
@@ -54,8 +57,9 @@ final class Shell {
         sync(Trace("start"))
         offerOnboarding(Trace("start"))
         reopenAfterRestart(Trace("start"))
+        installMissingPackages()
 
-        watcher = FileWatcher(roots: [Paths.config, Paths.userPlugins]) { [weak self] paths, trace in self?.filesChanged(paths, trace) }
+        watch()
         appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] app, _ in
             let mode = Palette.Mode(app.effectiveAppearance)
             DispatchQueue.main.async { self?.systemAppearanceChanged(mode) }
@@ -108,8 +112,49 @@ final class Shell {
         }
     }
 
+    var pluginRoots: [URL] {
+        [Paths.userPlugins, Paths.packages] + config.packages.compactMap {
+            if case let .local(url) = $0 {
+                url
+            } else {
+                nil
+            }
+        }
+    }
+
+    func watch() {
+        let roots = [Paths.config] + pluginRoots
+        guard roots != watchedRoots else { return }
+        watchedRoots = roots
+        watcher?.stop()
+        watcher = FileWatcher(roots: roots) { [weak self] paths, trace in self?.filesChanged(paths, trace) }
+    }
+
+    func installMissingPackages() {
+        for source in config.packages where source.managedPath != nil && !PackageStore.isInstalled(source) {
+            guard installingPackages.insert(source.identity).inserted else { continue }
+            log("package \(source.declaration): installing")
+            DispatchQueue.global(qos: .utility).async { [weak self] in
+                let result = Result { try PackageStore.install(source) }
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.installingPackages.remove(source.identity)
+                    switch result {
+                    case .success:
+                        log("package \(source.declaration): installed \(PackageStore.revision(source) ?? "")")
+                        _ = self.refresh(config: false, catalog: true, Trace("package"))
+                    case let .failure(error):
+                        log("package \(source.declaration): not installed, Gary tries again on the next start or gary plugin update: \(error)")
+                    }
+                }
+            }
+        }
+    }
+
     func scan() {
-        catalog = PluginCatalog.scan(builtin: Paths.builtinPlugins, user: Paths.userPlugins, capabilities: capabilities)
+        catalog = PluginCatalog.scan(
+            builtin: Paths.builtinPlugins, user: Paths.userPlugins, packages: config.packages.map(PackageStore.directory), capabilities: capabilities,
+        )
         for problem in catalog.problems {
             log("plugin \(problem.directory.path): \(problem.reason)")
         }

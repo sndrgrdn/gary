@@ -149,20 +149,31 @@ struct ShellConfigChangeTests {
         try ShellConfig.applying(change, to: JSON.parse(text))
     }
 
-    @Test func `enabling A bar widget keeps the default bar and puts it first on the right`() throws {
-        let next = try apply(.enable(widget, inBar: true), to: "{}")
+    @Test func `enabling A bar widget keeps the default bar and appends it to its section`() throws {
+        let next = try apply(.enable(widget, bar: .right), to: "{}")
         #expect(try ShellConfig.parse(next).bar == [
             .left: [],
             .center: [],
-            .right: [widget, #require(PluginID("gary.battery")), #require(PluginID("gary.clock"))],
+            .right: [#require(PluginID("gary.battery")), #require(PluginID("gary.clock")), widget],
         ])
         #expect(next["plugins"] == nil && next["disabledPlugins"] == nil)
-        #expect(try ShellConfig.applying(.enable(widget, inBar: true), to: next) == next)
+        #expect(try ShellConfig.applying(.enable(widget, bar: .left), to: next) == next)
+    }
+
+    @Test func `installing enables A plugin that shell json does not mention and leaves A mentioned one alone`() throws {
+        #expect(try ShellConfig.parse(apply(.install(widget, bar: .left), to: "{}")).bar[.left] == [widget])
+        for text in [
+            #"{"bar": {"center": ["acme.weather"]}}"#,
+            #"{"plugins": ["acme.weather"]}"#,
+            #"{"disabledPlugins": ["acme.weather"]}"#,
+        ] {
+            #expect(try apply(.install(widget, bar: .right), to: text) == JSON.parse(text), "\(text)")
+        }
     }
 
     @Test func `enabling another kind names it in plugins and clears A disable`() throws {
         let next = try apply(
-            .enable(widget, inBar: false),
+            .enable(widget, bar: nil),
             to: #"{"disabledPlugins": ["acme.weather"], "settings": {"acme.weather": {"unit": "c"}}}"#,
         )
         #expect(next["plugins"] == .array([.string("acme.weather")]))
@@ -183,12 +194,12 @@ struct ShellConfigChangeTests {
     }
 
     @Test func `editing the bar keeps reveal menu bar`() throws {
-        let next = try apply(.enable(widget, inBar: true), to: #"{"bar": {"revealMenuBar": false}}"#)
+        let next = try apply(.enable(widget, bar: .right), to: #"{"bar": {"revealMenuBar": false}}"#)
         #expect(next["bar"]?["revealMenuBar"] == .bool(false))
-        #expect(try ShellConfig.parse(next).bar[.right]?.first == widget)
+        #expect(try ShellConfig.parse(next).bar[.right]?.last == widget)
     }
 
     @Test func `refuses to edit an invalid file`() {
-        #expect(throws: ShellConfigError.self) { try apply(.enable(widget, inBar: true), to: #"{"bar": []}"#) }
+        #expect(throws: ShellConfigError.self) { try apply(.enable(widget, bar: .right), to: #"{"bar": []}"#) }
     }
 }

@@ -11,6 +11,7 @@ enum Paths {
     static let examples = resources.appending(path: "examples")
     static let defaultTheme = resources.appending(path: "theme.json")
     static let storage = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appending(path: "Gary/storage")
+    static let packages = storage.deletingLastPathComponent().appending(path: "packages")
     static let systemRestore = storage.deletingLastPathComponent().appending(path: "restore.json")
     static let onboarding = storage.deletingLastPathComponent().appending(path: "onboarding.json")
     static let reopen = storage.deletingLastPathComponent().appending(path: "reopen.json")

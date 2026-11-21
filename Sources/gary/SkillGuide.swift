@@ -64,12 +64,12 @@ extension Skill {
     1. Pick an id and a starting point. List the bundled examples at the end of this guide. Scaffold from the closest one, or from a kind:
 
     	```sh
-    	gary plugin new you.weather --from load --enable
-    	gary plugin new you.launcher --kind menu --enable
-    	gary plugin new you.music --kind bar-widget,panel --enable
+    	gary plugin new you.weather --from load
+    	gary plugin new you.launcher --kind menu
+    	gary plugin new you.music --kind bar-widget,panel
     	```
 
-    	Gary writes `~/.config/gary/plugins/<id>/` with `manifest.json`, one entry file per kind, `gary.d.ts`, `manifest.schema.json`, `tsconfig.json`, and `README.md`. `--enable` turns the plugin on in `~/.config/gary/shell.json`, and a bar widget goes to the right of the bar. Develop in that folder, because Gary loads and reloads plugins only from `~/.config/gary/plugins`. A folder elsewhere, such as one that `--dir <folder>` creates, runs only after `gary plugin add <folder>` copies it there. Edit the installed copy after that.
+    	Gary writes `~/.config/gary/plugins/<id>/` with `manifest.json`, one entry file per kind, `gary.d.ts`, `manifest.schema.json`, `tsconfig.json`, and `README.md`. It turns the plugin on in `~/.config/gary/shell.json`, and a bar widget goes to the bar section that the manifest's `bar` field names, `right` by default. Gary reloads the plugin each time you save a file in that folder. `--dir <folder>` scaffolds elsewhere and records the folder in `packages` in `shell.json`, so Gary loads it in place.
     2. Edit `manifest.json`. Add the capabilities you call to `uses` and the topics you read to `subscribes`.
     3. Refresh the types after each change to `uses` or `subscribes`:
 
@@ -135,6 +135,7 @@ extension Skill {
     | `subscribes` | array | Topics that appear in `state` and `onTopic`: capability topics, or other plugins' ids. |
     | `uses` | array | Capabilities that add functions to `host`. |
     | `keepLoaded` | boolean | Keep a panel, overlay, or menu running while it is hidden. |
+    | `bar` | string | `left`, `center`, or `right`, the default: the bar section that `gary plugin install`, `new`, and `enable` add a bar widget to. |
     | `hotkeys` | array | Global hotkeys, such as `{ "id": "open", "keys": "ctrl+alt+space" }`. Gary calls `onHotkey(id)`. A combination needs `cmd`, `ctrl`, or `alt`, unless its key is `f1` to `f12`. Modifiers are `cmd`, `ctrl`, `alt`, and `shift`. Keys are letters, digits, punctuation, `space`, `return`, `tab`, `delete`, `escape`, the arrows, and `f1` to `f12`. |
 
     ```json
@@ -153,7 +154,7 @@ extension Skill {
 
     ## shell.json
 
-    `~/.config/gary/shell.json` turns plugins on and places bar widgets. `gary plugin enable` and `gary plugin disable` edit it, and Gary applies a saved change at once. Without the file, the bar shows the built-in `gary.battery` and `gary.clock` widgets on the right.
+    `~/.config/gary/shell.json` turns plugins on and places bar widgets. `gary plugin` commands edit it, and Gary applies a saved change at once. Without the file, the bar shows the built-in `gary.battery` and `gary.clock` widgets on the right.
 
     | Field | Meaning |
     | --- | --- |
@@ -162,6 +163,7 @@ extension Skill {
     | `plugins` | Ids of enabled plugins that are not bar widgets, such as panels and services. |
     | `disabledPlugins` | Ids to turn off, including built-in ones. |
     | `settings` | `{ "<id>": { ... } }`. Each plugin reads its object as `state.settings`. |
+    | `packages` | Plugin packages that Gary installs and loads: `npm:<name>[@version\\|@tag]`, `git:<host>/<owner>/<repo>[@ref]`, a git URL, or an absolute or `~/` path to a folder that loads in place. An entry is a string or `{ "source": "..." }`. `gary plugin install` and `gary plugin remove` edit it. |
 
     ## Module exports
 
