@@ -6,6 +6,7 @@ public struct RequestError: Error, Equatable, CustomStringConvertible {
 
 public enum Request: Equatable, Sendable {
     case ping
+    case quit
     case summon(PluginID)
     case hide(PluginID)
     case toggle(PluginID)
@@ -22,6 +23,7 @@ public enum Request: Equatable, Sendable {
 
     public static let usage: [(syntax: String, description: String)] = [
         ("ping", "Check that Gary is running."),
+        ("quit", "Stop Gary and its crash supervisor, restoring the menu bar and Dock settings that plugins changed."),
         ("summon <plugin>", "Load and show a plugin's panel, overlay or menu."),
         ("hide <plugin>", "Hide a plugin's surface and unload it unless it is keepLoaded."),
         ("toggle <plugin>", "Summon a hidden surface or hide a shown one."),
@@ -51,6 +53,7 @@ public enum Request: Equatable, Sendable {
         }
         switch verb {
         case "ping": try exactly(0); return .ping
+        case "quit": try exactly(0); return .quit
         case "summon": try exactly(1); return .summon(try plugin(arguments[0]))
         case "hide": try exactly(1); return .hide(try plugin(arguments[0]))
         case "toggle": try exactly(1); return .toggle(try plugin(arguments[0]))
@@ -88,6 +91,7 @@ public enum Request: Equatable, Sendable {
     public var verb: String {
         switch self {
         case .ping: return "ping"
+        case .quit: return "quit"
         case .summon: return "summon"
         case .hide: return "hide"
         case .toggle: return "toggle"
@@ -105,7 +109,7 @@ public enum Request: Equatable, Sendable {
 
     public var arguments: [String] {
         switch self {
-        case .ping, .rescanPlugins, .reloadConfig, .listPlugins, .doctor, .permissions: return []
+        case .ping, .quit, .rescanPlugins, .reloadConfig, .listPlugins, .doctor, .permissions: return []
         case .requestPermission(let permission): return ["request", permission.rawValue]
         case .summon(let id), .hide(let id), .toggle(let id): return [id.rawValue]
         case .reloadPlugins(let id): return id.map { [$0.rawValue] } ?? []

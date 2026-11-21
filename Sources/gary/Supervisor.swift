@@ -15,6 +15,13 @@ func holdLock(_ path: String) -> Bool {
     return true
 }
 
+func lockIsHeld(_ path: String) -> Bool {
+    let fd = open(path, O_RDWR | O_CLOEXEC)
+    guard fd >= 0 else { return false }
+    defer { close(fd) }
+    return flock(fd, LOCK_EX | LOCK_NB) != 0
+}
+
 private final class Child: @unchecked Sendable {
     private let lock = NSLock()
     private var process: Process?

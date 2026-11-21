@@ -650,6 +650,9 @@ final class Shell {
         switch request {
         case .ping:
             reply(.ok("pong"))
+        case .quit:
+            reply(.ok("quitting"))
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.quit() }
         case .summon(let id):
             summon(id, trace, reply)
         case .hide(let id):

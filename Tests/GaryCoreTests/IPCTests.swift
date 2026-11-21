@@ -7,7 +7,7 @@ struct IPCTests {
 
     @Test func everyRequestSurvivesTheWire() throws {
         let requests: [Request] = [
-            .ping, .summon(today), .hide(today), .toggle(today), .reloadPlugins(nil), .reloadPlugins(today),
+            .ping, .quit, .summon(today), .hide(today), .toggle(today), .reloadPlugins(nil), .reloadPlugins(today),
             .rescanPlugins, .reloadConfig, .applyTheme(nil), .applyTheme(.object(["colors": .object(["accent": .string("#ff0000")])])),
             .listPlugins, .call(today, method: "refresh", arguments: ["a b", "line\nbreak"]),
             .doctor, .permissions, .requestPermission(.fullDiskAccess),

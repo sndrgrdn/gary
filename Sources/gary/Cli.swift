@@ -26,12 +26,15 @@ func runCli(_ verb: String, _ arguments: [String]) -> Int32 {
         }
         switch try Response.decode(line: line) {
         case .ok(let result):
+            if request == .quit { return awaitQuit("Gary stopped") }
             if !result.isEmpty { print(result) }
             return 0
         case .failure(let message):
             fputs("gary: \(message)\n", stderr)
             return 1
         }
+    } catch where request == .quit {
+        return awaitQuit("Gary is not running")
     } catch SocketError.unreachable {
         fputs("gary: not running (\(socketPath))\n", stderr)
         return 1
@@ -39,6 +42,18 @@ func runCli(_ verb: String, _ arguments: [String]) -> Int32 {
         fputs("gary: \(error)\n", stderr)
         return 1
     }
+}
+
+private func awaitQuit(_ done: String) -> Int32 {
+    for _ in 0..<50 {
+        if !lockIsHeld(appLockPath) && !lockIsHeld(supervisorLockPath) {
+            print(done)
+            return 0
+        }
+        Thread.sleep(forTimeInterval: 0.1)
+    }
+    fputs("gary: Gary or its supervisor still runs after 5 seconds\n", stderr)
+    return 1
 }
 
 private func startApp() throws {
