@@ -78,7 +78,8 @@ final class AppDragTile {
             settingsSeen = true
         }
         if settingsSeen && settings == nil || Date().timeIntervalSince(opened) > 300 {
-            return close()
+            close()
+            return
         }
         place(beside: settings)
         guard !probing else { return }

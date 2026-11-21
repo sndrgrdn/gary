@@ -325,9 +325,9 @@ private extension View {
 
     @ViewBuilder func material(_ material: GaryCore.Material?, radius: Double) -> some View {
         switch material {
-        case .vibrant?: background(Vibrancy(radius: radius))
-        case .glass?: glassEffect(.regular, in: RoundedRectangle(cornerRadius: radius))
-        case GaryCore.Material.none?, nil: self
+        case .vibrant: background(Vibrancy(radius: radius))
+        case .glass: glassEffect(.regular, in: RoundedRectangle(cornerRadius: radius))
+        case .some(.none), nil: self
         }
     }
 

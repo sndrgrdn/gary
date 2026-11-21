@@ -11,7 +11,7 @@ public struct DisplayChange: Equatable, Sendable {
         for display in new {
             switch before[display.id] {
             case nil: added.append(display.id)
-            case display?: break
+            case display: break
             case _?: changed.append(display.id)
             }
         }

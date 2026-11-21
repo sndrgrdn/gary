@@ -124,10 +124,11 @@ private final class NowPlayingTopic {
     private func start() {
         guard !stopped else { return }
         if let missing = Adapter.missing {
-            return publish(
+            publish(
                 .object(["available": .bool(false), "reason": .string(missing), "track": .null]),
                 Trace("nowplaying"),
             )
+            return
         }
         let process = Adapter.process(["stream", "--micros", "--debounce=50"])
         let output = Pipe()

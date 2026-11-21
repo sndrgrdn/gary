@@ -48,6 +48,7 @@ public struct LineBuffer {
 public final class LineServer {
     private let source: DispatchSourceRead
 
+    @preconcurrency
     public init(path: String, handle: @escaping @Sendable (String) -> String) throws {
         if let probe = try? connectSocket(path) {
             close(probe)

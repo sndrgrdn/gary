@@ -110,7 +110,9 @@ struct Doctor {
         }
 
         section("Plugins")
-        guard let capabilities = try? Capability.names() else { return fail("the capability registry is invalid") }
+        guard let capabilities = try? Capability.names() else { fail("the capability registry is invalid")
+            return
+        }
         let catalog = PluginCatalog.scan(builtin: Paths.builtinPlugins, user: Paths.userPlugins, capabilities: capabilities)
         ok("\(catalog.plugins.count) found")
         for problem in catalog.problems {
@@ -130,7 +132,9 @@ struct Doctor {
     }
 
     private mutating func checkConfig(_ catalog: PluginCatalog) {
-        guard FileManager.default.fileExists(atPath: Paths.shellConfig.path) else { return info("no shell.json; using defaults") }
+        guard FileManager.default.fileExists(atPath: Paths.shellConfig.path) else { info("no shell.json; using defaults")
+            return
+        }
         do {
             let config = try ShellConfig.parse(JSON.parse(Data(contentsOf: Paths.shellConfig)))
             let warnings = config.resolve(catalog).warnings

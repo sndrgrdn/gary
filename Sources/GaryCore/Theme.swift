@@ -148,8 +148,8 @@ public struct Theme: Equatable, Sendable {
                 let fields = try object(value, "\(path).\(name)")
                 let family: FontToken.Family
                 switch fields["family"]?.string {
-                case "system"?: family = .system
-                case "monospaced"?: family = .monospaced
+                case "system": family = .system
+                case "monospaced": family = .monospaced
                 case let name?: family = .named(name)
                 case nil: throw fail("\(path).\(name).family", "must be a string")
                 }

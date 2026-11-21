@@ -144,7 +144,8 @@ private final class WiFiTopic: NSObject, CWEventDelegate {
 
     private func send(_ trace: Trace) {
         guard let interface = client.interface() else {
-            return publish(.object(["available": .bool(false), "location": .string(LocationAccess.shared.status)]), trace)
+            publish(.object(["available": .bool(false), "location": .string(LocationAccess.shared.status)]), trace)
+            return
         }
         let power = interface.powerOn()
         func optional(_ value: String?) -> JSON {

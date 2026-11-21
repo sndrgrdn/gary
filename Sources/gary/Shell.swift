@@ -208,10 +208,12 @@ final class Shell {
 
     private func withRuntime(_ slot: PluginSlot, _ trace: Trace, _ body: @escaping (PluginRuntime?) -> Void) {
         if let runtime = slot.runtime {
-            return body(runtime)
+            body(runtime)
+            return
         }
         if slot.disabledReason != nil {
-            return body(nil)
+            body(nil)
+            return
         }
         slot.waiters.append { [weak slot] _ in body(slot?.runtime) }
         if slot.candidate == nil {
@@ -222,7 +224,7 @@ final class Shell {
     private var usesBuiltinBar: Bool {
         guard let id = resolution.barPlugin else { return true }
         switch slots[SlotKey(id: id, kind: .bar)]?.phase {
-        case .failed?, .disabled?: return true
+        case .failed, .disabled: return true
         default: return false
         }
     }
@@ -893,7 +895,9 @@ final class Shell {
             toggle(id, trace, reply)
         case let .reloadPlugins(id):
             let live = slots.values.filter { (id == nil || $0.key.id == id) && (isLive($0) || $0.disabledReason != nil) }
-            guard id == nil || !live.isEmpty else { return reply(.failure("\(id!) is not loaded")) }
+            guard id == nil || !live.isEmpty else { reply(.failure("\(id!) is not loaded"))
+                return
+            }
             for slot in live {
                 reload(slot, trace)
             }
@@ -915,7 +919,9 @@ final class Shell {
         case let .requestPermission(permission):
             reply(.ok(permission.request()))
         case let .action(id, kind, action, payload):
-            guard let runtime = slots[SlotKey(id: id, kind: kind)]?.runtime else { return reply(.failure("\(id) has no running \(kind.rawValue)")) }
+            guard let runtime = slots[SlotKey(id: id, kind: kind)]?.runtime else { reply(.failure("\(id) has no running \(kind.rawValue)"))
+                return
+            }
             runtime.perform(action, payload.map { Double($0).map(JSON.number) ?? .string($0) } ?? .null)
             reply(.ok("sent \(action) to \(id)/\(kind.rawValue)"))
         case let .call(id, method, arguments):
@@ -927,7 +933,9 @@ final class Shell {
     }
 
     private func call(_ id: PluginID, _ method: String, _ arguments: [String], _ trace: Trace, _ reply: @escaping (Response) -> Void) {
-        guard let slot = handlerSlot(id) else { return reply(.failure("\(id) is not enabled")) }
+        guard let slot = handlerSlot(id) else { reply(.failure("\(id) is not enabled"))
+            return
+        }
         var answered = false
         let once: (Response) -> Void = { response in
             DispatchQueue.main.async {
@@ -963,12 +971,16 @@ final class Shell {
     }
 
     private func summon(_ id: PluginID, _ trace: Trace, _ reply: @escaping (Response) -> Void) {
-        guard let slot = surfaceSlot(id) else { return reply(.failure("no enabled surface \(id)")) }
+        guard let slot = surfaceSlot(id) else { reply(.failure("no enabled surface \(id)"))
+            return
+        }
         if let reason = slot.disabledReason {
-            return reply(.failure("\(id) is disabled: \(reason)"))
+            reply(.failure("\(id) is disabled: \(reason)"))
+            return
         }
         if slot.visible, slot.runtime != nil {
-            return reply(.ok("shown"))
+            reply(.ok("shown"))
+            return
         }
         slot.visible = true
         slot.focused = pointerDisplay()

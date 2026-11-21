@@ -215,7 +215,9 @@ private func warnUnsandboxed(_ manifest: PluginManifest) {
     warning: plugins run unsandboxed inside Gary, with your user account's access to files, \
     the network and other programs, and with every macOS permission you granted Gary.
     """)
-    guard !manifest.capabilities.isEmpty else { return print("\(manifest.id) uses no capabilities") }
+    guard !manifest.capabilities.isEmpty else { print("\(manifest.id) uses no capabilities")
+        return
+    }
     print("\(manifest.id) uses these capabilities in uses and subscribes:")
     printCapabilities(manifest.capabilities)
 }
@@ -239,7 +241,9 @@ private func update(_ arguments: Arguments) throws {
     try git(["fetch", "--quiet"], in: directory)
     let head = try git(["rev-parse", "HEAD"], in: directory)
     let upstream = try git(["rev-parse", "@{upstream}"], in: directory)
-    guard head != upstream else { return print("\(id) is up to date") }
+    guard head != upstream else { print("\(id) is up to date")
+        return
+    }
     guard (try? git(["merge-base", "--is-ancestor", "HEAD", upstream], in: directory)) != nil else {
         throw CommandError("\(id) cannot fast-forward to \(upstream.prefix(12))")
     }
@@ -273,7 +277,9 @@ private func update(_ arguments: Arguments) throws {
         guard isatty(STDIN_FILENO) != 0 else { throw CommandError("rerun with --yes to apply this update") }
         print("apply this update to \(id)? [y/N] ", terminator: "")
         fflush(stdout)
-        guard readLine()?.lowercased().hasPrefix("y") == true else { return print("not updated") }
+        guard readLine()?.lowercased().hasPrefix("y") == true else { print("not updated")
+            return
+        }
     }
     try git(["merge", "--ff-only", "--quiet", upstream], in: directory)
     print("updated \(id) \(current?.version ?? "?") -> \(next.version)")

@@ -115,11 +115,14 @@ private final class Connector: NSObject {
 
     static func open(_ device: IOBluetoothDevice, _ done: @escaping (String?) -> Void) {
         if device.isConnected() {
-            return done(nil)
+            done(nil)
+            return
         }
         let connector = Connector(done)
         let status = device.openConnection(connector, withPageTimeout: 0x2000, authenticationRequired: false)
-        guard status == kIOReturnSuccess else { return done("cannot connect \(device.name ?? device.addressString ?? "") (\(status))") }
+        guard status == kIOReturnSuccess else { done("cannot connect \(device.name ?? device.addressString ?? "") (\(status))")
+            return
+        }
         pending.insert(connector)
     }
 
@@ -164,8 +167,12 @@ private final class BluetoothTopic: NSObject {
     }
 
     func restart() {
-        guard CBManager.authorization == .allowedAlways else { return send(Trace("bluetooth-start")) }
-        guard notifications.isEmpty else { return send(Trace("bluetooth")) }
+        guard CBManager.authorization == .allowedAlways else { send(Trace("bluetooth-start"))
+            return
+        }
+        guard notifications.isEmpty else { send(Trace("bluetooth"))
+            return
+        }
         if let notification = IOBluetoothDevice.register(forConnectNotifications: self, selector: #selector(connected(_:device:))) {
             notifications.append(notification)
         }
@@ -206,10 +213,11 @@ private final class BluetoothTopic: NSObject {
         default: "notDetermined"
         }
         guard permission == "allowed" else {
-            return publish(
+            publish(
                 .object(["available": .bool(false), "permission": .string(permission), "power": .null, "devices": .array([]), "missing": .array([])]),
                 trace,
             )
+            return
         }
         let batteries = hidBatteries()
         let devices = (IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []).compactMap { device -> JSON? in

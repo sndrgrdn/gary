@@ -162,7 +162,7 @@ public extension Node {
 
         func string(_ name: String) throws -> String? {
             switch fields[name] {
-            case nil, .null?: nil
+            case nil, .null: nil
             case let .string(value)?: value
             case let .number(value)? where name == "text" || name == "value":
                 value.rounded() == value && abs(value) < 1e15 ? String(Int64(value)) : String(value)
@@ -193,24 +193,24 @@ public extension Node {
         let type = try required("type")
         let content: Content
         switch Kind(rawValue: type) {
-        case .row?: content = try .row(children())
-        case .column?: content = try .column(children())
-        case .stack?: content = try .stack(children())
-        case .scroll?: content = try .scroll(children(), reveal: string("reveal"))
-        case .button?: content = try .button(children(), hover: string("hover"))
-        case .text?: content = try .text(required("text"))
-        case .icon?: content = try .icon(required("symbol"))
-        case .image?: content = try .image(required("path"))
-        case .slider?: content = try .slider(fraction())
-        case .progress?: content = try .progress(fraction())
-        case .input?:
+        case .row: content = try .row(children())
+        case .column: content = try .column(children())
+        case .stack: content = try .stack(children())
+        case .scroll: content = try .scroll(children(), reveal: string("reveal"))
+        case .button: content = try .button(children(), hover: string("hover"))
+        case .text: content = try .text(required("text"))
+        case .icon: content = try .icon(required("symbol"))
+        case .image: content = try .image(required("path"))
+        case .slider: content = try .slider(fraction())
+        case .progress: content = try .progress(fraction())
+        case .input:
             content = try .input(Input(
                 value: string("value") ?? "",
                 placeholder: string("placeholder"),
                 change: string("change"),
                 submit: string("submit"),
             ))
-        case .spacer?: content = .spacer
+        case .spacer: content = .spacer
         case nil: throw fail("unknown type \"\(type)\"")
         }
         func props(_ fields: [String: JSON], _ prefix: String) throws -> StyleProps {
