@@ -1,5 +1,16 @@
-const saved = host.storage.get("minutes");
-let minutes = typeof saved === "number" ? saved : 25;
+function parseMinutes(value: Gary.Json | undefined): number {
+  const minutes = Number(value);
+
+  return Number.isInteger(minutes) && minutes >= 5 && minutes <= 60 ? minutes : 25;
+}
+
+function parseFraction(payload: Gary.ActionPayload): number | null {
+  const fraction = Number(payload);
+
+  return payload !== null && payload !== "" && fraction >= 0 && fraction <= 1 ? fraction : null;
+}
+
+let minutes = parseMinutes(host.storage.get("minutes"));
 let endsAt: number | null = null;
 let now = Date.now();
 let ticker: number | null = null;
@@ -89,8 +100,10 @@ module.exports = {
   },
 
   onAction(action, payload) {
-    if (action === "minutes" && typeof payload === "number" && endsAt === null) {
-      minutes = Math.round(5 + payload * 55);
+    const fraction = parseFraction(payload);
+
+    if (action === "minutes" && fraction !== null && endsAt === null) {
+      minutes = Math.round(5 + fraction * 55);
       host.storage.set("minutes", minutes);
     }
 

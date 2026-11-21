@@ -189,12 +189,12 @@ let waitingFor: Gary.PermissionName | undefined;
 module.exports = {
   surface: { width: 520, layer: "normal" },
 
-  onTopic(topic, value) {
+  onTopic(topic, _value, state) {
     if (topic !== "permissions" || !allowingAll) {
       return;
     }
 
-    const all = value as unknown as Status[];
+    const all = state.permissions ?? [];
     const waiting = all.find((permission) => permission.name === waitingFor);
 
     if (!waiting || isDone(waiting)) {
