@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "gary.today",
+  "name": "Today",
+  "version": "0.1.0",
+  "kinds": ["panel"],
+  "entryPoints": { "panel": "panel.js" },
+  "subscribes": ["clock", "battery", "workspaces"]
+}

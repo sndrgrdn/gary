@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "gary.battery",
+  "name": "Battery",
+  "version": "0.1.0",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "bar-widget": "widget.js" },
+  "subscribes": ["battery"]
+}
