@@ -2,12 +2,11 @@ build:
     swift build --jobs 4
 
 test:
-    swift test --jobs 4
+    swift test --jobs 4 -Xswiftc -plugin-path -Xswiftc "$(dirname "$(xcrun --find swift)")/../lib/swift/host/plugins/testing"
 
 bundle *flags:
     scripts/bundle.sh {{flags}}
 
-# Debug bundle, replace any running Gary, and run attached so logs stream here.
 run: kill
     scripts/bundle.sh --debug
     ./build/Gary.app/Contents/MacOS/gary
