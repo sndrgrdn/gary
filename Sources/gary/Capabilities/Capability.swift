@@ -84,10 +84,6 @@ extension JSValue {
     var optionalString: String? { isUndefined || isNull ? nil : toString() }
 }
 
-protocol DemandDrivenTopic: AnyObject {
-    func demand(_ demanded: Bool)
-}
-
 enum HostResult {
     case now(JSON)
     case later(DispatchQueue, () throws -> JSON)

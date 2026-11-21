@@ -62,27 +62,17 @@ private func launch(_ bundle: String) throws -> JSON {
     return json(try result.get())
 }
 
-private final class AppsTopic: DemandDrivenTopic {
+private final class AppsTopic {
     private let publish: (JSON, Trace) -> Void
-    private var observers: [NSObjectProtocol] = []
+    private var observations: [Observation] = []
 
     init(_ publish: @escaping (JSON, Trace) -> Void) {
         self.publish = publish
-    }
-
-    func demand(_ demanded: Bool) {
-        guard demanded != !observers.isEmpty else { return }
-        let center = NSWorkspace.shared.notificationCenter
-        for observer in observers { center.removeObserver(observer) }
-        observers = []
-        guard demanded else { return }
         let names: [Notification.Name] = [
             NSWorkspace.didActivateApplicationNotification, NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification,
             NSWorkspace.didHideApplicationNotification, NSWorkspace.didUnhideApplicationNotification,
         ]
-        observers = names.map { name in
-            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in self?.send(Trace("apps")) }
-        }
+        observations = names.map { name in Observation(NSWorkspace.shared.notificationCenter, name) { [weak self] in self?.send(Trace("apps")) } }
         send(Trace("apps-start"))
     }
 

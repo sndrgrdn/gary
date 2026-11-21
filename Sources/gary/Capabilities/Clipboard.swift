@@ -28,26 +28,18 @@ extension Capability {
     }, topic: { ClipboardTopic($0) })
 }
 
-private final class ClipboardTopic: DemandDrivenTopic {
+private final class ClipboardTopic {
     private let publish: (JSON, Trace) -> Void
-    private var timer: Timer?
     private var count = -1
+    private var observation: Observation?
 
     init(_ publish: @escaping (JSON, Trace) -> Void) {
         self.publish = publish
-    }
-
-    func demand(_ demanded: Bool) {
-        guard demanded != (timer != nil) else { return }
-        timer?.invalidate()
-        timer = nil
-        guard demanded else { return }
-        count = -1
         check()
         let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.check() }
         timer.tolerance = 0.25
         RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
+        observation = Observation { timer.invalidate() }
     }
 
     private func check() {
