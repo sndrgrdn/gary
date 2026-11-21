@@ -55,13 +55,18 @@ class StackNodeView: NSStackView, NodeView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) { click(event) }
 
-    func pinCrossAxis() {
+    func pinCrossAxis(_ node: Node) {
         NSLayoutConstraint.deactivate(crossInsets)
-        crossInsets = arrangedSubviews.flatMap { view in
-            orientation == .vertical
-                ? [trailingAnchor.constraint(greaterThanOrEqualTo: view.trailingAnchor, constant: edgeInsets.right)]
-                : [bottomAnchor.constraint(greaterThanOrEqualTo: view.bottomAnchor, constant: edgeInsets.bottom),
-                   view.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: edgeInsets.top)]
+        let cross: Node.Axis = orientation == .vertical ? .horizontal : .vertical
+        crossInsets = zip(arrangedSubviews, node.children).flatMap { view, child -> [NSLayoutConstraint] in
+            let fills = child.grows(along: cross)
+            return orientation == .vertical
+                ? [fills ? trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: edgeInsets.right)
+                         : trailingAnchor.constraint(greaterThanOrEqualTo: view.trailingAnchor, constant: edgeInsets.right)]
+                : [fills ? bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: edgeInsets.bottom)
+                         : bottomAnchor.constraint(greaterThanOrEqualTo: view.bottomAnchor, constant: edgeInsets.bottom),
+                   fills ? view.topAnchor.constraint(equalTo: topAnchor, constant: edgeInsets.top)
+                         : view.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: edgeInsets.top)]
         }
         for constraint in crossInsets { constraint.priority = .defaultHigh }
         NSLayoutConstraint.activate(crossInsets)
@@ -98,8 +103,8 @@ final class ButtonNodeView: StackNodeView {
         addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
     }
 
-    override func pinCrossAxis() {
-        super.pinCrossAxis()
+    override func pinCrossAxis(_ node: Node) {
+        super.pinCrossAxis(node)
         for case let label as TextNodeView in arrangedSubviews { label.setContentCompressionResistancePriority(.required, for: .horizontal) }
     }
 
@@ -314,7 +319,7 @@ final class ViewRenderer {
                     }
                 }
                 mutations += stack.arrange(next)
-                (stack as? StackNodeView)?.pinCrossAxis()
+                (stack as? StackNodeView)?.pinCrossAxis(node)
             }
             (view as? ScrollNodeView)?.stack.reveal = node.revealedChild
             return (view, mutations)
@@ -355,11 +360,11 @@ final class ViewRenderer {
             button.edgeInsets = insets(look.padding)
             button.setHuggingPriority(width == nil ? .required : .defaultLow, for: .horizontal)
             button.looks = (look, theme.resolve(node.style, node.props, hover: hover ?? "hover"))
-            button.pinCrossAxis()
+            button.pinCrossAxis(node)
         case (let scroll as ScrollNodeView, _):
             scroll.stack.spacing = look.gap ?? theme.spacing.item
             scroll.stack.edgeInsets = insets(look.padding)
-            scroll.stack.pinCrossAxis()
+            scroll.stack.pinCrossAxis(node)
             let fit = scroll.heightAnchor.constraint(equalTo: scroll.stack.heightAnchor)
             fit.priority = .defaultHigh
             scroll.sizing = replace(scroll.sizing, with: [
@@ -371,9 +376,10 @@ final class ViewRenderer {
         case (let stack as StackNodeView, _):
             stack.spacing = look.gap ?? theme.spacing.item
             stack.edgeInsets = insets(look.padding)
-            let sized = stack.orientation == .horizontal ? width : height
-            stack.setHuggingPriority(sized == nil ? .required : .defaultLow, for: stack.orientation == .horizontal ? .horizontal : .vertical)
-            stack.pinCrossAxis()
+            let horizontal = stack.orientation == .horizontal
+            let hugs = (horizontal ? width : height) == nil && !node.grows(along: horizontal ? .horizontal : .vertical)
+            stack.setHuggingPriority(hugs ? .required : .defaultLow, for: horizontal ? .horizontal : .vertical)
+            stack.pinCrossAxis(node)
         case (let slider as SliderNodeView, .slider(let value)):
             slider.doubleValue = value
             slider.trackFillColor = node.props.color == nil ? nil : NSColor(look.color)

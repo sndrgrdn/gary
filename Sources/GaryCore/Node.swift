@@ -84,6 +84,22 @@ public struct Node: Equatable, Sendable {
 
     public var own: Node { with(children: []) }
 
+    public enum Axis: Sendable {
+        case horizontal, vertical
+    }
+
+    public func grows(along axis: Axis) -> Bool {
+        if axis == .horizontal ? props.width != nil : props.height != nil { return false }
+        let children: [Node], stackAxis: Axis
+        switch content {
+        case .spacer: return true
+        case .row(let items): (children, stackAxis) = (items, .horizontal)
+        case .column(let items): (children, stackAxis) = (items, .vertical)
+        case .scroll, .button, .text, .icon, .image, .slider, .progress, .input: return false
+        }
+        return children.contains { $0.kind == .spacer ? axis == stackAxis : $0.grows(along: axis) }
+    }
+
     public var revealedChild: Int? {
         guard case .scroll(let children, let reveal) = content else { return nil }
         return children.firstIndex { child in reveal.map { child.key == $0 } ?? (child.style == "selected") }

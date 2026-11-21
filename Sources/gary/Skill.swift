@@ -254,7 +254,7 @@ enum Skill {
     | `slider` | `value` from 0 to 1 | the new value |
     | `progress` | `value` from 0 to 1 | `null` |
     | `input` | `value`, `placeholder`, `change`, and `submit` | the text. `change` and `submit` name the actions. |
-    | `spacer` | none. It fills the free space in a row or column. | `null` |
+    | `spacer` | none. It fills the free space in a row or column, and a row with a spacer spans the width of its column, so the items after the spacer line up at the trailing edge. | `null` |
 
     - Give siblings unique `key` values so Gary can patch views in place.
     - A node with `action` is clickable. Gary calls `onAction(action, payload)`.

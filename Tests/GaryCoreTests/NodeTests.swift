@@ -52,6 +52,18 @@ struct NodeTests {
         #expect(Node(.column(rows)).revealedChild == nil)
     }
 
+    @Test func aSpacerMakesItsStacksGrowAlongTheStackAxisUpToASizedAncestor() throws {
+        let row = try parse(#"{"type":"row","children":[{"type":"text","text":"Wi-Fi"},{"type":"spacer"},{"type":"button","children":[{"type":"text","text":"Allow"}]}]}"#)
+        #expect(row.grows(along: .horizontal) && !row.grows(along: .vertical))
+        let column = try parse(#"{"type":"column","children":[{"type":"text","text":"Title"},{"type":"row","children":[{"type":"spacer"}]}]}"#)
+        #expect(column.grows(along: .horizontal) && !column.grows(along: .vertical))
+        #expect(try parse(#"{"type":"column","children":[{"type":"spacer"}]}"#).grows(along: .vertical))
+        #expect(try !parse(#"{"type":"column","children":[{"type":"spacer"}]}"#).grows(along: .horizontal))
+        #expect(try !parse(#"{"type":"row","width":200,"children":[{"type":"spacer"}]}"#).grows(along: .horizontal))
+        #expect(try !parse(#"{"type":"button","children":[{"type":"row","children":[{"type":"spacer"}]}]}"#).grows(along: .horizontal))
+        #expect(try !parse(#"{"type":"row","children":[{"type":"text","text":"a"},{"type":"icon","symbol":"b"}]}"#).grows(along: .horizontal))
+    }
+
     @Test func nullOptionalFieldsAreAbsent() throws {
         #expect(try parse(#"{"type":"text","text":"a","style":null,"key":null}"#) == Node(.text("a")))
     }
