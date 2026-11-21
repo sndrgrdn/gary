@@ -71,7 +71,10 @@ public indirect enum ColorExpr: Equatable, Sendable {
     }
 
     private struct Parser {
+        static let maxDepth = 16
+
         var rest: Substring
+        var depth = 0
 
         var atEnd: Bool { rest.allSatisfy(\.isWhitespace) }
 
@@ -95,7 +98,9 @@ public indirect enum ColorExpr: Equatable, Sendable {
         }
 
         mutating func expression() -> ColorExpr? {
-            guard let word = word() else { return nil }
+            depth += 1
+            defer { depth -= 1 }
+            guard depth <= Self.maxDepth, let word = word() else { return nil }
             if word.hasPrefix("#") { return RGBA(hex: String(word)).map(ColorExpr.literal) }
             guard let first = word.first, first.isLetter || first == "_" else { return nil }
             guard take("(") else { return .name(String(word)) }

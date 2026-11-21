@@ -45,7 +45,7 @@ public enum ManifestError: Error, Equatable, CustomStringConvertible {
     case invalidJSON
     case missingField(String)
     case wrongType(String)
-    case unsupportedSchemaVersion(Int)
+    case unsupportedSchemaVersion(Double)
     case invalidID(String)
     case reservedID(PluginID)
     case builtinOutsideNamespace(PluginID)
@@ -65,7 +65,7 @@ public enum ManifestError: Error, Equatable, CustomStringConvertible {
         case .invalidJSON: return "manifest is not a JSON object"
         case .missingField(let field): return "missing field \(field)"
         case .wrongType(let field): return "field \(field) has the wrong type"
-        case .unsupportedSchemaVersion(let version): return "unsupported schemaVersion \(version)"
+        case .unsupportedSchemaVersion(let version): return "unsupported schemaVersion \(JSON.number(version).text)"
         case .invalidID(let id): return "invalid id \"\(id)\""
         case .reservedID(let id): return "id \(id) uses the reserved gary. namespace"
         case .builtinOutsideNamespace(let id): return "built-in id \(id) is outside the gary. namespace"
@@ -115,7 +115,7 @@ public struct PluginManifest: Equatable, Sendable {
         }
 
         let schema = try field("schemaVersion", \.number)
-        guard schema == Double(schemaVersion) else { throw ManifestError.unsupportedSchemaVersion(Int(schema)) }
+        guard schema == Double(schemaVersion) else { throw ManifestError.unsupportedSchemaVersion(schema) }
 
         let rawID = try field("id", \.string)
         guard let id = PluginID(rawID) else { throw ManifestError.invalidID(rawID) }

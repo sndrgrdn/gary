@@ -41,6 +41,8 @@ struct PluginManifestTests {
 
     @Test func rejectsWrongSchemaVersion() {
         rejects(["schemaVersion": 2], with: .unsupportedSchemaVersion(2))
+        rejects(["schemaVersion": 1e300], with: .unsupportedSchemaVersion(1e300))
+        rejects(["schemaVersion": -1e300], with: .unsupportedSchemaVersion(-1e300))
     }
 
     @Test func rejectsMissingAndMistypedFields() {

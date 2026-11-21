@@ -190,6 +190,13 @@ struct ColorExprTests {
         }
     }
 
+    @Test func rejectsNestingDeeperThanSixteenInsteadOfOverflowingTheStack() {
+        func nested(_ depth: Int) -> String { String(repeating: "contrast(", count: depth) + "fg" + String(repeating: ")", count: depth) }
+        #expect(evaluate(nested(15)) == RGBA(red: 0, green: 0, blue: 0))
+        #expect(ColorExpr(nested(16)) == nil)
+        #expect(ColorExpr(nested(100_000)) == nil)
+    }
+
     @Test func formatsHexWithAlphaOnlyWhenTranslucent() {
         #expect(RGBA(hex: "#7aa2f7")!.hex == "#7aa2f7")
         #expect(RGBA(red: 1, green: 0, blue: 0, alpha: 0.25).hex == "#ff000040")
