@@ -8,16 +8,17 @@ private let deno = (ProcessInfo.processInfo.environment["PATH"] ?? "").split(sep
     .first { FileManager.default.isExecutableFile(atPath: $0.path) }
 
 struct SkillTests {
-    private let theme = try! JSON.parse(#"{"styles": {"panel": {"radius": 12}}, "colors": {"accent": "accent"}, "fonts": {"body": {"size": 12}}}"#)
     private var guide: String {
-        Skill.guide(
-            theme: theme,
-            examples: [BundledExample(name: "load", summary: "A bar widget that shows the load.", manifest: nil)],
-        )
+        get throws {
+            try Skill.guide(
+                theme: JSON.parse(#"{"styles": {"panel": {"radius": 12}}, "colors": {"accent": "accent"}, "fonts": {"body": {"size": 12}}}"#),
+                examples: [BundledExample(name: "load", summary: "A bar widget that shows the load.", manifest: nil)],
+            )
+        }
     }
 
-    @Test func `documents every capability with its manifest entry permissions and declarations`() {
-        let guide = guide
+    @Test func `documents every capability with its manifest entry permissions and declarations`() throws {
+        let guide = try guide
         for capability in Capability.all {
             #expect(guide.contains("### \(capability.name)\n\n\(capability.summary)"), "\(capability.name)")
             #expect(guide.contains(capability.types.trimmingCharacters(in: .newlines)), "\(capability.name)")
@@ -31,8 +32,8 @@ struct SkillTests {
         }
     }
 
-    @Test func `shows an example entry file for every capability`() {
-        let guide = guide
+    @Test func `shows an example entry file for every capability`() throws {
+        let guide = try guide
         for capability in Capability.all {
             #expect(capability.example.contains("module.exports = {") && capability.example.contains("} satisfies Gary."), "\(capability.name)")
             #expect(guide.contains("```ts\n\(capability.example.trimmingCharacters(in: .newlines))\n```"), "\(capability.name)")
@@ -45,7 +46,8 @@ struct SkillTests {
         defer { try? FileManager.default.removeItem(at: folder) }
         let declarations = PluginTypes.declarations(capabilities: Capability.all.map(\.types), pluginTopics: [], theme: nil)
         try Data(declarations.utf8).write(to: folder.appending(path: "gary.d.ts"))
-        let tsconfig = try PluginScaffold.files(id: #require(PluginID("you.examples")), kinds: [.service])["tsconfig.json"]!
+        let id = try #require(PluginID("you.examples"))
+        let tsconfig = try #require(PluginScaffold.files(id: id, kinds: [.service])["tsconfig.json"])
         try Data(tsconfig.utf8).write(to: folder.appending(path: "tsconfig.json"))
         var files = Capability.all.map { "\($0.name).ts" }
         for capability in Capability.all {
@@ -69,13 +71,13 @@ struct SkillTests {
         check.standardOutput = output
         check.standardError = output
         try check.run()
-        let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        let text = String(bytes: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         check.waitUntilExit()
         #expect(check.terminationStatus == 0, "\(text)")
     }
 
     @Test func `documents every permission command manifest field kind node and layer`() throws {
-        let guide = guide
+        let guide = try guide
         for permission in Permission.allCases {
             #expect(guide.contains("| `\(permission.rawValue)` | \(permission.name) |"))
         }
@@ -97,8 +99,8 @@ struct SkillTests {
         }
     }
 
-    @Test func `lists the theme and the bundled examples`() {
-        let guide = guide
+    @Test func `lists the theme and the bundled examples`() throws {
+        let guide = try guide
         #expect(guide.contains("- `panel`: `{\"radius\":12}`"))
         #expect(guide.contains("- `accent`: `\"accent\"`"))
         #expect(guide.contains("type StyleName = \"panel\""))
