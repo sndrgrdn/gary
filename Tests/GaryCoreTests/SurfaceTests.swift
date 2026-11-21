@@ -77,7 +77,7 @@ struct SurfaceTests {
         #expect(SurfaceSpec.defaults(for: .panel).layer == .top)
         #expect(SurfaceSpec.defaults(for: .overlay).anchors == SurfaceSpec.all)
         #expect([PluginKind.panel, .overlay, .menu].allSatisfy { SurfaceSpec.defaults(for: $0).background == .solid })
-        #expect(SurfaceSpec.defaults(for: .bar).background == SurfaceBackground.none)
+        #expect(SurfaceSpec.defaults(for: .bar).background == SurfaceBackground.transparent)
     }
 
     @Test func `parses every field`() throws {
@@ -90,7 +90,7 @@ struct SurfaceTests {
         #expect(parsed.width == .fit && parsed.height == .points(24))
         #expect(parsed.margins == Edges(top: 0, bottom: 4, left: 0, right: 0))
         #expect(parsed.layer == .notch && parsed.exclusionMode == .ignore && parsed.clickThrough && parsed.focusable && parsed
-            .background == SurfaceBackground.none)
+            .background == SurfaceBackground.transparent)
         #expect(try spec(#"{"screen":1}"#).screen == .index(1))
         #expect(try spec("null") == SurfaceSpec.defaults(for: .panel))
     }

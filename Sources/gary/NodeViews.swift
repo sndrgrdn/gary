@@ -278,7 +278,7 @@ private extension View {
         switch material {
         case .vibrant: background(Vibrancy(radius: radius))
         case .glass: glassEffect(.regular, in: RoundedRectangle(cornerRadius: radius))
-        case .some(.none), nil: self
+        case .plain, nil: self
         }
     }
 

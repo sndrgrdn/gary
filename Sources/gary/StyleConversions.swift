@@ -101,7 +101,7 @@ extension SwiftUI.Animation {
         switch animation {
         case .smooth: self = duration.map { .smooth(duration: $0) } ?? .smooth
         case .spring: self = duration.map { .spring(duration: $0) } ?? .spring
-        case .none: return nil
+        case .instant: return nil
         }
     }
 }
@@ -111,7 +111,7 @@ extension AnyTransition {
         switch transition {
         case .opacity: self = .opacity
         case .scale: self = .scale
-        case .none: self = .identity
+        case .identity: self = .identity
         }
     }
 }

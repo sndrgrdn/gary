@@ -38,11 +38,13 @@ public enum Align: String, CaseIterable, Sendable {
 }
 
 public enum Animation: String, CaseIterable, Sendable {
-    case smooth, spring, none
+    case smooth, spring
+    case instant = "none"
 }
 
 public enum Material: String, CaseIterable, Sendable {
-    case vibrant, glass, none
+    case vibrant, glass
+    case plain = "none"
 }
 
 public enum ColorScheme: String, CaseIterable, Sendable {
@@ -50,7 +52,8 @@ public enum ColorScheme: String, CaseIterable, Sendable {
 }
 
 public enum Transition: String, CaseIterable, Sendable {
-    case opacity, scale, none
+    case opacity, scale
+    case identity = "none"
 }
 
 public enum ImageFit: String, CaseIterable, Sendable {

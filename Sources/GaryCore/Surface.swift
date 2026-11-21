@@ -57,7 +57,9 @@ public enum ExclusionMode: String, Sendable {
 }
 
 public enum SurfaceBackground: String, CaseIterable, Sendable {
-    case solid, none, backdrop
+    case solid
+    case transparent = "none"
+    case backdrop
 }
 
 public struct Edges<Value: Equatable & Sendable>: Equatable, Sendable {
@@ -111,7 +113,7 @@ public struct SurfaceSpec: Equatable, Sendable {
             spec.layer = .overlay
             spec.focusable = true
         case .bar, .barWidget, .service:
-            spec.background = .none
+            spec.background = .transparent
         case .panel:
             break
         }
