@@ -217,7 +217,8 @@ final class PluginRuntime: Subscriber {
 
     private func evaluate() throws {
         let url = try bundle.entryPoint(kind)
-        let source = try String(contentsOf: url, encoding: .utf8)
+        var source = try String(contentsOf: url, encoding: .utf8)
+        if url.pathExtension == "ts" { source = try TypeScript.shared.strip(source, file: url.lastPathComponent) }
         let context = JSContext()!
         context.name = "\(id)"
         context.exceptionHandler = { [weak self] _, value in self?.exception = value?.toString() ?? "unknown exception" }
