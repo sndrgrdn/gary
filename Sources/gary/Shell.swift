@@ -569,6 +569,7 @@ final class Shell {
                 _ = reloadConfig(trace)
             } else if path.hasPrefix(plugins) {
                 let relative = path.dropFirst(plugins.count)
+                if relative.split(separator: "/").dropFirst().contains(where: { $0.hasPrefix(".") }) { continue }
                 let directory = String(relative.prefix { $0 != "/" })
                 let owners = slots.values.filter { $0.bundle.origin == .user && $0.bundle.directory.lastPathComponent == directory }
                 if owners.isEmpty || relative.hasSuffix("/manifest.json") || !relative.contains("/") {
