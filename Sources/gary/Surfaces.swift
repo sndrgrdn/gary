@@ -158,6 +158,9 @@ final class SurfaceWindow {
             card.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ]
         for edge in edges.suffix(2) { edge.priority = .init(490) }
+        let within = card.trailingAnchor.constraint(greaterThanOrEqualTo: view.trailingAnchor)
+        within.priority = .init(998)
+        edges.append(within)
         NSLayoutConstraint.activate(edges)
     }
 
@@ -224,9 +227,15 @@ final class SurfaceWindow {
         for constraint in constraints { constraint.priority = .init(999) }
         NSLayoutConstraint.activate(constraints)
         defer { NSLayoutConstraint.deactivate(constraints) }
-        card.setFrameSize(card.fittingSize)
-        card.layoutSubtreeIfNeeded()
-        return card.fittingSize
+        var size = card.fittingSize
+        for _ in 0..<4 {
+            card.setFrameSize(size)
+            card.layoutSubtreeIfNeeded()
+            let next = card.fittingSize
+            if next == size { break }
+            size = next
+        }
+        return size
     }
 
     func show(fade: Double) {
