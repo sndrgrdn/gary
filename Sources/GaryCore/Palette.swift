@@ -22,7 +22,7 @@ public struct PaletteFile: Equatable, Sendable {
                 file.mode = mode
             case .success((let key, let value)):
                 guard let color = RGBA(hex: value) else {
-                    file.ignored.append("line \(index + 1): \(key) is not #rgb, #rrggbb or #rrggbbaa")
+                    if Palette.baseKeys.contains(key) { file.ignored.append("line \(index + 1): \(key) is not #rgb, #rrggbb or #rrggbbaa") }
                     continue
                 }
                 file.colors[key] = color

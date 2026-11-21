@@ -36,18 +36,17 @@ struct PaletteTests {
         trailing = "#ffffff" junk
         foreground = "#ccc"
         background = "#000000"
+        accent = "blue"
         """)
         #expect(file.colors == ["background": RGBA(hex: "#000000")!, "foreground": RGBA(hex: "#cccccc")!])
         #expect(file.mode == nil)
         #expect(file.ignored == [
             "line 2: not key = \"value\"",
-            "line 3: border is not #rgb, #rrggbb or #rrggbbaa",
-            "line 4: theme_type is not #rgb, #rrggbb or #rrggbbaa",
             "line 5: mode must be light or dark",
-            "line 6: short is not #rgb, #rrggbb or #rrggbbaa",
             "line 7: open has an unterminated string",
             "line 8: \"two words\" is not a bare key",
             "line 9: trailing has text after its value",
+            "line 12: accent is not #rgb, #rrggbb or #rrggbbaa",
         ])
     }
 
@@ -115,11 +114,7 @@ struct PaletteTests {
         yellow = "#d9dbdc"
         """)
         #expect(file.mode == .dark)
-        #expect(file.ignored == [
-            "line 44: hyprland_active_border is not #rgb, #rrggbb or #rrggbbaa",
-            "line 45: hyprland_inactive_border is not #rgb, #rrggbb or #rrggbbaa",
-            "line 59: theme_type is not #rgb, #rrggbb or #rrggbbaa",
-        ])
+        #expect(file.ignored == [])
         #expect(file.colors.count == 56)
         #expect(file.colors["background"] == RGBA(hex: "#101315") && file.colors["bg"] == file.colors["background"])
         #expect(file.colors["color15"] == RGBA(hex: "#a5aeb4"))
