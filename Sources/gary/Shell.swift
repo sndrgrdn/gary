@@ -487,6 +487,7 @@ final class Shell {
 
     @discardableResult
     private func reloadTheme(_ trace: Trace) -> Response {
+        let started = now()
         do {
             var override = themePayload ?? .object([:])
             if FileManager.default.fileExists(atPath: Paths.userTheme.path) {
@@ -514,8 +515,9 @@ final class Shell {
                 slot.candidate?.setTheme(json, trace)
                 slot.runtime?.setTheme(json, trace)
             }
-            log(String(format: "theme applied mode=%@ palette=%@ cause=%@ since_ms=%.3f", theme.mode.rawValue,
-                       paletteFile == nil ? "built-in" : "palette.toml", trace.cause, (now() - trace.start) * 1000))
+            let end = now()
+            log(String(format: "theme applied mode=%@ palette=%@ cause=%@ since_ms=%.3f apply_ms=%.3f", theme.mode.rawValue,
+                       paletteFile == nil ? "built-in" : "palette.toml", trace.cause, (end - trace.start) * 1000, (end - started) * 1000))
             return .ok("theme applied")
         } catch {
             log("theme: \(error); keeping the current theme")
