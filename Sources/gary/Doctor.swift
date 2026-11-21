@@ -5,7 +5,6 @@ import Foundation
 import GaryCore
 import GaryPrivate
 import GarySocket
-import UserNotifications
 
 struct PrivateSymbolCheck {
     let library: String
@@ -37,7 +36,6 @@ extension Permission {
         case .bluetooth: return "Bluetooth"
         case .fullDiskAccess: return "Full Disk Access"
         case .location: return "Location"
-        case .notifications: return "Notifications"
         case .screenRecording: return "Screen Recording"
         }
     }
@@ -55,15 +53,6 @@ extension Permission {
             return fd >= 0
         case .location:
             return [.authorizedAlways, .authorized].contains(CLLocationManager().authorizationStatus)
-        case .notifications:
-            let done = DispatchSemaphore(value: 0)
-            nonisolated(unsafe) var status = UNAuthorizationStatus.notDetermined
-            UNUserNotificationCenter.current().getNotificationSettings { settings in
-                status = settings.authorizationStatus
-                done.signal()
-            }
-            _ = done.wait(timeout: .now() + 2)
-            return [.authorized, .provisional].contains(status)
         case .screenRecording:
             return CGPreflightScreenCaptureAccess()
         }

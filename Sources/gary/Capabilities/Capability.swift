@@ -5,7 +5,7 @@ import GaryPrivate
 import JavaScriptCore
 
 enum Permission: String, CaseIterable {
-    case accessibility, bluetooth, fullDiskAccess, location, notifications, screenRecording
+    case accessibility, bluetooth, fullDiskAccess, location, screenRecording
 }
 
 struct Capability {
