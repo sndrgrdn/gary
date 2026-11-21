@@ -31,6 +31,7 @@ guard let verb = args.first else {
 switch verb {
 case "app": exit(runApp())
 case "login": exit(runLogin(Array(args.dropFirst())))
+case "update": exit(runUpdate(Array(args.dropFirst())))
 case "doctor": exit(runDoctor())
 case grantProbeVerb: exit(runGrantProbe(Array(args.dropFirst())))
 case "restore-after": exit(runRestoreAfter(Array(args.dropFirst())))

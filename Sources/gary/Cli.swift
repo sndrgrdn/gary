@@ -72,7 +72,27 @@ let appUsage: [(syntax: String, description: String, example: String?)] = [
     ("app", "Run the shell in the foreground, logging to the terminal, without the crash supervisor.", nil),
     ("login [on|off|status]", "Start Gary at login, or stop doing so.", nil),
     ("--version", "Print the version of this Gary.", nil),
+    ("update", "Install the latest release from GitHub with gh, after saying which version is installed and which is the latest.", nil),
 ]
+
+func runUpdate(_ arguments: [String]) -> Int32 {
+    guard arguments.isEmpty else {
+        fputs("usage: gary update\n", stderr)
+        return 64
+    }
+    guard let script = Bundle.main.path(forResource: "install", ofType: "sh") else {
+        fputs("gary: update needs the app bundle; run the gary inside Gary.app\n", stderr)
+        return 1
+    }
+    do {
+        let install = try Process.run(URL(fileURLWithPath: "/bin/sh"), arguments: [script])
+        install.waitUntilExit()
+        return install.terminationStatus
+    } catch {
+        fputs("gary: update: \(error.localizedDescription)\n", stderr)
+        return 1
+    }
+}
 
 func runHelp() -> Int32 {
     print("usage: gary <verb> [args], sent to the running app over \(socketPath)\n")
