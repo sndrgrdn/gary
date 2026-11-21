@@ -610,6 +610,7 @@ final class Shell {
             )
             guard next != theme else { return .ok("theme unchanged") }
             theme = next
+            AppDragTile.theme = theme
             for warning in theme.warnings { log("theme \(warning)") }
             renderers = (ViewRenderer(theme: theme.inBar), ViewRenderer(theme: theme))
             for panel in panels { panel.appearance = appearance }

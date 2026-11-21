@@ -11,7 +11,7 @@ extension Capability {
       interface PermissionStatus {
         name: PermissionName;
         title: string;
-        status: "granted" | "notAsked" | "denied" | "notGranted";
+        status: "granted" | "notAsked" | "denied" | "notGranted" | "needsRestart";
         restart: boolean;
         capabilities: { name: string; summary: string }[];
         plugins: { id: string; name: string; capabilities: string[] }[];
@@ -58,6 +58,8 @@ extension Notification.Name {
 private final class PermissionsTopic {
     private let publish: (JSON, Trace) -> Void
     private var observation: Observation?
+    private var grantedSinceStart: Set<Permission> = []
+    private var probing = false
 
     init(_ publish: @escaping (JSON, Trace) -> Void) {
         self.publish = publish
@@ -68,12 +70,51 @@ private final class PermissionsTopic {
     }
 
     private func send(_ trace: Trace) {
-        publish(.array(PermissionNeed.all(enabled: PermissionNeed.enabledPlugins, checkGrants: true).map(\.json)), trace)
+        var needs = PermissionNeed.all(enabled: PermissionNeed.enabledPlugins, checkGrants: true)
+        for index in needs.indices where needs[index].grant != .granted && grantedSinceStart.contains(needs[index].permission) {
+            needs[index].grant = .needsRestart
+        }
+        publish(.array(needs.map(\.json)), trace)
+        probe(needs.filter { $0.permission.needsRestart && $0.grant != .granted && $0.grant != .needsRestart }.map(\.permission))
+    }
+
+    private func probe(_ permissions: [Permission]) {
+        guard !permissions.isEmpty, !probing else { return }
+        probing = true
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let granted = freshGrants(permissions)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.probing = false
+                guard !granted.isSubset(of: self.grantedSinceStart) else { return }
+                self.grantedSinceStart.formUnion(granted)
+                self.send(Trace("permissions-granted"))
+            }
+        }
     }
 }
 
+let grantProbeVerb = "grant-probe"
+
+func freshGrants(_ permissions: [Permission]) -> Set<Permission> {
+    let process = Process()
+    process.executableURL = Bundle.main.executableURL
+    process.arguments = [grantProbeVerb] + permissions.map(\.rawValue)
+    let output = Pipe()
+    process.standardOutput = output
+    guard (try? process.run()) != nil else { return [] }
+    let data = output.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    return Set(String(decoding: data, as: UTF8.self).split(separator: "\n").compactMap { Permission(rawValue: String($0)) })
+}
+
+func runGrantProbe(_ names: [String]) -> Int32 {
+    for permission in names.compactMap(Permission.init(rawValue:)) where permission.grant == .granted { print(permission.rawValue) }
+    return 0
+}
+
 enum Grant: String {
-    case granted, notAsked, denied, notGranted
+    case granted, notAsked, denied, notGranted, needsRestart
 
     var description: String {
         switch self {
@@ -81,6 +122,7 @@ enum Grant: String {
         case .notAsked: return "not asked"
         case .denied: return "denied"
         case .notGranted: return "not granted"
+        case .needsRestart: return "granted, takes effect after a restart"
         }
     }
 }
@@ -89,7 +131,7 @@ struct PermissionNeed {
     static var enabledPlugins: [PluginManifest] = []
 
     let permission: Permission
-    let grant: Grant?
+    var grant: Grant?
     let capabilities: [String]
     let plugins: [(manifest: PluginManifest, capabilities: [String])]
 
@@ -130,7 +172,18 @@ struct PermissionNeed {
 extension Permission {
     var needsRestart: Bool { self == .screenRecording || self == .fullDiskAccess }
 
-    var grant: Grant {
+    private static let preview: [Permission: Grant] = {
+        let text = ProcessInfo.processInfo.environment["GARY_PERMISSIONS_PREVIEW"] ?? ""
+        return Dictionary(text.split(separator: ",").compactMap { pair in
+            let parts = pair.split(separator: "=").map { $0.trimmingCharacters(in: .whitespaces) }
+            guard parts.count == 2, let permission = Permission(rawValue: parts[0]), let grant = Grant(rawValue: parts[1]) else { return nil }
+            return (permission, grant)
+        }) { $1 }
+    }()
+
+    var grant: Grant { Self.preview[self] ?? systemGrant }
+
+    private var systemGrant: Grant {
         switch self {
         case .accessibility:
             return AXIsProcessTrusted() ? .granted : .notGranted
@@ -168,6 +221,7 @@ extension Permission {
         let pane = "System Settings > Privacy & Security > \(name)"
         let current = grant
         guard current != .granted else { return "Gary already has \(name)" }
+        guard current != .needsRestart else { return "Gary has \(name) once it restarts" }
         switch self {
         case .accessibility:
             _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary)
@@ -185,7 +239,8 @@ extension Permission {
             return "macOS shows its \(name) prompt for Gary. Choose Allow."
         case .fullDiskAccess:
             NSWorkspace.shared.open(settingsPane)
-            return "macOS has no prompt for Full Disk Access. Opened \(pane). Turn Gary on there, or add \(Bundle.main.bundlePath) with the + button, then quit and reopen Gary."
+            AppDragTile.show(until: .fullDiskAccess)
+            return "macOS has no prompt for Full Disk Access. Opened \(pane) and showed Gary's icon to drag into its list. Turn Gary on there, then restart Gary."
         }
     }
 }
