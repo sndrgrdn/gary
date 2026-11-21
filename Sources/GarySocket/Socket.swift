@@ -26,9 +26,11 @@ public let maxMessageBytes = 1 << 20
 public let maxClients = 128
 
 public struct LineBuffer {
-    private var pending: [UInt8] = []
+    private var pending: [UInt8]
 
-    public init() {}
+    public init() {
+        pending = []
+    }
 
     public mutating func append(_ bytes: some Sequence<UInt8>) throws -> [String] {
         var unscanned = pending.count
@@ -64,7 +66,8 @@ public final class LineServer {
         }
         source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: DispatchQueue(label: "gary.socket.accept"))
         let clients = ClientCount()
-        source.setEventHandler { [unowned source] in
+        source.setEventHandler { [weak source] in
+            guard let source else { return }
             for _ in 0..<max(1, source.data) {
                 let client = accept(fd, nil, nil)
                 guard client >= 0 else { return }
@@ -151,8 +154,8 @@ public func requestLine(_ line: String, path: String, timeout: TimeInterval) thr
 func connectSocket(_ path: String) throws -> Int32 {
     let fd = socket(AF_UNIX, SOCK_STREAM, 0)
     guard fd >= 0 else { throw SocketError.system(errno) }
-    var on: Int32 = 1
-    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+    var enabled: Int32 = 1
+    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &enabled, socklen_t(MemoryLayout<Int32>.size))
     guard withAddress(path, { connect(fd, $0, $1) }) == 0 else {
         close(fd)
         throw SocketError.unreachable(path)

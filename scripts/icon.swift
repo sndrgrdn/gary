@@ -1,10 +1,16 @@
 import AppKit
 
 let output = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? "Resources/Gary.icns")
-let artwork = NSImage(contentsOf: URL(fileURLWithPath: "Resources/Gary.svg"))!
+
+func fail(_ message: String) -> Never {
+    FileHandle.standardError.write(Data("icon: \(message)\n".utf8))
+    exit(1)
+}
+
+guard let artwork = NSImage(contentsOf: URL(fileURLWithPath: "Resources/Gary.svg")) else { fail("cannot read Resources/Gary.svg") }
 
 func draw(_ size: Int) -> NSBitmapImageRep {
-    let rep = NSBitmapImageRep(
+    guard let rep = NSBitmapImageRep(
         bitmapDataPlanes: nil,
         pixelsWide: size,
         pixelsHigh: size,
@@ -15,7 +21,7 @@ func draw(_ size: Int) -> NSBitmapImageRep {
         colorSpaceName: .deviceRGB,
         bytesPerRow: 0,
         bitsPerPixel: 0,
-    )!
+    ) else { fail("cannot allocate a \(size) point bitmap") }
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
     artwork.draw(in: NSRect(x: 0, y: 0, width: size, height: size))
@@ -29,7 +35,8 @@ try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories
 for points in [16, 32, 128, 256, 512] {
     for factor in [1, 2] {
         let name = factor == 1 ? "icon_\(points)x\(points).png" : "icon_\(points)x\(points)@2x.png"
-        try draw(points * factor).representation(using: .png, properties: [:])!.write(to: iconset.appending(path: name))
+        guard let png = draw(points * factor).representation(using: .png, properties: [:]) else { fail("cannot encode \(name)") }
+        try png.write(to: iconset.appending(path: name))
     }
 }
 

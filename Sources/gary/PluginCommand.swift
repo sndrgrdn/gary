@@ -4,7 +4,11 @@ import GaryCore
 let pluginUsage: [(syntax: String, description: String, example: String?)] = [
     (
         "plugin new <id> [--kind <kind,...> | --from <example>] [--dir <folder>] [--enable]",
-        "Scaffold a TypeScript plugin with one or more kinds, or copy a bundled example under a new id, into ~/.config/gary/plugins/<id>, or into <folder>, which must not exist yet and which Gary does not load until gary plugin add copies it.",
+        """
+        Scaffold a TypeScript plugin with one or more kinds, or copy a bundled example under a new id, \
+        into ~/.config/gary/plugins/<id>, or into <folder>, which must not exist yet \
+        and which Gary does not load until gary plugin add copies it.
+        """,
         "gary plugin new you.weather --from load --enable",
     ),
     ("plugin validate <path>", "Check a plugin folder with the checks Gary runs when it loads plugins.", nil),
@@ -21,55 +25,27 @@ let pluginUsage: [(syntax: String, description: String, example: String?)] = [
     ("plugin types [path]", "Write gary.d.ts and manifest.schema.json into a plugin folder.", "gary plugin types ~/.config/gary/plugins/you.weather"),
 ]
 
-private struct CommandError: Error, CustomStringConvertible {
-    let description: String
-    var usage = false
-    init(_ description: String, usage: Bool = false) {
-        self.description = description
-        self.usage = usage
-    }
-}
-
-private struct Arguments {
-    var positional: [String] = []
-    var flags: Set<String> = []
-    var options: [String: String] = [:]
-
-    init(_ raw: [String], flags allowed: Set<String> = [], options: Set<String> = [], count: ClosedRange<Int>) throws {
-        var rest = raw[...]
-        while let argument = rest.popFirst() {
-            if allowed.contains(argument) {
-                flags.insert(argument)
-            } else if options.contains(argument) {
-                guard let value = rest.popFirst() else { throw CommandError("\(argument) needs a value", usage: true) }
-                self.options[argument] = value
-            } else if argument.hasPrefix("--") {
-                throw CommandError("unknown option \(argument)", usage: true)
-            } else {
-                positional.append(argument)
-            }
-        }
-        guard count.contains(positional.count) else { throw CommandError("wrong number of arguments", usage: true) }
+private func dispatch(_ arguments: [String]) throws {
+    let rest = Array(arguments.dropFirst())
+    switch arguments.first {
+    case "new": try newPlugin(Arguments(rest, count: 1...1, flags: ["--enable"], options: ["--kind", "--from", "--dir"]))
+    case "validate": try validate(Arguments(rest, count: 1...1).positional[0])
+    case "add": try add(Arguments(rest, count: 1...1, flags: ["--enable"]))
+    case "update": try update(Arguments(rest, count: 1...1, flags: ["--yes"]))
+    case "remove": try remove(pluginID(Arguments(rest, count: 1...1).positional[0]))
+    case "enable": try enable(pluginID(Arguments(rest, count: 1...1).positional[0]))
+    case "disable": try disable(pluginID(Arguments(rest, count: 1...1).positional[0]))
+    case "list": _ = try Arguments(rest, count: 0...0); try list()
+    case "types":
+        let path = try Arguments(rest, count: 0...1).positional.first ?? "."
+        try print(writeTypes(URL(fileURLWithPath: path).standardizedFileURL))
+    default: throw CommandError("unknown plugin command", usage: true)
     }
 }
 
 func runPlugin(_ arguments: [String]) -> Int32 {
     do {
-        let rest = Array(arguments.dropFirst())
-        switch arguments.first {
-        case "new": try newPlugin(Arguments(rest, flags: ["--enable"], options: ["--kind", "--from", "--dir"], count: 1...1))
-        case "validate": try validate(Arguments(rest, count: 1...1).positional[0])
-        case "add": try add(Arguments(rest, flags: ["--enable"], count: 1...1))
-        case "update": try update(Arguments(rest, flags: ["--yes"], count: 1...1))
-        case "remove": try remove(pluginID(Arguments(rest, count: 1...1).positional[0]))
-        case "enable": try enable(pluginID(Arguments(rest, count: 1...1).positional[0]))
-        case "disable": try disable(pluginID(Arguments(rest, count: 1...1).positional[0]))
-        case "list": _ = try Arguments(rest, count: 0...0); try list()
-        case "types":
-            let path = try Arguments(rest, count: 0...1).positional.first ?? "."
-            try print(writeTypes(URL(fileURLWithPath: path).standardizedFileURL))
-        default: throw CommandError("unknown plugin command", usage: true)
-        }
+        try dispatch(arguments)
         return 0
     } catch let error as CommandError where error.usage {
         fputs("gary plugin: \(error)\nusage:\n", stderr)
@@ -320,8 +296,8 @@ private func list() throws {
     let config = try FileManager.default.fileExists(atPath: Paths.shellConfig.path)
         ? ShellConfig.parse(JSON.parse(Data(contentsOf: Paths.shellConfig))) : ShellConfig.defaults
     let enabled = config.resolve(catalog).enabled
-    for id in catalog.sortedIDs {
-        let bundle = catalog.plugins[id]!
+    for bundle in catalog.sortedIDs.compactMap({ catalog.plugins[$0] }) {
+        let id = bundle.manifest.id
         let source = bundle.origin == .builtin ? "builtin" : (try? git(["remote", "get-url", "origin"], in: bundle.directory)) ?? bundle.directory
             .path
         print([
@@ -385,10 +361,14 @@ private func git(_ arguments: [String], in directory: URL, environment: [String:
     process.waitUntilExit()
     guard process.terminationStatus == 0 else {
         throw CommandError(
-            "git \(arguments.first ?? "") failed: \(String(decoding: message, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))",
+            "git \(arguments.first ?? "") failed: \(text(message))",
         )
     }
-    return String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+    return text(data)
+}
+
+private func text(_ data: Data) -> String {
+    (String(bytes: data, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
 private func show(_ arguments: [String], in directory: URL) throws {
