@@ -29,6 +29,20 @@ private final class Watchdog {
     var fired = false
 }
 
+private final class FileWatch {
+    let path: String
+    let callback: JSValue
+    var source: DispatchSourceFileSystemObject?
+    var pending: DispatchWorkItem?
+
+    init(path: String, callback: JSValue) {
+        self.path = path
+        self.callback = callback
+    }
+}
+
+private let fetchSession = URLSession(configuration: .ephemeral)
+
 final class PluginRuntime: Subscriber {
     static let timeLimit = 0.1
 
@@ -43,6 +57,9 @@ final class PluginRuntime: Subscriber {
     private var functions: (render: JSValue, dispatch: JSValue, call: JSValue, surface: JSValue)?
     private var exception: String?
     private var state: [Topic: JSON] = [:]
+    private var timers: [Int: DispatchSourceTimer] = [:]
+    private var watches: [FileWatch] = []
+    private var nextTimer = 1
     let initialScene: Scene
     private var scene: Scene
     private var output = RuntimeOutput()
@@ -162,8 +179,86 @@ final class PluginRuntime: Subscriber {
 
     private func teardown() {
         hub.unsubscribe(self)
+        for timer in timers.values { timer.cancel() }
+        timers = [:]
+        for watch in watches {
+            watch.source?.cancel()
+            watch.pending?.cancel()
+        }
+        watches = []
         functions = nil
         context = nil
+    }
+
+    private func addTimer(_ callback: JSValue, milliseconds: Double, repeats: Bool) -> Int {
+        let id = nextTimer
+        nextTimer += 1
+        let interval = max(repeats ? 10 : 0, milliseconds.isFinite ? milliseconds : 0) / 1000
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + interval, repeating: repeats ? interval : .infinity, leeway: .milliseconds(max(1, min(100, Int(interval * 100)))))
+        timer.setEventHandler { [weak self] in
+            guard let self, functions != nil else { return }
+            if !repeats { timers.removeValue(forKey: id)?.cancel() }
+            callBack(callback, [], Trace("timer"))
+        }
+        timers[id] = timer
+        timer.resume()
+        return id
+    }
+
+    private func callBack(_ callback: JSValue, _ arguments: [Any], _ trace: Trace) {
+        do {
+            try invoke(callback, arguments)
+            renderAll(trace)
+        } catch {
+            fail("\(error)")
+        }
+    }
+
+    private func fetch(_ url: URL, _ resolve: JSValue, _ reject: JSValue) {
+        fetchSession.dataTask(with: URLRequest(url: url, timeoutInterval: 15)) { [weak self] data, response, error in
+            self?.queue.async { [weak self] in
+                guard let self, functions != nil else { return }
+                if let error {
+                    callBack(reject, [JSValue(newErrorFromMessage: "fetch failed: \(error.localizedDescription)", in: resolve.context)!], Trace("fetch"))
+                } else {
+                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    callBack(resolve, [["status": status, "text": String(decoding: data ?? Data(), as: UTF8.self)]], Trace("fetch"))
+                }
+            }
+        }.resume()
+    }
+
+    private func arm(_ watch: FileWatch, attempts: Int) {
+        let descriptor = open(watch.path, O_EVTONLY)
+        guard descriptor >= 0 else {
+            if attempts > 0 {
+                queue.asyncAfter(deadline: .now() + 0.5) { [weak self, weak watch] in
+                    guard let self, let watch, functions != nil else { return }
+                    arm(watch, attempts: attempts - 1)
+                }
+            }
+            return
+        }
+        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: descriptor, eventMask: [.write, .extend, .delete, .rename, .attrib], queue: queue)
+        source.setEventHandler { [weak self, weak watch, weak source] in
+            guard let self, let watch, let source else { return }
+            if !source.data.isDisjoint(with: [.delete, .rename]) {
+                source.cancel()
+                arm(watch, attempts: 10)
+            }
+            watch.pending?.cancel()
+            let work = DispatchWorkItem { [weak self, weak watch] in
+                guard let self, let watch, functions != nil else { return }
+                let text = try? String(contentsOfFile: watch.path, encoding: .utf8)
+                callBack(watch.callback, [text ?? NSNull()], Trace("file"))
+            }
+            watch.pending = work
+            queue.asyncAfter(deadline: .now() + 0.02, execute: work)
+        }
+        source.setCancelHandler { close(descriptor) }
+        watch.source = source
+        source.resume()
     }
 
     private func evaluate() throws {
@@ -179,6 +274,8 @@ final class PluginRuntime: Subscriber {
             log("plugin \(id): no script time limit on this system")
         }
         context.setObject(makeHost(in: context), forKeyedSubscript: "host" as NSString)
+        installTimers(in: context)
+        if bundle.manifest.uses.contains(.network) { installFetch(in: context) }
         context.evaluateScript("var module = { exports: {} }; var exports = module.exports;")
         try check { context.evaluateScript(source, withSourceURL: url) }
         let wrappers = try check { context.evaluateScript("""
@@ -209,11 +306,93 @@ final class PluginRuntime: Subscriber {
         functions = (wrappers.atIndex(0), wrappers.atIndex(1), wrappers.atIndex(2), wrappers.atIndex(3))
     }
 
+    private func installTimers(in context: JSContext) {
+        let add: @convention(block) (JSValue, Double, Bool) -> Int = { [weak self] callback, milliseconds, repeats in
+            self?.addTimer(callback, milliseconds: milliseconds, repeats: repeats) ?? 0
+        }
+        let clear: @convention(block) (Int) -> Void = { [weak self] id in self?.timers.removeValue(forKey: id)?.cancel() }
+        context.evaluateScript("""
+        (function (g, add, clear) {
+          function timer(repeats) {
+            return function (f, ms) {
+              var args = Array.prototype.slice.call(arguments, 2);
+              if (typeof f !== "function") throw new TypeError("timer callback must be a function");
+              return add(function () { f.apply(null, args); }, Number(ms) || 0, repeats);
+            };
+          }
+          g.setTimeout = timer(false);
+          g.setInterval = timer(true);
+          g.clearTimeout = g.clearInterval = function (id) { if (typeof id === "number") clear(id); };
+        })
+        """).call(withArguments: [context.globalObject!, add, clear])
+    }
+
+    private func installFetch(in context: JSContext) {
+        let fetch: @convention(block) (String) -> JSValue = { [weak self] address in
+            let context = JSContext.current()!
+            return JSValue(newPromiseIn: context) { resolve, reject in
+                guard let url = URL(string: address), ["http", "https"].contains(url.scheme?.lowercased()) else {
+                    reject?.call(withArguments: [JSValue(newErrorFromMessage: "fetch takes an http or https URL", in: context)!])
+                    return
+                }
+                self?.fetch(url, resolve!, reject!)
+            }
+        }
+        context.setObject(fetch, forKeyedSubscript: "fetch" as NSString)
+    }
+
     private func makeHost(in context: JSContext) -> JSValue {
         let host = JSValue(newObjectIn: context)!
         let id = self.id
         let logBlock: @convention(block) (String) -> Void = { message in log("plugin \(id): \(message)") }
         host.setObject(logBlock, forKeyedSubscript: "log" as NSString)
+        let storageURL = Paths.storage.appending(path: "\(id).json")
+        let read: @convention(block) () -> String? = { try? String(contentsOf: storageURL, encoding: .utf8) }
+        let write: @convention(block) (String) -> Void = { text in
+            do {
+                try FileManager.default.createDirectory(at: Paths.storage, withIntermediateDirectories: true)
+                try Data(text.utf8).write(to: storageURL, options: .atomic)
+            } catch {
+                log("plugin \(id): storage not saved: \(error)")
+            }
+        }
+        host.setObject(context.evaluateScript("""
+        (function (read, write) {
+          var data = null;
+          function load() {
+            if (data !== null) return;
+            var text = read();
+            try { data = text ? JSON.parse(text) : {}; } catch (e) { data = {}; }
+          }
+          return {
+            get: function (key) { load(); return data[key]; },
+            set: function (key, value) {
+              load();
+              if (value === undefined) delete data[key]; else data[key] = JSON.parse(JSON.stringify(value));
+              write(JSON.stringify(data));
+            }
+          };
+        })
+        """).call(withArguments: [read, write]), forKeyedSubscript: "storage" as NSString)
+        if bundle.manifest.uses.contains(.files) {
+            let readFile: @convention(block) (String) -> String? = { path in
+                let expanded = (path as NSString).expandingTildeInPath
+                guard let text = try? String(contentsOfFile: expanded, encoding: .utf8) else {
+                    let context = JSContext.current()!
+                    context.exception = JSValue(newErrorFromMessage: "cannot read \(path)", in: context)
+                    return nil
+                }
+                return text
+            }
+            host.setObject(readFile, forKeyedSubscript: "readFile" as NSString)
+            let watchFile: @convention(block) (String, JSValue) -> Void = { [weak self] path, callback in
+                guard let self, callback.isObject else { return }
+                let watch = FileWatch(path: (path as NSString).expandingTildeInPath, callback: callback)
+                watches.append(watch)
+                arm(watch, attempts: 10)
+            }
+            host.setObject(watchFile, forKeyedSubscript: "watchFile" as NSString)
+        }
         let publishBlock: @convention(block) (JSValue) -> Void = { [weak self] value in
             guard let self, let text = value.context.objectForKeyedSubscript("JSON").invokeMethod("stringify", withArguments: [value]).toString(),
                   let json = try? JSON.parse(text) else { return }
@@ -244,14 +423,9 @@ final class PluginRuntime: Subscriber {
     private func exec(_ argv: [String], _ callback: JSValue) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let result = runProcess(argv)
-            self?.queue.async {
-                guard let self, self.functions != nil else { return }
-                do {
-                    try self.invoke(callback, [result])
-                    self.renderAll(Trace("exec"))
-                } catch {
-                    self.fail("\(error)")
-                }
+            self?.queue.async { [weak self] in
+                guard let self, functions != nil else { return }
+                callBack(callback, [result], Trace("exec"))
             }
         }
     }

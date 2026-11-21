@@ -20,14 +20,14 @@ struct PluginManifestTests {
         let parsed = try manifest([
             "kinds": ["service", "bar-widget"],
             "entryPoints": ["service": "lib/service.js", "bar-widget": "widget.js"],
-            "keepLoaded": true, "subscribes": ["clock", "battery", "acme.counter"], "uses": ["exec"],
+            "keepLoaded": true, "subscribes": ["clock", "battery", "acme.counter"], "uses": ["exec", "network", "files"],
         ])
         #expect(parsed.id.rawValue == "acme.media")
         #expect(parsed.kinds == [.service, .barWidget])
         #expect(parsed.entryPoints == [.service: "lib/service.js", .barWidget: "widget.js"])
         #expect(parsed.keepLoaded)
         #expect(parsed.subscribes == [.clock, .battery, .plugin(PluginID("acme.counter")!)])
-        #expect(parsed.uses == [.exec])
+        #expect(parsed.uses == [.exec, .network, .files])
     }
 
     @Test func optionalFieldsDefaultToOff() throws {

@@ -31,7 +31,7 @@ public enum Topic: Hashable, Sendable, CustomStringConvertible {
 }
 
 public enum HostService: String, CaseIterable, Sendable {
-    case exec
+    case exec, network, files
 }
 
 public enum PluginOrigin: Sendable {
