@@ -94,12 +94,11 @@ public struct SurfaceSpec: Equatable, Sendable {
     public var focusable: Bool
     public var background: SurfaceBackground
 
-    public static let none = Edges(top: false, bottom: false, left: false, right: false)
     public static let all = Edges(top: true, bottom: true, left: true, right: true)
 
     public static func defaults(for kind: PluginKind) -> SurfaceSpec {
         var spec = SurfaceSpec(
-            screen: .focused, anchors: none, width: .fit, height: .fit,
+            screen: .focused, anchors: Edges(top: false, bottom: false, left: false, right: false), width: .fit, height: .fit,
             margins: Edges(top: 0, bottom: 0, left: 0, right: 0),
             layer: .top, exclusionMode: .normal, clickThrough: false, focusable: false, background: .solid,
         )
@@ -124,76 +123,90 @@ public struct SurfaceSpec: Equatable, Sendable {
         if json == .null {
             return spec
         }
-        func fail(_ path: String, _ reason: String) -> SurfaceError {
-            SurfaceError(path: "surface\(path)", reason: reason)
-        }
         guard let fields = json.object else { throw fail("", "must be an object") }
-        func bool(_ value: JSON, _ path: String) throws -> Bool {
-            guard let flag = value.bool else { throw fail(path, "must be true or false") }
-            return flag
-        }
-        func points(_ value: JSON, _ path: String) throws -> Double {
-            guard let number = value.number, number >= 0, number.isFinite else { throw fail(path, "must be a non-negative number") }
-            return number
-        }
-        func dimension(_ value: JSON, _ path: String) throws -> Dimension {
-            if value.string == "fit" {
-                return .fit
-            }
-            guard let number = value.number, number > 0, number.isFinite else { throw fail(path, "must be a positive number or \"fit\"") }
-            return .points(number)
-        }
-        func edges<Value>(_ value: JSON, _ path: String, absent: Value, _ read: (JSON, String) throws -> Value) throws -> Edges<Value> {
-            guard let sides = value.object else { throw fail(path, "must be an object with top, bottom, left and right") }
-            if let unknown = sides.keys.sorted().first(where: { !["top", "bottom", "left", "right"].contains($0) }) {
-                throw fail("\(path).\(unknown)", "is not top, bottom, left or right")
-            }
-            func side(_ name: String) throws -> Value {
-                try sides[name].map { try read($0, "\(path).\(name)") } ?? absent
-            }
-            return try Edges(top: side("top"), bottom: side("bottom"), left: side("left"), right: side("right"))
-        }
-
         for (name, value) in fields.sorted(by: { $0.key < $1.key }) {
             let path = ".\(name)"
-            switch name {
-            case "screen":
-                switch value {
-                case .string("main"): spec.screen = .main
-                case .string("focused"): spec.screen = .focused
-                case .string("all"): spec.screen = .all
-                case let .number(index) where index >= 0 && index == index.rounded() && index < 64: spec.screen = .index(Int(index))
-                default: throw fail(path, "must be \"main\", \"focused\", \"all\" or a display index")
-                }
-            case "anchors": spec.anchors = try edges(value, path, absent: false, bool)
-            case "width": spec.width = try dimension(value, path)
-            case "height": spec.height = try dimension(value, path)
-            case "margins":
-                if value.number != nil {
-                    let all = try points(value, path)
-                    spec.margins = Edges(top: all, bottom: all, left: all, right: all)
-                } else {
-                    spec.margins = try edges(value, path, absent: 0, points)
-                }
-            case "layer":
-                guard let layer = value.string.flatMap(SurfaceLayer.init(rawValue:)) else {
-                    throw fail(path, "must be one of \(SurfaceLayer.allCases.map(\.rawValue).joined(separator: ", "))")
-                }
-                spec.layer = layer
-            case "exclusionMode":
-                guard let mode = value.string.flatMap(ExclusionMode.init(rawValue:)) else { throw fail(path, "must be \"normal\" or \"ignore\"") }
-                spec.exclusionMode = mode
-            case "clickThrough": spec.clickThrough = try bool(value, path)
-            case "focusable": spec.focusable = try bool(value, path)
-            case "background":
-                guard let background = value.string.flatMap(SurfaceBackground.init(rawValue:)) else {
-                    throw fail(path, "must be one of \(SurfaceBackground.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: ", "))")
-                }
-                spec.background = background
-            default: throw fail(path, "is not a surface field")
-            }
+            guard let read = fieldReaders[name] else { throw fail(path, "is not a surface field") }
+            try read(&spec, value, path)
         }
         return spec
+    }
+
+    private static let fieldReaders: [String: @Sendable (inout SurfaceSpec, JSON, String) throws -> Void] = [
+        "screen": { spec, value, path in spec.screen = try screen(value, path) },
+        "anchors": { spec, value, path in spec.anchors = try edges(value, path, absent: false, bool) },
+        "width": { spec, value, path in spec.width = try dimension(value, path) },
+        "height": { spec, value, path in spec.height = try dimension(value, path) },
+        "margins": { spec, value, path in spec.margins = try margins(value, path) },
+        "layer": { spec, value, path in
+            spec.layer = try choice(value, path, "must be one of \(SurfaceLayer.allCases.map(\.rawValue).joined(separator: ", "))")
+        },
+        "exclusionMode": { spec, value, path in spec.exclusionMode = try choice(value, path, "must be \"normal\" or \"ignore\"") },
+        "clickThrough": { spec, value, path in spec.clickThrough = try bool(value, path) },
+        "focusable": { spec, value, path in spec.focusable = try bool(value, path) },
+        "background": { spec, value, path in
+            spec.background = try choice(
+                value,
+                path,
+                "must be one of \(SurfaceBackground.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: ", "))",
+            )
+        },
+    ]
+
+    private static func fail(_ path: String, _ reason: String) -> SurfaceError {
+        SurfaceError(path: "surface\(path)", reason: reason)
+    }
+
+    private static func screen(_ value: JSON, _ path: String) throws -> ScreenSelector {
+        switch value {
+        case .string("main"): .main
+        case .string("focused"): .focused
+        case .string("all"): .all
+        case let .number(index) where index >= 0 && index == index.rounded() && index < 64: .index(Int(index))
+        default: throw fail(path, "must be \"main\", \"focused\", \"all\" or a display index")
+        }
+    }
+
+    private static func bool(_ value: JSON, _ path: String) throws -> Bool {
+        guard let flag = value.bool else { throw fail(path, "must be true or false") }
+        return flag
+    }
+
+    private static func points(_ value: JSON, _ path: String) throws -> Double {
+        guard let number = value.number, number >= 0, number.isFinite else { throw fail(path, "must be a non-negative number") }
+        return number
+    }
+
+    private static func dimension(_ value: JSON, _ path: String) throws -> Dimension {
+        if value.string == "fit" {
+            return .fit
+        }
+        guard let number = value.number, number > 0, number.isFinite else { throw fail(path, "must be a positive number or \"fit\"") }
+        return .points(number)
+    }
+
+    private static func margins(_ value: JSON, _ path: String) throws -> Edges<Double> {
+        guard value.number != nil else { return try edges(value, path, absent: 0, points) }
+        let all = try points(value, path)
+        return Edges(top: all, bottom: all, left: all, right: all)
+    }
+
+    private static func edges<Value>(_ value: JSON, _ path: String, absent: Value, _ read: (JSON, String) throws -> Value) throws -> Edges<Value> {
+        guard let sides = value.object else { throw fail(path, "must be an object with top, bottom, left and right") }
+        if let unknown = sides.keys.sorted().first(where: { !["top", "bottom", "left", "right"].contains($0) }) {
+            throw fail("\(path).\(unknown)", "is not top, bottom, left or right")
+        }
+        func side(_ name: String) throws -> Value {
+            try sides[name].map { try read($0, "\(path).\(name)") } ?? absent
+        }
+        return try Edges(top: side("top"), bottom: side("bottom"), left: side("left"), right: side("right"))
+    }
+
+    private static func choice<Value: RawRepresentable>(_ value: JSON, _ path: String, _ reason: String) throws -> Value
+        where Value.RawValue == String
+    {
+        guard let choice = value.string.flatMap(Value.init(rawValue:)) else { throw fail(path, reason) }
+        return choice
     }
 
     public func area(on display: DisplayInfo) -> CGRect {
@@ -206,37 +219,54 @@ public struct SurfaceSpec: Equatable, Sendable {
 
     public func frame(on display: DisplayInfo, fitting: (_ width: Double?, _ height: Double?, _ limit: CGSize) -> CGSize) -> CGRect {
         let area = area(on: display)
-        func forced(_ dimension: Dimension, _ low: Bool, _ high: Bool, _ span: Double, _ lowMargin: Double, _ highMargin: Double) -> Double? {
-            if low, high {
-                return max(0, span - lowMargin - highMargin)
-            }
-            if case let .points(value) = dimension {
-                return value
-            }
-            return nil
-        }
-        let limit = CGSize(
-            width: max(0, area.width - (anchors.left ? margins.left : 0) - (anchors.right ? margins.right : 0)),
-            height: max(0, area.height - (anchors.bottom ? margins.bottom : 0) - (anchors.top ? margins.top : 0)),
+        let horizontal = Axis(
+            start: area.minX, end: area.maxX, span: area.width,
+            lowAnchored: anchors.left, highAnchored: anchors.right, lowMargin: margins.left, highMargin: margins.right,
         )
-        let width = forced(width, anchors.left, anchors.right, area.width, margins.left, margins.right)
-        let height = forced(height, anchors.bottom, anchors.top, area.height, margins.bottom, margins.top)
+        let vertical = Axis(
+            start: area.minY, end: area.maxY, span: area.height,
+            lowAnchored: anchors.bottom, highAnchored: anchors.top, lowMargin: margins.bottom, highMargin: margins.top,
+        )
+        let limit = CGSize(width: horizontal.limit, height: vertical.limit)
+        let width = horizontal.forced(width)
+        let height = vertical.forced(height)
         let fitted = width == nil || height == nil ? fitting(width.map { min($0, limit.width) }, height.map { min($0, limit.height) }, limit) : .zero
         let size = CGSize(width: min(width ?? fitted.width, limit.width), height: min(height ?? fitted.height, limit.height))
-        func origin(_ low: Bool, _ high: Bool, _ min: Double, _ max: Double, _ length: Double, _ lowMargin: Double, _ highMargin: Double) -> Double {
-            let start: Double = if low {
-                min + lowMargin
-            } else if high {
-                max - highMargin - length
-            } else {
-                ((min + max - length) / 2).rounded()
-            }
-            return Swift.min(Swift.max(start, min), max - length)
+        return CGRect(x: horizontal.origin(size.width), y: vertical.origin(size.height), width: size.width, height: size.height)
+    }
+}
+
+private struct Axis {
+    let start: Double
+    let end: Double
+    let span: Double
+    let lowAnchored: Bool
+    let highAnchored: Bool
+    let lowMargin: Double
+    let highMargin: Double
+
+    var limit: Double {
+        max(0, span - (lowAnchored ? lowMargin : 0) - (highAnchored ? highMargin : 0))
+    }
+
+    func forced(_ dimension: Dimension) -> Double? {
+        if lowAnchored, highAnchored {
+            return max(0, span - lowMargin - highMargin)
         }
-        return CGRect(
-            x: origin(anchors.left, anchors.right, area.minX, area.maxX, size.width, margins.left, margins.right),
-            y: origin(anchors.bottom, anchors.top, area.minY, area.maxY, size.height, margins.bottom, margins.top),
-            width: size.width, height: size.height,
-        )
+        if case let .points(value) = dimension {
+            return value
+        }
+        return nil
+    }
+
+    func origin(_ length: Double) -> Double {
+        let origin: Double = if lowAnchored {
+            start + lowMargin
+        } else if highAnchored {
+            end - highMargin - length
+        } else {
+            ((start + end - length) / 2).rounded()
+        }
+        return min(max(origin, start), end - length)
     }
 }
