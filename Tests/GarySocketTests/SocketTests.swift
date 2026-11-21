@@ -90,4 +90,64 @@ struct LineServerTests {
         #expect(try requestLine("fast", path: path, timeout: 2) == "fast")
         #expect(Date().timeIntervalSince(start) < 1)
     }
+
+    @Test func aClientThatHangsUpBeforeTheReplyDoesNotKillTheServer() throws {
+        let server = try LineServer(path: path) { line in
+            Thread.sleep(forTimeInterval: 0.1)
+            return String(repeating: line, count: 200_000)
+        }
+        defer { server.stop() }
+        for _ in 0..<5 {
+            let fd = try connectSocket(path)
+            try writeAll(fd, "x\n")
+            close(fd)
+        }
+        Thread.sleep(forTimeInterval: 0.3)
+        #expect(try requestLine("y", path: path, timeout: 2).count == 200_000)
+    }
+
+    @Test func garbageClosesOnlyThatConnection() throws {
+        let server = try LineServer(path: path) { "echo:" + $0 }
+        defer { server.stop() }
+        for garbage: [UInt8] in [[0xff, 0xfe, 10], [UInt8](repeating: 65, count: maxMessageBytes + 10), [0, 0, 0, 10]] {
+            let fd = try connectSocket(path)
+            var rest = garbage[...]
+            while !rest.isEmpty {
+                let sent = rest.withUnsafeBytes { send(fd, $0.baseAddress, $0.count, 0) }
+                guard sent > 0 else { break }
+                rest = rest.dropFirst(sent)
+            }
+            close(fd)
+        }
+        #expect(try requestLine("ping", path: path, timeout: 2) == "echo:ping")
+    }
+
+    @Test func manyConcurrentClientsAllGetTheirOwnReply() throws {
+        let server = try LineServer(path: path) { "echo:" + $0 }
+        defer { server.stop() }
+        let replies = Replies()
+        DispatchQueue.concurrentPerform(iterations: 300) { index in
+            replies.add(index, (try? requestLine("\(index)", path: path, timeout: 5)) ?? "failed")
+        }
+        #expect(replies.all == Dictionary(uniqueKeysWithValues: (0..<300).map { ($0, "echo:\($0)") }))
+    }
+
+    @Test func idleClientsBeyondTheThreadPoolDoNotBlockARequest() throws {
+        let server = try LineServer(path: path) { $0 }
+        defer { server.stop() }
+        let idle = try (0..<maxClients - 1).map { _ in try connectSocket(path) }
+        defer { for fd in idle { close(fd) } }
+        Thread.sleep(forTimeInterval: 0.2)
+        let start = Date()
+        #expect(try requestLine("fast", path: path, timeout: 4) == "fast")
+        #expect(Date().timeIntervalSince(start) < 1)
+    }
+}
+
+private final class Replies: @unchecked Sendable {
+    private let lock = NSLock()
+    private var replies: [Int: String] = [:]
+
+    func add(_ index: Int, _ reply: String) { lock.withLock { replies[index] = reply } }
+    var all: [Int: String] { lock.withLock { replies } }
 }

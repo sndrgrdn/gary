@@ -23,6 +23,7 @@ public enum SocketError: Error, Equatable, CustomStringConvertible {
 }
 
 public let maxMessageBytes = 1 << 20
+public let maxClients = 128
 
 public struct LineBuffer {
     private var pending: [UInt8] = []
@@ -30,12 +31,14 @@ public struct LineBuffer {
     public init() {}
 
     public mutating func append(_ bytes: some Sequence<UInt8>) throws -> [String] {
+        var unscanned = pending.count
         pending.append(contentsOf: bytes)
         var lines: [String] = []
-        while let newline = pending.firstIndex(of: 10) {
+        while let newline = pending[unscanned...].firstIndex(of: 10) {
             guard let line = String(bytes: pending[..<newline], encoding: .utf8) else { throw SocketError.invalidUTF8 }
             lines.append(line)
             pending.removeSubrange(...newline)
+            unscanned = 0
         }
         guard pending.count <= maxMessageBytes else { throw SocketError.tooLarge }
         return lines
@@ -53,16 +56,28 @@ public final class LineServer {
         unlink(path)
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw SocketError.system(errno) }
-        guard withAddress(path, { bind(fd, $0, $1) }) == 0, chmod(path, 0o600) == 0, listen(fd, 16) == 0 else {
+        guard withAddress(path, { bind(fd, $0, $1) }) == 0, chmod(path, 0o600) == 0, listen(fd, SOMAXCONN) == 0 else {
             let code = errno
             close(fd)
             throw SocketError.system(code)
         }
         source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: DispatchQueue(label: "gary.socket.accept"))
-        source.setEventHandler {
-            let client = accept(fd, nil, nil)
-            guard client >= 0 else { return }
-            DispatchQueue.global(qos: .userInitiated).async { serve(client, handle) }
+        let clients = ClientCount()
+        source.setEventHandler { [unowned source] in
+            for _ in 0..<max(1, source.data) {
+                let client = accept(fd, nil, nil)
+                guard client >= 0 else { return }
+                guard clients.enter() else {
+                    close(client)
+                    continue
+                }
+                let thread = Thread {
+                    serve(client, handle)
+                    clients.leave()
+                }
+                thread.qualityOfService = .userInitiated
+                thread.start()
+            }
         }
         source.setCancelHandler {
             close(fd)
@@ -72,6 +87,21 @@ public final class LineServer {
     }
 
     public func stop() { source.cancel() }
+}
+
+private final class ClientCount: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    func enter() -> Bool {
+        lock.withLock {
+            guard count < maxClients else { return false }
+            count += 1
+            return true
+        }
+    }
+
+    func leave() { lock.withLock { count -= 1 } }
 }
 
 private func serve(_ client: Int32, _ handle: (String) -> String) {
