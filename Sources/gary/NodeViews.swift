@@ -220,7 +220,6 @@ private extension View {
         case .row, .button, .text, .spacer: break
         }
         let shape = RoundedRectangle(cornerRadius: look.radius ?? 0, style: .continuous)
-        let shadow = look.shadow
         return self
             .padding(EdgeInsets(padding))
             .frame(width: width.map { CGFloat($0) }, height: height.map { CGFloat($0) }, alignment: Alignment(horizontal: horizontal, vertical: vertical))
@@ -230,7 +229,7 @@ private extension View {
             .clipped(to: clip ? shape : nil)
             .overlay { if let border = look.border, let color = look.borderColor { shape.strokeBorder(Color(color), lineWidth: border.width) } }
             .interactive(clickable, hovering: hovering, pressing: pressing) { perform($0, .null) }
-            .shadow(color: Color(look.shadowColor ?? RGBA(red: 0, green: 0, blue: 0, alpha: 0)), radius: shadow?.radius ?? 0, y: shadow?.y ?? 0)
+            .dropShadow(look.shadow, look.shadowColor)
             .scaleEffect(look.scale ?? 1)
             .opacity(look.opacity ?? 1)
             .offset(x: look.x ?? 0, y: (look.offset ?? 0) + (look.y ?? 0))
@@ -241,6 +240,10 @@ private extension View {
             .transition(AnyTransition(look.transition ?? .opacity))
             .zIndex(look.zIndex ?? 0)
             .layoutPriority(node.kind == .spacer ? -1 : 0)
+    }
+
+    @ViewBuilder func dropShadow(_ shadow: Shadow?, _ color: RGBA?) -> some View {
+        if let shadow, let color { self.shadow(color: Color(color), radius: shadow.radius, y: shadow.y) } else { self }
     }
 
     @ViewBuilder func clipped(to shape: RoundedRectangle?) -> some View {
