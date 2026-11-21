@@ -33,7 +33,9 @@ final class AppDragTile {
         label.font = .systemFont(ofSize: 13)
         label.textColor = theme.map { NSColor($0.resolve(nil).color) } ?? .labelColor
         label.preferredMaxLayoutWidth = 190
-        let close = NSButton(image: NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close")!, target: nil, action: nil)
+        let close = NSButton(title: "", target: nil, action: nil)
+        close.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close")
+        close.imagePosition = .imageOnly
         close.isBordered = false
         close.contentTintColor = theme?.color("dim").map { NSColor($0) } ?? .secondaryLabelColor
         let row = NSStackView(views: [icon, label, close])
