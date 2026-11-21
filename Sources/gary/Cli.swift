@@ -38,5 +38,7 @@ func runHelp() -> Int32 {
     print("usage: gary <verb> [args], sent to the running app over \(socketPath)\n")
     for (syntax, description) in Request.usage { print("  \(syntax)\n      \(description)") }
     print("\n  app\n      Run the shell in the foreground, logging to the terminal.")
+    print("\nPlugin commands work on ~/.config/gary without the running app:\n")
+    for (syntax, description) in pluginUsage { print("  \(syntax)\n      \(description)") }
     return 0
 }

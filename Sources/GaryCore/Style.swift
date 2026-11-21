@@ -18,11 +18,11 @@ public struct StyleProps: Equatable, Sendable {
         self.font = font
     }
 
-    private static let numbers: [(String, WritableKeyPath<StyleProps, Double?>)] = [
+    static let numbers: [(String, WritableKeyPath<StyleProps, Double?>)] = [
         ("width", \.width), ("height", \.height), ("padding", \.padding), ("gap", \.gap),
         ("radius", \.radius), ("fontSize", \.fontSize), ("opacity", \.opacity),
     ]
-    private static let colors: [(String, WritableKeyPath<StyleProps, String?>)] = [("background", \.background), ("color", \.color)]
+    static let colors: [(String, WritableKeyPath<StyleProps, String?>)] = [("background", \.background), ("color", \.color)]
 
     public static func parse(_ fields: [String: JSON], fail: (String, String) -> Error) throws -> StyleProps {
         var props = StyleProps()

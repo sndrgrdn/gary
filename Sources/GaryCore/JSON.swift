@@ -30,6 +30,12 @@ public enum JSON: Equatable, Sendable {
 
     public var text: String { String(decoding: encoded(), as: UTF8.self) }
 
+    public var prettyText: String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes, .prettyPrinted]
+        return String(decoding: try! encoder.encode(self), as: UTF8.self) + "\n"
+    }
+
     public subscript(key: String) -> JSON? {
         if case .object(let fields) = self { return fields[key] }
         return nil

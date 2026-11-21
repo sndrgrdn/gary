@@ -5,7 +5,12 @@ import JavaScriptCore
 private let fetchSession = URLSession(configuration: .ephemeral)
 
 extension Capability {
-    static let network = Capability(name: "network", install: { host, plugin in
+    static let network = Capability(name: "network", types: """
+    declare namespace Gary {
+      interface FetchResponse { status: number; text: string }
+    }
+    declare function fetch(url: string): Promise<Gary.FetchResponse>;
+    """, install: { host, plugin in
         let fetch: @convention(block) (String) -> JSValue = { [weak plugin] address in
             let context = JSContext.current()!
             return JSValue(newPromiseIn: context) { resolve, reject in

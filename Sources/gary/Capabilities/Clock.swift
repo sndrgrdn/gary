@@ -2,7 +2,12 @@ import AppKit
 import GaryCore
 
 extension Capability {
-    static let clock = Capability(name: "clock", topic: { ClockTopic($0) })
+    static let clock = Capability(name: "clock", types: """
+    declare namespace Gary {
+      interface State { clock?: Clock }
+      interface Clock { epoch: number }
+    }
+    """, topic: { ClockTopic($0) })
 }
 
 private final class ClockTopic {

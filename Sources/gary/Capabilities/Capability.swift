@@ -1,12 +1,13 @@
 import GaryCore
 import JavaScriptCore
 
-enum Permission {
+enum Permission: String {
     case accessibility, bluetooth, location, notifications
 }
 
 struct Capability {
     let name: String
+    let types: String
     var permission: Permission?
     var install: ((JSValue, PluginRuntime) -> Void)?
     var topic: ((@escaping (JSON, Trace) -> Void) -> AnyObject)?

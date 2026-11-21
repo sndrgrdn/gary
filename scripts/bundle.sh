@@ -20,6 +20,7 @@ plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Inf
 plutil -replace CFBundleVersion -string "$BUILD" "$APP/Contents/Info.plist"
 cp Resources/theme.json "$APP/Contents/Resources/theme.json"
 cp -R Resources/plugins "$APP/Contents/Resources/plugins"
+"$APP/Contents/MacOS/gary" plugin types "$APP/Contents/Resources/types" >/dev/null
 
 codesign --force --sign "$IDENTITY" "$APP"
 echo "built $APP ($CONFIG, $VERSION build $BUILD)"

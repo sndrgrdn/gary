@@ -29,7 +29,7 @@ public struct Node: Equatable, Sendable {
         case spacer
     }
 
-    public enum Kind: String, Sendable {
+    public enum Kind: String, CaseIterable, Sendable {
         case row, column, scroll, button, text, icon, image, slider, progress, input, spacer
     }
 
