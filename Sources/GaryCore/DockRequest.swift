@@ -62,9 +62,11 @@ public enum DockRequest: Equatable, Sendable {
 }
 
 public struct Claims<Owner: Hashable, Value: Equatable> {
-    private var entries: [(owner: Owner, value: Value)] = []
+    private var entries: [(owner: Owner, value: Value)]
 
-    public init() {}
+    public init() {
+        entries = []
+    }
 
     public var current: Value? {
         entries.last?.value

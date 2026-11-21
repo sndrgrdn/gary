@@ -16,9 +16,11 @@ public enum MediaKey: String, CaseIterable, Sendable {
     }
 
     public struct Gate: Sendable {
-        private var held: Set<MediaKey> = []
+        private var held: Set<MediaKey>
 
-        public init() {}
+        public init() {
+            held = []
+        }
 
         public mutating func swallows(_ press: Press, intercepted: Bool) -> Bool {
             guard press.down else { return held.remove(press.key) != nil }
