@@ -21,8 +21,9 @@ extension Capability {
       },
     } satisfies Gary.Service;
     """, install: { host, plugin in
+        let folder = plugin.bundle.directory.path
         plugin.installAPI(host, "wallpaper", WallpaperRequest.methods) { call in
-            let request = try WallpaperRequest.parse(call, home: home)
+            let request = try WallpaperRequest.parse(call, home: home, folder: folder)
             return .later(.main) {
                 guard case let .set(path, display) = request else { return wallpapers() }
                 try setWallpaper(path, on: display)

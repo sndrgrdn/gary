@@ -3,46 +3,62 @@ import GaryCore
 import JavaScriptCore
 
 extension Capability {
-    static let files = Capability(name: "files", summary: "Read, write, list, remove, and watch files.", types: """
-    declare namespace Gary {
-      interface Host {
-        readFile(path: string): string;
-        writeFile(path: string, text: string): null;
-        mkdir(path: string): null;
-        remove(path: string): boolean;
-        list(path: string): FileEntry[];
-        watchFile(path: string, callback: (text: string | null) => void): void;
-      }
-      interface FileEntry { name: string; type: "file" | "directory" | "link" | "other"; size: number }
-    }
-    """, example: """
-    const path = "~/Documents/scratch.txt";
-    let text = "";
-    host.watchFile(path, (contents) => {
-      text = contents ?? "";
-    });
-
-    module.exports = {
-      render() {
-        return { type: "input", value: text, placeholder: "Scratch", submit: "save" };
-      },
-      onAction(action, payload) {
-        if (action === "save" && typeof payload === "string") host.writeFile(path, payload);
-      },
-    } satisfies Gary.Menu;
-    """, install: { host, plugin in
-        plugin.installAPI(host, nil, FilesRequest.methods) { call in try .now(perform(FilesRequest.parse(call, home: home))) }
-        let watchFile: @convention(block) (String, JSValue) -> Void = { [weak plugin] path, callback in
-            guard let plugin, callback.isObject else { return }
-            let watch = FileWatch(path: (path as NSString).expandingTildeInPath, callback: callback)
-            plugin.onStop {
-                watch.source?.cancel()
-                watch.pending?.cancel()
-            }
-            watch.arm(in: plugin, attempts: 10)
+    static let files = Capability(
+        name: "files",
+        summary: "Read, write, list, remove, and watch files. A path that does not start with `/` or `~` is relative to the plugin folder.",
+        types: """
+        declare namespace Gary {
+          interface Host {
+            readFile(path: string): string;
+            writeFile(path: string, text: string): null;
+            mkdir(path: string): null;
+            remove(path: string): boolean;
+            list(path: string): FileEntry[];
+            watchFile(path: string, callback: (text: string | null) => void): void;
+          }
+          interface FileEntry { name: string; type: "file" | "directory" | "link" | "other"; size: number }
         }
-        host.setObject(watchFile, forKeyedSubscript: "watchFile" as NSString)
-    })
+        """,
+        example: """
+        const path = "~/Documents/scratch.txt";
+        const placeholder = host.readFile("placeholder.txt").trim();
+        let text = "";
+        host.watchFile(path, (contents) => {
+          text = contents ?? "";
+        });
+
+        module.exports = {
+          render() {
+            return { type: "input", value: text, placeholder, submit: "save" };
+          },
+          onAction(action, payload) {
+            if (action === "save" && typeof payload === "string") host.writeFile(path, payload);
+          },
+        } satisfies Gary.Menu;
+        """,
+        install: { host, plugin in
+            let folder = plugin.bundle.directory.path
+            plugin.installAPI(host, nil, FilesRequest.methods) { call in try .now(perform(FilesRequest.parse(call, home: home, folder: folder))) }
+            let watchFile: @convention(block) (String, JSValue) -> Void = { [weak plugin] raw, callback in
+                guard let plugin, callback.isObject else { return }
+                let path: String
+                do {
+                    path = try HostCall(api: nil, method: "watchFile", arguments: [.string(raw)]).path(0, home: home, folder: folder)
+                } catch {
+                    let context = JSContext.current()
+                    context?.exception = context?.newError("\(error)")
+                    return
+                }
+                let watch = FileWatch(path: path, callback: callback)
+                plugin.onStop {
+                    watch.source?.cancel()
+                    watch.pending?.cancel()
+                }
+                watch.arm(in: plugin, attempts: 10)
+            }
+            host.setObject(watchFile, forKeyedSubscript: "watchFile" as NSString)
+        },
+    )
 }
 
 private func perform(_ request: FilesRequest) throws -> JSON {

@@ -88,6 +88,8 @@ To give every panel, overlay, and menu a material, set it on the `surface` style
 
 `host.exec` finds commands in the PATH of your login shell, so `["dinky", "workspace", "2"]` runs `/opt/homebrew/bin/dinky`. Subscribe to `session` to act when the screen is locked or unlocked.
 
+A path that does not start with `/` or `~` is relative to the plugin folder, in an `image` node, the `files` functions, and `host.wallpaper.set`. So a plugin finds the files it ships wherever it is installed, in `~/.config/gary/plugins` or in a package. The `files` and `wallpaper` functions refuse a relative path whose `..` leaves the plugin folder.
+
 ## Share and install plugins
 
 A package is a folder that holds plugins. If its root has a `manifest.json`, it is one plugin. Otherwise each folder directly inside it that has a `manifest.json` is a plugin. Push a package to a git repository or publish it to npm. Others install it with one of:

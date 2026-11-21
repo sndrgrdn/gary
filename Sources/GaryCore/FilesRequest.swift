@@ -9,16 +9,16 @@ public enum FilesRequest: Equatable, Sendable {
 
     public static let methods = ["readFile", "writeFile", "mkdir", "remove", "list"]
 
-    public static func parse(_ call: HostCall, home: String) throws -> FilesRequest {
+    public static func parse(_ call: HostCall, home: String, folder: String) throws -> FilesRequest {
         guard methods.contains(call.method) else { throw call.unknownMethod }
-        let path = try call.path(0, home: home)
+        let path = try call.path(0, home: home, folder: folder)
         switch call.method {
         case "readFile": return .read(path: path)
         case "writeFile": return try .write(path: path, text: call.string(1, "text"))
         case "mkdir": return .makeDirectory(path: path)
         case "list": return .list(path: path)
         default:
-            guard path != "/", path != home else { throw call.fail("refusing to remove \(path)") }
+            guard path != "/", path != home, path != folder else { throw call.fail("refusing to remove \(path)") }
             return .remove(path: path)
         }
     }

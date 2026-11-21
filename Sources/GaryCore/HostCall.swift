@@ -75,9 +75,11 @@ public struct HostCall: Equatable, Sendable {
         return value
     }
 
-    public func path(_ index: Int, home: String) throws -> String {
+    public func path(_ index: Int, home: String, folder: String) throws -> String {
         let raw = try string(index, "path")
-        guard let path = absolutePath(raw, home: home) else { throw fail("path \"\(raw)\" must be absolute or start with ~/") }
+        guard let path = absolutePath(raw, home: home, folder: folder) else {
+            throw fail("path \"\(raw)\" must be absolute, start with ~/, or stay inside the plugin folder")
+        }
         return path
     }
 
@@ -86,20 +88,25 @@ public struct HostCall: Equatable, Sendable {
     }
 }
 
-public func absolutePath(_ raw: String, home: String) -> String? {
+public func absolutePath(_ raw: String, home: String, folder: String) -> String? {
     let expanded: String
+    var floor = 0
     if raw == "~" {
         expanded = home
     } else if raw.hasPrefix("~/") {
         expanded = home + raw.dropFirst()
     } else if raw.hasPrefix("/") {
         expanded = raw
-    } else {
+    } else if raw.isEmpty || raw.hasPrefix("~") {
         return nil
+    } else {
+        expanded = folder + "/" + raw
+        floor = folder.split(separator: "/").count
     }
     var parts: [Substring] = []
     for part in expanded.split(separator: "/") where part != "." {
         if part == ".." {
+            guard floor == 0 || parts.count > floor else { return nil }
             _ = parts.popLast()
         } else {
             parts.append(part)

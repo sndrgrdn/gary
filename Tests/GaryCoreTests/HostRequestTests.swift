@@ -3,19 +3,27 @@ import Foundation
 import Testing
 
 private let home = "/Users/gary"
+private let folder = "/Users/gary/plugins/clock"
 
 private func call(_ api: String?, _ method: String, _ arguments: JSON...) -> HostCall {
     HostCall(api: api, method: method, arguments: arguments)
 }
 
 struct HostCallTests {
-    @Test func `paths are absolute or home relative and come back normalised`() {
-        #expect(absolutePath("~", home: home) == "/Users/gary")
-        #expect(absolutePath("~/notes/../clips/a.txt", home: home) == "/Users/gary/clips/a.txt")
-        #expect(absolutePath("/tmp//gary/./x", home: home) == "/tmp/gary/x")
-        #expect(absolutePath("notes.txt", home: home) == nil)
-        #expect(absolutePath("~other/notes.txt", home: home) == nil)
-        #expect(absolutePath("", home: home) == nil)
+    @Test func `paths are absolute home relative or plugin relative and come back normalised`() {
+        #expect(absolutePath("~", home: home, folder: folder) == "/Users/gary")
+        #expect(absolutePath("~/notes/../clips/a.txt", home: home, folder: folder) == "/Users/gary/clips/a.txt")
+        #expect(absolutePath("/tmp//gary/./x", home: home, folder: folder) == "/tmp/gary/x")
+        #expect(absolutePath("/tmp/../../x", home: home, folder: folder) == "/x")
+        #expect(absolutePath("notes.txt", home: home, folder: folder) == "/Users/gary/plugins/clock/notes.txt")
+        #expect(absolutePath("./icons/../notes.txt", home: home, folder: folder) == "/Users/gary/plugins/clock/notes.txt")
+        #expect(absolutePath("~other/notes.txt", home: home, folder: folder) == nil)
+        #expect(absolutePath("", home: home, folder: folder) == nil)
+    }
+
+    @Test func `plugin relative paths cannot leave the plugin folder`() {
+        #expect(absolutePath("../theme/a.txt", home: home, folder: folder) == nil)
+        #expect(absolutePath("icons/../../clock/a.txt", home: home, folder: folder) == nil)
     }
 
     @Test func `errors name the host function the plugin called`() {
@@ -26,30 +34,38 @@ struct HostCallTests {
 
 struct FilesRequestTests {
     @Test func `each method takes A path and write file takes text`() throws {
-        #expect(try FilesRequest.parse(call(nil, "readFile", .string("~/a.txt")), home: home) == .read(path: "/Users/gary/a.txt"))
-        #expect(try FilesRequest.parse(call(nil, "writeFile", .string("/tmp/a.txt"), .string("hi")), home: home) == .write(
+        #expect(try FilesRequest.parse(call(nil, "readFile", .string("~/a.txt")), home: home, folder: folder) == .read(path: "/Users/gary/a.txt"))
+        #expect(try FilesRequest.parse(call(nil, "writeFile", .string("/tmp/a.txt"), .string("hi")), home: home, folder: folder) == .write(
             path: "/tmp/a.txt",
             text: "hi",
         ))
-        #expect(try FilesRequest.parse(call(nil, "mkdir", .string("~/cache/clips")), home: home) == .makeDirectory(path: "/Users/gary/cache/clips"))
-        #expect(try FilesRequest.parse(call(nil, "remove", .string("~/cache/clips")), home: home) == .remove(path: "/Users/gary/cache/clips"))
-        #expect(try FilesRequest.parse(call(nil, "list", .string("/tmp")), home: home) == .list(path: "/tmp"))
+        #expect(try FilesRequest
+            .parse(call(nil, "mkdir", .string("~/cache/clips")), home: home, folder: folder) == .makeDirectory(path: "/Users/gary/cache/clips"))
+        #expect(try FilesRequest
+            .parse(call(nil, "remove", .string("~/cache/clips")), home: home, folder: folder) == .remove(path: "/Users/gary/cache/clips"))
+        #expect(try FilesRequest.parse(call(nil, "list", .string("/tmp")), home: home, folder: folder) == .list(path: "/tmp"))
+        #expect(try FilesRequest.parse(call(nil, "readFile", .string("app_icons.tsv")), home: home, folder: folder)
+            == .read(path: "/Users/gary/plugins/clock/app_icons.tsv"))
     }
 
-    @Test func `rejects relative paths missing text and unknown methods`() {
-        #expect(throws: ArgumentError("host.readFile: path \"notes.txt\" must be absolute or start with ~/")) {
-            try FilesRequest.parse(call(nil, "readFile", .string("notes.txt")), home: home)
+    @Test func `rejects paths that leave the plugin folder missing text and unknown methods`() {
+        #expect(throws: ArgumentError("host.readFile: path \"../notes.txt\" must be absolute, start with ~/, or stay inside the plugin folder")) {
+            try FilesRequest.parse(call(nil, "readFile", .string("../notes.txt")), home: home, folder: folder)
         }
         #expect(throws: ArgumentError("host.writeFile: text must be a string")) {
-            try FilesRequest.parse(call(nil, "writeFile", .string("/tmp/a.txt")), home: home)
+            try FilesRequest.parse(call(nil, "writeFile", .string("/tmp/a.txt")), home: home, folder: folder)
         }
-        #expect(throws: ArgumentError.self) { try FilesRequest.parse(call(nil, "list", .number(3)), home: home) }
-        #expect(throws: ArgumentError("host.chmod is not a method")) { try FilesRequest.parse(call(nil, "chmod", .string("/tmp")), home: home) }
+        #expect(throws: ArgumentError.self) { try FilesRequest.parse(call(nil, "list", .number(3)), home: home, folder: folder) }
+        #expect(throws: ArgumentError("host.chmod is not a method")) { try FilesRequest.parse(
+            call(nil, "chmod", .string("/tmp")),
+            home: home,
+            folder: folder,
+        ) }
     }
 
-    @Test func `remove refuses the root and the home folder`() {
-        for raw in ["/", "~", "~/", "/Users/gary/."] {
-            #expect(throws: ArgumentError.self) { try FilesRequest.parse(call(nil, "remove", .string(raw)), home: home) }
+    @Test func `remove refuses the root the home folder and the plugin folder`() {
+        for raw in ["/", "~", "~/", "/Users/gary/.", "."] {
+            #expect(throws: ArgumentError.self) { try FilesRequest.parse(call(nil, "remove", .string(raw)), home: home, folder: folder) }
         }
     }
 }
@@ -76,17 +92,22 @@ struct PermissionsRequestTests {
 
 struct WallpaperRequestTests {
     @Test func `set takes an image path and an optional display`() throws {
-        #expect(try WallpaperRequest.parse(call("wallpaper", "get"), home: home) == .get)
-        #expect(try WallpaperRequest.parse(call("wallpaper", "set", .string("~/Pictures/a.png")), home: home)
+        #expect(try WallpaperRequest.parse(call("wallpaper", "get"), home: home, folder: folder) == .get)
+        #expect(try WallpaperRequest.parse(call("wallpaper", "set", .string("~/Pictures/a.png")), home: home, folder: folder)
             == .set(path: "/Users/gary/Pictures/a.png", display: nil))
-        #expect(try WallpaperRequest.parse(call("wallpaper", "set", .string("/a.png"), .null), home: home) == .set(path: "/a.png", display: nil))
-        #expect(try WallpaperRequest.parse(call("wallpaper", "set", .string("/a.png"), .string("37D8")), home: home) == .set(
+        #expect(try WallpaperRequest.parse(call("wallpaper", "set", .string("/a.png"), .null), home: home, folder: folder) == .set(
+            path: "/a.png",
+            display: nil,
+        ))
+        #expect(try WallpaperRequest.parse(call("wallpaper", "set", .string("/a.png"), .string("37D8")), home: home, folder: folder) == .set(
             path: "/a.png",
             display: "37D8",
         ))
-        #expect(throws: ArgumentError.self) { try WallpaperRequest.parse(call("wallpaper", "set", .string("a.png")), home: home) }
+        #expect(try WallpaperRequest.parse(call("wallpaper", "set", .string("walls/a.png")), home: home, folder: folder)
+            == .set(path: "/Users/gary/plugins/clock/walls/a.png", display: nil))
+        #expect(throws: ArgumentError.self) { try WallpaperRequest.parse(call("wallpaper", "set", .string("../a.png")), home: home, folder: folder) }
         #expect(throws: ArgumentError("host.wallpaper.set: display must be a string")) {
-            try WallpaperRequest.parse(call("wallpaper", "set", .string("/a.png"), .number(0)), home: home)
+            try WallpaperRequest.parse(call("wallpaper", "set", .string("/a.png"), .number(0)), home: home, folder: folder)
         }
     }
 }
