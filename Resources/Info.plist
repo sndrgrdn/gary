@@ -6,6 +6,8 @@
 	<string>com.sndrgrdn.gary</string>
 	<key>CFBundleName</key>
 	<string>Gary</string>
+	<key>CFBundleIconFile</key>
+	<string>Gary</string>
 	<key>CFBundleExecutable</key>
 	<string>gary</string>
 	<key>CFBundlePackageType</key>
