@@ -105,26 +105,6 @@ public func requestLine(_ line: String, path: String, timeout: TimeInterval) thr
     }
 }
 
-public func exchange(_ message: String, path: String, timeout: TimeInterval) throws -> String {
-    let fd = try connectSocket(path)
-    defer { close(fd) }
-    setTimeouts(fd, seconds: timeout)
-    try writeAll(fd, message)
-    guard shutdown(fd, SHUT_WR) == 0 else { throw SocketError.system(errno) }
-    var data: [UInt8] = []
-    var chunk = [UInt8](repeating: 0, count: 16384)
-    while true {
-        let count = recv(fd, &chunk, chunk.count, 0)
-        if count < 0, errno == EINTR { continue }
-        if count < 0 { throw errno == EAGAIN ? SocketError.timedOut : SocketError.system(errno) }
-        if count == 0 { break }
-        data += chunk[..<count]
-        guard data.count <= maxMessageBytes else { throw SocketError.tooLarge }
-    }
-    guard let text = String(bytes: data, encoding: .utf8) else { throw SocketError.invalidUTF8 }
-    return text
-}
-
 func connectSocket(_ path: String) throws -> Int32 {
     let fd = socket(AF_UNIX, SOCK_STREAM, 0)
     guard fd >= 0 else { throw SocketError.system(errno) }

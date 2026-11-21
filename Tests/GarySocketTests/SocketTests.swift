@@ -91,39 +91,3 @@ struct LineServerTests {
         #expect(Date().timeIntervalSince(start) < 1)
     }
 }
-
-struct ExchangeTests {
-    private let path = FileManager.default.temporaryDirectory.appendingPathComponent("d-\(UUID().uuidString.prefix(8)).sock").path
-
-    private func dinkyLike(reply: @escaping (String) -> String) throws -> Int32 {
-        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        var address = sockaddr_un()
-        address.sun_family = sa_family_t(AF_UNIX)
-        withUnsafeMutableBytes(of: &address.sun_path) { $0.copyBytes(from: Array(path.utf8)) }
-        let bound = withUnsafePointer(to: &address) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) } }
-        try #require(bound == 0 && listen(fd, 1) == 0)
-        DispatchQueue.global().async {
-            let client = accept(fd, nil, nil)
-            var data = [UInt8]()
-            var chunk = [UInt8](repeating: 0, count: 64)
-            while true {
-                let count = recv(client, &chunk, chunk.count, 0)
-                if count <= 0 { break }
-                data += chunk[..<count]
-            }
-            try? writeAll(client, reply(String(decoding: data, as: UTF8.self)))
-            close(client)
-        }
-        return fd
-    }
-
-    @Test func sendsOneMessageAndReadsTheReplyToEOF() throws {
-        let fd = try dinkyLike { "ok\n" + $0.uppercased() + "\nsecond line" }
-        defer { close(fd); unlink(path) }
-        #expect(try exchange("list-workspaces --all", path: path, timeout: 2) == "ok\nLIST-WORKSPACES --ALL\nsecond line")
-    }
-
-    @Test func aMissingSocketIsUnreachable() {
-        #expect(throws: SocketError.unreachable(path)) { try exchange("ping", path: path, timeout: 1) }
-    }
-}

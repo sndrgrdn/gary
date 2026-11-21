@@ -20,7 +20,7 @@ let package = Package(
             dependencies: ["GaryCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
-        // Unix socket server and clients: NDJSON lines for Gary's IPC, EOF-framed exchanges for dinky. Unit tested.
+        // Unix socket server and client for Gary's NDJSON IPC lines. Unit tested.
         .target(
             name: "GarySocket",
             swiftSettings: [.swiftLanguageMode(.v5)]
