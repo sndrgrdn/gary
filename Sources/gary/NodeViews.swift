@@ -153,14 +153,21 @@ struct NodeView: View {
         let look = theme.resolve(node.style, props, hover: hover)
         let tracksHover = node.hovered != nil || node.kind == .button
         let fade: SwiftUI.Animation? = reduceMotion || node.kind == .button ? nil : .easeOut(duration: 0.15)
-        return content(look).box(
-            look,
-            node,
-            perform,
-            reduceMotion: reduceMotion,
-            hovering: tracksHover ? animated(hovering, fade) : nil,
-            pressing: node.pressed != nil ? animated(pressing, fade) : nil,
-        )
+        return content(look)
+            .box(
+                look,
+                node,
+                perform,
+                hovering: tracksHover ? animated(hovering, fade) : nil,
+                pressing: node.pressed != nil ? animated(pressing, fade) : nil,
+            )
+            .transaction(value: node) { transaction in
+                guard let animation = look.animation else { return }
+                transaction.animation = reduceMotion ? nil : SwiftUI.Animation(animation, duration: look.duration)
+            }
+            .transition(AnyTransition(look.transition ?? .opacity))
+            .zIndex(look.zIndex ?? 0)
+            .layoutPriority(node.kind == .spacer ? -1 : 0)
     }
 
     private func animated(_ state: State<Bool>, _ animation: SwiftUI.Animation?) -> Binding<Bool> {
@@ -217,68 +224,30 @@ private struct Children: View {
 }
 
 private extension View {
-    func box(
-        _ look: ResolvedStyle,
-        _ node: Node,
-        _ perform: ActionHandler?,
-        reduceMotion: Bool,
-        hovering: Binding<Bool>?,
-        pressing: Binding<Bool>?,
-    ) -> some View {
-        var width = look.width
-        var height = look.height
-        var padding = look.padding ?? Insets(0)
-        var background = look.background
-        var clickable = node.action
-        var vertical = VerticalAlignment.center
-        var horizontal = HorizontalAlignment(look.align ?? .leading)
-        var clip = look.clip == true
-        switch node.content {
-        case .column, .stack: vertical = .top
-        case .scroll: (height, padding, clickable, vertical) = (nil, Insets(0), nil, .top)
-        case .image:
-            (width, height, clip) = (width ?? height ?? 16, height ?? width ?? 16, clip || look.fit == .fill)
-            horizontal = look.align.map(HorizontalAlignment.init) ?? .center
-        case .slider: (width, clickable) = (width ?? 120, nil)
-        case .input: (width, clickable) = (width ?? 240, nil)
-        case .progress: (width, height, background) = (width ?? 120, height ?? 6, nil)
-        case .icon: horizontal = look.align.map(HorizontalAlignment.init) ?? .center
-        case .row, .button, .text, .spacer: break
-        }
+    func box(_ look: ResolvedStyle, _ node: Node, _ perform: ActionHandler?, hovering: Binding<Bool>?, pressing: Binding<Bool>?) -> some View {
+        let box = NodeBox(look, node)
         let shape = RoundedRectangle(cornerRadius: look.radius ?? 0, style: .continuous)
-        return self
-            .padding(EdgeInsets(padding))
-            .frame(
-                width: width.map { CGFloat($0) },
-                height: height.map { CGFloat($0) },
-                alignment: Alignment(horizontal: horizontal, vertical: vertical),
-            )
-            .frame(minWidth: look.minWidth.map { CGFloat($0) }, alignment: Alignment(horizontal: horizontal, vertical: vertical))
+        return padding(EdgeInsets(box.padding))
+            .frame(width: box.width.map { CGFloat($0) }, height: box.height.map { CGFloat($0) }, alignment: box.alignment)
+            .frame(minWidth: look.minWidth.map { CGFloat($0) }, alignment: box.alignment)
             .background {
-                if let background {
+                if let background = box.background {
                     shape.fill(Color(background))
                 }
             }
             .material(look.material, radius: look.radius ?? 0)
             .appearance(look.colorScheme)
-            .clipped(to: clip ? shape : nil)
+            .clipped(to: box.clip ? shape : nil)
             .overlay {
                 if let border = look.border, let color = look.borderColor {
                     shape.strokeBorder(Color(color), lineWidth: border.width)
                 }
             }
-            .interactive(clickable, hovering: hovering, pressing: pressing) { perform?($0, .null) }
+            .interactive(box.action, hovering: hovering, pressing: pressing) { perform?($0, .null) }
             .dropShadow(look.shadow, look.shadowColor)
             .scaleEffect(look.scale ?? 1)
             .opacity(look.opacity ?? 1)
             .offset(x: look.x ?? 0, y: (look.offset ?? 0) + (look.y ?? 0))
-            .transaction(value: node) { transaction in
-                guard let animation = look.animation else { return }
-                transaction.animation = reduceMotion ? nil : SwiftUI.Animation(animation, duration: look.duration)
-            }
-            .transition(AnyTransition(look.transition ?? .opacity))
-            .zIndex(look.zIndex ?? 0)
-            .layoutPriority(node.kind == .spacer ? -1 : 0)
     }
 
     @ViewBuilder func dropShadow(_ shadow: Shadow?, _ color: RGBA?) -> some View {
