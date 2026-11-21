@@ -32,10 +32,12 @@ public enum Permission: String, CaseIterable, Sendable {
 
 public enum PermissionsRequest: Equatable, Sendable {
     case request(Permission)
+    case restart
 
-    public static let methods = ["request"]
+    public static let methods = ["request", "restart"]
 
     public static func parse(_ call: HostCall) throws -> PermissionsRequest {
+        if call.method == "restart" { return .restart }
         guard call.method == "request" else { throw call.unknownMethod }
         let name = try call.string(0, "name")
         guard let permission = Permission(rawValue: name) else {

@@ -42,4 +42,10 @@ struct ProcessExitTests {
         #expect(!ProcessExit.signaled(SIGTERM).isCrash)
         #expect(!ProcessExit.signaled(SIGINT).isCrash)
     }
+
+    @Test func onlyTheRestartStatusAsksForARestart() {
+        #expect(ProcessExit.exited(ProcessExit.restart).asksForRestart)
+        #expect(!ProcessExit.exited(ProcessExit.restart).isCrash)
+        #expect(!ProcessExit.exited(0).asksForRestart && !ProcessExit.exited(1).asksForRestart && !ProcessExit.signaled(SIGTERM).asksForRestart)
+    }
 }

@@ -27,10 +27,13 @@ public enum ProcessExit: Equatable, Sendable {
     case signaled(Int32)
 
     public static let alreadyRunning: Int32 = 75
+    public static let restart: Int32 = 76
+
+    public var asksForRestart: Bool { self == .exited(Self.restart) }
 
     public var isCrash: Bool {
         switch self {
-        case .exited(let status): return status != 0 && status != Self.alreadyRunning
+        case .exited(let status): return status != 0 && status != Self.alreadyRunning && status != Self.restart
         case .signaled(let signal): return ![SIGTERM, SIGINT, SIGHUP].contains(signal)
         }
     }

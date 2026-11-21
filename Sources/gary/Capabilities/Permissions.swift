@@ -4,7 +4,7 @@ import CoreBluetooth
 import GaryCore
 
 extension Capability {
-    static let permissions = Capability(name: "permissions", summary: "Each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Ask for one, as gary permissions request does.", types: """
+    static let permissions = Capability(name: "permissions", summary: "Each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Ask for one, as gary permissions request does, or restart Gary through its crash supervisor so a new Full Disk Access or Screen Recording grant takes effect. After the restart Gary shows the calling plugin's surface again if it was open.", types: """
     declare namespace Gary {
       type PermissionName = \(Permission.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: " | "));
       interface State { permissions?: PermissionStatus[] }
@@ -16,7 +16,7 @@ extension Capability {
         capabilities: { name: string; summary: string }[];
         plugins: { id: string; name: string; capabilities: string[] }[];
       }
-      interface Host { permissions: { request(name: PermissionName): Promise<string> } }
+      interface Host { permissions: { request(name: PermissionName): Promise<string>; restart(): Promise<string> } }
     }
     """, example: """
     module.exports = {
@@ -39,9 +39,20 @@ extension Capability {
         plugin.installAPI(host, "permissions", PermissionsRequest.methods) { call in
             switch try PermissionsRequest.parse(call) {
             case .request(let permission): return .later(.main) { .string(permission.request()) }
+            case .restart:
+                guard isSupervised else { throw HostFailure("Gary runs without its crash supervisor, as with gary app, so it cannot restart itself") }
+                let id = plugin.id
+                return .later(.main) {
+                    NotificationCenter.default.post(name: .restartGary, object: id)
+                    return .string("restarting Gary")
+                }
             }
         }
     }, topic: { PermissionsTopic($0) })
+}
+
+extension Notification.Name {
+    static let restartGary = Notification.Name("GaryRestart")
 }
 
 private final class PermissionsTopic {

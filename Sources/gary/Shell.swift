@@ -14,6 +14,7 @@ enum Paths {
     static let storage = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appending(path: "Gary/storage")
     static let systemRestore = storage.deletingLastPathComponent().appending(path: "restore.json")
     static let onboarding = storage.deletingLastPathComponent().appending(path: "onboarding.json")
+    static let reopen = storage.deletingLastPathComponent().appending(path: "reopen.json")
 }
 
 struct SlotKey: Hashable, CustomStringConvertible {
@@ -119,6 +120,7 @@ final class Shell {
         refreshDisplays(Trace("start"))
         sync(Trace("start"))
         offerOnboarding(Trace("start"))
+        reopenAfterRestart(Trace("start"))
 
         watcher = FileWatcher(root: Paths.config) { [weak self] paths, trace in self?.filesChanged(paths, trace) }
         appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] app, _ in
@@ -127,6 +129,9 @@ final class Shell {
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             self?.refreshDisplays(Trace("screens"))
+        }
+        NotificationCenter.default.addObserver(forName: .restartGary, object: nil, queue: .main) { [weak self] note in
+            self?.restart(reopening: note.object as? PluginID)
         }
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
             SystemState.restore(SystemState.saved)
@@ -142,11 +147,27 @@ final class Shell {
         log("ready pid=\(getpid()) levels=bar:\(levels.bar),\(SurfaceLayer.allCases.map { "\($0.rawValue):\(levels.level($0))" }.joined(separator: ",")) plugins=\(catalog.sortedIDs.map(\.rawValue).joined(separator: ","))")
     }
 
-    private func quit() {
+    private func quit(_ status: Int32 = 0) {
         SystemState.restore(SystemState.saved)
         server?.stop()
         unlink(socketPath)
-        exit(0)
+        exit(status)
+    }
+
+    private func restart(reopening id: PluginID?) {
+        log("restart: asked by \(id?.rawValue ?? "unknown")")
+        if let id, surfaceSlot(id)?.visible == true {
+            try? Data(JSON.array([.string(id.rawValue)]).text.utf8).write(to: Paths.reopen, options: .atomic)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.quit(ProcessExit.restart) }
+    }
+
+    private func reopenAfterRestart(_ trace: Trace) {
+        guard let data = try? Data(contentsOf: Paths.reopen) else { return }
+        try? FileManager.default.removeItem(at: Paths.reopen)
+        for id in (try? JSON.parse(data))?.array?.compactMap({ $0.string.flatMap(PluginID.init) }) ?? [] {
+            summon(id, trace) { _ in }
+        }
     }
 
     private func scan() {

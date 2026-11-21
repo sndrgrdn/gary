@@ -4,6 +4,8 @@ import ServiceManagement
 
 let appLockPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("gary.lock")
 let supervisorLockPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("gary-supervisor.lock")
+private let supervisedKey = "GARY_SUPERVISED"
+let isSupervised = ProcessInfo.processInfo.environment[supervisedKey] != nil
 
 func holdLock(_ path: String) -> Bool {
     let fd = open(path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
@@ -68,12 +70,17 @@ private func supervise(_ child: Child) -> Int32 {
         let process = Process()
         process.executableURL = Bundle.main.executableURL
         process.arguments = ["app"]
+        process.environment = ProcessInfo.processInfo.environment.merging([supervisedKey: "1"]) { $1 }
         let exited = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in exited.signal() }
         guard child.start(process) else { return 0 }
         log("supervisor pid=\(getpid()): started gary pid=\(process.processIdentifier)")
         exited.wait()
         let exit: ProcessExit = process.terminationReason == .uncaughtSignal ? .signaled(process.terminationStatus) : .exited(process.terminationStatus)
+        if exit.asksForRestart && !child.isStopping {
+            log("supervisor: gary asked to restart")
+            continue
+        }
         guard exit.isCrash, !child.isStopping else {
             log("supervisor: gary \(exit.description); not restarting")
             return 0
