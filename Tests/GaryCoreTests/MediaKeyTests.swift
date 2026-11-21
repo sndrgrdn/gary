@@ -20,22 +20,38 @@ struct MediaKeyTests {
         #expect(MediaKey.decode(systemDefinedData: 0 << 16 | 0x0C00) == nil)
     }
 
-    static func swallowed(_ presses: [(MediaKey, down: Bool, intercepted: Bool)]) -> [Bool] {
+    struct Tap {
+        let key: MediaKey
+        let down: Bool
+        let intercepted: Bool
+
+        init(_ key: MediaKey, down: Bool, intercepted: Bool) {
+            self.key = key
+            self.down = down
+            self.intercepted = intercepted
+        }
+    }
+
+    static func swallowed(_ taps: [Tap]) -> [Bool] {
         var gate = MediaKey.Gate()
-        return presses.map { gate.swallows(.init(key: $0.0, down: $0.down, isRepeat: false), intercepted: $0.intercepted) }
+        return taps.map { gate.swallows(.init(key: $0.key, down: $0.down, isRepeat: false), intercepted: $0.intercepted) }
     }
 
     @Test func `an intercepted key is swallowed from down through its repeats to up`() {
         #expect(Self.swallowed([
-            (.volumeUp, down: true, intercepted: true), (.volumeUp, down: true, intercepted: true), (.volumeUp, down: false, intercepted: true),
-            (.brightnessUp, down: true, intercepted: false), (.brightnessUp, down: false, intercepted: false),
+            Tap(.volumeUp, down: true, intercepted: true), Tap(.volumeUp, down: true, intercepted: true), Tap(
+                .volumeUp,
+                down: false,
+                intercepted: true,
+            ),
+            Tap(.brightnessUp, down: true, intercepted: false), Tap(.brightnessUp, down: false, intercepted: false),
         ]) == [true, true, true, false, false])
     }
 
     @Test func `a key up whose down reached the system passes so the system key is not left held`() {
         #expect(Self.swallowed([
-            (.volumeUp, down: false, intercepted: true),
-            (.mute, down: true, intercepted: true), (.mute, down: false, intercepted: true), (.mute, down: false, intercepted: true),
+            Tap(.volumeUp, down: false, intercepted: true),
+            Tap(.mute, down: true, intercepted: true), Tap(.mute, down: false, intercepted: true), Tap(.mute, down: false, intercepted: true),
         ]) == [false, true, true, false])
     }
 

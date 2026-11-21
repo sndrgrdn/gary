@@ -3,7 +3,23 @@ import Foundation
 import Testing
 
 struct IPCTests {
-    private let today = PluginID("gary.today")!
+    private let today: PluginID
+
+    init() throws {
+        today = try #require(PluginID("gary.today"))
+    }
+
+    private struct BadArguments {
+        let verb: String
+        let arguments: [String]
+        let message: String
+
+        init(_ verb: String, _ arguments: [String], _ message: String) {
+            self.verb = verb
+            self.arguments = arguments
+            self.message = message
+        }
+    }
 
     @Test func `every request survives the wire`() throws {
         let requests: [Request] = [
@@ -35,25 +51,25 @@ struct IPCTests {
     }
 
     @Test func `rejects bad arguments`() {
-        let cases: [(String, [String], String)] = [
-            ("ping", ["x"], "ping takes 0 arguments"),
-            ("toggle", [], "toggle takes 1 argument"),
-            ("toggle", ["Today"], "invalid plugin id \"Today\""),
-            ("reloadPlugins", ["gary.a", "gary.b"], "reloadPlugins takes at most 1 argument"),
-            ("applyTheme", ["[1]"], "applyTheme takes a JSON object"),
-            ("call", ["gary.today"], "call takes a plugin, a method and optional arguments"),
-            ("permissions", ["accessibility"], "permissions takes no arguments, or request and a permission name"),
-            (
+        let cases: [BadArguments] = [
+            BadArguments("ping", ["x"], "ping takes 0 arguments"),
+            BadArguments("toggle", [], "toggle takes 1 argument"),
+            BadArguments("toggle", ["Today"], "invalid plugin id \"Today\""),
+            BadArguments("reloadPlugins", ["gary.a", "gary.b"], "reloadPlugins takes at most 1 argument"),
+            BadArguments("applyTheme", ["[1]"], "applyTheme takes a JSON object"),
+            BadArguments("call", ["gary.today"], "call takes a plugin, a method and optional arguments"),
+            BadArguments("permissions", ["accessibility"], "permissions takes no arguments, or request and a permission name"),
+            BadArguments(
                 "permissions",
                 ["request", "camera"],
                 "unknown permission \"camera\"; use accessibility, bluetooth, full-disk-access, location, screen-recording",
             ),
-            ("action", ["gary.today", "widget", "toggle"], "unknown kind \"widget\"; use bar-widget, bar, panel, overlay, menu, service"),
-            ("action", ["gary.today", "panel"], "action takes a plugin, a kind, an action and an optional payload"),
-            ("reboot", [], "unknown verb \"reboot\""),
+            BadArguments("action", ["gary.today", "widget", "toggle"], "unknown kind \"widget\"; use bar-widget, bar, panel, overlay, menu, service"),
+            BadArguments("action", ["gary.today", "panel"], "action takes a plugin, a kind, an action and an optional payload"),
+            BadArguments("reboot", [], "unknown verb \"reboot\""),
         ]
-        for (verb, arguments, message) in cases {
-            #expect(throws: RequestError(description: message)) { try Request.parse(verb: verb, arguments: arguments) }
+        for badCase in cases {
+            #expect(throws: RequestError(description: badCase.message)) { try Request.parse(verb: badCase.verb, arguments: badCase.arguments) }
         }
     }
 
