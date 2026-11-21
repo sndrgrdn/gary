@@ -77,6 +77,11 @@ private enum DisplayServices {
         ])
     }
 
+    static func location(_ display: CGDirectDisplayID) -> String? {
+        guard let info = displayInfo?(display)?.takeRetainedValue() else { return nil }
+        return (info as NSDictionary)[kIODisplayLocationKey] as? String
+    }
+
     static func brightness(_ display: CGDirectDisplayID) -> Float? {
         var value: Float = -1
         guard let get, get(display, &value) == 0, value >= 0 else { return nil }
@@ -118,8 +123,7 @@ private final class Panel {
         let services = avServices()
         external = [:]
         for display in displays where DisplayServices.brightness(display.id) == nil {
-            guard let location = DisplayServices.displayInfo?(display.id)?.takeRetainedValue() as? [String: Any],
-                  let path = location[kIODisplayLocationKey] as? String, let service = services[path] else { continue }
+            guard let path = DisplayServices.location(display.id), let service = services[path] else { continue }
             external[display.id] = ExternalPanel(service: service, level: transfer(service, DDC.readRequest(DDC.brightness), reply: true))
         }
     }
