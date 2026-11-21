@@ -10,11 +10,8 @@ public struct ShellConfigError: Error, Equatable, CustomStringConvertible {
     public var description: String { "shell.json \(path): \(reason)" }
 }
 
-/// `~/.config/gary/shell.json`, which records only where the user departs from the defaults. A key the
-/// file leaves out keeps its default; a `bar` in the file replaces the default bar whole, with no merge.
 public struct ShellConfig: Equatable, Sendable {
     public var bar: [BarSection: [PluginID]]
-    /// Third-party plugins that are not bar widgets, enabled by listing them here.
     public var plugins: [PluginID]
     public var disabledPlugins: Set<PluginID>
     public var settings: [PluginID: JSON]
@@ -59,13 +56,10 @@ public struct ShellConfig: Equatable, Sendable {
 
     public struct Resolution: Equatable, Sendable {
         public var enabled: Set<PluginID>
-        /// Enabled bar widgets, in order, each placed once.
         public var bar: [BarSection: [PluginID]]
         public var warnings: [String]
     }
 
-    /// A built-in plugin runs unless disabled. A third-party plugin runs only when the bar or `plugins`
-    /// names it, and it is not disabled.
     public func resolve(_ catalog: PluginCatalog) -> Resolution {
         var warnings: [String] = []
         let named = Set(bar.values.joined()).union(plugins)

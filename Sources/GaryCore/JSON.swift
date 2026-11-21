@@ -41,7 +41,6 @@ public enum JSON: Equatable, Sendable {
     public var array: [JSON]? { if case .array(let a) = self { return a }; return nil }
     public var object: [String: JSON]? { if case .object(let o) = self { return o }; return nil }
 
-    /// Objects merge key by key, recursively; any other value in `override` replaces the base value.
     public func merging(_ override: JSON) -> JSON {
         guard case .object(var base) = self, case .object(let top) = override else { return override }
         for (key, value) in top {

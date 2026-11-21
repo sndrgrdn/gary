@@ -13,7 +13,6 @@ public enum DinkyError: Error, Equatable, CustomStringConvertible {
     }
 }
 
-/// dinky's CLI socket: one command line per connection, answered with `ok\n` or `error\n` and text.
 public struct DinkyClient: Sendable {
     public static let defaultPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("dinky.sock")
 
@@ -25,8 +24,6 @@ public struct DinkyClient: Sendable {
         self.timeout = timeout
     }
 
-    /// The reply text after `ok`. Throws `DinkyError.failed` for an `error` reply and `SocketError` when dinky
-    /// is not running.
     public func run(_ command: String) throws -> String {
         try Self.parseReply(try exchange(command, path: path, timeout: timeout))
     }

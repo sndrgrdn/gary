@@ -1,6 +1,5 @@
 import Foundation
 
-/// One element of the tree a plugin's `render(state)` returns. Only rows and columns have children.
 public struct Node: Equatable, Sendable {
     public enum Content: Equatable, Sendable {
         case row([Node])
@@ -43,7 +42,6 @@ public struct Node: Equatable, Sendable {
         }
     }
 
-    /// The text of a text node or the SF Symbol name of an icon.
     public var value: String? {
         switch content {
         case .text(let value), .icon(let value): return value
@@ -63,9 +61,6 @@ extension Node {
     public static let maxDepth = 16
     public static let maxNodes = 1000
 
-    /// Parses plugin output: `{type: "row"|"column", children: [...]}`, `{type: "text", text}`,
-    /// `{type: "icon", symbol}` or `{type: "spacer"}`, each with optional string `key`, `style` and `action`.
-    /// Sibling keys must be unique.
     public static func parse(_ json: JSON) throws -> Node {
         var count = 0
         return try parse(json, path: "root", depth: 1, count: &count)

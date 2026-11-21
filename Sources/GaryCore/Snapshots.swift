@@ -1,6 +1,5 @@
 import Foundation
 
-/// Immutable host state a plugin receives as `state[topic]` in `render(state)`.
 public protocol Snapshot: Equatable, Sendable {
     static var topic: Topic { get }
     var json: JSON { get }
@@ -8,9 +7,7 @@ public protocol Snapshot: Equatable, Sendable {
 
 public struct Workspace: Equatable, Sendable {
     public var name: String
-    /// The current Space of its display.
     public var visible: Bool
-    /// Visible on the display that has focus.
     public var focused: Bool
 
     public init(name: String, visible: Bool, focused: Bool) {
@@ -65,7 +62,6 @@ public struct BatterySnapshot: Snapshot {
     }
 
     public static let topic = Topic.battery
-    /// Nil on a Mac without a battery.
     public var percent: Int?
     public var charging: Bool
     public var source: PowerSource
@@ -88,7 +84,6 @@ public struct BatterySnapshot: Snapshot {
 
 public struct ClockSnapshot: Snapshot {
     public static let topic = Topic.clock
-    /// Milliseconds since 1970, on a whole minute.
     public var epochMilliseconds: Double
 
     public init(epochMilliseconds: Double) {

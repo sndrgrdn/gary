@@ -10,7 +10,6 @@ public struct RGBA: Equatable, Sendable {
         self.alpha = alpha
     }
 
-    /// `#rrggbb` or `#rrggbbaa`.
     public init?(hex: String) {
         guard hex.hasPrefix("#") else { return nil }
         let digits = hex.dropFirst()
@@ -47,8 +46,6 @@ public struct ThemeError: Error, Equatable, CustomStringConvertible {
     public var description: String { "theme \(path): \(reason)" }
 }
 
-/// Every value a surface draws with. Styles are resolved at parse time: color and font names point at
-/// tokens, and a style inherits whatever it leaves out from `default`.
 public struct Theme: Equatable, Sendable {
     public struct Spacing: Equatable, Sendable {
         public var item: Double
@@ -74,12 +71,10 @@ public struct Theme: Equatable, Sendable {
     public var panel: Panel
     public var styles: [String: Style]
 
-    /// The named style, or `default` for nil and for a name the theme does not define.
     public func style(_ name: String?) -> Style {
         name.flatMap { styles[$0] } ?? styles["default"]!
     }
 
-    /// `override` merges into `base` object by object, so a user theme can change a single token.
     public static func parse(_ base: JSON, override: JSON? = nil) throws -> Theme {
         let json = override.map { base.merging($0) } ?? base
         func fail(_ path: String, _ reason: String) -> ThemeError { ThemeError(path: path, reason: reason) }

@@ -59,7 +59,6 @@ struct NodeTests {
     }
 }
 
-/// Applies patches the way the AppKit view layer does, keeping view identity so tests can see reuse.
 private final class FakeView {
     var kind: Node.Kind
     var key: String?
@@ -112,7 +111,6 @@ struct ReconcileTests {
         Node(.text(value), key: key, style: style)
     }
 
-    /// Mounts `old`, applies the patch, and returns the result plus how many of its views are new.
     private func mountAndPatch(_ old: Node, _ new: Node) -> (view: FakeView, root: FakeView, built: Int) {
         let root = FakeView(old)
         let mounted = Set(root.subtree.map(ObjectIdentifier.init))

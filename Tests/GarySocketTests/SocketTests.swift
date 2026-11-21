@@ -95,7 +95,6 @@ struct LineServerTests {
 struct ExchangeTests {
     private let path = FileManager.default.temporaryDirectory.appendingPathComponent("d-\(UUID().uuidString.prefix(8)).sock").path
 
-    /// A one-shot server framed like dinky's: read to EOF, reply, close.
     private func dinkyLike(reply: @escaping (String) -> String) throws -> Int32 {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         var address = sockaddr_un()

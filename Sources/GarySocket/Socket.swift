@@ -24,13 +24,11 @@ public enum SocketError: Error, Equatable, CustomStringConvertible {
 
 public let maxMessageBytes = 1 << 20
 
-/// Splits a byte stream into newline-terminated UTF-8 lines.
 public struct LineBuffer {
     private var pending: [UInt8] = []
 
     public init() {}
 
-    /// The complete lines in `bytes` plus whatever came before, without their newlines.
     public mutating func append(_ bytes: some Sequence<UInt8>) throws -> [String] {
         pending.append(contentsOf: bytes)
         var lines: [String] = []
@@ -44,8 +42,6 @@ public struct LineBuffer {
     }
 }
 
-/// Serves newline-delimited requests on a Unix socket only its owner can open. Each connection may send any
-/// number of lines; `handle` runs once per line, off the main thread, and its reply goes back as one line.
 public final class LineServer {
     private let source: DispatchSourceRead
 
@@ -93,7 +89,6 @@ private func serve(_ client: Int32, _ handle: (String) -> String) {
     }
 }
 
-/// Sends one line and returns the first line of the reply.
 public func requestLine(_ line: String, path: String, timeout: TimeInterval) throws -> String {
     let fd = try connectSocket(path)
     defer { close(fd) }
@@ -110,7 +105,6 @@ public func requestLine(_ line: String, path: String, timeout: TimeInterval) thr
     }
 }
 
-/// One request per connection, ended by closing the write half; the reply runs to EOF. dinky's framing.
 public func exchange(_ message: String, path: String, timeout: TimeInterval) throws -> String {
     let fd = try connectSocket(path)
     defer { close(fd) }

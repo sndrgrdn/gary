@@ -4,18 +4,14 @@ public struct RequestError: Error, Equatable, CustomStringConvertible {
     public let description: String
 }
 
-/// One IPC request. On the wire it is one JSON line, `{"verb": "toggle", "args": ["gary.today"]}`, and the
-/// CLI builds the same value from `gary <verb> [args]`.
 public enum Request: Equatable, Sendable {
     case ping
     case summon(PluginID)
     case hide(PluginID)
     case toggle(PluginID)
-    /// One plugin, or every loaded plugin when nil.
     case reloadPlugins(PluginID?)
     case rescanPlugins
     case reloadConfig
-    /// Replace the theme override with this payload, or re-read the theme files when nil.
     case applyTheme(JSON?)
     case listPlugins
     case call(PluginID, method: String, arguments: [String])
@@ -107,7 +103,6 @@ public enum Request: Equatable, Sendable {
     }
 }
 
-/// The reply to one request, also one JSON line: `{"ok": true, "result": "..."}` or `{"ok": false, "error": "..."}`.
 public enum Response: Equatable, Sendable {
     case ok(String)
     case failure(String)

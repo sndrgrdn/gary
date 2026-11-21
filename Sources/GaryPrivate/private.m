@@ -49,7 +49,6 @@ static uint64_t u64(id value)
     return [value isKindOfClass:[NSNumber class]] ? [value unsignedLongLongValue] : 0;
 }
 
-// "Main" is what SkyLight reports when displays do not have separate Spaces.
 static NSString *display_uuid(NSString *identifier)
 {
     if (![identifier isEqualToString:@"Main"]) return identifier;

@@ -5,12 +5,10 @@ public enum PluginKind: String, CaseIterable, Sendable {
     case bar, panel, overlay, menu, service
 }
 
-/// Host-owned state a plugin can subscribe to; the host passes the latest snapshot of each to `render(state)`.
 public enum Topic: String, CaseIterable, Sendable {
     case workspaces, battery, clock
 }
 
-/// Host calls a plugin may make, granted only when its manifest lists them in `uses`.
 public enum HostService: String, CaseIterable, Sendable {
     case dinky
 }
@@ -22,7 +20,6 @@ public enum PluginOrigin: Sendable {
 public struct PluginID: Hashable, Comparable, CustomStringConvertible, Sendable {
     public let rawValue: String
 
-    /// Two or more dot-separated segments of lowercase letters, digits and hyphens, such as `gary.clock`.
     public init?(_ raw: String) {
         let segments = raw.split(separator: ".", omittingEmptySubsequences: false)
         let valid = raw.count <= 128 && segments.count >= 2 && segments.allSatisfy { segment in
