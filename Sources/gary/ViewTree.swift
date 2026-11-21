@@ -35,8 +35,21 @@ class StackNodeView: NSStackView, NodeView {
     var nodeAction: String?
     var onAction: ActionHandler?
     var sizing: [NSLayoutConstraint] = []
+    private var crossInsets: [NSLayoutConstraint] = []
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) { click(event) }
+
+    func pinCrossAxis() {
+        NSLayoutConstraint.deactivate(crossInsets)
+        crossInsets = arrangedSubviews.flatMap { view in
+            orientation == .vertical
+                ? [trailingAnchor.constraint(greaterThanOrEqualTo: view.trailingAnchor, constant: edgeInsets.right)]
+                : [bottomAnchor.constraint(greaterThanOrEqualTo: view.bottomAnchor, constant: edgeInsets.bottom),
+                   view.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: edgeInsets.top)]
+        }
+        for constraint in crossInsets { constraint.priority = .defaultHigh }
+        NSLayoutConstraint.activate(crossInsets)
+    }
 }
 
 final class FlippedStackView: StackNodeView {
@@ -262,6 +275,7 @@ final class ViewRenderer {
                     }
                 }
                 mutations += stack.arrange(next)
+                (stack as? StackNodeView)?.pinCrossAxis()
             }
             return (view, mutations)
         }
@@ -301,9 +315,11 @@ final class ViewRenderer {
             button.edgeInsets = insets(look.padding)
             button.setHuggingPriority(width == nil ? .required : .defaultLow, for: .horizontal)
             button.looks = (look, theme.resolve(node.style, node.props, hover: hover ?? "hover"))
+            button.pinCrossAxis()
         case (let scroll as ScrollNodeView, _):
             scroll.stack.spacing = look.gap ?? theme.spacing.item
             scroll.stack.edgeInsets = insets(look.padding)
+            scroll.stack.pinCrossAxis()
             let fit = scroll.heightAnchor.constraint(equalTo: scroll.stack.heightAnchor)
             fit.priority = .defaultHigh
             scroll.sizing = replace(scroll.sizing, with: [
@@ -317,6 +333,7 @@ final class ViewRenderer {
             stack.edgeInsets = insets(look.padding)
             let sized = stack.orientation == .horizontal ? width : height
             stack.setHuggingPriority(sized == nil ? .required : .defaultLow, for: stack.orientation == .horizontal ? .horizontal : .vertical)
+            stack.pinCrossAxis()
         case (let slider as SliderNodeView, .slider(let value)):
             slider.doubleValue = value
             slider.trackFillColor = node.props.color == nil ? nil : NSColor(look.color)
