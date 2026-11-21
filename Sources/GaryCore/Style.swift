@@ -133,12 +133,12 @@ public struct StyleProps: Equatable, Sendable {
         self.colorScheme = colorScheme
     }
 
-    public static let numbers: [(String, WritableKeyPath<StyleProps, Double?>)] = [
+    public static let numbers: [(String, WritableKeyPath<StyleProps, Double?> & Sendable)] = [
         ("width", \.width), ("height", \.height), ("minWidth", \.minWidth), ("gap", \.gap),
         ("radius", \.radius), ("fontSize", \.fontSize), ("opacity", \.opacity), ("scale", \.scale), ("duration", \.duration),
     ]
-    public static let signed: [(String, WritableKeyPath<StyleProps, Double?>)] = [("offset", \.offset), ("x", \.x), ("y", \.y), ("zIndex", \.zIndex)]
-    public static let colors: [(String, WritableKeyPath<StyleProps, String?>)] = [("background", \.background), ("color", \.color)]
+    public static let signed: [(String, WritableKeyPath<StyleProps, Double?> & Sendable)] = [("offset", \.offset), ("x", \.x), ("y", \.y), ("zIndex", \.zIndex)]
+    public static let colors: [(String, WritableKeyPath<StyleProps, String?> & Sendable)] = [("background", \.background), ("color", \.color)]
     public static let names = numbers.map(\.0) + ["padding"] + signed.map(\.0)
         + ["align", "animation", "material", "colorScheme", "transition", "fit", "clip", "shadow", "border"] + colors.map(\.0) + ["font"]
 

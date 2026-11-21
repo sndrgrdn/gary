@@ -48,7 +48,7 @@ public struct LineBuffer {
 public final class LineServer {
     private let source: DispatchSourceRead
 
-    public init(path: String, handle: @escaping (String) -> String) throws {
+    public init(path: String, handle: @escaping @Sendable (String) -> String) throws {
         if let probe = try? connectSocket(path) {
             close(probe)
             throw SocketError.inUse(path)

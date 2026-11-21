@@ -27,22 +27,22 @@ let package = Package(
         // Pure shell model: manifests, node trees, reconcile, theme, shell config, surfaces, IPC messages, and parsers for the data capabilities read. Foundation and CoreGraphics geometry only. Unit tested.
         .target(
             name: "GaryCore",
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "GaryCoreTests",
             dependencies: ["GaryCore"],
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         // Unix socket server and client for Gary's NDJSON IPC lines. Unit tested.
         .target(
             name: "GarySocket",
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "GarySocketTests",
             dependencies: ["GarySocket"],
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         // The app and CLI.
         .executableTarget(
