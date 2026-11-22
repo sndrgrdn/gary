@@ -173,7 +173,7 @@ struct NodeView: View {
                 hovering: tracksHover ? animated(hovering, fade) : nil,
                 pressing: node.pressed != nil ? animated(pressing, fade) : nil,
             )
-            .transaction(value: node) { transaction in
+            .transaction(value: look.animation == nil ? nil : node) { transaction in
                 guard let animation = look.animation else { return }
                 transaction.animation = reduceMotion ? nil : SwiftUI.Animation(animation, duration: look.duration)
             }
@@ -254,7 +254,7 @@ private extension View {
         let shape = RoundedRectangle(cornerRadius: look.radius ?? 0, style: .continuous)
         return padding(EdgeInsets(box.padding))
             .frame(width: box.width.map { CGFloat($0) }, height: box.height.map { CGFloat($0) }, alignment: box.alignment)
-            .frame(minWidth: look.minWidth.map { CGFloat($0) }, alignment: box.alignment)
+            .minWidth(look.minWidth, alignment: box.alignment)
             .background {
                 if let background = box.background {
                     shape.fill(AnyShapeStyle(background))
@@ -275,13 +275,15 @@ private extension View {
             }
             .interactive(box.action, hovering: hovering, pressing: pressing) { _ in anchor.view?.send(.click, .null) }
             .dropShadow(look.shadow, look.shadowColor)
-            .scaleEffect(look.scale ?? 1)
-            .rotationEffect(.degrees(look.rotation ?? 0))
-            .blur(radius: look.blur ?? 0)
-            .opacity(look.opacity ?? 1)
-            .blendMode(BlendMode(look.blend ?? .normal))
-            .modifier(LoopEffect(loop: look.loop, present: look.loop != nil || [node.props, node.hovered, node.pressed].contains { $0?.loop != nil }))
-            .offset(x: look.x ?? 0, y: (look.offset ?? 0) + (look.y ?? 0))
+            .visualEffects(look, node)
+    }
+
+    @ViewBuilder func minWidth(_ minWidth: Double?, alignment: Alignment) -> some View {
+        if let minWidth {
+            frame(minWidth: CGFloat(minWidth), alignment: alignment)
+        } else {
+            self
+        }
     }
 
     @ViewBuilder func dropShadow(_ shadow: Shadow?, _ color: RGBA?) -> some View {
