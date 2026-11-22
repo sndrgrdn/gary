@@ -7,7 +7,12 @@ import IOKit
 extension Capability {
     static let bluetooth = Capability(
         name: "bluetooth",
-        summary: "Bluetooth power and paired devices with their battery levels. Turn Bluetooth on or off, and connect or disconnect a device.",
+        summary: """
+        Bluetooth power, paired devices with their battery levels, and nearby devices. Turn Bluetooth on or off, connect or disconnect a device, \
+        and pair a nearby one. `discover(true)` lists nearby unpaired devices in `nearby` until the plugin calls `discover(false)` or stops. \
+        `devices` leaves out what iCloud lists as paired without a Bluetooth class of device (HomePods, Apple TVs, iPads, Macs), as System \
+        Settings does. `pair` handles devices that pair without a code and refuses one that asks for a PIN, a passkey or a code to confirm.
+        """,
         types: """
         declare namespace Gary {
           type Bluetooth = {
@@ -15,14 +20,18 @@ extension Capability {
             permission: "allowed" | "denied" | "restricted" | "notDetermined";
             power: boolean | null;
             devices: BluetoothDevice[];
+            nearby: BluetoothNearbyDevice[];
             missing: string[];
           }
           type BluetoothDevice = { address: string; name: string | null; connected: boolean; battery: number | null }
+          type BluetoothNearbyDevice = { address: string; name: string | null }
           interface Host { bluetooth: BluetoothApi }
           interface BluetoothApi {
             setPower(on: boolean): null;
             connect(address: string): Promise<"connected">;
             disconnect(address: string): Promise<"disconnected">;
+            discover(on: boolean): null;
+            pair(address: string): Promise<"paired">;
             requestAccess(): Promise<string>;
           }
         }
@@ -48,6 +57,8 @@ extension Capability {
         """,
         permissions: [.bluetooth],
         install: { host, plugin in
+            let owner = ObjectIdentifier(plugin)
+            plugin.onStop { DispatchQueue.main.async { BluetoothDiscovery.shared.hold(owner, false) } }
             plugin.installAPI(host, "bluetooth", BluetoothRequest.methods) { call in
                 switch try BluetoothRequest.parse(call) {
                 case let .setPower(enabled):
@@ -61,6 +72,13 @@ extension Capability {
                     return .later(.global(qos: .userInitiated)) { try connection(address, open: true) }
                 case let .disconnect(address):
                     return .later(.global(qos: .userInitiated)) { try connection(address, open: false) }
+                case let .discover(enabled):
+                    DispatchQueue.main.async { BluetoothDiscovery.shared.hold(owner, enabled) }
+                    return .now(.null)
+                case let .pair(address):
+                    return .pending { finish in
+                        DispatchQueue.main.async { do { try BluetoothPairer.start(address, finish) } catch { finish(.failure(error)) } }
+                    }
                 case .requestAccess:
                     return .later(.main) { .string(Permission.bluetooth.request()) }
                 }
@@ -143,6 +161,7 @@ final class BluetoothAccess: NSObject, CBCentralManagerDelegate {
 
     func centralManagerDidUpdateState(_: CBCentralManager) {
         BluetoothTopic.current?.restart()
+        BluetoothDiscovery.shared.resume()
     }
 }
 
@@ -155,7 +174,7 @@ final class BluetoothAccess: NSObject, CBCentralManagerDelegate {
 
 extension IOBluetoothDevice: BluetoothBatteryPercents {}
 
-private final class BluetoothTopic: NSObject, TopicFeed {
+final class BluetoothTopic: NSObject, TopicFeed {
     weak static var current: BluetoothTopic?
     private let publish: (JSON, Trace) -> Void
     private var observations: [Observation] = []
@@ -190,6 +209,7 @@ private final class BluetoothTopic: NSObject, TopicFeed {
             Observation { timer.invalidate() },
             Observation(.default, NSNotification.Name("IOBluetoothHostControllerPoweredOnNotification")) { [weak self] in
                 self?.send(Trace("bluetooth-power"))
+                BluetoothDiscovery.shared.resume()
             },
             Observation(.default, NSNotification.Name("IOBluetoothHostControllerPoweredOffNotification")) { [weak self] in
                 self?.send(Trace("bluetooth-power"))
@@ -222,14 +242,21 @@ private final class BluetoothTopic: NSObject, TopicFeed {
         }
         guard permission == "allowed" else {
             publish(
-                .object(["available": .bool(false), "permission": .string(permission), "power": .null, "devices": .array([]), "missing": .array([])]),
+                .object([
+                    "available": .bool(false),
+                    "permission": .string(permission),
+                    "power": .null,
+                    "devices": .array([]),
+                    "nearby": .array([]),
+                    "missing": .array([]),
+                ]),
                 trace,
             )
             return
         }
         let batteries = hidBatteries()
         let devices = (IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []).compactMap { device -> JSON? in
-            guard let address = device.addressString?.lowercased() else { return nil }
+            guard let address = device.addressString?.lowercased(), device.classOfDevice != 0 || device.isConnected() else { return nil }
             return .object([
                 "address": .string(address),
                 "name": device.name.map(JSON.string) ?? .null,
@@ -241,7 +268,8 @@ private final class BluetoothTopic: NSObject, TopicFeed {
         publish(.object([
             "available": .bool(true), "permission": .string(permission),
             "power": power.map { .bool($0 == kBluetoothHCIPowerStateON) } ?? .null,
-            "devices": .array(devices), "missing": .array(BluetoothPower.missing.map(JSON.string)),
+            "devices": .array(devices), "nearby": .array(BluetoothDiscovery.shared.nearby),
+            "missing": .array(BluetoothPower.missing.map(JSON.string)),
         ]), trace)
     }
 

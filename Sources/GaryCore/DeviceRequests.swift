@@ -93,15 +93,19 @@ public enum BluetoothRequest: Equatable, Sendable {
     case setPower(Bool)
     case connect(address: String)
     case disconnect(address: String)
+    case discover(Bool)
+    case pair(address: String)
     case requestAccess
 
-    public static let methods = ["setPower", "connect", "disconnect", "requestAccess"]
+    public static let methods = ["setPower", "connect", "disconnect", "discover", "pair", "requestAccess"]
 
     public static func parse(_ call: HostCall) throws -> BluetoothRequest {
         switch call.method {
         case "setPower": try .setPower(call.bool(0, "on"))
         case "connect": try .connect(address: call.string(0, "address"))
         case "disconnect": try .disconnect(address: call.string(0, "address"))
+        case "discover": try .discover(call.bool(0, "on"))
+        case "pair": try .pair(address: call.string(0, "address"))
         case "requestAccess": .requestAccess
         default: throw call.unknownMethod
         }

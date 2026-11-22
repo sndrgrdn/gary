@@ -335,6 +335,12 @@ struct DeviceRequestTests {
             "setPower",
             .string("on"),
         )) }
-        #expect(throws: ArgumentError("host.bluetooth.pair is not a method")) { try BluetoothRequest.parse(call("bluetooth", "pair", .string("aa"))) }
+        #expect(try BluetoothRequest.parse(call("bluetooth", "discover", .bool(true))) == .discover(true))
+        #expect(try BluetoothRequest.parse(call("bluetooth", "pair", .string("aa-bb-cc-dd-ee-ff"))) == .pair(address: "aa-bb-cc-dd-ee-ff"))
+        #expect(throws: ArgumentError("host.bluetooth.unpair is not a method")) { try BluetoothRequest.parse(call(
+            "bluetooth",
+            "unpair",
+            .string("aa"),
+        )) }
     }
 }
