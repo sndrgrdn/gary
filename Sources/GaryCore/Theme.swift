@@ -32,6 +32,8 @@ public struct Theme: Equatable, Sendable {
 
     public struct Bar: Equatable, Sendable {
         public var height: Double
+        public var gap: Double
+        public var edge: Double
         public var background: RGBA
         public var fonts: [String: FontToken]
     }
@@ -117,7 +119,10 @@ public struct Theme: Equatable, Sendable {
             edge: number(spacingFields["edge"], "spacing.edge"),
         )
         let bar = try Bar(
-            height: number(barFields["height"], "bar.height"), background: colors["bar"] ?? palette.background,
+            height: number(barFields["height"], "bar.height"),
+            gap: barFields["gap"] == nil ? spacing.section : number(barFields["gap"], "bar.gap"),
+            edge: barFields["edge"] == nil ? spacing.edge : number(barFields["edge"], "bar.edge"),
+            background: colors["bar"] ?? palette.background,
             fonts: barFields["fonts"] == nil ? [:] : Self.fonts(barFields["fonts"], "bar.fonts"),
         )
         let motion = try Motion(fade: number(motionFields["fade"], "motion.fade"))

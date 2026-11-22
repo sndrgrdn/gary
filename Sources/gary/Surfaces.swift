@@ -195,9 +195,9 @@ final class BarWindow {
         panel.setFrame(NSRect(x: frame.minX, y: frame.maxY - height, width: frame.width, height: height), display: false)
         content.layer?.backgroundColor = NSColor(theme.bar.background).cgColor
         for stack in sections {
-            stack.spacing = theme.spacing.section
+            stack.spacing = theme.bar.gap
         }
-        let edge = theme.spacing.edge
+        let edge = theme.bar.edge
         let gap = theme.spacing.section
 
         NSLayoutConstraint.deactivate(constraints)

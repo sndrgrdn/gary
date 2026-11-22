@@ -197,6 +197,16 @@ struct ThemeTests {
         #expect(theme.bar.background == RGBA(hex: "#1a1b26"))
     }
 
+    @Test func `the bar gaps its widgets by the section spacing and insets by the edge spacing unless it sets its own`() throws {
+        let spaced = try theme(#"{"spacing": {"section": 12, "edge": 16}}"#)
+        #expect(spaced.bar.gap == 12)
+        #expect(spaced.bar.edge == 16)
+        let own = try theme(#"{"spacing": {"section": 12, "edge": 16}, "bar": {"gap": 0, "edge": 8}}"#)
+        #expect(own.bar.gap == 0)
+        #expect(own.bar.edge == 8)
+        #expect(throws: ThemeError(path: "bar.gap", reason: "must be a non-negative number")) { try theme(#"{"bar": {"gap": -1}}"#) }
+    }
+
     @Test func `node properties override the named style and hover overrides both`() throws {
         let theme = try theme()
         let props = StyleProps(padding: Insets(4), fontSize: 20, background: "accent", color: "#ff0000")
