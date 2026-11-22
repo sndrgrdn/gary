@@ -74,4 +74,32 @@ struct BarWindowTests {
             }
         }
     }
+
+    @Test func `the notch sections end and start at the notch, and without a notch they flank the center section`() throws {
+        let theme = try #require(Self.theme)
+        for notch in [nil, 760.0...968.0] {
+            let screen = DisplayInfo(id: "built-in", index: 0, frame: CGRect(x: 0, y: 0, width: 1728, height: 1117), band: 32, notch: notch)
+            let bar = BarWindow(display: screen, level: 0)
+            defer { bar.close() }
+            bar.layout(theme: theme)
+            let music = view("music", theme: theme)
+            let clock = view("12:00", theme: theme)
+            let timer = view("timer", theme: theme)
+            bar.setSection(.notchLeft, [music])
+            bar.setSection(.center, [clock])
+            bar.setSection(.notchRight, [timer])
+            bar.content.layoutSubtreeIfNeeded()
+            let frames = [music, clock, timer].map { $0.convert($0.bounds, to: nil) }
+            let gap = theme.bar.gap
+
+            if let notch {
+                #expect(abs(frames[0].maxX - (notch.lowerBound - gap)) < 0.001)
+                #expect(abs(frames[2].minX - (notch.upperBound + gap)) < 0.001)
+                #expect(frames[1].minX >= frames[2].maxX)
+            } else {
+                #expect(abs(frames[1].minX - frames[0].maxX - gap) < 0.001)
+                #expect(abs(frames[2].minX - frames[1].maxX - gap) < 0.001)
+            }
+        }
+    }
 }

@@ -1,7 +1,7 @@
 import Foundation
 
 public enum BarSection: String, CaseIterable, Sendable {
-    case left, center, right
+    case left, center, right, notchLeft, notchRight
 }
 
 public struct ShellConfigError: Error, Equatable, CustomStringConvertible {
@@ -22,7 +22,7 @@ public struct ShellConfig: Equatable, Sendable {
     public var warnings: [ShellConfigError] = []
 
     public static let defaults = ShellConfig(
-        bar: [.left: [], .center: [], .right: [PluginID(builtin: "battery"), PluginID(builtin: "clock")]],
+        bar: [.left: [], .center: [], .right: [PluginID(builtin: "battery"), PluginID(builtin: "clock")], .notchLeft: [], .notchRight: []],
         plugins: [], disabledPlugins: [], settings: [:], revealMenuBar: true, packages: [],
     )
 
@@ -83,7 +83,7 @@ public struct ShellConfig: Equatable, Sendable {
             return
         }
         for unknown in sections.keys.sorted() where BarSection(rawValue: unknown) == nil && unknown != key {
-            warn("bar.\(unknown)", "is not left, center, right or \(key)")
+            warn("bar.\(unknown)", "is not " + BarSection.allCases.map(\.rawValue).joined(separator: ", ") + " or \(key)")
         }
         if let reveal = sections[key] {
             if let value = reveal.bool {
@@ -251,7 +251,7 @@ public extension ShellConfig {
             }
         }
         var barFields = fields["bar"]?.object ?? [:]
-        for section in BarSection.allCases {
+        for section in BarSection.allCases where barFields[section.rawValue] != nil || bar[section]?.isEmpty == false {
             barFields[section.rawValue] = ids(bar[section] ?? [])
         }
         set("bar", .object(barFields), changed: bar != config.bar)
