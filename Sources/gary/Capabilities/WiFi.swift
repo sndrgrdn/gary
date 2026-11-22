@@ -5,7 +5,7 @@ import GaryCore
 extension Capability {
     static let wifi = Capability(
         name: "wifi",
-        summary: "Wi-Fi power, network, signal, and rate. Scan, join a network, and turn Wi-Fi on or off.",
+        summary: "Wi-Fi power, network, signal, and rate. Scan, marking the networks this Mac has joined before, join one, and turn Wi-Fi on or off.",
         types: """
         declare namespace Gary {
           type WiFi = {
@@ -21,7 +21,7 @@ extension Capability {
             channel?: number | null;
             transmitRate?: number | null;
           }
-          type WiFiNetwork = { ssid: string | null; bssid: string | null; rssi: number; noise: number; channel: number | null; secure: boolean }
+          type WiFiNetwork = { ssid: string | null; bssid: string | null; rssi: number; noise: number; channel: number | null; secure: boolean; known: boolean }
           interface Host { wifi: WiFiApi }
           interface WiFiApi {
             setPower(on: boolean): null;
@@ -72,13 +72,20 @@ private func setPower(_ enabled: Bool) throws -> JSON {
     return .null
 }
 
+func knownNetworks(_ configuration: CWConfiguration?) -> Set<String> {
+    Set((configuration?.networkProfiles.array as? [CWNetworkProfile] ?? []).compactMap(\.ssid))
+}
+
 private func scan() throws -> JSON {
-    let networks = try wifiInterface().scanForNetworks(withSSID: nil).sorted { $0.rssiValue > $1.rssiValue }
+    let interface = try wifiInterface()
+    let known = knownNetworks(interface.configuration())
+    let networks = try interface.scanForNetworks(withSSID: nil).sorted { $0.rssiValue > $1.rssiValue }
     return .array(networks.map { network in
         .object([
             "ssid": network.ssid.map(JSON.string) ?? .null, "bssid": network.bssid.map(JSON.string) ?? .null,
             "rssi": .number(Double(network.rssiValue)), "noise": .number(Double(network.noiseMeasurement)),
             "channel": network.wlanChannel.map { .number(Double($0.channelNumber)) } ?? .null, "secure": .bool(!network.supportsSecurity(.none)),
+            "known": .bool(network.ssid.map(known.contains) ?? false),
         ])
     })
 }
