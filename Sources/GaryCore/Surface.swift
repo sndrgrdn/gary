@@ -84,6 +84,37 @@ public struct SurfaceError: Error, Equatable, CustomStringConvertible {
     }
 }
 
+public struct SurfaceAddress: Hashable, Sendable, CustomStringConvertible {
+    public static let main = "main"
+    public let plugin: PluginID
+    public let surface: String
+
+    public init(_ plugin: PluginID) {
+        self.plugin = plugin
+        surface = Self.main
+    }
+
+    public init?(_ plugin: PluginID, surface: String) {
+        guard Self.isName(surface) else { return nil }
+        self.plugin = plugin
+        self.surface = surface
+    }
+
+    public init?(_ text: String) {
+        let parts = text.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+        guard let plugin = PluginID(parts[0]) else { return nil }
+        self.init(plugin, surface: parts.count == 2 ? parts[1] : Self.main)
+    }
+
+    public var description: String {
+        surface == Self.main ? plugin.rawValue : "\(plugin.rawValue):\(surface)"
+    }
+
+    public static func isName(_ name: String) -> Bool {
+        !name.isEmpty && name.allSatisfy { $0.isASCII && ($0.isLowercase || $0.isNumber || $0 == "-") }
+    }
+}
+
 public struct SurfaceSpec: Equatable, Sendable {
     public var screen: ScreenSelector
     public var anchors: Edges<Bool>
@@ -121,14 +152,14 @@ public struct SurfaceSpec: Equatable, Sendable {
         return spec
     }
 
-    public static func parse(_ json: JSON, kind: PluginKind) throws -> SurfaceSpec {
+    public static func parse(_ json: JSON, kind: PluginKind, at root: String = "surface") throws -> SurfaceSpec {
         var spec = defaults(for: kind)
         if json == .null {
             return spec
         }
-        guard let fields = json.object else { throw fail("", "must be an object") }
+        guard let fields = json.object else { throw fail(root, "must be an object") }
         for (name, value) in fields.sorted(by: { $0.key < $1.key }) {
-            let path = ".\(name)"
+            let path = "\(root).\(name)"
             guard let read = fieldReaders[name] else { throw fail(path, "is not a surface field") }
             try read(&spec, value, path)
         }
@@ -157,8 +188,24 @@ public struct SurfaceSpec: Equatable, Sendable {
         },
     ]
 
+    public static func parseAll(_ exports: JSON, kind: PluginKind) throws -> [String: SurfaceSpec] {
+        let surface = exports["surface"]
+        guard let surfaces = exports["surfaces"] else { return try [SurfaceAddress.main: parse(surface ?? .null, kind: kind)] }
+        if surface != nil {
+            throw fail("surfaces", "cannot be exported with surface; put that surface in surfaces as main")
+        }
+        guard let named = surfaces.object, !named.isEmpty else { throw fail("surfaces", "must be an object of one or more named surfaces") }
+        var specs: [String: SurfaceSpec] = [:]
+        for (name, value) in named.sorted(by: { $0.key < $1.key }) {
+            let path = "surfaces.\(name)"
+            guard SurfaceAddress.isName(name) else { throw fail(path, "is not a surface name; use lowercase letters, digits and hyphens") }
+            specs[name] = try parse(value, kind: kind, at: path)
+        }
+        return specs
+    }
+
     private static func fail(_ path: String, _ reason: String) -> SurfaceError {
-        SurfaceError(path: "surface\(path)", reason: reason)
+        SurfaceError(path: path, reason: reason)
     }
 
     private static func screen(_ value: JSON, _ path: String) throws -> ScreenSelector {
