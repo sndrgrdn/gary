@@ -7,8 +7,9 @@ private let spin = "function spin(ms) { var end = Date.now() + ms; while (Date.n
 
 struct PluginEngineTests {
     @Test func `a runaway is stopped after about 100 ms and only its own plugin fails`() async throws {
-        let bystander = try Harness(widget("onAction: function () { count += 1; return true; },"), id: "test.bystander")
-        let runaway = try Harness(widget("onAction: function () { for (;;) {} },"), id: "test.runaway")
+        let engine = PluginEngine()
+        let bystander = try Harness(widget("onAction: function () { count += 1; return true; },"), id: "test.bystander", engine: engine)
+        let runaway = try Harness(widget("onAction: function () { for (;;) {} },"), id: "test.runaway", engine: engine)
         #expect(try await bystander.text() == "0")
         #expect(try await runaway.text() == "0")
         let started = ContinuousClock.now
@@ -22,8 +23,13 @@ struct PluginEngineTests {
     }
 
     @Test func `a healthy plugin is never stopped while another runs`() async throws {
-        let slow = try Harness(widget("onAction: function () { spin(70); count += 1; return true; },", setup: spin), id: "test.slow")
-        let healthy = try Harness(widget("onAction: function () { spin(40); count += 1; return true; },", setup: spin), id: "test.healthy")
+        let engine = PluginEngine()
+        let slow = try Harness(widget("onAction: function () { spin(70); count += 1; return true; },", setup: spin), id: "test.slow", engine: engine)
+        let healthy = try Harness(
+            widget("onAction: function () { spin(40); count += 1; return true; },", setup: spin),
+            id: "test.healthy",
+            engine: engine,
+        )
         #expect(try await slow.text() == "0")
         #expect(try await healthy.text() == "0")
         for _ in 1...10 {
@@ -39,10 +45,11 @@ struct PluginEngineTests {
     }
 
     @Test func `a runaway after the last loaded plugin unloads is stopped`() async throws {
-        let runaway = try Harness(widget("onAction: function () { for (;;) {} },"), id: "test.first")
+        let engine = PluginEngine()
+        let runaway = try Harness(widget("onAction: function () { for (;;) {} },"), id: "test.first", engine: engine)
         #expect(try await runaway.text() == "0")
         do {
-            let last = try Harness(widget(), id: "test.last")
+            let last = try Harness(widget(), id: "test.last", engine: engine)
             #expect(try await last.text() == "0")
             last.runtime.stop()
             #expect(last.runtime.queue.sync { !last.runtime.isRunning })
@@ -52,11 +59,12 @@ struct PluginEngineTests {
     }
 
     @Test func `a runaway promise callback is stopped without failing the next plugin`() async throws {
+        let engine = PluginEngine()
         let runaway = try Harness(
             widget("onAction: function () { Promise.resolve().then(function () { for (;;) {} }); return true; },"),
-            id: "test.promise",
+            id: "test.promise", engine: engine,
         )
-        let next = try Harness(widget("onAction: function () { count += 1; return true; },"), id: "test.next")
+        let next = try Harness(widget("onAction: function () { count += 1; return true; },"), id: "test.next", engine: engine)
         #expect(try await runaway.text() == "0")
         #expect(try await next.text() == "0")
         runaway.runtime.perform("spin", .null)

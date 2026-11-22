@@ -6,17 +6,20 @@ import JavaScriptCore
 final class PluginEngine: @unchecked Sendable {
     static let timeLimit = 0.1
 
+    private let machine: JSVirtualMachine = .init()
     private let entry = NSLock()
     private let state = NSLock()
     private var current: (plugin: PluginID, started: ContinuousClock.Instant)?
     private var stopped = false
 
-    func makeContext() -> JSContext? {
-        guard let context = JSContext() else { return nil }
-        if !limit(context.jsGlobalContextRef) {
+    init() {
+        if let context = JSContext(virtualMachine: machine), !limit(context.jsGlobalContextRef) {
             log("no script time limit on this system")
         }
-        return context
+    }
+
+    func makeContext() -> JSContext? {
+        JSContext(virtualMachine: machine)
     }
 
     func run(_ plugin: PluginID, in context: JSContext, _ body: () -> JSValue?) throws -> JSValue? {

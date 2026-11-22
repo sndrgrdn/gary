@@ -58,6 +58,7 @@ struct Harness {
         subscribes: [String] = [],
         uses: [String] = [],
         files: [String: String] = [:],
+        engine: PluginEngine = engine,
     ) throws {
         let directory = FileManager.default.temporaryDirectory.appending(path: "gary-runtime-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
