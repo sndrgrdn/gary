@@ -35,3 +35,47 @@ struct NodeBox: Equatable {
         }
     }
 }
+
+struct MinWidth: Layout {
+    var minWidth: Double?
+    var alignment: Alignment
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache _: inout ()) -> CGSize {
+        guard let child = subviews.first else { return .zero }
+        guard let minWidth else { return child.sizeThatFits(proposal) }
+        let width = proposal.width.map { max($0, CGFloat(minWidth)) }
+        let size = child.sizeThatFits(ProposedViewSize(width: width, height: proposal.height))
+        return CGSize(width: max(minWidth, min(size.width, width ?? .infinity)), height: size.height)
+    }
+
+    func explicitAlignment(
+        of _: HorizontalAlignment,
+        in _: CGRect,
+        proposal _: ProposedViewSize,
+        subviews _: Subviews,
+        cache _: inout (),
+    ) -> CGFloat? {
+        nil
+    }
+
+    func explicitAlignment(of _: VerticalAlignment, in _: CGRect, proposal _: ProposedViewSize, subviews _: Subviews, cache _: inout ()) -> CGFloat? {
+        nil
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache _: inout ()) {
+        guard let child = subviews.first else { return }
+        guard minWidth != nil else {
+            child.place(at: bounds.origin, proposal: proposal)
+            return
+        }
+        let anchor = UnitPoint(
+            x: alignment.horizontal == .leading ? 0 : alignment.horizontal == .trailing ? 1 : 0.5,
+            y: alignment.vertical == .top ? 0 : alignment.vertical == .bottom ? 1 : 0.5,
+        )
+        child.place(
+            at: CGPoint(x: bounds.minX + bounds.width * anchor.x, y: bounds.minY + bounds.height * anchor.y),
+            anchor: anchor,
+            proposal: ProposedViewSize(width: bounds.width, height: proposal.height),
+        )
+    }
+}

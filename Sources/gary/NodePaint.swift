@@ -37,9 +37,41 @@ extension BlendMode {
     }
 }
 
+struct VisualEffects: ViewModifier {
+    let scale: Double
+    let rotation: Double
+    let blur: Double
+    let opacity: Double
+    let blend: Blend
+    let offset: CGSize
+    let loop: Loop?
+    let loops: Bool
+
+    init(_ look: ResolvedStyle, _ node: Node) {
+        scale = look.scale ?? 1
+        rotation = look.rotation ?? 0
+        blur = look.blur ?? 0
+        opacity = look.opacity ?? 1
+        blend = look.blend ?? .normal
+        offset = CGSize(width: look.x ?? 0, height: (look.offset ?? 0) + (look.y ?? 0))
+        loop = look.loop
+        loops = look.loop != nil || [node.props, node.hovered, node.pressed].contains { $0?.loop != nil }
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .modifier(TransformEffect(scale: scale, rotation: rotation, offset: loops ? .zero : offset))
+            .blur(radius: blur)
+            .opacity(opacity)
+            .blendMode(BlendMode(blend))
+            .modifier(LoopEffect(loop: loop, present: loops, offset: offset))
+    }
+}
+
 struct LoopEffect: ViewModifier {
     let loop: Loop?
     let present: Bool
+    let offset: CGSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let start = State(initialValue: Date())
 
@@ -49,10 +81,15 @@ struct LoopEffect: ViewModifier {
             TimelineView(.animation(paused: loop == nil)) { context in
                 let phase = loop?.phase(after: context.date.timeIntervalSince(start.wrappedValue)) ?? 0
                 content
-                    .scaleEffect(loop?.spans[.scale]?.at(phase) ?? 1)
-                    .rotationEffect(.degrees(loop?.spans[.rotation]?.at(phase) ?? 0))
+                    .modifier(TransformEffect(
+                        scale: loop?.spans[.scale]?.at(phase) ?? 1,
+                        rotation: loop?.spans[.rotation]?.at(phase) ?? 0,
+                        offset: CGSize(
+                            width: offset.width + (loop?.spans[.x]?.at(phase) ?? 0),
+                            height: offset.height + (loop?.spans[.y]?.at(phase) ?? 0),
+                        ),
+                    ))
                     .opacity(loop?.spans[.opacity]?.at(phase) ?? 1)
-                    .offset(x: loop?.spans[.x]?.at(phase) ?? 0, y: loop?.spans[.y]?.at(phase) ?? 0)
             }
             .onChange(of: loop) { start.wrappedValue = Date() }
         } else {
@@ -61,23 +98,20 @@ struct LoopEffect: ViewModifier {
     }
 }
 
-extension View {
-    @ViewBuilder func visualEffects(_ look: ResolvedStyle, _ node: Node) -> some View {
-        if look.scale == nil, look.rotation == nil, look.blur == nil, look.opacity == nil, look.blend == nil, look.loop == nil, look.x == nil,
-           look.y == nil, look.offset == nil, look.animation == nil, node.hovered == nil, node.pressed == nil
-        {
-            self
-        } else {
-            scaleEffect(look.scale ?? 1)
-                .rotationEffect(.degrees(look.rotation ?? 0))
-                .blur(radius: look.blur ?? 0)
-                .opacity(look.opacity ?? 1)
-                .blendMode(BlendMode(look.blend ?? .normal))
-                .modifier(LoopEffect(
-                    loop: look.loop,
-                    present: look.loop != nil || [node.props, node.hovered, node.pressed].contains { $0?.loop != nil },
-                ))
-                .offset(x: look.x ?? 0, y: (look.offset ?? 0) + (look.y ?? 0))
-        }
+struct TransformEffect: GeometryEffect {
+    var scale: Double
+    var rotation: Double
+    var offset: CGSize
+
+    var animatableData: AnimatablePair<AnimatablePair<Double, Double>, CGSize.AnimatableData> {
+        get { AnimatablePair(AnimatablePair(scale, rotation), offset.animatableData) }
+        set { (scale, rotation, offset.animatableData) = (newValue.first.first, newValue.first.second, newValue.second) }
+    }
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(CGAffineTransform(translationX: offset.width + size.width / 2, y: offset.height + size.height / 2)
+            .rotated(by: rotation * .pi / 180)
+            .scaledBy(x: scale, y: scale)
+            .translatedBy(x: -size.width / 2, y: -size.height / 2))
     }
 }
