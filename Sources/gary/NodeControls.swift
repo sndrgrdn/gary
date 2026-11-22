@@ -33,6 +33,7 @@ struct Vibrancy: NSViewRepresentable {
 struct SliderNode: View {
     let value: Double
     let action: String?
+    let release: String?
     let tint: Color?
     @Environment(\.nodeAction) private var perform
     private let shown = State(initialValue: 0.0)
@@ -40,12 +41,21 @@ struct SliderNode: View {
     var body: some View {
         Slider(value: Binding(get: { shown.wrappedValue }, set: { next in
             shown.wrappedValue = next
-            if let action {
-                perform?(ActionEvent(name: action, payload: .number(next), origin: nil))
+            send(action, next)
+        }), in: 0...1) { editing in
+            if !editing {
+                send(release, shown.wrappedValue)
             }
-        }), in: 0...1)
-            .tint(tint)
-            .onChange(of: value, initial: true) { _, next in shown.wrappedValue = next }
+        }
+        .tint(tint)
+        .focusEffectDisabled()
+        .onChange(of: value, initial: true) { _, next in shown.wrappedValue = next }
+    }
+
+    private func send(_ name: String?, _ value: Double) {
+        if let name {
+            perform?(ActionEvent(name: name, payload: .number(value), origin: nil))
+        }
     }
 }
 

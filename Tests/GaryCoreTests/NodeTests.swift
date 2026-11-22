@@ -28,7 +28,7 @@ struct NodeTests {
         let node = try parse("""
         {"type":"column","style":"panel","padding":8,"gap":4,"background":"#000000","children":[
           {"type":"button","action":"open","hover":"selected","radius":6,"children":[{"type":"image","path":"/Applications/Safari.app","width":24,"height":24}]},
-          {"type":"slider","value":0.25,"action":"volume"},
+          {"type":"slider","value":0.25,"action":"volume","release":"set"},
           {"type":"progress","value":1.5,"color":"accent","opacity":0.5},
           {"type":"input","value":"saf","placeholder":"Search","change":"query","submit":"run","fontSize":16},
           {"type":"scroll","height":200,"reveal":"a","children":[{"type":"text","text":"a"}]}
@@ -40,7 +40,7 @@ struct NodeTests {
                 actions: [.click: "open"],
                 props: StyleProps(radius: 6),
             ),
-            Node(.slider(0.25), actions: [.click: "volume"]),
+            Node(.slider(0.25, release: "set"), actions: [.click: "volume"]),
             Node(.progress(1), props: StyleProps(opacity: 0.5, color: "accent")),
             Node(.input(Node.Input(value: "saf", placeholder: "Search", change: "query", submit: "run")), props: StyleProps(fontSize: 16)),
             Node(.scroll([Node(.text("a"))], reveal: "a"), props: StyleProps(height: 200)),

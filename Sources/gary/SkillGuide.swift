@@ -304,7 +304,7 @@ extension Skill {
     | `text` | `text`, a string or number | `null` |
     | `icon` | `symbol`, an SF Symbol name such as `battery.75percent` | `null` |
     | `image` | `path` to an image file, absolute, from `~`, or relative to the plugin folder, and `fit` | `null` |
-    | `slider` | `value` from 0 to 1 | the new value |
+    | `slider` | `value` from 0 to 1, and `release`, an action sent once when the user lets go | the new value, to `action` while the user drags and to `release` when they let go |
     | `progress` | `value` from 0 to 1 | `null` |
     | `input` | `value`, `placeholder`, `change`, and `submit` | the text. `change` and `submit` name the actions. |
     | `spacer` | none. It fills the free space in a row or column, and a row with a spacer spans the width of its column, so the items after the spacer line up at the trailing edge. | `null` |

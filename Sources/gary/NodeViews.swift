@@ -211,8 +211,8 @@ struct NodeView: View {
                 arrival: reduceMotion ? nil : look.animation.flatMap { SwiftUI.Animation($0, duration: look.duration) },
                 transition: AnyTransition(look.transition ?? .opacity),
             )
-        case let .slider(value):
-            SliderNode(value: value, action: node.actions[.click], tint: node.props.color == nil ? nil : Color(look.color))
+        case let .slider(value, release):
+            SliderNode(value: value, action: node.actions[.click], release: release, tint: node.props.color == nil ? nil : Color(look.color))
         case let .progress(value):
             let shape = RoundedRectangle(cornerRadius: look.radius ?? 3)
             shape.fill(AnyShapeStyle(look.background ?? .color(RGBA(

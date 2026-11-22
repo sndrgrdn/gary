@@ -24,7 +24,7 @@ public struct Node: Equatable, Sendable {
         case text(String)
         case icon(String)
         case image(String)
-        case slider(Double)
+        case slider(Double, release: String?)
         case progress(Double)
         case input(Input)
         case spacer
@@ -208,7 +208,7 @@ struct NodeReader {
         .text: { try .text($0.required("text")) },
         .icon: { try .icon($0.required("symbol")) },
         .image: { try .image($0.required("path")) },
-        .slider: { try .slider($0.fraction()) },
+        .slider: { try .slider($0.fraction(), release: $0.string("release")) },
         .progress: { try .progress($0.fraction()) },
         .input: { try .input($0.input()) },
         .spacer: { _ in .spacer },
