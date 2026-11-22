@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 @testable import gary
+import GaryCore
 import Testing
 
 struct SystemTests {
@@ -24,6 +25,21 @@ struct SystemTests {
         #expect(memory.pressure == .warning)
         #expect(MemoryUse(stats, pageSize: 16384, total: 1 << 30, pressureLevel: 4).pressure == .critical)
         #expect(MemoryUse(stats, pageSize: 16384, total: 1 << 30, pressureLevel: 1).pressure == .normal)
+    }
+
+    @MainActor @Test func `the topic publishes CPU memory and idle time half A second after it starts`() throws {
+        var value: JSON?
+        let source = try #require(Capability.system.topic).source
+        let feed = source { published, _ in value = published }
+        withExtendedLifetime(feed) { RunLoop.main.run(until: Date(timeIntervalSinceNow: 1)) }
+        let system = try #require(value?.object)
+        let cpu = try #require(system["cpu"]?.object)
+        let shares = try ["user", "system", "idle"].map { try #require(cpu[$0]?.number) }
+        #expect(abs(shares.reduce(0, +) - 1) < 0.000_001)
+        #expect(system["memory"]?.object?["total"]?.number == Double(ProcessInfo.processInfo.physicalMemory))
+        #expect(system["memory"]?.object?["pressure"]?.string != nil)
+        let idle = try #require(system["idleSeconds"]?.number)
+        #expect(idle >= 0 && idle == idle.rounded(.down))
     }
 
     @Test func `reads this Mac's counters`() throws {

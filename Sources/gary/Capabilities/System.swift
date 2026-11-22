@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import GaryCore
 
@@ -5,9 +6,11 @@ extension Capability {
     static let system = Capability(
         name: "system",
         summary: """
-        CPU and memory use, sampled every 2 seconds from the kernel's counters, so watching them costs next to nothing. \
-        The `cpu` fractions cover all cores since the previous sample and add up to 1. \
+        CPU and memory use and the time since the last input, sampled every 2 seconds from the kernel's counters, \
+        so watching them costs next to nothing. The `cpu` fractions cover all cores since the previous sample and add up to 1. \
         `memory.used` follows Activity Monitor's Memory Used: app memory, wired memory, and compressed memory, in bytes. \
+        `idleSeconds` counts the whole seconds since the last keyboard, mouse, or trackpad input, as hypridle does, \
+        so a plugin can act when the user has been away for a while. It needs no permission. \
         The first value arrives half a second after the first plugin subscribes.
         """,
         types: """
@@ -15,6 +18,7 @@ extension Capability {
           interface System {
             cpu: { user: number; system: number; idle: number };
             memory: { used: number; total: number; pressure: "normal" | "warning" | "critical" };
+            idleSeconds: number;
           }
         }
         """,
@@ -25,7 +29,8 @@ extension Capability {
             if (!system) return { type: "text", text: "…" };
             const cpu = Math.round((1 - system.cpu.idle) * 100);
             const memory = Math.round((system.memory.used / system.memory.total) * 100);
-            return { type: "text", text: `CPU ${cpu}% MEM ${memory}%`, style: system.memory.pressure === "normal" ? "default" : "bad" };
+            const away = system.idleSeconds >= 300 ? " · away" : "";
+            return { type: "text", text: `CPU ${cpu}% MEM ${memory}%${away}`, style: system.memory.pressure === "normal" ? "default" : "bad" };
           },
         } satisfies Gary.BarWidget;
         """,
@@ -59,8 +64,15 @@ private final class SystemTopic: TopicFeed {
                 "total": .number(Double(memory.total)),
                 "pressure": .string(memory.pressure.rawValue),
             ]),
+            "idleSeconds": .number(idleSeconds()),
         ]), Trace("system"))
     }
+}
+
+private let anyInput = CGEventType(rawValue: ~0) ?? .null
+
+private func idleSeconds() -> Double {
+    CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: anyInput).rounded(.down)
 }
 
 struct CPULoad: Equatable {
