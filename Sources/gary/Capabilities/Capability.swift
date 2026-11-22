@@ -37,6 +37,7 @@ struct Capability {
         .power,
         .session,
         .system,
+        .toast,
         .tray,
         .wallpaper,
         .wifi,

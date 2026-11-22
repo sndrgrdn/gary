@@ -41,6 +41,7 @@ extension Shell {
             theme = next
             AppDragTile.theme = theme
             tooltipPanel.theme = theme
+            ToastStack.shared.theme = theme
             for warning in theme.warnings {
                 log("theme \(warning)")
             }

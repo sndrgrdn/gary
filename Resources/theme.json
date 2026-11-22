@@ -51,6 +51,16 @@
       "fontSize": 11,
       "border": { "color": "border" }
     },
+    "toast": {
+      "background": "panel",
+      "radius": 10,
+      "padding": [10, 14],
+      "width": 340,
+      "border": { "color": "border" }
+    },
+    "toast-title": { "color": "bright", "font": "strong" },
+    "toast-body": { "color": "secondary" },
+    "toast-icon": { "color": "accent", "fontSize": 20 },
     "hover": { "background": "hover", "radius": 6 },
     "selected": { "color": "bright", "background": "selected", "radius": 6 },
     "button": { "background": "control", "radius": 6, "padding": 6 },

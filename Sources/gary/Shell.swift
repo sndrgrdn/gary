@@ -43,6 +43,7 @@ final class Shell {
         capabilities = Capability.names()
         theme = try Theme.parse(JSON.parse(Data(contentsOf: Paths.defaultTheme)), palette: Palette(nil, system: systemMode))
         tooltipPanel = TooltipPanel(theme: theme)
+        ToastStack.shared.theme = theme
         resolution = config.resolve(catalog)
     }
 
