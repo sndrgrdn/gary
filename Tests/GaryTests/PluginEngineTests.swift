@@ -44,6 +44,26 @@ struct PluginEngineTests {
         healthy.runtime.stop()
     }
 
+    @Test func `a bar widget does not wait for a panel's long call`() async throws {
+        let engines = PluginEngines()
+        let panel = try Harness(
+            widget("surface: { width: 300, height: 200 }, onAction: function () { spin(80); count += 1; return true; },", setup: spin),
+            id: "test.panel", kind: .panel, engine: engines.engine(for: .panel),
+        )
+        let bar = try Harness(widget("onAction: function () { count += 1; return true; },"), id: "test.bar", engine: engines.engine(for: .barWidget))
+        #expect(try await panel.text() == "0")
+        #expect(try await bar.text() == "0")
+        panel.runtime.perform("slow", .null)
+        try await Task.sleep(for: .milliseconds(10))
+        let started = ContinuousClock.now
+        bar.runtime.perform("tick", .null)
+        #expect(try await bar.text() == "1")
+        #expect(started.duration(to: .now) < .milliseconds(50))
+        #expect(try await panel.text() == "1")
+        panel.runtime.stop()
+        bar.runtime.stop()
+    }
+
     @Test func `a runaway after the last loaded plugin unloads is stopped`() async throws {
         let engine = PluginEngine()
         let runaway = try Harness(widget("onAction: function () { for (;;) {} },"), id: "test.first", engine: engine)

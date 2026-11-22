@@ -10,7 +10,7 @@ struct MountKey: Hashable {
 
 final class Shell {
     let hub = StateHub(sources: Capability.topics)
-    let engine = PluginEngine()
+    let engines = PluginEngines()
     private let capabilities: CapabilityNames
     var theme: Theme
     var themePayload: JSON?
