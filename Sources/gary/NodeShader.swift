@@ -51,7 +51,7 @@ final class ShaderProgram {
 
     func encode(_ encoder: MTLRenderCommandEncoder, size: CGSize, scale: Double, time: Double, args: [Double]) {
         var frame = Frame(size: SIMD2(Float(size.width), Float(size.height)), time: Float(time), scale: Float(scale), count: UInt32(args.count))
-        var floats = args.map(Float.init) + [0]
+        var floats = args.isEmpty ? [0] : args.map(Float.init)
         encoder.setRenderPipelineState(pipeline)
         encoder.setFragmentBytes(&frame, length: MemoryLayout<Frame>.stride, index: 0)
         encoder.setFragmentBytes(&floats, length: MemoryLayout<Float>.stride * floats.count, index: 1)
