@@ -8,6 +8,7 @@ private let trayQueue = DispatchQueue(label: "gary.tray", qos: .userInitiated)
 extension Capability {
     static let tray = Capability(name: "tray", summary: """
     The status items in the menu bar, with their icons, refreshed every 2 seconds while a plugin subscribes. \
+    An icon is cut to its ink, and x, y, width and height bound that ink on screen in points, or the whole item when it has no icon. \
     Without Screen Recording the items have no icons, and reason says why. Press one with the left or right button and modifier keys.
     """, types: """
     declare namespace Gary {
@@ -89,7 +90,7 @@ private final class TrayTopic: TopicFeed {
             return
         }
         let captured = capture(items)
-        let current = Set(captured.paths.values)
+        let current = Set(captured.icons.values.map(\.path))
         let folder = pngFolder("tray")
         for name in (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [] {
             let path = folder.appending(path: name).path
@@ -98,7 +99,7 @@ private final class TrayTopic: TopicFeed {
             }
         }
         icons = current
-        var tray: [String: JSON] = ["available": .bool(true), "items": .array(items.map { $0.json(icon: captured.paths[$0.id]) })]
+        var tray: [String: JSON] = ["available": .bool(true), "items": .array(items.map { $0.json(icon: captured.icons[$0.id]) })]
         tray["reason"] = captured.error.map(JSON.string)
         publish(.object(tray), Trace("tray"))
     }
@@ -238,7 +239,23 @@ private func popups() -> [CGWindowID] {
 private typealias CreateImage = @convention(c) (CGRect, CFArray, CGWindowImageOption) -> Unmanaged<CGImage>?
 private let createImage = privateSymbol(.windowListCreateImage, as: CreateImage.self)
 
-private func capture(_ items: [TrayItem]) -> (paths: [String: String], error: String?) {
+func inkBounds(_ image: CGImage) -> CGRect? {
+    let width = image.width
+    let height = image.height
+    var pixels = [UInt8](repeating: 0, count: width * height * 4)
+    pixels.withUnsafeMutableBytes { buffer in
+        CGContext(
+            data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue,
+        )?.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+    }
+    let inked = (0..<width * height).filter { pixels[$0 * 4 + 3] > 0 }
+    let columns = inked.map { $0 % width }
+    guard let first = inked.first, let last = inked.last, let left = columns.min(), let right = columns.max() else { return nil }
+    return CGRect(x: left, y: first / width, width: right - left + 1, height: last / width - first / width + 1)
+}
+
+private func capture(_ items: [TrayItem]) -> (icons: [String: TrayIcon], error: String?) {
     guard CGPreflightScreenCaptureAccess() else { return ([:], missingGrant(.screenRecording, "tray icons")) }
     guard let createImage else { return ([:], "SLWindowListCreateImageFromArray is missing from SkyLight on this macOS") }
     guard let agent = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MenuBarAgent").first?.processIdentifier
@@ -252,7 +269,7 @@ private func capture(_ items: [TrayItem]) -> (paths: [String: String], error: St
         return (window.id, bounds)
     }
     let hosts = Dictionary(windows.map { ("\($0.bounds.origin)", $0) }, uniquingKeysWith: { $0.id > $1.id ? $0 : $1 }).values
-    var paths: [String: String] = [:]
+    var icons: [String: TrayIcon] = [:]
     for host in hosts {
         var pointer: UnsafeRawPointer? = UnsafeRawPointer(bitPattern: UInt(host.id))
         var callbacks = CFArrayCallBacks(version: 0, retain: nil, release: nil, copyDescription: nil, equal: nil)
@@ -262,10 +279,12 @@ private func capture(_ items: [TrayItem]) -> (paths: [String: String], error: St
         for item in items where host.bounds.contains(CGPoint(x: item.element.frame.midX, y: item.element.frame.midY)) {
             let frame = item.element.frame.offsetBy(dx: -host.bounds.minX, dy: -host.bounds.minY)
             let crop = CGRect(x: frame.minX * scale, y: frame.minY * scale, width: frame.width * scale, height: frame.height * scale).integral
-            guard let icon = image.cropping(to: crop),
-                  let png = NSBitmapImageRep(cgImage: icon).representation(using: .png, properties: [:]) else { continue }
-            paths[item.id] = try? savePNG(png, in: "tray")
+            guard let whole = image.cropping(to: crop), let ink = inkBounds(whole), let icon = whole.cropping(to: ink),
+                  let png = NSBitmapImageRep(cgImage: icon).representation(using: .png, properties: [:]),
+                  let path = try? savePNG(png, in: "tray") else { continue }
+            let bounds = ink.offsetBy(dx: crop.minX, dy: crop.minY).applying(CGAffineTransform(scaleX: 1 / scale, y: 1 / scale))
+            icons[item.id] = TrayIcon(path: path, bounds: bounds.offsetBy(dx: host.bounds.minX, dy: host.bounds.minY))
         }
     }
-    return (paths, paths.isEmpty && !items.isEmpty ? "the menu bar could not be captured" : nil)
+    return (icons, icons.isEmpty && !items.isEmpty ? "the menu bar could not be captured" : nil)
 }

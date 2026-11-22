@@ -217,6 +217,15 @@ struct TrayRequestTests {
         #expect(items[0].json(icon: nil)["title"] == .string("2"))
     }
 
+    @Test func `an item with an icon is bounded by its ink and one without by its frame`() {
+        let item = TrayItem.merge([element(1239, "com.brnbw.dinky", title: "3")])[0]
+        let bounds = { (json: JSON) in ["x", "y", "width", "height"].map { json[$0] } }
+        #expect(bounds(item.json(icon: nil)) == [1239, 0, 30, 33])
+        let icon = TrayIcon(path: "/tmp/3.png", bounds: CGRect(x: 1250, y: 11.5, width: 7.5, height: 10))
+        #expect(bounds(item.json(icon: icon)) == [1250, 11.5, 7.5, 10])
+        #expect(item.json(icon: icon)["icon"] == .string("/tmp/3.png"))
+    }
+
     @Test func `press takes an item ID and optionally A button and modifier keys`() throws {
         let id = JSON.string("com.brnbw.dinky#1")
         #expect(try TrayRequest.parse(call("tray", "press", id)) == .press(id: "com.brnbw.dinky#1", TrayClick()))

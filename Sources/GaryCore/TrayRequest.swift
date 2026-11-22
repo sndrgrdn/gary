@@ -63,6 +63,16 @@ public struct TrayElement: Equatable, Sendable {
     }
 }
 
+public struct TrayIcon: Equatable, Sendable {
+    public var path: String
+    public var bounds: CGRect
+
+    public init(path: String, bounds: CGRect) {
+        self.path = path
+        self.bounds = bounds
+    }
+}
+
 public struct TrayItem: Equatable, Sendable {
     public let id: String
     public let element: TrayElement
@@ -84,8 +94,8 @@ public struct TrayItem: Equatable, Sendable {
         }
     }
 
-    public func json(icon: String?) -> JSON {
-        let frame = element.frame
+    public func json(icon: TrayIcon?) -> JSON {
+        let frame = icon?.bounds ?? element.frame
         return .object([
             "id": .string(id),
             "app": .string(element.app),
@@ -94,7 +104,7 @@ public struct TrayItem: Equatable, Sendable {
             "title": element.title.map(JSON.string) ?? .null,
             "description": element.detail.map(JSON.string) ?? .null,
             "x": .number(frame.minX), "y": .number(frame.minY), "width": .number(frame.width), "height": .number(frame.height),
-            "icon": icon.map(JSON.string) ?? .null,
+            "icon": icon.map { .string($0.path) } ?? .null,
         ])
     }
 }
