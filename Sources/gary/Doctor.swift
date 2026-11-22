@@ -64,9 +64,6 @@ struct Doctor {
         let version = ProcessInfo.processInfo.operatingSystemVersion
         describeBuild(version, runtime)
 
-        section("Window levels")
-        listWindowLevels()
-
         section("Private API")
         checkPrivateSymbols()
 
@@ -94,13 +91,6 @@ struct Doctor {
                 "macOS \(version.majorVersion).\(version.minorVersion).\(version.patchVersion) (\(ProcessInfo.processInfo.operatingSystemVersionString))",
             )
         lines.append(runtime.map { "running as pid \($0.pid)" } ?? "not running; checks below read the files on disk")
-    }
-
-    private mutating func listWindowLevels() {
-        info("bar \(SurfaceLevels.bar), and \(SurfaceLevels.barAside) while the macOS menu bar is revealed")
-        for layer in SurfaceLayer.allCases {
-            info("\(layer.rawValue) \(SurfaceLevels.level(layer))")
-        }
     }
 
     private mutating func checkPrivateSymbols() {
