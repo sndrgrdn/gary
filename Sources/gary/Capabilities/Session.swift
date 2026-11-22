@@ -10,7 +10,7 @@ extension Capability {
         """,
         types: """
         declare namespace Gary {
-          interface Session { locked: boolean }
+          type Session = { locked: boolean }
         }
         """,
         example: """

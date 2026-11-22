@@ -5,8 +5,8 @@ import GaryCore
 extension Capability {
     static let nowplaying = Capability(name: "nowplaying", summary: "The track that any app is playing. Play, pause, skip, and seek.", types: """
     declare namespace Gary {
-      interface NowPlaying { available: boolean; reason?: string; track: Track | null }
-      interface Track {
+      type NowPlaying = { available: boolean; reason?: string; track: Track | null }
+      type Track = {
         app: string | null;
         title: string;
         artist: string | null;

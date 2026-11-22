@@ -8,8 +8,8 @@ extension Capability {
         summary: "Notifications that Notification Center delivered. Open the app that sent one.",
         types: """
         declare namespace Gary {
-          interface Notifications { available: boolean; reason?: string; items: DeliveredNotification[] }
-          interface DeliveredNotification {
+          type Notifications = { available: boolean; reason?: string; items: DeliveredNotification[] }
+          type DeliveredNotification = {
             id: number;
             app: string;
             appName: string | null;

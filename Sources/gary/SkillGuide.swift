@@ -72,7 +72,7 @@ extension Skill {
 
     	Gary writes `~/.config/gary/plugins/<id>/` with `manifest.json`, one entry file per kind, `gary.d.ts`, `manifest.schema.json`, `tsconfig.json`, and `README.md`, plus a `package.json` with the `effect` types for a service, whose entry file uses `gary:effect`. It turns the plugin on in `~/.config/gary/shell.json`, and a bar widget goes to the bar section that the manifest's `bar` field names, `right` by default. Gary reloads the plugin each time you save its manifest or a source file in that folder. `--dir <folder>` scaffolds elsewhere and records the folder in `packages` in `shell.json`, so Gary loads it in place.
     2. Edit `manifest.json`. Add the capabilities you call to `uses` and the topics you read to `subscribes`.
-    3. Refresh the types after each change to `uses` or `subscribes`:
+    3. Refresh the types after each change to `uses` or `subscribes`. This writes `gary.d.ts`, `manifest.schema.json`, and `tsconfig.json`:
 
     	```sh
     	gary plugin types ~/.config/gary/plugins/you.weather
@@ -268,7 +268,7 @@ extension Skill {
     - Start long-running work in the `effect` field. Don't build a runtime, a `ManagedRuntime`, or Layers for it.
     - Never use Effect's microtask scheduler. Its work runs inside one call and trips the 100 ms limit.
 
-    `gary plugin types` adds these declarations to `gary.d.ts` when a file of the plugin imports `gary:effect`. They import from the `effect` package, so run `npm install --save-dev effect@\(PluginTypes.effectVersion)` in the plugin folder, and set `"skipLibCheck": true` in `tsconfig.json`, because Effect's own declarations name browser types that Gary does not have.
+    `gary plugin types` adds these declarations to `gary.d.ts` when a file of the plugin imports `gary:effect`. They import from the `effect` package, so run `npm install --save-dev effect@\(PluginTypes.effectVersion)` in the plugin folder. The `tsconfig.json` that `gary plugin types` writes sets `"skipLibCheck": true`, because Effect's own declarations name browser types that Gary does not have.
 
     ```ts
     \(PluginTypes.effectDeclarations.trimmingCharacters(in: .newlines))
@@ -293,7 +293,7 @@ extension Skill {
     } satisfies Gary.BarWidget;
     ```
 
-    `gary.d.ts` types each tag with the fields of its node and `tsconfig.json` sets `"jsx": "react"` with `Gary.h` as the factory, which `gary plugin new` writes for you. Every node takes `key`, `style`, \(Node.Gesture.allCases.map { "`\($0.rawValue)`" }.joined(separator: ", ")), `tooltip`, and the style properties \(StyleProps.names.map { "`\($0)`" }.joined(separator: ", ")). Numbers are points, except `opacity` from 0 to 1. A property on the node overrides the same property in its `style`.
+    `gary.d.ts` types each tag with the fields of its node and `tsconfig.json` sets `"jsx": "react"` with `Gary.h` as the factory, which `gary plugin new` and `gary plugin types` write for you. Every node takes `key`, `style`, \(Node.Gesture.allCases.map { "`\($0.rawValue)`" }.joined(separator: ", ")), `tooltip`, and the style properties \(StyleProps.names.map { "`\($0)`" }.joined(separator: ", ")). Numbers are points, except `opacity` from 0 to 1. A property on the node overrides the same property in its `style`.
 
     | `type` | Own fields | `onAction` payload |
     | --- | --- | --- |

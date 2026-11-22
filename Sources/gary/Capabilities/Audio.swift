@@ -10,14 +10,14 @@ extension Capability {
         types: """
         declare namespace Gary {
           type AudioScope = "output" | "input";
-          interface Audio {
+          type Audio = {
             devices: AudioDeviceSummary[];
             output: AudioDeviceState | null;
             input: AudioDeviceState | null;
             microphone: { pid: number; app: string | null; bundleId: string | null }[];
           }
-          interface AudioDeviceSummary { id: string; name: string; transport: string; output: boolean; input: boolean }
-          interface AudioDeviceState { id: string; name: string; transport: string; volume: number | null; muted: boolean | null }
+          type AudioDeviceSummary = { id: string; name: string; transport: string; output: boolean; input: boolean }
+          type AudioDeviceState = { id: string; name: string; transport: string; volume: number | null; muted: boolean | null }
           interface Host { audio: AudioApi }
           interface AudioApi {
             setVolume(volume: number, scope?: AudioScope): null;

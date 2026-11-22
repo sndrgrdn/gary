@@ -41,7 +41,8 @@ func writeTypes(_ directory: URL) throws -> String {
     }
     try Data(declarations.utf8).write(to: directory.appending(path: PluginTypes.declarationsFile))
     try Data(PluginTypes.manifestSchema(capabilities).prettyText.utf8).write(to: directory.appending(path: PluginTypes.schemaFile))
-    return "wrote \(PluginTypes.declarationsFile) and \(PluginTypes.schemaFile) to \(directory.path) for \(scope)"
+    try Data(PluginScaffold.tsconfig.utf8).write(to: directory.appending(path: PluginScaffold.tsconfigFile))
+    return "wrote \(PluginTypes.declarationsFile), \(PluginTypes.schemaFile) and \(PluginScaffold.tsconfigFile) to \(directory.path) for \(scope)"
 }
 
 private func importsEffect(_ directory: URL) -> Bool {

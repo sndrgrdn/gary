@@ -4,7 +4,7 @@ import GaryCore
 extension Capability {
     static let wallpaper = Capability(name: "wallpaper", summary: "The wallpaper of each display. Set it.", types: """
     declare namespace Gary {
-      interface Wallpaper { display: string; name: string; path: string | null }
+      type Wallpaper = { display: string; name: string; path: string | null }
       interface Host { wallpaper: WallpaperApi }
       interface WallpaperApi {
         get(): Promise<Wallpaper[]>;

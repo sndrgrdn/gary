@@ -10,14 +10,14 @@ extension Capability {
         summary: "Bluetooth power and paired devices with their battery levels. Turn Bluetooth on or off, and connect or disconnect a device.",
         types: """
         declare namespace Gary {
-          interface Bluetooth {
+          type Bluetooth = {
             available: boolean;
             permission: "allowed" | "denied" | "restricted" | "notDetermined";
             power: boolean | null;
             devices: BluetoothDevice[];
             missing: string[];
           }
-          interface BluetoothDevice { address: string; name: string | null; connected: boolean; battery: number | null }
+          type BluetoothDevice = { address: string; name: string | null; connected: boolean; battery: number | null }
           interface Host { bluetooth: BluetoothApi }
           interface BluetoothApi {
             setPower(on: boolean): null;

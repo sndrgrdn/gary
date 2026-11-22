@@ -5,7 +5,7 @@ extension Capability {
     static let dock = Capability(name: "dock", summary: "Reserve a screen edge that windows keep clear of, and hide or show the Dock.", types: """
     declare namespace Gary {
       type DockEdge = "bottom" | "left" | "right";
-      interface DockState {
+      type DockState = {
         autohide: boolean;
         rect: { x: number; y: number; width: number; height: number } | null;
         reserved: { edge: DockEdge; size: number } | null;

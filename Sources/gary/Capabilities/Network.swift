@@ -6,7 +6,7 @@ private let fetchSession = URLSession(configuration: .ephemeral)
 extension Capability {
     static let network = Capability(name: "network", summary: "A global fetch for http and https URLs.", types: """
     declare namespace Gary {
-      interface FetchResponse { status: number; text: string }
+      type FetchResponse = { status: number; text: string }
     }
     declare function fetch(url: string): Promise<Gary.FetchResponse>;
     """, example: """

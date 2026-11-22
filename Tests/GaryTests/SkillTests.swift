@@ -38,7 +38,7 @@ struct SkillTests {
         }
     }
 
-    @Test func `every capability example and built in plugin type checks`() throws {
+    @Test func `every capability example and built in plugin type checks, and every value a capability gives is Json`() throws {
         let folder = FileManager.default.temporaryDirectory.appending(path: "gary-examples-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -49,12 +49,16 @@ struct SkillTests {
             theme: nil,
         )
         try Data(declarations.utf8).write(to: folder.appending(path: "gary.d.ts"))
-        let id = try #require(PluginID("you.examples"))
-        let tsconfig = try #require(PluginScaffold.files(id: id, kinds: [.service])["tsconfig.json"])
-        try Data(tsconfig.utf8).write(to: folder.appending(path: "tsconfig.json"))
+        try Data(PluginScaffold.tsconfig.utf8).write(to: folder.appending(path: PluginScaffold.tsconfigFile))
         for capability in Capability.all {
             try Data(capability.example.utf8).write(to: folder.appending(path: "\(capability.name).ts"))
         }
+        let data = ["ScrollEvent", "Display", "Theme"] + Capability.all.flatMap { capability in
+            capability.types.matches(of: #/\b(?:interface|type) ([A-Z]\w*)\b/#).map { String($0.1) }
+                .filter { !$0.hasSuffix("Api") && !["Host", "Module"].contains($0) }
+        }
+        let json = "type IsJson<T extends Gary.Json> = T;\nexport type Checked = [\n" + data.map { "  IsJson<Gary.\($0)>,\n" }.joined() + "];\n"
+        try Data(json.utf8).write(to: folder.appending(path: "json.ts"))
         let builtins = root.appending(path: "Resources/plugins")
         for plugin in try FileManager.default.contentsOfDirectory(atPath: builtins.path) {
             for entry in try FileManager.default.contentsOfDirectory(atPath: builtins.appending(path: plugin).path)

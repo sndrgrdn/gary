@@ -4,7 +4,7 @@ import GaryCore
 extension Capability {
     static let focus = Capability(name: "focus", summary: "Whether a Focus is on, and its name and symbol.", types: """
     declare namespace Gary {
-      interface Focus {
+      type Focus = {
         available: boolean;
         active: boolean;
         reason?: string;

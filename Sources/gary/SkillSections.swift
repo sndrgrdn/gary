@@ -132,7 +132,7 @@ extension Skill {
         return """
         ## Examples
 
-        Gary.app bundles these examples in `\(Paths.examples.path)`. Gary does not load them. Copy one with `gary plugin new <id> --from <example>`. Gary replaces the example's id with yours in every file, and writes fresh `gary.d.ts` and `manifest.schema.json`. Read an example's files there before you start.
+        Gary.app bundles these examples in `\(Paths.examples.path)`. Gary does not load them. Copy one with `gary plugin new <id> --from <example>`. Gary replaces the example's id with yours in every file, and writes fresh `gary.d.ts`, `manifest.schema.json`, and `tsconfig.json`. Read an example's files there before you start.
 
         \(rows.joined(separator: "\n"))
         """

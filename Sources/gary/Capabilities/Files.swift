@@ -16,7 +16,7 @@ extension Capability {
             list(path: string): FileEntry[];
             watchFile(path: string, callback: (text: string | null) => void): void;
           }
-          interface FileEntry { name: string; type: "file" | "directory" | "link" | "other"; size: number }
+          type FileEntry = { name: string; type: "file" | "directory" | "link" | "other"; size: number }
         }
         """,
         example: """

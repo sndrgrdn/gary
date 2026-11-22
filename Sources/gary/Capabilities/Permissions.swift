@@ -15,7 +15,7 @@ extension Capability {
         types: """
         declare namespace Gary {
           type PermissionName = \(Permission.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: " | "));
-          interface PermissionStatus {
+          type PermissionStatus = {
             name: PermissionName;
             title: string;
             status: "granted" | "notAsked" | "denied" | "notGranted" | "needsRestart";

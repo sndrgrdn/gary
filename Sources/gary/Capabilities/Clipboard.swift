@@ -7,8 +7,8 @@ extension Capability {
         summary: "A clipboard change counter and the types on the clipboard. Read the clipboard and write text to it.",
         types: """
         declare namespace Gary {
-          interface ClipboardChange { count: number; types: string[]; access: "default" | "ask" | "always" | "never" }
-          interface ClipboardContents { count: number; text: string | null; image: string | null; files: string[] }
+          type ClipboardChange = { count: number; types: string[]; access: "default" | "ask" | "always" | "never" }
+          type ClipboardContents = { count: number; text: string | null; image: string | null; files: string[] }
           interface Host { clipboard: ClipboardApi }
           interface ClipboardApi {
             read(): Promise<ClipboardContents>;

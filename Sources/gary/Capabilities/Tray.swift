@@ -8,7 +8,7 @@ private let trayQueue = DispatchQueue(label: "gary.tray", qos: .userInitiated)
 extension Capability {
     static let tray = Capability(name: "tray", summary: "The status items in the menu bar, with their icons. Press one.", types: """
     declare namespace Gary {
-      interface TrayItem {
+      type TrayItem = {
         id: string;
         app: string;
         name: string;

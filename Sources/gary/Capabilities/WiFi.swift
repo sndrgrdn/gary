@@ -8,7 +8,7 @@ extension Capability {
         summary: "Wi-Fi power, network, signal, and rate. Scan, join a network, and turn Wi-Fi on or off.",
         types: """
         declare namespace Gary {
-          interface WiFi {
+          type WiFi = {
             available: boolean;
             location: "authorized" | "denied" | "restricted" | "notDetermined";
             interface?: string | null;
@@ -21,7 +21,7 @@ extension Capability {
             channel?: number | null;
             transmitRate?: number | null;
           }
-          interface WiFiNetwork { ssid: string | null; bssid: string | null; rssi: number; noise: number; channel: number | null; secure: boolean }
+          type WiFiNetwork = { ssid: string | null; bssid: string | null; rssi: number; noise: number; channel: number | null; secure: boolean }
           interface Host { wifi: WiFiApi }
           interface WiFiApi {
             setPower(on: boolean): null;

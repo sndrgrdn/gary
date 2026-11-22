@@ -42,7 +42,7 @@ public enum PluginTypes {
           type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
           type Kind = \(union(PluginKind.allCases.map(\.rawValue)));
           type Key = \(union(Set(KeyName.named.values).sorted())) | (string & {});
-          interface ScrollEvent {
+          type ScrollEvent = {
             x: number;
             y: number;
             precise: boolean;
@@ -89,7 +89,7 @@ public enum PluginTypes {
     private static func stateTypes(topics: [TopicType]) -> String {
         let fields = topics.map { "    \"\($0.topic)\": \($0.type);" }.joined(separator: "\n")
         return """
-          interface Display {
+          type Display = {
             id: string;
             index: number;
             main: boolean;
@@ -98,7 +98,7 @@ public enum PluginTypes {
             notched: boolean;
             notch: { left: number; right: number } | null;
           }
-          interface Theme {
+          type Theme = {
             mode: "light" | "dark";
             colors: { [name: string]: string };
             palette: { [name: string]: string };

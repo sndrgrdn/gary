@@ -4,7 +4,7 @@ import GaryCore
 extension Capability {
     static let clock = Capability(name: "clock", summary: "The current minute, updated each minute and after sleep.", types: """
     declare namespace Gary {
-      interface Clock { epoch: number }
+      type Clock = { epoch: number }
     }
     """, example: """
     export default {

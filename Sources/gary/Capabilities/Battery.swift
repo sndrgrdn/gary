@@ -5,7 +5,7 @@ import IOKit.ps
 extension Capability {
     static let battery = Capability(name: "battery", summary: "Battery percentage, charging state, and power source.", types: """
     declare namespace Gary {
-      interface Battery { present: boolean; percent: number | null; charging: boolean; source: "ac" | "battery" }
+      type Battery = { present: boolean; percent: number | null; charging: boolean; source: "ac" | "battery" }
     }
     """, example: """
     export default {

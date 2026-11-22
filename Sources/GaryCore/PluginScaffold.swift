@@ -6,7 +6,6 @@ public enum PluginScaffold {
         let effect = kinds.contains(.service)
         var files = [
             "manifest.json": manifest(id: id, name: name, kinds: kinds),
-            "tsconfig.json": tsconfig,
             "README.md": readme(name: name, kinds: kinds, effect: effect),
         ]
         if effect {
@@ -41,7 +40,9 @@ public enum PluginScaffold {
         """
     }
 
-    private static let tsconfig = """
+    public static let tsconfigFile = "tsconfig.json"
+
+    public static let tsconfig = """
     {
       "compilerOptions": {
         "strict": true,
@@ -89,7 +90,7 @@ public enum PluginScaffold {
         Gary reloads the plugin each time you save its manifest or a source file. \(effect
             ? "Run `npm install` once for the `effect` types, then type-check it with `npx tsc -p .`."
             : "Type-check it with `npx -p typescript tsc -p .`.")
-        After you change `uses` or `subscribes` in `manifest.json`, run `gary plugin types .` to refresh `\(PluginTypes.declarationsFile)`.
+        After you change `uses` or `subscribes` in `manifest.json`, run `gary plugin types .` to refresh `\(PluginTypes.declarationsFile)` and `\(tsconfigFile)`.
 
         """
     }

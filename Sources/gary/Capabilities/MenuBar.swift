@@ -4,7 +4,7 @@ import GaryCore
 extension Capability {
     static let menubar = Capability(name: "menubar", summary: "Hide the macOS menu bar while the plugin runs.", types: """
     declare namespace Gary {
-      interface MenuBarState { hidden: boolean; available: boolean }
+      type MenuBarState = { hidden: boolean; available: boolean }
       interface Host { menubar: MenuBarApi }
       interface MenuBarApi {
         hide(): Promise<MenuBarState>;

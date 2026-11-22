@@ -7,8 +7,8 @@ extension Capability {
         summary: "The frontmost app and the running apps. Launch, activate, and quit apps by bundle id.",
         types: """
         declare namespace Gary {
-          interface Apps { frontmost: App | null; running: App[] }
-          interface App { app: string | null; name: string; pid: number; path: string | null; active: boolean; hidden: boolean }
+          type Apps = { frontmost: App | null; running: App[] }
+          type App = { app: string | null; name: string; pid: number; path: string | null; active: boolean; hidden: boolean }
           interface Host { apps: AppsApi }
           interface AppsApi {
             launch(bundle: string): Promise<App>;

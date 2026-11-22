@@ -13,7 +13,7 @@ extension Capability {
         types: """
         declare namespace Gary {
           interface Host { exec(argv: string[]): Promise<ExecResult> }
-          interface ExecResult { status: number; stdout: string; stderr: string }
+          type ExecResult = { status: number; stdout: string; stderr: string }
         }
         """,
         example: """
