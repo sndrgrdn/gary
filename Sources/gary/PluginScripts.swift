@@ -32,26 +32,26 @@ enum PluginScripts {
     """
 
     static let functions = """
-    (function (x, headless) {
-      if (x === null || typeof x !== "object") throw new Error("the entry file has no default export");
-      if (!headless && typeof x.render !== "function") throw new Error("the default export has no render function");
+    (function (exported, headless) {
+      if (exported === null || typeof exported !== "object") throw new Error("the entry file has no default export");
+      if (!headless && typeof exported.render !== "function") throw new Error("the default export has no render function");
       return [
         function (state, mark) {
           var s = JSON.parse(state);
           if (mark) mark();
-          var n = x.render(s);
+          var n = exported.render(s);
           if (mark) mark();
           return JSON.stringify(n);
         },
         function (name, args, state, mark) {
-          var f = x[name];
+          var f = exported[name];
           if (typeof f !== "function") return null;
           var a = JSON.parse(args).concat([JSON.parse(state)]);
           if (mark) mark();
-          return f.apply(x, a) === true;
+          return f.apply(exported, a) === true;
         },
         function (method, args, done, mark) {
-          var f = x.methods && x.methods[method];
+          var f = exported.methods && exported.methods[method];
           if (typeof f !== "function") throw new Error("no method " + method);
           var a = JSON.parse(args);
           if (mark) mark();
@@ -67,8 +67,8 @@ enum PluginScripts {
             if (typeof v === "function") v = v(s);
             return v === undefined ? null : v;
           };
-          if (x.surface !== undefined) out.surface = resolve(x.surface);
-          var all = x.surfaces;
+          if (exported.surface !== undefined) out.surface = resolve(exported.surface);
+          var all = exported.surfaces;
           if (all !== undefined) {
             out.surfaces = false;
             if (all !== null && typeof all === "object" && !Array.isArray(all)) {
