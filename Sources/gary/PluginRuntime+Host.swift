@@ -32,9 +32,9 @@ extension PluginRuntime {
                 }
             } as @convention(block) (JSValue) -> Void
         }
-        let callBlock: @convention(block) (String, [String], JSValue, JSValue) -> Void = { [weak self] method, arguments, resolve, reject in
+        let callBlock: @convention(block) (String, String, [String], JSValue, JSValue) -> Void = { [weak self] kind, method, args, resolve, reject in
             guard let self else { return }
-            deliver(self, .call(method: method, arguments: arguments) { [weak self] response in
+            deliver(self, .call(kind: PluginKind(rawValue: kind), method: method, arguments: args) { [weak self] response in
                 self?.queue.async {
                     switch response {
                     case let .ok(text): self?.callBack(resolve, [text], Trace("host.call"))
@@ -43,6 +43,8 @@ extension PluginRuntime {
                 }
             })
         }
-        return context.evaluateScript(PluginScripts.host)?.call(withArguments: [logBlock, read, write, publishBlock] + surfaceBlocks + [callBlock])
+        let kinds = bundle.manifest.kinds.map(\.rawValue)
+        return context.evaluateScript(PluginScripts.host)?
+            .call(withArguments: [logBlock, read, write, publishBlock] + surfaceBlocks + [callBlock, "\(id)", kinds])
     }
 }

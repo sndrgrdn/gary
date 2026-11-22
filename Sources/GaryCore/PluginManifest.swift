@@ -4,6 +4,8 @@ public enum PluginKind: String, CaseIterable, Sendable {
     case barWidget = "bar-widget"
     case bar, panel, overlay, menu, service
 
+    public static let handlerOrder: [PluginKind] = [.service, .panel, .overlay, .menu, .bar, .barWidget]
+
     public var isSurface: Bool {
         self == .panel || self == .overlay || self == .menu
     }

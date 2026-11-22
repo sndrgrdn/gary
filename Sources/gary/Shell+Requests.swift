@@ -69,7 +69,7 @@ extension Shell {
         case let .action(id, kind, action, payload):
             reply(send(action, payload, to: SlotKey(id: id, kind: kind)))
         case let .call(id, method, arguments):
-            call(id, method, arguments, trace) { response in
+            call(id, nil, method, arguments) { response in
                 guard case let .ok(text) = response, case let .string(string)? = try? JSON.parse(text) else { return reply(response) }
                 reply(.ok(string))
             }
@@ -93,8 +93,9 @@ extension Shell {
         return .ok("sent \(action) to \(key)")
     }
 
-    func call(_ id: PluginID, _ method: String, _ arguments: [String], _ trace: Trace, _ reply: @escaping (Response) -> Void) {
-        guard let slot = handlerSlot(id) else { reply(.failure("\(id) is not enabled"))
+    func call(_ id: PluginID, _ kind: PluginKind?, _ method: String, _ arguments: [String], _ reply: @escaping (Response) -> Void) {
+        guard let slot = kind.map({ slots[SlotKey(id: id, kind: $0)] }) ?? handlerSlot(id) else {
+            reply(.failure("\(kind.map { SlotKey(id: id, kind: $0).description } ?? id.rawValue) is not enabled"))
             return
         }
         var answered = false
@@ -108,7 +109,7 @@ extension Shell {
         DispatchQueue.main.asyncAfter(deadline: .now() + Request.callTimeout) {
             once(.failure("\(id) \(method) did not finish within \(Int(Request.callTimeout)) seconds"))
         }
-        withRuntime(slot, trace) { runtime in
+        withRuntime(slot, Trace("call")) { runtime in
             guard let runtime else { return once(.failure("\(id) did not load")) }
             runtime.call(method, arguments, reply: once)
         }

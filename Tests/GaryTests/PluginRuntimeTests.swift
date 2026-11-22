@@ -222,19 +222,41 @@ struct PluginRuntimeTests {
         """, setup: "var shown = \"start\";"))
         #expect(try await harness.text() == "start")
         harness.runtime.perform("good", .null)
-        guard case let .call(method, arguments, reply) = try await harness.events.next() else { throw RenderError("expected a call") }
+        guard case let .call(kind, method, arguments, reply) = try await harness.events.next() else { throw RenderError("expected a call") }
+        #expect(kind == nil)
         #expect(method == "good")
         #expect(arguments == ["1", "two"])
         reply(.ok(#"{"a":1}"#))
         #expect(try await harness.text() == #"ok {"a":1}"#)
         harness.runtime.perform("empty", .null)
-        guard case let .call(_, _, replyEmpty) = try await harness.events.next() else { throw RenderError("expected a call") }
+        guard case let .call(_, _, _, replyEmpty) = try await harness.events.next() else { throw RenderError("expected a call") }
         replyEmpty(.ok(""))
         #expect(try await harness.text() == "ok undefined")
         harness.runtime.perform("bad", .null)
-        guard case let .call(_, _, replyBad) = try await harness.events.next() else { throw RenderError("expected a call") }
+        guard case let .call(_, _, _, replyBad) = try await harness.events.next() else { throw RenderError("expected a call") }
         replyBad(.failure("nope"))
         #expect(try await harness.text() == "true nope")
+        harness.runtime.stop()
+    }
+
+    @Test func `host call with a kind target reaches that kind and rejects a kind the plugin lacks`() async throws {
+        let harness = try Harness(widget("""
+        render: function () { return { type: "text", text: shown }; },
+        onAction: function (name) {
+          host.call({ kind: name }, "ping", 3).then(
+            function (value) { shown = "ok " + value; },
+            function (error) { shown = error.message; }
+          );
+        },
+        """, setup: "var shown = \"start\";"))
+        #expect(try await harness.text() == "start")
+        harness.runtime.perform("bar-widget", .null)
+        guard case let .call(kind, method, arguments, reply) = try await harness.events.next() else { throw RenderError("expected a call") }
+        #expect(kind == .barWidget && method == "ping" && arguments == ["3"])
+        reply(.ok("4"))
+        #expect(try await harness.text() == "ok 4")
+        harness.runtime.perform("panel", .null)
+        #expect(try await harness.text() == "host.call: test.runtime has no kind panel")
         harness.runtime.stop()
     }
 

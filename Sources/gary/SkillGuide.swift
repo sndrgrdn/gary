@@ -37,7 +37,7 @@ extension Skill {
 
     A **plugin** is a folder with a `manifest.json` and one entry file per kind. Its id has two or more dot-separated segments of lowercase letters, digits, and hyphens, such as `you.weather`. The `gary.` namespace is reserved for the built-in plugins.
 
-    A plugin has one or more **kinds**. Each kind runs in its own JavaScriptCore context from its own entry file, so kinds share no variables. They share the manifest, so `uses` and `subscribes` apply to every kind. To share values between kinds, publish them from one kind with `host.publish` and subscribe to the plugin's own id, or keep them in `host.storage`:
+    A plugin has one or more **kinds**. Each kind runs in its own JavaScriptCore context from its own entry file, so kinds share no variables. They share the manifest, so `uses` and `subscribes` apply to every kind. To share values between kinds, ask one kind from another with `host.call({ kind }, method)`, publish them from one kind with `host.publish` and subscribe to the plugin's own id, or keep them in `host.storage`:
 
     | Kind | Runs as |
     | --- | --- |
@@ -179,7 +179,7 @@ extension Skill {
     | `onHotkey(id, state)` | When a manifest hotkey fires. |
     | `onTopic({ topic, value }, state)` | When a subscribed topic changes, and once per topic at load. `value` has the type of `topic`, so `if (topic === "clock")` narrows it to a `Clock`. |
     | `onMediaKey(event, state)` | When a key that `host.mediakeys.intercept` claimed is pressed. |
-    | `methods` | `gary call <id> <method> [args...]` and `host.call(method, ...args)` run one with string arguments. It returns a JSON value, or a promise of one. |
+    | `methods` | `gary call <id> <method> [args...]` and `host.call` run one with string arguments. It returns a JSON value, or a promise of one. |
     | `effect` | Once after load, in the plugin's scope, when the module imports `gary:effect`. Unload and reload interrupt it. |
     | `surface` | An object, or a function of `state`, that places a panel, overlay, or menu. |
     | `surfaces` | An object that maps surface names to what `surface` takes, for a kind that shows several windows. Use it instead of `surface`. |
@@ -224,7 +224,7 @@ extension Skill {
     | `host.storage.get(key)`, `host.storage.set(key, value)` | Keeps JSON values in `~/Library/Application Support/Gary/storage/<id>.json`. Setting `undefined` deletes the key. |
     | `host.publish(value)` | Publishes a JSON value as the topic named by the plugin's id. When the plugin folder has a `topic.ts`, `value` must have its `Topic` type. |
     | `host.show(name?)`, `host.hide(name?)`, `host.toggle(name?)` | Shows or hides the plugin's surface named `name`, or `main`. A name that is not lowercase letters, digits, and hyphens throws. In a panel, overlay, or menu module that is the plugin's only surface kind, a name the module does not declare throws too. From another kind, Gary logs a name that no kind declares. Called from `onAction`, or from `onScroll` over a node with `scrollAction`, `show` and `toggle` pass on the frame of the node the user clicked or scrolled, which a surface with `attach` opens at. Called later, such as after a promise or a timer, they pass on no frame. |
-    | `host.call(method, ...args)` | Runs a function from the plugin's own `methods`, in the kind that `gary call` would run, loading it if needed, and returns a promise of its result. It rejects with the error the function threw or rejected with, or after 60 seconds. Plugins reach each other only through `host.publish` and `subscribes`. |
+    | `host.call(method, ...args)`, `host.call({ kind }, method, ...args)` | Runs a function from the `methods` of one of the plugin's own kinds, loading that kind if needed, and returns a promise of its result. With a target, such as `{ kind: "bar-widget" }`, it runs in that kind, so a panel can ask its bar widget. Without one, it runs in the first kind the plugin has in this order: \(PluginKind.handlerOrder.map { "`\($0.rawValue)`" }.joined(separator: ", ")). `gary call` and `onHotkey` go to that kind too. A bar widget that no bar section names is not running, so a call to it rejects. It rejects with the error the function threw or rejected with, or after 60 seconds. Plugins reach each other only through `host.publish` and `subscribes`. |
 
     `setTimeout`, `setInterval`, `clearTimeout`, and `clearInterval` work as in a browser. An interval is at least 10 ms.
 

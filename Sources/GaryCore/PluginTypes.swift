@@ -147,7 +147,7 @@ public enum PluginTypes {
             show(surface?: string): void;
             hide(surface?: string): void;
             toggle(surface?: string): void;
-            call(method: string, ...args: string[]): Promise<Json | undefined>;
+            call(...call: [method: string, ...args: string[]] | [target: { kind: Kind }, method: string, ...args: string[]]): Promise<Json | undefined>;
           }
 
           interface Module {

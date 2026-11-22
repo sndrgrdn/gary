@@ -12,8 +12,7 @@ extension Shell {
     }
 
     func handlerSlot(_ id: PluginID) -> PluginSlot? {
-        let order: [PluginKind] = [.service, .panel, .overlay, .menu, .bar, .barWidget]
-        return order.lazy.compactMap { self.slots[SlotKey(id: id, kind: $0)] }.first
+        PluginKind.handlerOrder.lazy.compactMap { self.slots[SlotKey(id: id, kind: $0)] }.first
     }
 
     func withRuntime(_ slot: PluginSlot, _ trace: Trace, _ body: @escaping (PluginRuntime?) -> Void) {
@@ -138,8 +137,8 @@ extension Shell {
             }
         case let .surface(request, surface, origin):
             surfaceRequested(request, surface, origin, by: key.id)
-        case let .call(method, arguments, reply):
-            call(key.id, method, arguments, Trace("host-call"), reply)
+        case let .call(kind, method, arguments, reply):
+            call(key.id, kind, method, arguments, reply)
         case let .failed(reason):
             failed(slot, runtime, reason)
         }

@@ -145,7 +145,7 @@ enum PluginScripts {
     """
 
     static let host = """
-    (function (log, read, write, publish, show, hide, toggle, call) {
+    (function (log, read, write, publish, show, hide, toggle, call, id, kinds) {
       var data = null;
       function load() {
         if (data !== null) return;
@@ -166,10 +166,13 @@ enum PluginScripts {
         show: show,
         hide: hide,
         toggle: toggle,
-        call: function (method) {
-          var args = Array.prototype.slice.call(arguments, 1).map(String);
+        call: function () {
+          var args = Array.prototype.slice.call(arguments), kind = "";
+          if (args[0] !== null && typeof args[0] === "object") kind = String(args.shift().kind);
+          var method = String(args.shift());
           return new Promise(function (resolve, reject) {
-            call(String(method), args, resolve, function (message) { reject(new Error(message)); });
+            if (kind !== "" && kinds.indexOf(kind) < 0) throw new Error("host.call: " + id + " has no kind " + kind);
+            call(kind, method, args.map(String), resolve, function (message) { reject(new Error(message)); });
           }).then(function (text) { return text === "" ? undefined : JSON.parse(text); });
         }
       };
