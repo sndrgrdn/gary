@@ -326,6 +326,8 @@ struct DeviceRequestTests {
         #expect(try WiFiRequest.parse(call("wifi", "join", .string("Home"), .string("secret"))) == .join(ssid: "Home", password: "secret"))
         #expect(try ["scan", "requestLocation"].map { try WiFiRequest.parse(call("wifi", $0)) } == [.scan, .requestLocation])
         #expect(throws: ArgumentError.self) { try WiFiRequest.parse(call("wifi", "join")) }
+        #expect(try WiFiRequest.parse(call("wifi", "forget", .string("Home"))) == .forget(ssid: "Home"))
+        #expect(throws: ArgumentError.self) { try WiFiRequest.parse(call("wifi", "forget")) }
         #expect(try BluetoothRequest.parse(call("bluetooth", "connect", .string("aa-bb-cc-dd-ee-ff"))) == .connect(address: "aa-bb-cc-dd-ee-ff"))
         #expect(try BluetoothRequest.parse(call("bluetooth", "setPower", .bool(true))) == .setPower(true))
         #expect(throws: ArgumentError("host.bluetooth.setPower: on must be true or false")) { try BluetoothRequest.parse(call(

@@ -5,7 +5,11 @@ import GaryCore
 extension Capability {
     static let wifi = Capability(
         name: "wifi",
-        summary: "Wi-Fi power, network, signal, rate, and latest scan. Scan, marking networks joined before, join one, and turn Wi-Fi on or off.",
+        summary: """
+        Wi-Fi power, network, signal, rate, and latest scan. Scan, marking networks joined before, join one, forget a known one, \
+        and turn Wi-Fi on or off. `forget` removes the network from the preferred list with networksetup, as the user, and marks it \
+        not known in the latest scan.
+        """,
         types: """
         declare namespace Gary {
           type WiFi = {
@@ -28,6 +32,7 @@ extension Capability {
             setPower(on: boolean): null;
             scan(): Promise<WiFiNetwork[]>;
             join(ssid: string, password?: string | null): Promise<"joined">;
+            forget(ssid: string): Promise<"forgotten">;
             requestLocation(): Promise<string>;
           }
         }
@@ -53,6 +58,7 @@ extension Capability {
                 case let .setPower(enabled): try .now(setPower(enabled))
                 case .scan: .later(.global(qos: .userInitiated)) { try scan() }
                 case let .join(ssid, password): .later(.global(qos: .userInitiated)) { try join(ssid, password) }
+                case let .forget(ssid): .later(.global(qos: .userInitiated)) { try forget(ssid) }
                 case .requestLocation: .later(.main) { .string(Permission.location.request()) }
                 }
             }
@@ -91,6 +97,15 @@ private final class LatestScan: @unchecked Sendable {
         lock.withLock { stored = networks }
         onChange?()
     }
+
+    func forget(_ ssid: String) {
+        lock.withLock {
+            stored = stored?.array.map { networks in
+                .array(networks.map { $0["ssid"]?.string == ssid ? $0.merging(.object(["known": .bool(false)])) : $0 })
+            }
+        }
+        onChange?()
+    }
 }
 
 private func scan() throws -> JSON {
@@ -118,6 +133,26 @@ private func join(_ ssid: String, _ password: String?) throws -> JSON {
     }
     try interface.associate(to: network, password: password)
     return .string("joined")
+}
+
+private func forget(_ ssid: String) throws -> JSON {
+    let interface = try wifiInterface()
+    guard let name = interface.interfaceName, knownNetworks(interface.configuration()).contains(ssid)
+    else { throw HostFailure("\(ssid) is not a known network") }
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/sbin/networksetup")
+    process.arguments = ["-removepreferredwirelessnetwork", name, ssid]
+    let output = Pipe()
+    process.standardInput = FileHandle.nullDevice
+    process.standardOutput = output
+    process.standardError = output
+    do { try process.run() } catch { throw HostFailure("cannot run networksetup: \(error.localizedDescription)") }
+    let said = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    process.waitUntilExit()
+    guard !knownNetworks(interface.configuration()).contains(ssid)
+    else { throw HostFailure("cannot forget \(ssid): \(said.trimmingCharacters(in: .whitespacesAndNewlines))") }
+    LatestScan.shared.forget(ssid)
+    return .string("forgotten")
 }
 
 final class LocationAccess: NSObject, CLLocationManagerDelegate {

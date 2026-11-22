@@ -72,15 +72,17 @@ public enum WiFiRequest: Equatable, Sendable {
     case setPower(Bool)
     case scan
     case join(ssid: String, password: String?)
+    case forget(ssid: String)
     case requestLocation
 
-    public static let methods = ["setPower", "scan", "join", "requestLocation"]
+    public static let methods = ["setPower", "scan", "join", "forget", "requestLocation"]
 
     public static func parse(_ call: HostCall) throws -> WiFiRequest {
         switch call.method {
         case "setPower": try .setPower(call.bool(0, "on"))
         case "scan": .scan
         case "join": try .join(ssid: call.string(0, "ssid"), password: call.optionalString(1, "password"))
+        case "forget": try .forget(ssid: call.string(0, "ssid"))
         case "requestLocation": .requestLocation
         default: throw call.unknownMethod
         }
