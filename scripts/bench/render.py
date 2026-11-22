@@ -322,9 +322,9 @@ def run(name, out, trace, dark_ok=False):
     print(json.dumps({key: result.get(key) for key in ["case", "trace", "cpu_pct", "commits", "error"]}))
 
 
-def profile(name, seconds, out):
+def profile(name, seconds, out, dark_ok=False):
     case = CASES[name]
-    if screen() != "on":
+    if screen() != "on" and not (dark_ok and name in DARK_OK):
         sys.exit(f"screen is {screen()}, so windows are not composited")
     log = os.path.join(WORK, f"profile-{name}-{int(time.time())}.log")
     try:
@@ -418,12 +418,12 @@ if __name__ == "__main__":
     command = sys.argv[1] if len(sys.argv) > 1 else ""
     if command == "run" and len(sys.argv) >= 4 and sys.argv[2] in CASES:
         run(sys.argv[2], sys.argv[3], "--trace" in sys.argv, "--dark-ok" in sys.argv)
-    elif command == "profile" and len(sys.argv) == 5 and sys.argv[2] in CASES:
-        profile(sys.argv[2], int(sys.argv[3]), sys.argv[4])
+    elif command == "profile" and len(sys.argv) >= 5 and sys.argv[2] in CASES:
+        profile(sys.argv[2], int(sys.argv[3]), sys.argv[4], "--dark-ok" in sys.argv)
     elif command == "report" and len(sys.argv) == 3:
         report(sys.argv[2])
     elif command == "restore":
         restore()
     else:
-        sys.exit(f"usage: render.py run <case> <out.jsonl> [--trace] [--dark-ok] | profile <case> <seconds> <out.txt> | report <out.jsonl> | restore\n"
+        sys.exit(f"usage: render.py run <case> <out.jsonl> [--trace] [--dark-ok] | profile <case> <seconds> <out.txt> [--dark-ok] | report <out.jsonl> | restore\n"
                  f"cases: {', '.join(CASES)}")
