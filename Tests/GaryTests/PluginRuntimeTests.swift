@@ -46,12 +46,12 @@ private struct Harness {
     let events: Events
     let hub: StateHub
 
-    init(_ source: String, kind: PluginKind = .barWidget, shown: Bool = true, subscribes: [String] = []) throws {
+    init(_ source: String, id: String = "test.runtime", kind: PluginKind = .barWidget, shown: Bool = true, subscribes: [String] = []) throws {
         let directory = FileManager.default.temporaryDirectory.appending(path: "gary-runtime-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let manifest = JSON.object([
             "schemaVersion": .number(1),
-            "id": .string("test.runtime"),
+            "id": .string(id),
             "name": .string("Runtime"),
             "version": .string("0.1.0"),
             "kinds": .array([.string(kind.rawValue)]),
@@ -309,5 +309,28 @@ struct PluginRuntimeTests {
     @Test func `a script that runs past the time limit is stopped`() async throws {
         let harness = try Harness("module.exports.render = function () { for (;;) {} };")
         #expect(try await harness.failure() == "stopped after running longer than 100 ms")
+    }
+
+    @Test(.enabled(if: ShaderProgram.device != nil, "this Mac has no Metal device"))
+    func `a shader file keeps only its latest program and none after its plugin stops`() async throws {
+        let harness = try Harness(widget(""), id: "test.shaders")
+        _ = try await harness.text()
+        let file = FileManager.default.temporaryDirectory.appending(path: "gary-shader-\(UUID().uuidString).metal")
+        try Data("half4 fill(float2 position, float2 size, float time, constant float *args, uint count) { return half4(1); }".utf8).write(to: file)
+        let saved = try #require(FileManager.default.attributesOfItem(atPath: file.path)[.modificationDate] as? Date)
+        let shader = Node.Shader(path: file.path, function: "fill")
+        func compile(modified: Date) async throws -> ShaderProgram {
+            try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: file.path)
+            return try #require(await ShaderCache.shared.program(shader, plugin: harness.runtime.id))
+        }
+        let first = try await compile(modified: saved)
+        #expect(try await compile(modified: saved) === first)
+        let touched = try await compile(modified: saved.addingTimeInterval(60))
+        #expect(touched !== first)
+        #expect(try await compile(modified: saved) !== first)
+        let latest = try await compile(modified: saved)
+        harness.runtime.stop()
+        #expect(harness.runtime.queue.sync { !harness.runtime.isRunning })
+        #expect(try await compile(modified: saved) !== latest)
     }
 }

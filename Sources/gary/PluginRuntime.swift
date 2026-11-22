@@ -224,6 +224,7 @@ final class PluginRuntime: Subscriber {
         }
         stops = []
         functions = nil
+        ShaderCache.shared.drop(id)
     }
 
     var isRunning: Bool {

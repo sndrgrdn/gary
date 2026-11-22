@@ -59,27 +59,45 @@ final class ShaderProgram {
     }
 }
 
-private final class ShaderCache: @unchecked Sendable {
+final class ShaderCache: @unchecked Sendable {
     static let shared = ShaderCache()
 
+    private struct Entry {
+        let plugin: PluginID?
+        let modified: Double
+        let result: Result<ShaderProgram, ShaderError>
+    }
+
     private let lock = NSLock()
-    private var programs: [String: Result<ShaderProgram, ShaderError>] = [:]
+    private var entries: [String: Entry] = [:]
     private let compiler = DispatchQueue(label: "gary.shaders", qos: .userInitiated)
 
     func program(_ shader: Node.Shader, plugin: PluginID?) async -> ShaderProgram? {
         let path = (shader.path as NSString).expandingTildeInPath
         let modified = (try? FileManager.default.attributesOfItem(atPath: path)[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-        let key = "\(path)|\(modified)|\(shader.function)"
-        if let cached = lock.withLock({ programs[key] }) {
-            return try? cached.get()
+        let key = "\(path)|\(shader.function)"
+        if let entry = cached(key, modified) {
+            return try? entry.result.get()
         }
         return await withCheckedContinuation { continuation in
             compiler.async {
-                let result = self.lock.withLock { self.programs[key] } ?? Self.compile(shader, path: path, plugin: plugin)
-                self.lock.withLock { self.programs[key] = result }
-                continuation.resume(returning: try? result.get())
+                let entry = self.cached(key, modified) ?? Entry(
+                    plugin: plugin,
+                    modified: modified,
+                    result: Self.compile(shader, path: path, plugin: plugin),
+                )
+                self.lock.withLock { self.entries[key] = entry }
+                continuation.resume(returning: try? entry.result.get())
             }
         }
+    }
+
+    func drop(_ plugin: PluginID) {
+        lock.withLock { entries = entries.filter { $0.value.plugin != plugin } }
+    }
+
+    private func cached(_ key: String, _ modified: Double) -> Entry? {
+        lock.withLock { entries[key].flatMap { $0.modified == modified ? $0 : nil } }
     }
 
     private static func compile(_ shader: Node.Shader, path: String, plugin: PluginID?) -> Result<ShaderProgram, ShaderError> {
