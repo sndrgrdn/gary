@@ -4,7 +4,8 @@ import GaryCore
 import Testing
 
 private let environment = ProcessInfo.processInfo.environment
-private let benchEngine = engine
+private let separate = environment["BENCH_ENGINES"] == "separate"
+private let benchEngines = PluginEngines(effect: vendor.appending(path: "effect.js"))
 private let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 private let gallery = URL(fileURLWithPath: environment["GARY_PLUGINS"] ?? NSHomeDirectory() + "/Developer/gary-plugins")
 private let stopMessage = "stopped after running longer than"
@@ -113,7 +114,7 @@ private struct Bench {
             theme: theme,
             hub: hub,
             deliver: { _, event in record.event(name, event) },
-            engine: benchEngine,
+            engine: separate ? PluginEngine(effect: vendor.appending(path: "effect.js")) : benchEngines.engine(for: kind),
             transpiler: transpiler,
         )
         let started = now()
