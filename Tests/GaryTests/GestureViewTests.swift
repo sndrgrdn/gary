@@ -85,6 +85,19 @@ struct GestureViewTests {
         #expect(host.clickable("missing") == nil)
     }
 
+    @Test func `a scroll over a node goes to the innermost node with a scroll action under its centre`() throws {
+        let open = #"{"type":"row","action":"open","width":80,"height":20,"children":[]}"#
+        let inner = #"{"type":"row","scrollAction":"inner","width":80,"height":20,"children":[]}"#
+        var sent: [String] = []
+        let host = try mount(#"{"type":"column","scrollAction":"outer","children":[\#(open),\#(inner)]}"#) { sent.append($0.name) }
+        #expect(try #require(host.node(withAction: "open")).scrollTarget?.actions[.scroll] == "outer")
+        #expect(try #require(host.node(withAction: "inner")).scrollTarget?.actions[.scroll] == "inner")
+        let plain = try mount(open) { sent.append($0.name) }
+        #expect(try #require(plain.node(withAction: "open")).scrollTarget == nil)
+        #expect(plain.node(withAction: "missing") == nil)
+        #expect(sent.isEmpty)
+    }
+
     private func scrolled(_ node: String) throws -> (sent: [String], offset: Double) {
         var sent: [String] = []
         let host = try mount(node) { sent.append($0.name) }

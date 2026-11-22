@@ -21,6 +21,7 @@ public enum Request: Equatable, Sendable {
     case call(PluginID, method: String, arguments: [String])
     case action(PluginID, kind: PluginKind, action: String, payload: String?)
     case key(PluginID, kind: PluginKind?, keys: [String])
+    case scroll(PluginID, kind: PluginKind, over: String?, by: ScrollDistance)
 
     public static let usage: [CommandUsage] = [
         CommandUsage("ping", "Check that Gary is running.", nil),
@@ -86,6 +87,14 @@ public enum Request: Equatable, Sendable {
             """,
             "gary key you.launcher s a f enter",
         ),
+        CommandUsage(
+            "scroll <plugin>/<kind> [action] <dy> [--precise]",
+            """
+            Scroll by dy over the shown node with this action, or over the surface when no action is named, as the user would, so onScroll gets \
+            event.y = dy. A mouse wheel moves in lines; --precise makes a trackpad gesture in points, sent as a began and an ended event.
+            """,
+            "gary scroll you.music/bar-widget volume 3",
+        ),
     ]
 
     public static let callTimeout: TimeInterval = 60
@@ -123,6 +132,7 @@ public enum Request: Equatable, Sendable {
         case "call": return try call(arguments)
         case "action": return try action(arguments)
         case "key": return try key(arguments)
+        case "scroll": return try scroll(arguments)
         default: throw RequestError(description: "unknown verb \"\(verb)\"")
         }
     }
@@ -203,6 +213,18 @@ public enum Request: Equatable, Sendable {
         return .key(id, kind: kind, keys: Array(arguments.dropFirst()))
     }
 
+    private static func scroll(_ arguments: [String]) throws -> Request {
+        let precise = arguments.last == "--precise"
+        let positional = precise ? arguments.dropLast() : arguments[...]
+        guard (2...3).contains(positional.count), let y = positional.last.flatMap(Double.init), y.isFinite else {
+            throw RequestError(
+                description: "scroll takes <plugin>/<kind>, an optional action, a number of lines or points, and an optional --precise",
+            )
+        }
+        let (id, kind) = try slotWithKind(arguments[0], for: "scroll")
+        return .scroll(id, kind: kind, over: positional.count == 3 ? positional[1] : nil, by: precise ? .points(y) : .lines(y))
+    }
+
     public var verb: String {
         switch self {
         case .ping: "ping"
@@ -220,6 +242,7 @@ public enum Request: Equatable, Sendable {
         case .call: "call"
         case .action: "action"
         case .key: "key"
+        case .scroll: "scroll"
         }
     }
 
@@ -233,6 +256,8 @@ public enum Request: Equatable, Sendable {
         case let .call(id, method, arguments): [id.rawValue, method] + arguments
         case let .action(id, kind, action, payload): ["\(id)/\(kind.rawValue)", action] + (payload.map { [$0] } ?? [])
         case let .key(id, kind, keys): [kind.map { "\(id)/\($0.rawValue)" } ?? id.rawValue] + keys
+        case let .scroll(id, kind, over, .lines(y)): ["\(id)/\(kind.rawValue)"] + (over.map { [$0] } ?? []) + [String(y)]
+        case let .scroll(id, kind, over, .points(y)): ["\(id)/\(kind.rawValue)"] + (over.map { [$0] } ?? []) + [String(y), "--precise"]
         }
     }
 
@@ -249,6 +274,11 @@ public enum Request: Equatable, Sendable {
         guard arguments.count == raw.count else { throw RequestError(description: "args must be strings") }
         return try parse(verb: verb, arguments: arguments)
     }
+}
+
+public enum ScrollDistance: Equatable, Sendable {
+    case lines(Double)
+    case points(Double)
 }
 
 public extension PluginID {

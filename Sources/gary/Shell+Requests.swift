@@ -70,6 +70,8 @@ extension Shell {
             reply(click(action, payload, on: SlotKey(id: id, kind: kind)))
         case let .key(id, kind, keys):
             reply(press(keys, on: id, kind))
+        case let .scroll(id, kind, over, distance):
+            reply(scroll(distance, over: over, on: SlotKey(id: id, kind: kind)))
         case let .call(id, method, arguments):
             call(id, nil, method, arguments) { response in
                 guard case let .ok(text) = response, case let .string(string)? = try? JSON.parse(text) else { return reply(response) }
@@ -120,6 +122,31 @@ extension Shell {
             NSApp.sendEvent(event)
         }
         return .ok("pressed \(keys.joined(separator: " "))")
+    }
+
+    private func scroll(_ distance: ScrollDistance, over action: String?, on key: SlotKey) -> Response {
+        guard let runtime = slots[key]?.runtime else { return .failure("\(key.id) has no running \(key.kind.rawValue)") }
+        let events: [JSON] = switch distance {
+        case let .lines(y): [.scroll(x: 0, y: y, precise: false, phase: "none")]
+        case let .points(y): [.scroll(x: 0, y: y, precise: true, phase: "began"), .scroll(x: 0, y: 0, precise: true, phase: "ended")]
+        }
+        if let action {
+            guard let node = mounted(key).lazy.compactMap({ $0.node(withAction: action) }).first else {
+                return .failure("no shown node of \(key) has the action \(action)")
+            }
+            if let target = node.scrollTarget {
+                for event in events {
+                    target.send(.scroll, event)
+                }
+                return .ok("scrolled \(target.actions[.scroll] ?? action) on \(key) at \(target.screenFrame.map(describe) ?? "no frame")")
+            }
+        }
+        guard key.kind.isSurface else { return .failure("\(key) takes a scroll only over a node with scrollAction") }
+        guard mounts.keys.contains(where: { $0.slot == key }) else { return .failure("\(key) is not shown") }
+        for event in events {
+            runtime.scroll(event)
+        }
+        return .ok("scrolled \(key)")
     }
 
     private func mounted(_ key: SlotKey) -> [TreeHostingView] {

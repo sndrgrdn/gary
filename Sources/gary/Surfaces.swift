@@ -95,10 +95,13 @@ extension NSEvent {
         } else {
             "none"
         }
-        return .object([
-            "x": .number(scrollingDeltaX), "y": .number(scrollingDeltaY),
-            "precise": .bool(hasPreciseScrollingDeltas), "phase": .string(phase),
-        ])
+        return .scroll(x: scrollingDeltaX, y: scrollingDeltaY, precise: hasPreciseScrollingDeltas, phase: phase)
+    }
+}
+
+extension JSON {
+    static func scroll(x: Double, y: Double, precise: Bool, phase: String) -> JSON {
+        .object(["x": .number(x), "y": .number(y), "precise": .bool(precise), "phase": .string(phase)])
     }
 }
 

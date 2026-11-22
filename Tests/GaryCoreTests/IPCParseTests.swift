@@ -33,6 +33,11 @@ struct IPCParseTests {
             (Invocation("action", ["gary.today/panel", "set", "0.5"]), .action(today, kind: .panel, action: "set", payload: "0.5")),
             (Invocation("key", ["gary.today", "a", "enter"]), .key(today, kind: nil, keys: ["a", "enter"])),
             (Invocation("key", ["gary.today/menu", "cmd+k"]), .key(today, kind: .menu, keys: ["cmd+k"])),
+            (Invocation("scroll", ["gary.today/panel", "-3"]), .scroll(today, kind: .panel, over: nil, by: .lines(-3))),
+            (
+                Invocation("scroll", ["gary.today/bar-widget", "volume", "12.5", "--precise"]),
+                .scroll(today, kind: .barWidget, over: "volume", by: .points(12.5)),
+            ),
         ]
         for (invocation, request) in cases {
             #expect(try invocation.parse() == request, "\(invocation.verb) \(invocation.arguments)")
@@ -57,6 +62,19 @@ struct IPCParseTests {
             (Invocation("action", ["gary.today/panel", "set", "1", "2"]), "action takes <plugin>/<kind>, an action and an optional payload"),
             (Invocation("action", ["gary.today", "set"]), "action takes <plugin>/<kind>, such as gary.today/panel"),
             (Invocation("key", ["gary.today"]), "key takes <plugin>[/<kind>] and one or more keys"),
+            (
+                Invocation("scroll", ["gary.today/panel", "volume"]),
+                "scroll takes <plugin>/<kind>, an optional action, a number of lines or points, and an optional --precise",
+            ),
+            (
+                Invocation("scroll", ["gary.today/panel", "a", "b", "3"]),
+                "scroll takes <plugin>/<kind>, an optional action, a number of lines or points, and an optional --precise",
+            ),
+            (
+                Invocation("scroll", ["gary.today/panel", "nan"]),
+                "scroll takes <plugin>/<kind>, an optional action, a number of lines or points, and an optional --precise",
+            ),
+            (Invocation("scroll", ["gary.today", "3"]), "scroll takes <plugin>/<kind>, such as gary.today/panel"),
             (Invocation("key", ["gary.today/widget", "a"]), "unknown kind \"widget\"; use bar-widget, bar, panel, overlay, menu, service"),
         ]
         for (invocation, message) in cases {

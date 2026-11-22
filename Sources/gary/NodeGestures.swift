@@ -46,11 +46,18 @@ final class GestureView: NSView {
 
     func hitTest(_ point: NSPoint, event: NSEvent?) -> NSView? {
         guard let event, let gesture = Self.gesture(of: event), actions[gesture] != nil, super.hitTest(point) != nil else { return nil }
-        let location = superview?.convert(point, to: nil) ?? point
-        let claiming = (window?.contentView ?? self).descendants(GestureView.self).filter { view in
+        return Self.claimant(of: gesture, at: superview?.convert(point, to: nil) ?? point, in: window?.contentView ?? self) ?? self
+    }
+
+    static func claimant(of gesture: Node.Gesture, at location: CGPoint, in root: NSView) -> GestureView? {
+        let claiming = root.descendants(GestureView.self).filter { view in
             view.actions[gesture] != nil && view.convert(view.bounds, to: nil).contains(location)
         }
-        return claiming.min { $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height } ?? self
+        return claiming.min { $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height }
+    }
+
+    var scrollTarget: GestureView? {
+        Self.claimant(of: .scroll, at: convert(CGPoint(x: bounds.midX, y: bounds.midY), to: nil), in: window?.contentView ?? self)
     }
 
     override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
@@ -113,6 +120,10 @@ final class GestureView: NSView {
 extension NSView {
     func descendants<View: NSView>(_ type: View.Type) -> [View] {
         [self].compactMap { $0 as? View } + subviews.flatMap { $0.descendants(type) }
+    }
+
+    func node(withAction action: String) -> GestureView? {
+        descendants(GestureView.self).first { $0.actions.values.contains(action) }
     }
 
     func clickable(_ action: String) -> (view: GestureView, gesture: Node.Gesture)? {
