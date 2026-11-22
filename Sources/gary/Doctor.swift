@@ -164,12 +164,12 @@ struct Doctor {
         }
         do {
             let config = try ShellConfig.parse(JSON.parse(Data(contentsOf: Paths.shellConfig)))
-            let warnings = config.resolve(catalog).warnings
+            let warnings = config.warnings.map(\.description) + config.resolve(catalog).warnings.map { "shell.json: \($0)" }
             if warnings.isEmpty {
                 ok("shell.json")
             }
             for warning in warnings {
-                fail("shell.json: \(warning)")
+                fail(warning)
             }
         } catch {
             fail("shell.json: \(error)")

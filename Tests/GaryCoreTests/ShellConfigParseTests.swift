@@ -3,14 +3,14 @@ import Foundation
 import Testing
 
 struct ShellConfigParseTests {
-    @Test func `each section reports its own path`() {
+    @Test func `each section reports its own path`() throws {
         let cases: [(String, ShellConfigError)] = [
             (#"{"settings": []}"#, ShellConfigError(path: "settings", reason: "must be an object keyed by plugin id")),
             (#"{"plugins": ["acme.a", 3]}"#, ShellConfigError(path: "plugins[1]", reason: "is not a plugin id")),
             (#"{"bar": {"right": "gary.clock"}}"#, ShellConfigError(path: "bar.right", reason: "must be an array of plugin ids")),
         ]
-        for (text, error) in cases {
-            #expect(throws: error, "\(text)") { try ShellConfig.parse(JSON.parse(text)) }
+        for (text, warning) in cases {
+            #expect(try ShellConfig.parse(JSON.parse(text)).warnings == [warning], "\(text)")
         }
     }
 
@@ -34,13 +34,10 @@ struct ShellConfigParseTests {
             (#"{"packages": ["npm:a", "npm:a@1.0.0"]}"#, "packages[1]"),
         ]
         for (text, path) in cases {
-            do {
-                _ = try ShellConfig.parse(JSON.parse(text))
-                Issue.record("parsed \(text)")
-            } catch let error as ShellConfigError {
-                #expect(error.path == path, "\(text)")
-            }
+            #expect(try ShellConfig.parse(JSON.parse(text)).warnings.map(\.path) == [path], "\(text)")
         }
+        let skipped = try ShellConfig.parse(JSON.parse(#"{"packages": ["npm:a", 3, "npm:b"]}"#))
+        #expect(skipped.packages.map(\.declaration) == ["npm:a", "npm:b"])
     }
 
     @Test func `declaring A package replaces the entry with its identity and undeclaring removes it`() throws {

@@ -87,6 +87,9 @@ extension Shell {
         }
         do {
             config = try ShellConfig.parse(JSON.parse(Data(contentsOf: Paths.shellConfig)))
+            for warning in config.warnings {
+                log("\(warning); skipped")
+            }
             return .ok("config loaded")
         } catch {
             log("\(error); keeping the current config")

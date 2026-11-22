@@ -19,6 +19,7 @@ public struct ShellConfig: Equatable, Sendable {
     public var settings: [PluginID: JSON]
     public var revealMenuBar: Bool
     public var packages: [PackageSource]
+    public var warnings: [ShellConfigError] = []
 
     public static let defaults = ShellConfig(
         bar: [.left: [], .center: [], .right: [PluginID(builtin: "battery"), PluginID(builtin: "clock")]],
@@ -31,79 +32,99 @@ public struct ShellConfig: Equatable, Sendable {
         guard let fields = json.object else { throw ShellConfigError(path: "root", reason: "must be an object") }
         var config = defaults
         if let bar = fields["bar"] {
-            try config.parseBar(bar)
+            config.parseBar(bar)
         }
         if let plugins = fields["plugins"] {
-            config.plugins = try ids(plugins, "plugins")
+            config.plugins = config.ids(plugins, "plugins")
         }
         if let disabled = fields["disabledPlugins"] {
-            config.disabledPlugins = try Set(ids(disabled, "disabledPlugins"))
+            config.disabledPlugins = Set(config.ids(disabled, "disabledPlugins"))
         }
         if let settings = fields["settings"] {
-            config.settings = try parseSettings(settings)
+            config.parseSettings(settings)
         }
         if let packages = fields["packages"] {
-            config.packages = try parsePackages(packages)
+            config.parsePackages(packages)
         }
         return config
     }
 
-    private static func parsePackages(_ value: JSON) throws -> [PackageSource] {
-        guard let entries = value.array else { throw ShellConfigError(path: "packages", reason: "must be an array of package sources") }
+    private mutating func warn(_ path: String, _ reason: String) {
+        warnings.append(ShellConfigError(path: path, reason: reason))
+    }
+
+    private mutating func parsePackages(_ value: JSON) {
+        guard let entries = value.array else { warn("packages", "must be an array of package sources")
+            return
+        }
         var identities = Set<PackageIdentity>()
-        return try entries.enumerated().map { index, entry in
+        for (index, entry) in entries.enumerated() {
             let path = "packages[\(index)]"
             guard let raw = entry.string ?? entry["source"]?.string else {
-                throw ShellConfigError(path: path, reason: "must be a source string or an object with a source")
+                warn(path, "must be a source string or an object with a source")
+                continue
             }
-            let source: PackageSource
             do {
-                source = try PackageSource.parse(raw, base: nil)
+                let source = try PackageSource.parse(raw, base: nil)
+                if identities.insert(source.identity).inserted {
+                    packages.append(source)
+                } else {
+                    warn(path, "declares \(source.identity) twice")
+                }
             } catch {
-                throw ShellConfigError(path: path, reason: "\(error)")
+                warn(path, "\(error)")
             }
-            guard identities.insert(source.identity).inserted else {
-                throw ShellConfigError(path: path, reason: "declares \(source.identity) twice")
-            }
-            return source
         }
     }
 
-    private mutating func parseBar(_ bar: JSON) throws {
+    private mutating func parseBar(_ bar: JSON) {
         let key = Self.revealMenuBarKey
-        guard let sections = bar.object else { throw ShellConfigError(path: "bar", reason: "must be an object") }
-        if let unknown = sections.keys.sorted().first(where: { BarSection(rawValue: $0) == nil && $0 != key }) {
-            throw ShellConfigError(path: "bar.\(unknown)", reason: "is not left, center, right or \(key)")
+        guard let sections = bar.object else { warn("bar", "must be an object")
+            return
+        }
+        for unknown in sections.keys.sorted() where BarSection(rawValue: unknown) == nil && unknown != key {
+            warn("bar.\(unknown)", "is not left, center, right or \(key)")
         }
         if let reveal = sections[key] {
-            guard let value = reveal.bool else { throw ShellConfigError(path: "bar.\(key)", reason: "must be true or false") }
-            revealMenuBar = value
+            if let value = reveal.bool {
+                revealMenuBar = value
+            } else {
+                warn("bar.\(key)", "must be true or false")
+            }
         }
         if BarSection.allCases.contains(where: { sections[$0.rawValue] != nil }) {
-            self.bar = try Dictionary(uniqueKeysWithValues: BarSection.allCases.map { section in
-                try (section, sections[section.rawValue].map { try Self.ids($0, "bar.\(section.rawValue)") } ?? [])
-            })
+            for section in BarSection.allCases {
+                let ids = sections[section.rawValue].map { ids($0, "bar.\(section.rawValue)") } ?? []
+                self.bar[section] = ids
+            }
         }
     }
 
-    private static func ids(_ value: JSON, _ path: String) throws -> [PluginID] {
-        guard let items = value.array else { throw ShellConfigError(path: path, reason: "must be an array of plugin ids") }
-        return try items.enumerated().map { index, item in
+    private mutating func ids(_ value: JSON, _ path: String) -> [PluginID] {
+        guard let items = value.array else {
+            warn(path, "must be an array of plugin ids")
+            return []
+        }
+        return items.enumerated().compactMap { index, item in
             guard let raw = item.string, let id = PluginID(raw) else {
-                throw ShellConfigError(path: "\(path)[\(index)]", reason: "is not a plugin id")
+                warn("\(path)[\(index)]", "is not a plugin id")
+                return nil
             }
             return id
         }
     }
 
-    private static func parseSettings(_ settings: JSON) throws -> [PluginID: JSON] {
-        guard let entries = settings.object else {
-            throw ShellConfigError(path: "settings", reason: "must be an object keyed by plugin id")
+    private mutating func parseSettings(_ value: JSON) {
+        guard let entries = value.object else { warn("settings", "must be an object keyed by plugin id")
+            return
         }
-        return try Dictionary(uniqueKeysWithValues: entries.map { key, value in
-            guard let id = PluginID(key) else { throw ShellConfigError(path: "settings.\(key)", reason: "is not a plugin id") }
-            return (id, value)
-        })
+        for (key, value) in entries.sorted(by: { $0.key < $1.key }) {
+            if let id = PluginID(key) {
+                settings[id] = value
+            } else {
+                warn("settings.\(key)", "is not a plugin id")
+            }
+        }
     }
 
     public struct Resolution: Equatable, Sendable {
@@ -188,6 +209,7 @@ public extension ShellConfig {
 
     static func applying(_ change: Change, to json: JSON) throws -> JSON {
         let config = try parse(json)
+        guard config.warnings.isEmpty else { throw config.warnings[0] }
         var fields = json.object ?? [:]
         var bar = config.bar
         var plugins = config.plugins

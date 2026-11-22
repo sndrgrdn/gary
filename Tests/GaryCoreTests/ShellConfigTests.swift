@@ -122,9 +122,12 @@ struct ShellConfigTests {
         #expect(try parsed.settings[id("gary.clock")] == .object(["hour12": .bool(true)]))
     }
 
-    @Test func `rejects malformed files with their path`() {
+    @Test func `rejects A root that is not an object`() {
+        #expect(throws: ShellConfigError(path: "root", reason: "must be an object")) { try config("[]") }
+    }
+
+    @Test func `skips each malformed entry with A warning and keeps the rest`() throws {
         let cases: [(String, ShellConfigError)] = [
-            ("[]", ShellConfigError(path: "root", reason: "must be an object")),
             (#"{"bar": []}"#, ShellConfigError(path: "bar", reason: "must be an object")),
             (#"{"bar": {"top": []}}"#, ShellConfigError(path: "bar.top", reason: "is not left, center, right or revealMenuBar")),
             (#"{"bar": {"revealMenuBar": "no"}}"#, ShellConfigError(path: "bar.revealMenuBar", reason: "must be true or false")),
@@ -132,9 +135,18 @@ struct ShellConfigTests {
             (#"{"disabledPlugins": "gary.clock"}"#, ShellConfigError(path: "disabledPlugins", reason: "must be an array of plugin ids")),
             (#"{"settings": {"clock": {}}}"#, ShellConfigError(path: "settings.clock", reason: "is not a plugin id")),
         ]
-        for (text, error) in cases {
-            #expect(throws: error, "\(text)") { try config(text) }
+        for (text, warning) in cases {
+            #expect(try config(text).warnings == [warning], "\(text)")
         }
+        let parsed = try config(#"""
+        {"bar": {"right": ["acme.weather", "Weather", 3, "gary.clock"], "revealMenuBar": "no"},
+         "settings": {"clock": {}, "gary.clock": {"hour12": true}}}
+        """#)
+        #expect(try parsed.bar[.right] == [id("acme.weather"), id("gary.clock")])
+        #expect(parsed.revealMenuBar)
+        #expect(try parsed.settings == [id("gary.clock"): .object(["hour12": .bool(true)])])
+        #expect(parsed.warnings.map(\.path) == ["bar.revealMenuBar", "bar.right[1]", "bar.right[2]", "settings.clock"])
+        #expect(try parsed.resolve(standard).bar[.right] == [id("acme.weather"), id("gary.clock")])
     }
 }
 
@@ -199,7 +211,9 @@ struct ShellConfigChangeTests {
         #expect(try ShellConfig.parse(next).bar[.right]?.last == widget)
     }
 
-    @Test func `refuses to edit an invalid file`() {
-        #expect(throws: ShellConfigError.self) { try apply(.enable(widget, bar: .right), to: #"{"bar": []}"#) }
+    @Test func `refuses to edit A file with A malformed entry`() {
+        #expect(throws: ShellConfigError(path: "bar", reason: "must be an object")) {
+            try apply(.enable(widget, bar: .right), to: #"{"bar": []}"#)
+        }
     }
 }
