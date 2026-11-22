@@ -66,6 +66,7 @@ extension Skill {
     | `series` | The series, each `{ values, mark, color, smooth }`. `values` is an array of numbers. `mark` is \(ChartSeries.Mark.allCases.map { "`\"\($0.rawValue)\"`" }.joined(separator: ", ")), `"line"` by default. `color` is a paint, the node's `color` by default. `smooth: true` curves a line or area through its points. |
     | `min`, `max` | The range of the y axis. Without them the lowest and highest values set it. A value outside the range draws at its edge. |
     | `axes` | `true` draws axes with labels and grid lines. Without it the chart is a sparkline that fills the node. |
+    | `labels` | Strings that label the x axis, one per value index, in the node's `font` and `color`, such as hours under a forecast. An empty string leaves that index unlabelled. Each label centres under its value, so the first reaches past the chart's left edge by half its width. |
 
     ```ts
     { type: "chart", width: 80, height: 20, min: 0, max: 100, series: [{ values: cpu, mark: "area", color: "alpha(accent, 0.4)", smooth: true }] }

@@ -92,6 +92,7 @@ struct ChartNode: View {
     let chart: Node.Chart
     let theme: Theme
     let color: RGBA
+    let font: NSFont
 
     var body: some View {
         let domain = chart.domain
@@ -109,7 +110,23 @@ struct ChartNode: View {
         .chartXScale(domain: hasBars ? -0.5...(last + 0.5) : 0...last)
         .chartYScale(domain: domain)
         .chartLegend(.hidden)
-        .chartXAxis(chart.axes ? .automatic : .hidden)
+        .chartXAxis(chart.axes || !chart.labels.isEmpty ? .automatic : .hidden)
+        .chartXAxis {
+            if chart.labels.isEmpty {
+                AxisMarks()
+            } else {
+                AxisMarks(preset: .aligned, values: chart.labels.indices.filter { !chart.labels[$0].isEmpty }.map(Double.init)) { value in
+                    if chart.axes {
+                        AxisGridLine()
+                        AxisTick()
+                    }
+                    AxisValueLabel {
+                        Text(verbatim: value.as(Double.self).map { chart.labels[Int($0)] } ?? "")
+                            .font(Font(font as CTFont)).foregroundStyle(Color(color))
+                    }
+                }
+            }
+        }
         .chartYAxis(chart.axes ? .automatic : .hidden)
     }
 

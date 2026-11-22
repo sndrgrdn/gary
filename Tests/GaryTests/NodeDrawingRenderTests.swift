@@ -86,6 +86,17 @@ struct NodeDrawingRenderTests {
         #expect(image[20, 20].alpha == 0)
     }
 
+    @Test func `a chart with labels draws them along its x axis in the node's color`() throws {
+        func redPixels(_ labels: String) throws -> Int {
+            let image = try render(##"""
+            {"type":"chart","width":120,"height":40,"color":"#ff0000",\##(labels)"series":[{"values":[1,3,2,4],"color":"#0000ff"}]}
+            """##)
+            return (0..<120).reduce(0) { count, x in count + (0..<40).count { isRed(image[x, $0]) } }
+        }
+        #expect(try redPixels("") == 0)
+        #expect(try redPixels(#""labels":["18","","20","21"],"#) > 10)
+    }
+
     @Test func `an image with its own color draws its shape filled with that color`() throws {
         let file = FileManager.default.temporaryDirectory.appending(path: "gary-tint-\(UUID().uuidString).png")
         defer { try? FileManager.default.removeItem(at: file) }

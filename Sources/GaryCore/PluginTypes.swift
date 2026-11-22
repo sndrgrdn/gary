@@ -255,7 +255,7 @@ public enum PluginTypes {
         case .chart:
             [
                 "series: { values: number[]; mark?: \(union(ChartSeries.Mark.allCases.map(\.rawValue))); color?: Paint; smooth?: boolean }[];",
-                "min?: number;", "max?: number;", "axes?: boolean;",
+                "min?: number;", "max?: number;", "axes?: boolean;", "labels?: string[];",
             ]
         case .grid: ["columns: number;", "children?: Node[];"]
         case .shader: ["path: string;", "function: string;", "args?: number[];", "animated?: boolean;"]

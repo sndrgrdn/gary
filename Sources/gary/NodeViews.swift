@@ -230,7 +230,7 @@ struct NodeView: View {
         case let .shape(shape):
             ShapeNode(shape: shape, theme: theme, color: look.color)
         case let .chart(chart):
-            ChartNode(chart: chart, theme: theme, color: look.color)
+            ChartNode(chart: chart, theme: theme, color: look.color, font: nsFont(look.font))
         case let .grid(_, columns):
             GridNode(node: node, columns: columns, theme: theme, gap: gap, align: look.align ?? .leading)
         case let .shader(shader):

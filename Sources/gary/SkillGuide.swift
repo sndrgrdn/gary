@@ -309,7 +309,7 @@ extension Skill {
     | `input` | `value`, `placeholder`, `change`, and `submit` | the text. `change` and `submit` name the actions. |
     | `spacer` | none. It fills the free space in a row or column, and a row with a spacer spans the width of its column, so the items after the spacer line up at the trailing edge. | `null` |
     | `shape` | `viewBox` and `paths`, SVG paths to fill and stroke. The Drawing section covers it. | `null` |
-    | `chart` | `series`, `min`, `max`, and `axes`. The Drawing section covers it. | `null` |
+    | `chart` | `series`, `min`, `max`, `axes`, and `labels`. The Drawing section covers it. | `null` |
     | `grid` | `children` and `columns`, the number of cells in each row | `null` |
     | `shader` | `path`, `function`, `args`, and `animated`, a Metal function that draws the node. The Drawing section covers it. | `null` |
 

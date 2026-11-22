@@ -74,12 +74,14 @@ public extension Node {
         public var min: Double?
         public var max: Double?
         public var axes: Bool
+        public var labels: [String]
 
-        public init(_ series: [ChartSeries], min: Double? = nil, max: Double? = nil, axes: Bool = false) {
+        public init(_ series: [ChartSeries], min: Double? = nil, max: Double? = nil, axes: Bool = false, labels: [String] = []) {
             self.series = series
             self.min = min
             self.max = max
             self.axes = axes
+            self.labels = labels
         }
 
         public var domain: ClosedRange<Double> {
@@ -161,7 +163,14 @@ extension NodeReader {
         if let low, let high, high <= low {
             throw fail("max must be greater than min")
         }
-        return try Node.Chart(series, min: low, max: high, axes: flag(fields["axes"], "axes") ?? false)
+        let labels = try fields["labels"].flatMap { value -> [String]? in
+            guard value != .null else { return nil }
+            let items = value.array ?? []
+            let labels = items.compactMap(\.string)
+            guard value.array != nil, labels.count == items.count else { throw fail("labels must be an array of strings") }
+            return labels
+        }
+        return try Node.Chart(series, min: low, max: high, axes: flag(fields["axes"], "axes") ?? false, labels: labels ?? [])
     }
 
     func columns() throws -> Int {

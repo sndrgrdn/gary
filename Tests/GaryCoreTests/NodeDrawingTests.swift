@@ -89,6 +89,8 @@ struct NodeDrawingTests {
         #expect(Node.Chart([ChartSeries([1, 2])], min: 0).domain == 0...2)
         #expect(Node.Chart([ChartSeries([100, 100])], max: 100).domain == 99...100)
         #expect(Node.Chart([]).domain == 0...1)
+        #expect(try parse(#"{"type":"chart","series":[],"labels":["18:00","","20:00"]}"#).content
+            == .chart(Node.Chart([], labels: ["18:00", "", "20:00"])))
     }
 
     @Test(arguments: [
@@ -98,6 +100,7 @@ struct NodeDrawingTests {
         (#"{"type":"chart","series":[{"values":[1],"mark":"pie"}]}"#, #"series[0].mark must be one of "line", "area", "bar""#),
         (#"{"type":"chart","series":[],"min":5,"max":5}"#, "max must be greater than min"),
         (#"{"type":"chart","series":[],"axes":"yes"}"#, "axes must be true or false"),
+        (#"{"type":"chart","series":[],"labels":["a",1]}"#, "labels must be an array of strings"),
     ])
     func `a malformed chart fails with the field that is wrong`(_ text: String, _ reason: String) {
         #expect(throws: NodeError(path: "root", reason: reason)) { try parse(text) }
