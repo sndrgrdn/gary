@@ -307,3 +307,29 @@ Run on 2026-11-22 with the screen on and unlocked, release builds, 5 runs per si
 - S5 still parses the whole 200 KB state in JavaScript on every render.
 - A node that gains or loses `shadow`, `clip`, `material`, `colorScheme`, a click action, or a `loop` still rebuilds its subtree. These branches predate unit 3.
 - `JSON` is no longer `Decodable`. Nothing in the repository decoded it with `Codable`.
+
+## One shared JavaScriptCore VM: main 4ba2e1a against 3f48125
+
+3f48125 runs every plugin in one `JSVirtualMachine`, with a context per plugin, through `PluginEngine`. Measured on 22 November 2026, Apple M4 Pro, with Sander's own Gary and other sessions running. Load average was 1.7 to 4.1, so the sides alternate.
+
+    REVS="4ba2e1a 3f48125" RUNS=5 SECONDS_PER_RUN=60 scripts/bench/engine.sh
+
+`engine.sh` builds each commit from `git archive` with `EngineBench.swift` added to its tests, in release with `-enable-testing`, and runs one test process per run. On a commit without `PluginEngine` it drops the lines that name the engine. `engine.py` prints the table.
+
+`EngineBench` loads Sander's plugins from `~/Developer/gary-plugins` with their real capabilities: both dinky kinds, front-app, weather, battery, clock, and the theme service and menu. It adds `bench.busy` as a shown panel at 1000 nodes and 30 Hz. Every 150 to 250 ms, each at random, it publishes `clock` and `battery` and calls dinky's `focus-changed`, which runs three real `dinky` commands. The wait of a bar widget runs from the publish until its queue has run the update: the topic handler, the render and the node parse. A marker queued behind the update records it. Memory is the process footprint above the footprint before the first plugin loaded, sampled each second. After the 60 s, a runaway widget spins in `onAction`.
+
+| 5 runs each, median (range) | main 4ba2e1a, a VM per plugin | 3f48125, one VM          |
+| --------------------------- | ----------------------------- | ------------------------ |
+| Bar widget wait p50         | 0.40 ms (0.36 to 0.41)        | 0.62 (0.56 to 0.69)      |
+| p95                         | 0.63 ms (0.57 to 0.67)        | 1.92 (1.88 to 2.40)      |
+| max                         | 1.61 ms (1.53 to 4.08)        | 6.51 (5.25 to 6.86)      |
+| Plugin memory               | 23.9 MB (23.6 to 24.8)        | 16.2 (15.3 to 17.9)      |
+| False kills                 | 0                             | 0                        |
+| Runaway stopped after       | 104 ms (103 to 104), 5 of 5   | 103 (103 to 104), 5 of 5 |
+| Other plugins kept running  | 5 of 5                        | 5 of 5                   |
+
+- Each run took 862 to 894 widget samples, from clock, weather and battery. Dinky's state did not change, so the hub dropped its publishes, and dinky's widget and front-app took no samples. The panel delivered 30.3 to 30.5 frames a second on both sides, and the only failure in any run was the deliberate runaway.
+- One VM uses 7.7 MB less, without Effect. The ranges do not overlap.
+- One VM adds about 1.3 ms at p95, and the ranges do not overlap. The p95 was 2.0 ms or less in 4 of the 5 runs and 2.40 ms in the fifth.
+- The limiter is the engine lock. An unreported run that timed the lock showed bar widgets waiting 0.8 to 1.0 ms at p95 to take it. Most of that wait is behind the panel, which holds the lock 0.09 ms at p50, 1.0 ms at p95 and up to 5.5 ms for its render and `JSON.stringify`. Clock and weather also wait for each other, because one `clock` publish wakes both. The lock was held 3.4% of the time.
+- Before the change, JavaScriptCore stopped healthy plugins in a shared VM. In the spike harness, with a callback that recorded each request and never stopped anything, JavaScriptCore asked to stop the panel 0.2 ms into its call, after 0.2 ms of thread CPU (1 request in 3 runs of 60 s). Its watchdog keeps one CPU deadline per VM, and that deadline did not come from the call that was running. The engine now stops a call only when its own record says the call is at least 100 ms old.

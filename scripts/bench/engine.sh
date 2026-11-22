@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+
+read -r -a revs <<< "${REVS:?set REVS to the commits to compare, base first}"
+RUNS="${RUNS:-5}"
+SECONDS_PER_RUN="${SECONDS_PER_RUN:-60}"
+OUT="${OUT:-tmp/bench/engine-$(date +%Y%m%d-%H%M%S).jsonl}"
+toolchain="$(dirname "$(xcrun --find swift)")/.."
+mkdir -p tmp/bench
+for rev in "${revs[@]}"; do
+    dir="tmp/bench/engine/$rev"
+    rm -rf "$dir"
+    mkdir -p "$dir"
+    git archive "$rev" | tar -x -C "$dir"
+    if [[ -f "$dir/Sources/gary/PluginEngine.swift" ]]; then
+        cp scripts/bench/EngineBench.swift "$dir/Tests/GaryTests/"
+    else
+        grep -v benchEngine scripts/bench/EngineBench.swift > "$dir/Tests/GaryTests/EngineBench.swift"
+    fi
+    swift build --package-path "$dir" -c release --build-tests -Xswiftc -enable-testing --jobs 4 \
+        -Xswiftc -plugin-path -Xswiftc "$toolchain/lib/swift/host/plugins/testing" 2>&1 | grep -E 'error|Compiling gary|Build complete' || true
+done
+for run in $(seq "$RUNS"); do
+    shift_by=$(((run - 1) % ${#revs[@]}))
+    for rev in "${revs[@]:shift_by}" "${revs[@]:0:shift_by}"; do
+        echo "run=$run $rev"
+        GARY_ENGINE_BENCH="$SECONDS_PER_RUN" BENCH_SIDE="$rev" swift test --package-path "tmp/bench/engine/$rev" --skip-build -c release \
+            -Xswiftc -enable-testing --filter EngineBench 2>&1 | grep '^engine_bench ' | sed "s/^engine_bench //" | tee -a "$OUT"
+    done
+done
+python3 scripts/bench/engine.py "$OUT"
