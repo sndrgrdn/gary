@@ -6,6 +6,7 @@ public enum Permission: String, CaseIterable, Sendable {
     case calendars
     case fullDiskAccess = "full-disk-access"
     case location
+    case notifications
     case screenRecording = "screen-recording"
 
     public var name: String {
@@ -15,21 +16,23 @@ public enum Permission: String, CaseIterable, Sendable {
         case .calendars: "Calendars"
         case .fullDiskAccess: "Full Disk Access"
         case .location: "Location"
+        case .notifications: "Notifications"
         case .screenRecording: "Screen Recording"
         }
     }
 
     public var settingsPane: URL {
-        let anchor = switch self {
-        case .accessibility: "Privacy_Accessibility"
-        case .bluetooth: "Privacy_Bluetooth"
-        case .calendars: "Privacy_Calendars"
-        case .fullDiskAccess: "Privacy_AllFiles"
-        case .location: "Privacy_LocationServices"
-        case .screenRecording: "Privacy_ScreenCapture"
+        let privacy = "com.apple.preference.security?Privacy_"
+        let pane = switch self {
+        case .accessibility: privacy + "Accessibility"
+        case .bluetooth: privacy + "Bluetooth"
+        case .calendars: privacy + "Calendars"
+        case .fullDiskAccess: privacy + "AllFiles"
+        case .location: privacy + "LocationServices"
+        case .notifications: "com.apple.Notifications-Settings.extension?id=com.sndrgrdn.gary"
+        case .screenRecording: privacy + "ScreenCapture"
         }
-        return URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)")
-            ?? URL(filePath: "/System/Applications/System Settings.app")
+        return URL(string: "x-apple.systempreferences:\(pane)") ?? URL(filePath: "/System/Applications/System Settings.app")
     }
 }
 

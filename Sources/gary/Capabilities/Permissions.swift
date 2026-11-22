@@ -270,6 +270,13 @@ extension Permission {
             case "notDetermined": return .notAsked
             default: return .denied
             }
+        case .notifications:
+            switch NotificationPoster.authorization {
+            case .authorized, .provisional: return .granted
+            case .notDetermined: return .notAsked
+            case .denied: return .denied
+            default: return .notGranted
+            }
         case .screenRecording:
             return CGPreflightScreenCaptureAccess() ? .granted : .notGranted
         }
@@ -288,7 +295,7 @@ extension Permission {
             _ = CGRequestScreenCaptureAccess()
             NSWorkspace.shared.open(settingsPane)
             return "asked macOS for Screen Recording and opened \(pane). Turn Gary on there, then quit and reopen Gary."
-        case .location, .bluetooth, .calendars:
+        case .location, .bluetooth, .calendars, .notifications:
             guard current == .notAsked else {
                 NSWorkspace.shared.open(settingsPane)
                 return "Gary was refused \(name) before, so macOS shows no prompt. Opened \(pane). Turn Gary on there."
@@ -296,6 +303,7 @@ extension Permission {
             switch self {
             case .location: LocationAccess.shared.request()
             case .calendars: CalendarStore.request()
+            case .notifications: NotificationPoster.request()
             default: BluetoothAccess.shared.request()
             }
             return "macOS shows its \(name) prompt for Gary. Choose Allow."

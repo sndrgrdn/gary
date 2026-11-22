@@ -34,6 +34,11 @@ const permissions: Record<
     general: "Lets plugins show the name of your Wi-Fi network.",
     uses: { wifi: "show the name of your Wi-Fi network" },
   },
+  notifications: {
+    symbol: "bell.badge.fill",
+    general: "Lets plugins post notifications.",
+    uses: { notify: "post notifications" },
+  },
   "screen-recording": {
     symbol: "rectangle.dashed.badge.record",
     general: "Lets plugins show the icons of your menu bar items.",

@@ -91,7 +91,7 @@ extension Skill {
             let users = Capability.all.filter { $0.permissions.contains(permission) }.map { "`\($0.name)`" }
             let asks = switch permission {
             case .accessibility: "the macOS prompt, which offers to open the Settings pane"
-            case .bluetooth, .calendars, .location: "the macOS prompt, or the Settings pane after a refusal"
+            case .bluetooth, .calendars, .location, .notifications: "the macOS prompt, or the Settings pane after a refusal"
             case .screenRecording: "the macOS prompt the first time, and the Settings pane"
             case .fullDiskAccess: "the Settings pane, since macOS has no prompt"
             }

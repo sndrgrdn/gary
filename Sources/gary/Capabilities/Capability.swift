@@ -31,6 +31,7 @@ struct Capability {
         .menubar,
         .network,
         .notifications,
+        .notify,
         .nowplaying,
         .paste,
         .permissions,
