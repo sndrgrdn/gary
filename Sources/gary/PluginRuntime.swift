@@ -298,7 +298,7 @@ private extension PluginRuntime {
             log("plugin \(id): no script time limit on this system")
         }
         let host = try check { makeHost(in: context) }
-        for capability in Capability.all where bundle.manifest.uses.contains(capability.name) {
+        for capability in Capability.all {
             capability.install?(host, self)
         }
         context.setObject(host, forKeyedSubscript: "host" as NSString)

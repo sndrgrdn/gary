@@ -12,7 +12,7 @@ struct HostExecTests {
             count = e.message;
           }
         },
-        """), uses: ["exec"])
+        """))
         #expect(try await harness.text() == "0")
         harness.runtime.perform("echo", .null)
         #expect(try await harness.text() == "3 out err")
