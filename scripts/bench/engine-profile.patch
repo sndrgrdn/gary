@@ -1,0 +1,111 @@
+diff --git a/Sources/gary/PluginEngine.swift b/Sources/gary/PluginEngine.swift
+index 1ba268d..0396ebb 100644
+--- a/Sources/gary/PluginEngine.swift
++++ b/Sources/gary/PluginEngine.swift
+@@ -23,8 +23,15 @@ final class PluginEngine: @unchecked Sendable {
+     }
+ 
+     func run(_ plugin: PluginID, in context: JSContext, _ body: () -> JSValue?) throws -> JSValue? {
++        let behind = state.withLock { current?.plugin.rawValue }
++        let asked = now()
+         entry.lock()
+-        defer { entry.unlock() }
++        let took = now()
++        defer {
++            let held = now() - took
++            entry.unlock()
++            EngineProfile.shared.add(plugin.rawValue, behind: behind, wait: took - asked, hold: held)
++        }
+         let result = timed(plugin, body)
+         guard result.stopped else { return result.value }
+         _ = timed(plugin) { context.evaluateScript("0") }
+@@ -63,3 +70,18 @@ final class PluginEngine: @unchecked Sendable {
+         }, Unmanaged.passUnretained(self).toOpaque())
+     }
+ }
++
++final class EngineProfile: @unchecked Sendable {
++    static let shared = EngineProfile()
++    private let lock = NSLock()
++    private var entries: [(plugin: String, behind: String?, wait: Double, hold: Double, at: Double)] = []
++
++    func add(_ plugin: String, behind: String?, wait: Double, hold: Double) {
++        let at = now()
++        lock.withLock { entries.append((plugin, behind, wait, hold, at)) }
++    }
++
++    func snapshot() -> [(plugin: String, behind: String?, wait: Double, hold: Double, at: Double)] {
++        lock.withLock { entries }
++    }
++}
+diff --git a/scripts/bench/EngineBench.swift b/scripts/bench/EngineBench.swift
+index 49e4853..b94264c 100644
+--- a/scripts/bench/EngineBench.swift
++++ b/scripts/bench/EngineBench.swift
+@@ -33,6 +33,7 @@ private final class Record: @unchecked Sendable {
+     private var failed: [String] = []
+     private var loaded: Set<String> = []
+     private var outputs: [String: Int] = [:]
++    private(set) var frames: [[String: Double]] = []
+ 
+     func start() {
+         lock.withLock { recording = true }
+@@ -56,8 +57,16 @@ private final class Record: @unchecked Sendable {
+             switch event {
+             case .loaded: loaded.insert(name)
+             case let .failed(reason): failed.append("\(name): \(reason)")
+-            case .output: if recording {
++            case let .output(_, trace): if recording {
+                     outputs[name, default: 0] += 1
++                    if name.hasPrefix("bench.busy") {
++                        var stages: [String: Double] = [:]
++                        for field in trace.timings.fields.split(separator: " ") {
++                            let parts = field.split(separator: "=")
++                            stages[String(parts[0].dropLast(3))] = Double(parts[1])
++                        }
++                        frames.append(stages)
++                    }
+                 }
+             case .surface, .call: break
+             }
+@@ -192,13 +201,32 @@ struct EngineBench {
+         let driver = try bench.drive(runtimes)
+         try await Task.sleep(for: .seconds(5))
+         bench.record.start()
++        let profileStart = now()
+         var memory: [Double] = []
+         for _ in 0..<Int(seconds) {
+             try await Task.sleep(for: .seconds(1))
+             memory.append(footprint() - baseline)
+         }
+         bench.record.stop()
++        let profileEnd = now()
+         driver.stop()
++        let holds = EngineProfile.shared.snapshot().filter { $0.at >= profileStart && $0.at <= profileEnd }
++        var profile: [String: Any] = ["busyFraction": holds.map(\.hold).reduce(0, +) / (profileEnd - profileStart)]
++        for plugin in Set(holds.map(\.plugin)) {
++            let mine = holds.filter { $0.plugin == plugin }
++            var behind: [String: Double] = [:]
++            for each in mine {
++                behind[each.behind ?? "none", default: 0] += each.wait * 1000
++            }
++            profile[plugin] = ["hold": summary(mine.map { $0.hold * 1000 }), "wait": summary(mine.map { $0.wait * 1000 }), "waitBehindMs": behind, "holdTotalMs": mine.map(\.hold).reduce(0, +) * 1000]
++        }
++        let frames = bench.record.frames
++        var split: [String: Any] = ["n": frames.count]
++        for stage in Set(frames.flatMap(\.keys)) {
++            split[stage] = summary(frames.map { $0[stage] ?? 0 })
++        }
++        split["inLock"] = summary(frames.map { frame in ["handler", "js_parse", "render", "stringify"].map { frame[$0] ?? 0 }.reduce(0, +) })
++        profile["busyFrames"] = split
+         let runaway = try await bench.runaway()
+         let waits = bench.record.allWaits
+         let failures = bench.record.failures
+@@ -214,6 +242,7 @@ struct EngineBench {
+             "failures": failures,
+             "outputs": bench.record.outputCounts,
+             "falseKills": failures.count { $0.contains(stopMessage) && !$0.hasPrefix(runawayID) },
++            "profile": profile,
+             "runaway": runaway.merging(["othersRunning": runtimes.values.allSatisfy { runtime in runtime.queue.sync { runtime.isRunning } }]) { $1 },
+         ]
+         let data = try JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])

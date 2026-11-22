@@ -333,3 +333,25 @@ Run on 2026-11-22 with the screen on and unlocked, release builds, 5 runs per si
 - One VM adds about 1.3 ms at p95, and the ranges do not overlap. The p95 was 2.0 ms or less in 4 of the 5 runs and 2.40 ms in the fifth.
 - The limiter is the engine lock. An unreported run that timed the lock showed bar widgets waiting 0.8 to 1.0 ms at p95 to take it. Most of that wait is behind the panel, which holds the lock 0.09 ms at p50, 1.0 ms at p95 and up to 5.5 ms for its render and `JSON.stringify`. Clock and weather also wait for each other, because one `clock` publish wakes both. The lock was held 3.4% of the time.
 - Before the change, JavaScriptCore stopped healthy plugins in a shared VM. In the spike harness, with a callback that recorded each request and never stopped anything, JavaScriptCore asked to stop the panel 0.2 ms into its call, after 0.2 ms of thread CPU (1 request in 3 runs of 60 s). Its watchdog keeps one CPU deadline per VM, and that deadline did not come from the call that was running. The engine now stops a call only when its own record says the call is at least 100 ms old.
+
+## Who holds the engine lock: profile of main be2bf7f
+
+Profiled on 22 November 2026, Apple M4 Pro, load average 3.1 to 5.9, in runs that are not reported as timings. `engine-profile.patch` times every `PluginEngine.run`: how long it waited for the lock, which plugin held the lock when it asked, and how long it held it. With `GARY_TRACE=1` it also splits each busy-panel frame into the stages Gary already traces.
+
+    GARY_TRACE=1 PATCH=scripts/bench/engine-profile.patch REVS=be2bf7f RUNS=1 scripts/bench/engine.sh
+
+The patch applies only to commits that have `PluginEngine`. The holder is read just before the wait, so a wait near zero may name a plugin that had already finished.
+
+Three 60 s runs at be2bf7f, one with tracing and GC logging (`JSC_logGC=true`), one without either, one through the command above:
+
+| Holder of the lock      | Held p95, ms | Held max, ms | Held in 60 s, ms | Bar widget time spent waiting behind it, ms |
+| ----------------------- | ------------ | ------------ | ---------------- | ------------------------------------------- |
+| dinky's service         | 8.1 to 11.0  | 19 to 21     | 1299 to 2830     | 224 to 841                                  |
+| `bench.busy` panel      | 0.73 to 1.01 | 5.5 to 6.1   | 869 to 1678      | 78 to 255                                   |
+| clock and weather       | 0.12 to 0.20 | 1.1 to 4.2   | 32 to 62 each    | 82 to 161, each waiting for the other       |
+| JavaScriptCore full GCs | 2.5          | 3.7          | 100 in 71 GCs    | not attributed                              |
+
+- The limiter is dinky's service, not the panel. Each `focus-changed` call runs three `host.exec` commands. Since 7c466cf, `ExecRuns.start` creates two scratch files and spawns the process on the plugin queue inside the JavaScript call, so the spawn holds the engine lock: 8 to 11 ms at p95, up to 21 ms. 3f48125, measured above, still spawned on a global queue, so its 1.92 ms p95 is not today's main.
+- The widget waits at be2bf7f in these runs were p95 2.9 and 10.2 ms, max 10.5 and 16 ms.
+- A busy-panel frame holds the lock 0.32 to 0.89 ms at p50: `render` 0.13 to 0.41, `JSON.stringify` 0.11 to 0.28, `JSON.parse` of the state 0.06 to 0.13, the timer handler 0.01 to 0.02. Swift parses the JSON and the nodes after the lock is released, 7.1 ms at p50 in the traced run.
+- Garbage collection is a small share: the busiest log had 71 full collections in about 70 s, 1.3 ms at p50 and 3.7 ms at most.

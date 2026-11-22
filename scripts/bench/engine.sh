@@ -13,10 +13,13 @@ for rev in "${revs[@]}"; do
     rm -rf "$dir"
     mkdir -p "$dir"
     git archive "$rev" | tar -x -C "$dir"
+    mkdir -p "$dir/scripts/bench"
+    cp scripts/bench/EngineBench.swift "$dir/scripts/bench/"
+    [[ -z "${PATCH:-}" ]] || patch -s -d "$dir" -p1 < "$PATCH"
     if [[ -f "$dir/Sources/gary/PluginEngine.swift" ]]; then
-        cp scripts/bench/EngineBench.swift "$dir/Tests/GaryTests/"
+        cp "$dir/scripts/bench/EngineBench.swift" "$dir/Tests/GaryTests/"
     else
-        grep -v benchEngine scripts/bench/EngineBench.swift > "$dir/Tests/GaryTests/EngineBench.swift"
+        grep -v benchEngine "$dir/scripts/bench/EngineBench.swift" > "$dir/Tests/GaryTests/EngineBench.swift"
     fi
     swift build --package-path "$dir" -c release --build-tests -Xswiftc -enable-testing --jobs 4 \
         -Xswiftc -plugin-path -Xswiftc "$toolchain/lib/swift/host/plugins/testing" 2>&1 | grep -E 'error|Compiling gary|Build complete' || true
