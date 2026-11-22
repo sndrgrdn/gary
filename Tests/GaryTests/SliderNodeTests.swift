@@ -56,9 +56,11 @@ struct SliderNodeTests {
             let bitmap = try NSBitmapImageRep(cgImage: #require(renderer.cgImage))
             return (0..<bitmap.pixelsWide).count { (bitmap.colorAt(x: $0, y: 2)?.alphaComponent ?? 0) > 0.9 }
         }
-        let now = Date().timeIntervalSince1970 * 1000
         #expect(try filled(#""value":0.2"#) == 20)
-        #expect(try (69...71).contains(filled(#""value":0.2,"rate":0.25,"at":\#(now - 2000)"#)))
-        #expect(try filled(#""value":0.2,"rate":-0.25,"at":\#(now - 2000)"#) == 0)
+        let start = Date().milliseconds
+        let advanced = try filled(#""value":0.2,"rate":0.25,"at":\#(start - 2000)"#)
+        let rendering = Date().milliseconds - start
+        #expect((69...71 + Int(rendering * 0.025)).contains(advanced))
+        #expect(try filled(#""value":0.2,"rate":-0.25,"at":\#(start - 2000)"#) == 0)
     }
 }
