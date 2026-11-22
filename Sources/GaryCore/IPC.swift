@@ -20,6 +20,7 @@ public enum Request: Equatable, Sendable {
     case requestPermission(Permission)
     case call(PluginID, method: String, arguments: [String])
     case action(PluginID, kind: PluginKind, action: String, payload: String?)
+    case key(PluginID, kind: PluginKind?, keys: [String])
 
     public static let usage: [CommandUsage] = [
         CommandUsage("ping", "Check that Gary is running.", nil),
@@ -77,6 +78,14 @@ public enum Request: Equatable, Sendable {
             """,
             "gary action you.music/panel volume 0.5",
         ),
+        CommandUsage(
+            "key <plugin>[/<kind>] <key>...",
+            """
+            Press keys in order, each named as onKey names it, as the user would. A key that is one of the plugin's hotkeys runs onHotkey. \
+            Any other key goes to the plugin's focused surface, where an input takes typed characters and onKey gets the rest.
+            """,
+            "gary key you.launcher s a f enter",
+        ),
     ]
 
     public static let callTimeout: TimeInterval = 60
@@ -113,6 +122,7 @@ public enum Request: Equatable, Sendable {
         case "permissions": return try permissions(arguments)
         case "call": return try call(arguments)
         case "action": return try action(arguments)
+        case "key": return try key(arguments)
         default: throw RequestError(description: "unknown verb \"\(verb)\"")
         }
     }
@@ -187,6 +197,12 @@ public enum Request: Equatable, Sendable {
         return .action(id, kind: kind, action: arguments[1], payload: arguments.count == 3 ? arguments[2] : nil)
     }
 
+    private static func key(_ arguments: [String]) throws -> Request {
+        guard arguments.count >= 2 else { throw RequestError(description: "key takes <plugin>[/<kind>] and one or more keys") }
+        let (id, kind) = try slot(arguments[0])
+        return .key(id, kind: kind, keys: Array(arguments.dropFirst()))
+    }
+
     public var verb: String {
         switch self {
         case .ping: "ping"
@@ -203,6 +219,7 @@ public enum Request: Equatable, Sendable {
         case .permissions, .requestPermission: "permissions"
         case .call: "call"
         case .action: "action"
+        case .key: "key"
         }
     }
 
@@ -215,6 +232,7 @@ public enum Request: Equatable, Sendable {
         case let .applyTheme(payload): payload.map { [$0.text] } ?? []
         case let .call(id, method, arguments): [id.rawValue, method] + arguments
         case let .action(id, kind, action, payload): ["\(id)/\(kind.rawValue)", action] + (payload.map { [$0] } ?? [])
+        case let .key(id, kind, keys): [kind.map { "\(id)/\($0.rawValue)" } ?? id.rawValue] + keys
         }
     }
 

@@ -12,17 +12,7 @@ final class SurfacePanel: NSPanel {
     }
 
     override func keyDown(with event: NSEvent) {
-        let pairs: [(NSEvent.ModifierFlags, KeyName.Modifiers)] = [(.control, .control), (.option, .option), (.shift, .shift), (.command, .command)]
-        var modifiers = KeyName.Modifiers()
-        for (flag, modifier) in pairs where event.modifierFlags.contains(flag) {
-            modifiers.insert(modifier)
-        }
-        if let onKey, let key = KeyName.name(
-            keyCode: event.keyCode,
-            characters: event.characters,
-            ignoringModifiers: event.charactersIgnoringModifiers,
-            modifiers: modifiers,
-        ) {
+        if let onKey, let key = event.keyName {
             onKey(key)
         } else {
             super.keyDown(with: event)
@@ -43,6 +33,56 @@ final class SurfacePanel: NSPanel {
 }
 
 extension NSEvent {
+    private static let modifiers: [(ModifierFlags, KeyName.Modifiers)] = [
+        (.control, .control),
+        (.option, .option),
+        (.shift, .shift),
+        (.command, .command),
+    ]
+    private static let prefixes: [(String, ModifierFlags)] = [("ctrl+", .control), ("alt+", .option), ("shift+", .shift), ("cmd+", .command)]
+
+    private static let namedCharacters: [String: Int] = [
+        "left": NSLeftArrowFunctionKey, "right": NSRightArrowFunctionKey, "down": NSDownArrowFunctionKey, "up": NSUpArrowFunctionKey,
+        "enter": NSCarriageReturnCharacter, "escape": 0x1B, "tab": NSTabCharacter, "backspace": NSDeleteCharacter,
+        "delete": NSDeleteFunctionKey, "home": NSHomeFunctionKey, "end": NSEndFunctionKey, "pageup": NSPageUpFunctionKey,
+        "pagedown": NSPageDownFunctionKey,
+    ]
+
+    var keyName: String? {
+        let held = Self.modifiers.filter { modifierFlags.contains($0.0) }.map(\.1)
+        return KeyName.name(
+            keyCode: keyCode,
+            characters: characters,
+            ignoringModifiers: charactersIgnoringModifiers,
+            modifiers: KeyName.Modifiers(held),
+        )
+    }
+
+    static func keyDown(named name: String, windowNumber: Int) -> NSEvent? {
+        var base = Substring(name)
+        var flags = ModifierFlags()
+        for (prefix, flag) in prefixes where base.count > prefix.count && base.hasPrefix(prefix) {
+            base = base.dropFirst(prefix.count)
+            flags.insert(flag)
+        }
+        let code = KeyName.named.filter { $0.value == base }.keys.min() ?? KeyCombo.keyCodes[base.lowercased()].map(UInt16.init) ?? 0
+        let unmodified = namedCharacters[String(base)].flatMap(UnicodeScalar.init).map(String.init) ?? String(base)
+        let typed = base == "tab" && flags.contains(.shift) ? "\u{19}" : unmodified
+        let event = keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: flags,
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: windowNumber,
+            context: nil,
+            characters: typed,
+            charactersIgnoringModifiers: unmodified,
+            isARepeat: false,
+            keyCode: code,
+        )
+        return event?.keyName == name ? event : nil
+    }
+
     var scrollEvent: JSON {
         let phase = if !momentumPhase.isEmpty {
             "momentum"

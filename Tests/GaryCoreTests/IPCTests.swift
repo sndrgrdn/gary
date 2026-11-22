@@ -29,6 +29,7 @@ struct IPCTests {
             .listPlugins, .call(today, method: "refresh", arguments: ["a b", "line\nbreak"]),
             .doctor, .permissions, .requestPermission(.fullDiskAccess),
             .action(today, kind: .barWidget, action: "toggle", payload: nil), .action(today, kind: .panel, action: "volume", payload: "0.5"),
+            .key(today, kind: nil, keys: ["a", " ", "shift+tab"]), .key(today, kind: .menu, keys: ["enter"]),
         ]
         for request in requests {
             #expect(!request.line.contains("\n"))

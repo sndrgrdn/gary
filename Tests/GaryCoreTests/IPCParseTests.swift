@@ -31,6 +31,8 @@ struct IPCParseTests {
             (Invocation("call", ["gary.today", "go", "1", "2"]), .call(today, method: "go", arguments: ["1", "2"])),
             (Invocation("action", ["gary.today/panel", "set"]), .action(today, kind: .panel, action: "set", payload: nil)),
             (Invocation("action", ["gary.today/panel", "set", "0.5"]), .action(today, kind: .panel, action: "set", payload: "0.5")),
+            (Invocation("key", ["gary.today", "a", "enter"]), .key(today, kind: nil, keys: ["a", "enter"])),
+            (Invocation("key", ["gary.today/menu", "cmd+k"]), .key(today, kind: .menu, keys: ["cmd+k"])),
         ]
         for (invocation, request) in cases {
             #expect(try invocation.parse() == request, "\(invocation.verb) \(invocation.arguments)")
@@ -54,6 +56,8 @@ struct IPCParseTests {
             ),
             (Invocation("action", ["gary.today/panel", "set", "1", "2"]), "action takes <plugin>/<kind>, an action and an optional payload"),
             (Invocation("action", ["gary.today", "set"]), "action takes <plugin>/<kind>, such as gary.today/panel"),
+            (Invocation("key", ["gary.today"]), "key takes <plugin>[/<kind>] and one or more keys"),
+            (Invocation("key", ["gary.today/widget", "a"]), "unknown kind \"widget\"; use bar-widget, bar, panel, overlay, menu, service"),
         ]
         for (invocation, message) in cases {
             #expect(throws: RequestError(description: message)) { try invocation.parse() }

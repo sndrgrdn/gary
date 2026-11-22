@@ -68,6 +68,8 @@ extension Shell {
             reply(.ok(permission.request()))
         case let .action(id, kind, action, payload):
             reply(click(action, payload, on: SlotKey(id: id, kind: kind)))
+        case let .key(id, kind, keys):
+            reply(press(keys, on: id, kind))
         case let .call(id, method, arguments):
             call(id, nil, method, arguments) { response in
                 guard case let .ok(text) = response, case let .string(string)? = try? JSON.parse(text) else { return reply(response) }
@@ -96,6 +98,28 @@ extension Shell {
         }
         view.send(gesture, value)
         return .ok("clicked \(action) on \(key) at \(view.screenFrame.map(describe) ?? "no frame")")
+    }
+
+    private func press(_ keys: [String], on id: PluginID, _ kind: PluginKind?) -> Response {
+        let hotkeys = enabledManifests.first { $0.id == id }?.hotkeys ?? []
+        let hotkey = { (key: String) in
+            KeyCombo.parse(key).flatMap { combo in hotkeys.first { $0.keys.keyCode == combo.keyCode && $0.keys.modifiers == combo.modifiers } }
+        }
+        if let unknown = keys.first(where: { hotkey($0) == nil && NSEvent.keyDown(named: $0, windowNumber: 0) == nil }) {
+            return .failure("\"\(unknown)\" is neither a key name that onKey gets nor a hotkey of \(id)")
+        }
+        for key in keys {
+            if let hotkey = hotkey(key) {
+                hotkeyPressed(HotkeyBinding(owner: id, hotkey: hotkey))
+                continue
+            }
+            let focused = windows.first { $0.key.slot.id == id && (kind == nil || $0.key.slot.kind == kind) && $0.value.panel.isKeyWindow }
+            guard let panel = focused?.value.panel, let event = NSEvent.keyDown(named: key, windowNumber: panel.windowNumber) else {
+                return .failure("\(kind.map { "\(id)/\($0.rawValue)" } ?? id.rawValue) has no focused surface to take \"\(key)\"")
+            }
+            NSApp.sendEvent(event)
+        }
+        return .ok("pressed \(keys.joined(separator: " "))")
     }
 
     private func mounted(_ key: SlotKey) -> [TreeHostingView] {
