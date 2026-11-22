@@ -105,6 +105,59 @@ struct PluginEffectTests {
         harness.runtime.stop()
     }
 
+    @Test func `an Effect that a handler returns runs at once, so a surface request keeps the clicked frame`() async throws {
+        let harness = try Harness("""
+        import { Effect, host } from "gary:effect";
+        let count = 0;
+        export default {
+          onAction: (name) => name === "fail" ? Effect.fail("boom") : Effect.andThen(host.toggle(), Effect.sync(() => { count += 1; })),
+          onKey: () => Effect.void,
+          render: () => ({ type: "text", text: String(count) }),
+        };
+        """)
+        #expect(try await harness.text() == "0")
+        let origin = CGRect(x: 10, y: 700, width: 40, height: 24)
+        harness.runtime.perform("open", .null, origin: origin)
+        guard case let .surface(request, _, shownAt) = try await harness.events.next() else { throw RenderError("expected a surface request") }
+        #expect(request == .toggle && shownAt == origin)
+        #expect(try await harness.text() == "1")
+        let unhandled = Listener()
+        harness.runtime.key("x") { unhandled.receive(.capability("key"), .null, Trace("test")) }
+        harness.runtime.perform("fail", .null)
+        #expect(try await harness.failure().hasPrefix("Error: the effect that onAction returned failed: Error: boom"))
+        #expect(unhandled.values.isEmpty)
+    }
+
+    @Test func `a method that returns an Effect replies with its result or its error`() async throws {
+        let harness = try Harness("""
+        import { Effect } from "gary:effect";
+        export default {
+          methods: {
+            later: (a) => Effect.as(Effect.sleep(1), { echo: a }),
+            broken: () => Effect.fail({ _tag: "HostError", message: "broke" }),
+          },
+          render: () => ({ type: "text", text: "up" }),
+        };
+        """)
+        #expect(try await harness.text() == "up")
+        let replies = Events()
+        for (method, arguments) in [("later", ["x"]), ("broken", [])] {
+            harness.runtime.call(method, arguments) { response in
+                switch response {
+                case let .ok(text): replies.append(.failed("ok \(text)"))
+                case let .failure(text): replies.append(.failed("failure \(text)"))
+                }
+            }
+        }
+        var texts: [String] = []
+        for _ in 0..<2 {
+            guard case let .failed(text) = try await replies.next() else { throw RenderError("expected a reply") }
+            texts.append(text)
+        }
+        #expect(texts.sorted() == ["failure broke", #"ok {"echo":"x"}"#])
+        harness.runtime.stop()
+    }
+
     @Test func `an effect that dies fails the plugin`() async throws {
         let harness = try Harness("""
         import { Effect } from "gary:effect";

@@ -9,7 +9,7 @@ extension Capability {
         declare namespace Gary {
           type MediaKeyName = \(MediaKey.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: " | "));
           interface MediaKeyEvent { key: MediaKeyName; repeat: boolean; modifiers: ("shift" | "control" | "option" | "command")[] }
-          interface Module { onMediaKey?(event: MediaKeyEvent, state: State): void }
+          interface Module { onMediaKey?(event: MediaKeyEvent, state: State): HandlerResult }
         }
         """,
         example: """

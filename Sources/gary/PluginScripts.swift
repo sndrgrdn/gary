@@ -61,7 +61,11 @@ enum PluginScripts {
           var a = JSON.parse(args).concat([JSON.parse(state)]);
           if (mark) mark();
           if (receive) effect.receive(a[0]);
-          return typeof f === "function" ? f.apply(exported, a) === true : null;
+          if (typeof f !== "function") return null;
+          var r = f.apply(exported, a);
+          if (effect === null || !effect.isEffect(r)) return r === true;
+          effect.run(name, r);
+          return true;
         },
         function (method, args, done, mark) {
           var f = exported.methods && exported.methods[method];
@@ -69,9 +73,10 @@ enum PluginScripts {
           var a = JSON.parse(args);
           if (mark) mark();
           var r = f.apply(null, a);
+          if (effect !== null && effect.isEffect(r)) r = effect.promise(r);
           var text = function (v) { return v === undefined ? "" : JSON.stringify(v); };
           if (!r || typeof r.then !== "function") return done(true, text(r));
-          r.then(function (v) { done(true, text(v)); }, function (x) { done(false, x instanceof Error ? x.message : String(x)); });
+          r.then(function (v) { done(true, text(v)); }, function (x) { done(false, x !== null && typeof x === "object" && "message" in x ? String(x.message) : String(x)); });
         },
         function (state, mark) {
           var s = JSON.parse(state), out = {};

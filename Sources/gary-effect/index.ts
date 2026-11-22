@@ -252,27 +252,46 @@ function exportsOf(
   };
 }
 
+function messageOf(cause: Cause.Cause<unknown>): string {
+  const error = Cause.squash(cause);
+
+  return Predicate.hasProperty(error, "message") ? String(error.message) : String(error);
+}
+
 export function forPlugin(env: Env) {
   const services = servicesOf(env);
   const scope = Scope.makeUnsafe();
   const bound = bind(services, scope);
   const topics = topicsOf(bound);
 
+  const failOn = (what: string) => (exit: Exit.Exit<unknown, unknown>) => {
+    if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause)) {
+      env.setTimeout(() => {
+        throw new Error(`${what}: ${Cause.pretty(exit.cause)}`);
+      }, 0);
+    }
+  };
+
   return {
     exports: exportsOf(env, bound, topics.stream),
     receive: topics.receive,
+    isEffect: Effect.isEffect,
     start(program: Effect.Effect<void, unknown, Scope.Scope>) {
       if (!Effect.isEffect(program)) {
         throw new TypeError("the default export's effect is not an Effect");
       }
 
-      bound.runFork(Scope.provide(program, scope)).addObserver((exit) => {
-        if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause)) {
-          env.setTimeout(() => {
-            throw new Error(`the effect stopped: ${Cause.pretty(exit.cause)}`);
-          }, 0);
-        }
-      });
+      bound.runFork(Scope.provide(program, scope)).addObserver(failOn("the effect stopped"));
+    },
+    run(handler: string, program: Effect.Effect<unknown, unknown>) {
+      bound.runFork(program).addObserver(failOn(`the effect that ${handler} returned failed`));
+    },
+    promise(program: Effect.Effect<Json | undefined, unknown>): Promise<Json | undefined> {
+      return bound
+        .runPromiseExit(program)
+        .then((exit) =>
+          Exit.isSuccess(exit) ? exit.value : Promise.reject(new Error(messageOf(exit.cause))),
+        );
     },
     close() {
       Effect.runForkWith(services)(Scope.close(scope, Exit.void));

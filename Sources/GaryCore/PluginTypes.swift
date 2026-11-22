@@ -150,14 +150,18 @@ public enum PluginTypes {
             call(...call: [method: string, ...args: string[]] | [target: { kind: Kind }, method: string, ...args: string[]]): Promise<Json | undefined>;
           }
 
+          interface HandlerResults { none: void }
+          type HandlerResult = HandlerResults[keyof HandlerResults];
+          interface MethodResults { json: Json | void | Promise<Json | void> }
+          type MethodResult = MethodResults[keyof MethodResults];
           interface Module {
             render?(state: State): Node;
-            onAction?(action: string, payload: ActionPayload, state: State): void;
-            onKey?(key: Key, state: State): boolean | void;
-            onScroll?(event: ScrollEvent, state: State): void;
-            onHotkey?(id: string, state: State): void;
-            onTopic?(event: TopicEvent, state: State): void;
-            methods?: { [name: string]: (...args: string[]) => Json | void | Promise<Json | void> };
+            onAction?(action: string, payload: ActionPayload, state: State): HandlerResult;
+            onKey?(key: Key, state: State): boolean | HandlerResult;
+            onScroll?(event: ScrollEvent, state: State): HandlerResult;
+            onHotkey?(id: string, state: State): HandlerResult;
+            onTopic?(event: TopicEvent, state: State): HandlerResult;
+            methods?: { [name: string]: (...args: string[]) => MethodResult };
             surface?: SurfaceExport;
             surfaces?: { [name: string]: SurfaceExport };
           }
@@ -265,6 +269,8 @@ public extension PluginTypes {
       interface Module {
         effect?: import("effect").Effect.Effect<void, unknown, import("effect").Scope.Scope>;
       }
+      interface HandlerResults { effect: import("effect").Effect.Effect<unknown, unknown> }
+      interface MethodResults { effect: import("effect").Effect.Effect<Json | void, unknown> }
     }
 
     declare module "\(PluginBundle.effectModule)" {

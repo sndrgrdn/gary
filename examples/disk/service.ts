@@ -21,10 +21,6 @@ export default {
   effect: Effect.repeat(refresh, Schedule.spaced("5 minutes")),
 
   methods: {
-    refresh() {
-      Effect.runFork(refresh);
-
-      return "refreshing";
-    },
+    refresh: () => Effect.as(refresh, "refreshed"),
   },
 } satisfies Gary.Service;

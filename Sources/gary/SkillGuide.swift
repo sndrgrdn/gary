@@ -260,6 +260,8 @@ extension Skill {
     } satisfies Gary.BarWidget;
     ```
 
+    A handler, such as `onAction`, `onKey`, `onScroll`, `onTopic`, or `onMediaKey`, can return an Effect, and Gary runs it at once in the plugin's scope. So `onAction() { return host.toggle(); }`, with `host` from `gary:effect`, opens the surface at the clicked node, and an `onKey` that returns an Effect has handled the key. An Effect that fails fails the plugin, as a thrown error does. A function in `methods` can return an Effect too: `host.call` and `gary call` get its result, or its error's message. An Effect that a handler neither returns nor runs does nothing, so `host.toggle();` on its own line is a mistake.
+
     For Effect style in general, follow the `effect` skill (kitlangton/skills) if it is installed. A plugin differs from the app that skill assumes:
 
     - Use `fetch`, `settings`, and `topic` from `gary:effect`, not `HttpClient`, `Config`, or environment variables.
