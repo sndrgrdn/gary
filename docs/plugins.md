@@ -77,7 +77,7 @@ Gary draws each node tree with SwiftUI. A `row` is a horizontal stack, a `column
 
 A node also takes `hovered` and `pressed`: objects of style properties that apply while the pointer is over it, and while a node with `action` is held down.
 
-`action` names what a click on a node sends to `onAction`. `rightAction`, `middleAction`, and `scrollAction` do the same for a right click, a middle click, and a scroll over the node, and a scroll sends the same event that `onScroll` gets. `tooltip` is text that Gary shows below the node when the pointer rests on it. A surface with `attach: true` opens centred below the node whose click called `host.show()` or `host.toggle()`. The `popover` example uses each of them.
+`action` names what a click on a node sends to `onAction`. `rightAction` and `middleAction` do the same for a right click and a middle click. `scrollAction` sends a scroll over the node to `onScroll`, with the name in the event's `action`. `tooltip` is text that Gary shows below the node when the pointer rests on it. A surface with `attach: true` opens centred below the node whose click called `host.show()` or `host.toggle()`. The `popover` example uses each of them.
 
 A `text` node is exactly as wide as its text, with no padding of its own. This row centers each workspace number in a 20-point cell and moves it down 1 point:
 

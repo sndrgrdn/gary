@@ -47,6 +47,7 @@ public enum PluginTypes {
             y: number;
             precise: boolean;
             phase: "began" | "changed" | "ended" | "momentum" | "none";
+            action?: string;
           }
           type StyleName = \(names("styles", in: theme));
           type FontName = \(names("fonts", in: theme));
@@ -115,7 +116,7 @@ public enum PluginTypes {
         let modules = PluginKind.allCases.map { "  type \(typeName($0.rawValue)) = \($0 == .service ? "Module" : "Rendered");" }
             .joined(separator: "\n")
         return """
-          type ActionPayload = null | number | string | ScrollEvent;
+          type ActionPayload = null | number | string;
           interface Storage {
             get(key: string): Json | undefined;
             set(key: string, value: Json | undefined): void;

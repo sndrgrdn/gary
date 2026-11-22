@@ -281,6 +281,24 @@ struct PluginRuntimeTests {
         harness.runtime.stop()
     }
 
+    @Test func `a node scroll reaches onScroll with the node's action and frame`() async throws {
+        let harness = try Harness(widget("""
+        module.exports.onScroll = function (event) {
+          count = event.action === undefined ? event.y : event.action + " " + event.y;
+          if (event.action) host.show();
+        };
+        """))
+        #expect(try await harness.text() == "0")
+        let origin = CGRect(x: 10, y: 700, width: 40, height: 24)
+        harness.runtime.scroll(.object(["y": .number(-2)]))
+        #expect(try await harness.text() == "-2")
+        harness.runtime.scroll(.object(["y": .number(3)]), action: "volume", origin: origin)
+        guard case let .surface(request, shownAt) = try await harness.events.next() else { throw RenderError("expected a surface request") }
+        #expect(request == .show && shownAt == origin)
+        #expect(try await harness.text() == "volume 3")
+        harness.runtime.stop()
+    }
+
     @Test func `subscribed topics reach onTopic and the state`() async throws {
         let harness = try Harness(widget("""
         var seen = [];

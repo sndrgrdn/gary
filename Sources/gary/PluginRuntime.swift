@@ -136,8 +136,10 @@ final class PluginRuntime: Subscriber {
         dispatch("onKey", [.string(key)], Trace("key"), unhandled: unhandled)
     }
 
-    func scroll(_ event: JSON) {
-        dispatch("onScroll", [event], Trace("scroll"))
+    func scroll(_ event: JSON, action: String? = nil, origin: CGRect? = nil) {
+        var fields = event.object ?? [:]
+        fields["action"] = action.map(JSON.string)
+        dispatch("onScroll", [.object(fields)], Trace("scroll"), origin: origin)
     }
 
     func hotkey(_ id: String) {

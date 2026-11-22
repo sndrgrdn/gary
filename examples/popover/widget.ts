@@ -3,10 +3,6 @@ const styles = ["active", "good", "bad"] as const;
 let count = 0;
 let style = 0;
 
-function scrollStep(payload: Gary.ActionPayload): number {
-  return payload instanceof Object ? Math.sign(payload.y) : 0;
-}
-
 function publish() {
   host.publish({ count });
 }
@@ -30,7 +26,7 @@ module.exports = {
     };
   },
 
-  onAction(action, payload) {
+  onAction(action) {
     if (action === "toggle") {
       host.toggle();
     }
@@ -43,9 +39,11 @@ module.exports = {
       count = 0;
       publish();
     }
+  },
 
-    if (action === "count" && scrollStep(payload) !== 0) {
-      count += scrollStep(payload);
+  onScroll(event) {
+    if (event.action === "count" && event.y !== 0) {
+      count += Math.sign(event.y);
       publish();
     }
   },

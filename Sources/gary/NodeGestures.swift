@@ -6,6 +6,7 @@ struct ActionEvent {
     let name: String
     let payload: JSON
     let origin: CGRect?
+    var gesture: Node.Gesture?
 }
 
 final class GestureAnchor {
@@ -101,7 +102,7 @@ final class GestureView: NSView {
 
     func send(_ gesture: Node.Gesture, _ payload: JSON) {
         guard let action = actions[gesture] else { return }
-        handler?(ActionEvent(name: action, payload: payload, origin: window?.convertToScreen(convert(bounds, to: nil))))
+        handler?(ActionEvent(name: action, payload: payload, origin: window?.convertToScreen(convert(bounds, to: nil)), gesture: gesture))
     }
 }
 

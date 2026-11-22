@@ -202,6 +202,10 @@ extension Shell {
         if tracing {
             log("action plugin=\(key) action=\(event.name) payload=\(event.payload.text) origin=\(event.origin.map { "\($0)" } ?? "none")")
         }
-        slots[key]?.runtime?.perform(event.name, event.payload, origin: event.origin)
+        if event.gesture == .scroll {
+            slots[key]?.runtime?.scroll(event.payload, action: event.name, origin: event.origin)
+        } else {
+            slots[key]?.runtime?.perform(event.name, event.payload, origin: event.origin)
+        }
     }
 }
