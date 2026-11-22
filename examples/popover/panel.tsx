@@ -1,13 +1,3 @@
-function parseCount(value: Gary.Json | undefined): number {
-  if (!(value instanceof Object) || Array.isArray(value)) {
-    return 0;
-  }
-
-  const count = Number(value.count);
-
-  return Number.isFinite(count) ? count : 0;
-}
-
 export default {
   surface: { attach: true, margins: { top: 6 }, anchors: { top: true, right: true } },
 
@@ -18,7 +8,7 @@ export default {
           Popover
         </text>
         <text key="count" style="bright">
-          Count: {parseCount(state["example.popover"])}
+          Count: {state["example.popover"]?.count ?? 0}
         </text>
         <button key="close" action="close" style="button">
           <text>Close</text>

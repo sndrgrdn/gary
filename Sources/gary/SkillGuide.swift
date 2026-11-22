@@ -10,7 +10,7 @@ extension Skill {
             reference,
             drawingSection,
             themeSection(theme),
-            "## Core type declarations\n\n`gary plugin types` writes these into `gary.d.ts`, followed by the declarations of each capability the manifest names.\n\n```ts\n\(PluginTypes.declarations(capabilities: [], pluginTopics: [], theme: theme).trimmingCharacters(in: .newlines))\n```",
+            "## Core type declarations\n\n`gary plugin types` writes these into `gary.d.ts`, followed by the declarations of each capability the manifest names.\n\n```ts\n\(PluginTypes.declarations(capabilities: [], topics: [], published: "Json", theme: theme).trimmingCharacters(in: .newlines))\n```",
             capabilitySection,
             permissionSection,
             commandSection,
@@ -50,7 +50,7 @@ extension Skill {
 
     A **surface** is a window of a panel, overlay, or menu. The `surface` field of the default export places it. To show several windows at once, such as a settings panel and an on-screen display, give `surfaces` instead: an object that maps each surface name to what `surface` takes. A name is lowercase letters, digits, and hyphens. A module with only `surface` has one surface named `main`, and a module that gives both fails to load. Each surface is shown, placed, focused, and hidden on its own, and `render` draws each one with its name in `state.surface`. Gary loads a kind when it shows its first surface and stops it when its last surface hides, unless the manifest sets `keepLoaded`. `host.show(name)`, `host.hide(name)`, and `host.toggle(name)` act on the plugin's surface with that name, or `main` without one, from any of its kinds, so a bar widget opens its own plugin's panel with `host.toggle()`. When two kinds of a plugin declare the same name, the first kind in `kinds` takes it.
 
-    A **topic** is a value that Gary keeps in the plugin's `state`. A capability topic, such as `clock` or `battery`, runs only while a plugin subscribes to it. A plugin topic is the last value that another plugin passed to `host.publish`, under that plugin's id. The manifest lists topics in `subscribes`.
+    A **topic** is a value that Gary keeps in the plugin's `state`. A capability topic, such as `clock` or `battery`, runs only while a plugin subscribes to it. A plugin topic is the last value that another plugin passed to `host.publish`, under that plugin's id. The manifest lists topics in `subscribes`. A plugin that publishes declares the type of its value in a `topic.ts` at the root of its folder, as `export type Topic = { ... }`. `gary plugin types` then types `host.publish` in that plugin, and `state["<id>"]` and `onTopic` in each plugin that subscribes to it and finds the publisher in a sibling folder, `~/.config/gary/plugins`, or a package in `shell.json`. Without a `topic.ts`, the value is `Json`.
 
     A **capability** adds functions to `host`, a state topic, or both. The manifest lists the functions it wants in `uses` and the topics in `subscribes`. `gary.d.ts` declares only what the manifest asks for. Some capabilities need a macOS permission for Gary.
 
@@ -176,7 +176,7 @@ extension Skill {
     | `onKey(key, state)` | When a focused surface gets a key that no `input` takes. `key` names the key: \(Set(KeyName.named.values).sorted().map { "`\($0)`" }.joined(separator: ", ")), or else the typed character, such as `a`, `A`, or a space. `ctrl+`, `alt+`, `shift+`, and `cmd+` prefixes, in that order, give the held modifiers, such as `shift+tab` or `cmd+k`. `shift+` appears only before a named key, since a typed character already shows it. Return `true` when the plugin handled the key. Otherwise Gary handles it, so escape hides a menu or overlay. |
     | `onScroll(event, state)` | When the user scrolls with a mouse wheel or trackpad over a panel, overlay, or menu, or over a node with `scrollAction` in any kind. `event` has `x` and `y`, the distance in points, or in lines when `precise` is `false`, and `phase`: `began`, `changed`, and `ended` for a trackpad gesture, `momentum` for the glide after it, and `none` for a mouse wheel. Over a node with `scrollAction`, `event.action` holds that name. A `scroll` node under the pointer scrolls as well. |
     | `onHotkey(id, state)` | When a manifest hotkey fires. |
-    | `onTopic(topic, value, state)` | When a subscribed topic changes, and once per topic at load. |
+    | `onTopic({ topic, value }, state)` | When a subscribed topic changes, and once per topic at load. `value` has the type of `topic`, so `if (topic === "clock")` narrows it to a `Clock`. |
     | `onMediaKey(event, state)` | When a key that `host.mediakeys.intercept` claimed is pressed. |
     | `methods` | `gary call <id> <method> [args...]` and `host.call(method, ...args)` run one with string arguments. It returns a JSON value, or a promise of one. |
     | `surface` | An object, or a function of `state`, that places a panel, overlay, or menu. |
@@ -191,7 +191,7 @@ extension Skill {
     | `display` | The display being rendered: `{ id, index, main, width, height, notched, notch }`. Only in `render`. |
     | `surface` | The name of the surface being rendered, `main` for a module with only `surface` and for bar widgets and bars. Only in `render`. |
     | `<capability>` | The value of a subscribed capability topic. The capability sections below give its shape. |
-    | `<plugin id>` | The last value that the plugin published. |
+    | `<plugin id>` | The last value that the plugin published, with the type from its `topic.ts`, or `Json` without one. |
 
     A topic field is `undefined` until its first value arrives, so check it before you use it. After that it always has the declared shape. A topic with `available: false` cannot read its data and gives the cause in `reason`, such as a missing permission. A nullable field is `null` when there is nothing to show. For example, `state.nowplaying.track` is `null` when nothing is playing.
 
@@ -220,7 +220,7 @@ extension Skill {
     | --- | --- |
     | `host.log(message)` | Writes `plugin <id>: <message>` to Gary's log. |
     | `host.storage.get(key)`, `host.storage.set(key, value)` | Keeps JSON values in `~/Library/Application Support/Gary/storage/<id>.json`. Setting `undefined` deletes the key. |
-    | `host.publish(value)` | Publishes a JSON value as the topic named by the plugin's id. |
+    | `host.publish(value)` | Publishes a JSON value as the topic named by the plugin's id. When the plugin folder has a `topic.ts`, `value` must have its `Topic` type. |
     | `host.show(name?)`, `host.hide(name?)`, `host.toggle(name?)` | Shows or hides the plugin's surface named `name`, or `main`. A name that is not lowercase letters, digits, and hyphens throws. In a panel, overlay, or menu module that is the plugin's only surface kind, a name the module does not declare throws too. From another kind, Gary logs a name that no kind declares. Called from `onAction`, or from `onScroll` over a node with `scrollAction`, `show` and `toggle` pass on the frame of the node the user clicked or scrolled, which a surface with `attach` opens at. Called later, such as after a promise or a timer, they pass on no frame. |
     | `host.call(method, ...args)` | Runs a function from the plugin's own `methods`, in the kind that `gary call` would run, loading it if needed, and returns a promise of its result. It rejects with the error the function threw or rejected with, or after 60 seconds. Plugins reach each other only through `host.publish` and `subscribes`. |
 

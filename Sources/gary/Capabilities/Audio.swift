@@ -10,7 +10,6 @@ extension Capability {
         types: """
         declare namespace Gary {
           type AudioScope = "output" | "input";
-          interface State { audio?: Audio }
           interface Audio {
             devices: AudioDeviceSummary[];
             output: AudioDeviceState | null;
@@ -60,7 +59,7 @@ extension Capability {
                 return .now(.null)
             }
         },
-        topic: { AudioTopic($0) },
+        topic: CapabilityTopic(type: "Audio") { AudioTopic($0) },
     )
 }
 

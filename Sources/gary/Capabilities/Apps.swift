@@ -7,7 +7,6 @@ extension Capability {
         summary: "The frontmost app and the running apps. Launch, activate, and quit apps by bundle id.",
         types: """
         declare namespace Gary {
-          interface State { apps?: Apps }
           interface Apps { frontmost: App | null; running: App[] }
           interface App { app: string | null; name: string; pid: number; path: string | null; active: boolean; hidden: boolean }
           interface Host { apps: AppsApi }
@@ -34,7 +33,7 @@ extension Capability {
                 return .later(.global(qos: .userInitiated)) { try perform(request) }
             }
         },
-        topic: { AppsTopic($0) },
+        topic: CapabilityTopic(type: "Apps") { AppsTopic($0) },
     )
 }
 

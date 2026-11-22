@@ -15,7 +15,6 @@ extension Capability {
         types: """
         declare namespace Gary {
           type PermissionName = \(Permission.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: " | "));
-          interface State { permissions?: PermissionStatus[] }
           interface PermissionStatus {
             name: PermissionName;
             title: string;
@@ -60,7 +59,7 @@ extension Capability {
                 }
             }
         },
-        topic: { PermissionsTopic($0) },
+        topic: CapabilityTopic(type: "PermissionStatus[]") { PermissionsTopic($0) },
     )
 }
 

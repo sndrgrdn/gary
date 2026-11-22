@@ -107,7 +107,7 @@ final class PluginRuntime: Subscriber {
     }
 
     private func announce(_ topic: Topic, _ text: String, to functions: PluginFunctions) throws {
-        let arguments = "[\(encode(.string(topic.description))),\(text)]"
+        let arguments = "[{\"topic\":\(encode(.string(topic.description))),\"value\":\(text)}]"
         try invoke(functions.dispatch, ["onTopic", arguments, stateText(for: nil)], [.jsParse, .handler])
     }
 

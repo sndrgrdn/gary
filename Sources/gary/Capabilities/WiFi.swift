@@ -8,7 +8,6 @@ extension Capability {
         summary: "Wi-Fi power, network, signal, and rate. Scan, join a network, and turn Wi-Fi on or off.",
         types: """
         declare namespace Gary {
-          interface State { wifi?: WiFi }
           interface WiFi {
             available: boolean;
             location: "authorized" | "denied" | "restricted" | "notDetermined";
@@ -57,7 +56,7 @@ extension Capability {
                 }
             }
         },
-        topic: { WiFiTopic($0) },
+        topic: CapabilityTopic(type: "WiFi") { WiFiTopic($0) },
     )
 }
 

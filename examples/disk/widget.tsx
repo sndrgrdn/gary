@@ -1,23 +1,8 @@
-type Disk = { usedPercent: number; freeGB: number };
-
 let showFree = false;
-
-function parseDisk(value: Gary.Json | undefined): Disk | undefined {
-  if (!(value instanceof Object) || Array.isArray(value)) {
-    return undefined;
-  }
-
-  const usedPercent = Number(value.usedPercent);
-  const freeGB = Number(value.freeGB);
-
-  return Number.isFinite(usedPercent) && Number.isFinite(freeGB)
-    ? { usedPercent, freeGB }
-    : undefined;
-}
 
 export default {
   render(state) {
-    const disk = parseDisk(state["example.disk"]);
+    const disk = state["example.disk"];
 
     if (!disk) {
       return <text style="dim">disk …</text>;

@@ -4,7 +4,6 @@ import GaryCore
 extension Capability {
     static let clock = Capability(name: "clock", summary: "The current minute, updated each minute and after sleep.", types: """
     declare namespace Gary {
-      interface State { clock?: Clock }
       interface Clock { epoch: number }
     }
     """, example: """
@@ -14,7 +13,7 @@ extension Capability {
         return { type: "text", text: `${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`, style: "bright" };
       },
     } satisfies Gary.BarWidget;
-    """, topic: { ClockTopic($0) })
+    """, topic: CapabilityTopic(type: "Clock") { ClockTopic($0) })
 }
 
 private final class ClockTopic: TopicFeed {

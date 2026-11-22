@@ -5,7 +5,6 @@ import IOKit.ps
 extension Capability {
     static let battery = Capability(name: "battery", summary: "Battery percentage, charging state, and power source.", types: """
     declare namespace Gary {
-      interface State { battery?: Battery }
       interface Battery { present: boolean; percent: number | null; charging: boolean; source: "ac" | "battery" }
     }
     """, example: """
@@ -16,7 +15,7 @@ extension Capability {
         return { type: "text", text: `${battery.percent}%`, style: battery.charging ? "good" : battery.percent! < 20 ? "bad" : "default" };
       },
     } satisfies Gary.BarWidget;
-    """, topic: { BatteryTopic($0) })
+    """, topic: CapabilityTopic(type: "Battery") { BatteryTopic($0) })
 }
 
 private final class BatteryTopic: TopicFeed {

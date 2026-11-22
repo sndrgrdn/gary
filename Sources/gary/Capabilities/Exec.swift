@@ -1,5 +1,5 @@
 import Foundation
-import JavaScriptCore
+import GaryCore
 
 extension Capability {
     static let exec = Capability(
@@ -10,17 +10,16 @@ extension Capability {
         """,
         types: """
         declare namespace Gary {
-          interface Host { exec(argv: string[], callback: (result: ExecResult) => void): void }
+          interface Host { exec(argv: string[]): Promise<ExecResult> }
           interface ExecResult { status: number; stdout: string; stderr: string }
         }
         """,
         example: """
         let uptime = "…";
 
-        function refresh() {
-          host.exec(["/usr/bin/uptime"], (result) => {
-            uptime = result.status === 0 ? result.stdout.replace(/.*up\\s+([^,]+),.*/s, "$1") : "?";
-          });
+        async function refresh() {
+          const result = await host.exec(["/usr/bin/uptime"]);
+          uptime = result.status === 0 ? result.stdout.replace(/.*up\\s+([^,]+),.*/s, "$1") : "?";
         }
         refresh();
         setInterval(refresh, 60_000);
@@ -32,20 +31,14 @@ extension Capability {
         } satisfies Gary.BarWidget;
         """,
         install: { host, plugin in
-            let exec: @convention(block) (JSValue, JSValue) -> Void = { [weak plugin] argv, callback in
-                guard let argv = argv.toArray() as? [String], !argv.isEmpty, callback.isObject else {
-                    let context = JSContext.current()
-                    context?.exception = context?.newError("host.exec takes an array of strings and a callback")
-                    return
-                }
-                DispatchQueue.global(qos: .userInitiated).async {
+            plugin.installAPI(host, nil, ["exec"]) { call in
+                let argv = try call.strings(0, "argv")
+                guard !argv.isEmpty else { throw call.fail("argv must not be empty") }
+                return .later(.global(qos: .userInitiated)) {
                     let output = runProcess(argv)
-                    plugin?.queue.async {
-                        plugin?.callBack(callback, [["status": output.status, "stdout": output.stdout, "stderr": output.stderr]], Trace("exec"))
-                    }
+                    return .object(["status": .number(Double(output.status)), "stdout": .string(output.stdout), "stderr": .string(output.stderr)])
                 }
             }
-            host.setObject(exec, forKeyedSubscript: "exec" as NSString)
         },
     )
 }

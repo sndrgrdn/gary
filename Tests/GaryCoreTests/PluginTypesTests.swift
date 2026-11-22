@@ -10,7 +10,7 @@ struct PluginTypesTests {
     }
 
     @Test func `declares every node kind style prop kind layer and gesture the runtime parses`() {
-        let text = PluginTypes.declarations(capabilities: [], pluginTopics: [], theme: nil)
+        let text = PluginTypes.declarations(capabilities: [], topics: [], published: "Json", theme: nil)
         for kind in Node.Kind.allCases {
             #expect(text.contains("type: \"\(kind.rawValue)\";"))
         }
@@ -41,7 +41,7 @@ struct PluginTypesTests {
     }
 
     @Test func `declares named surfaces the rendered surface and host surface names`() {
-        let text = PluginTypes.declarations(capabilities: [], pluginTopics: [], theme: nil)
+        let text = PluginTypes.declarations(capabilities: [], topics: [], published: "Json", theme: nil)
         #expect(text.contains("surfaces?: { [name: string]: SurfaceExport };"))
         #expect(text.contains("surface?: string;"))
         for request in ["show", "hide", "toggle"] {
@@ -49,13 +49,16 @@ struct PluginTypesTests {
         }
     }
 
-    @Test func `adds capability declarations plugin topics and theme names`() throws {
+    @Test func `adds capability declarations topic types the published type and theme names`() throws {
         let text = try PluginTypes.declarations(
-            capabilities: ["declare namespace Gary { interface State { clock?: Clock } }"], pluginTopics: [#require(PluginID("acme.counter"))],
+            capabilities: ["declare namespace Gary { interface Clock { epoch: number } }"],
+            topics: [.init(.capability("clock"), "Clock"), .init(.plugin(#require(PluginID("acme.counter"))), "Json")],
+            published: #"import("./topic").Topic"#,
             theme: theme,
         )
-        #expect(text.hasSuffix("declare namespace Gary { interface State { clock?: Clock } }\n"))
-        #expect(text.contains("\"acme.counter\"?: Json;"))
+        #expect(text.hasSuffix("declare namespace Gary { interface Clock { epoch: number } }\n"))
+        #expect(text.contains("    \"clock\": Clock;\n    \"acme.counter\": Json;\n"))
+        #expect(text.contains(#"publish(value: import("./topic").Topic): void;"#))
         #expect(text.contains("type StyleName = \"default\" | \"title\" | (string & {});"))
         #expect(text.contains("type FontName = \"body\" | (string & {});"))
         #expect(text.contains("type ColorName = \"accent\" | (string & {});"))
@@ -107,5 +110,17 @@ struct ExamplePluginTests {
                 capabilities: capabilities,
             ) }
         }
+    }
+}
+
+struct TopicImportTests {
+    @Test func `a topic import is relative to the consumer folder`() {
+        let root = URL(fileURLWithPath: "/plugins")
+        func path(_ from: URL, _ to: URL) -> String {
+            PluginTypes.topicImport(from: from, to: to)
+        }
+        #expect(path(root.appending(path: "you.front"), root.appending(path: "you.dinky")) == #"import("../you.dinky/topic").Topic"#)
+        #expect(path(root.appending(path: "you.theme"), root.appending(path: "you.theme")) == #"import("./topic").Topic"#)
+        #expect(path(root.appending(path: "a/b"), URL(fileURLWithPath: "/pkg/c")) == #"import("../../../pkg/c/topic").Topic"#)
     }
 }

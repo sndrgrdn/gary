@@ -1,10 +1,9 @@
 let load: string | null = null;
 
-function refresh() {
-  host.exec(["sysctl", "-n", "vm.loadavg"], (result) => {
-    const averages = result.stdout.replaceAll(/[{}]/gu, "").trim().split(/\s+/u);
-    load = result.status === 0 ? averages[0] : null;
-  });
+async function refresh() {
+  const result = await host.exec(["sysctl", "-n", "vm.loadavg"]);
+  const averages = result.stdout.replaceAll(/[{}]/gu, "").trim().split(/\s+/u);
+  load = result.status === 0 ? averages[0] : null;
 }
 
 refresh();

@@ -4,8 +4,8 @@ public enum PluginTypes {
     public static let declarationsFile = "gary.d.ts"
     public static let schemaFile = "manifest.schema.json"
 
-    public static func declarations(capabilities: [String], pluginTopics: [PluginID], theme: JSON?) -> String {
-        [coreTypes(theme: theme), stateTypes(pluginTopics: pluginTopics), moduleTypes(capabilities: capabilities)].joined(separator: "\n\n")
+    public static func declarations(capabilities: [String], topics: [TopicType], published: String, theme: JSON?) -> String {
+        [coreTypes(theme: theme), stateTypes(topics: topics), moduleTypes(capabilities: capabilities, published: published)].joined(separator: "\n\n")
     }
 
     private static func union(_ values: [String]) -> String {
@@ -86,8 +86,8 @@ public enum PluginTypes {
         """
     }
 
-    private static func stateTypes(pluginTopics: [PluginID]) -> String {
-        let topics = pluginTopics.map { "    \"\($0)\"?: Json;" }.joined(separator: "\n")
+    private static func stateTypes(topics: [TopicType]) -> String {
+        let fields = topics.map { "    \"\($0.topic)\": \($0.type);" }.joined(separator: "\n")
         return """
           interface Display {
             id: string;
@@ -103,13 +103,16 @@ public enum PluginTypes {
             colors: { [name: string]: string };
             palette: { [name: string]: string };
           }
-          interface State {
+          interface Topics {
+        \(fields)
+          }
+          interface State extends Partial<Topics> {
             settings: { [key: string]: Json };
             theme: Theme;
             display?: Display;
             surface?: string;
-        \(topics)
           }
+          type TopicEvent = { [K in keyof Topics]: { topic: K; value: Topics[K] } }[keyof Topics];
 
           type Edges<T> = { top?: T; bottom?: T; left?: T; right?: T };
           interface Surface {
@@ -128,7 +131,7 @@ public enum PluginTypes {
         """
     }
 
-    private static func moduleTypes(capabilities: [String]) -> String {
+    private static func moduleTypes(capabilities: [String], published: String) -> String {
         let modules = PluginKind.allCases.map { "  type \(typeName($0.rawValue)) = \($0 == .service ? "Module" : "Rendered");" }
             .joined(separator: "\n")
         return """
@@ -140,7 +143,7 @@ public enum PluginTypes {
           interface Host {
             log(message: string): void;
             storage: Storage;
-            publish(value: Json): void;
+            publish(value: \(published)): void;
             show(surface?: string): void;
             hide(surface?: string): void;
             toggle(surface?: string): void;
@@ -153,7 +156,7 @@ public enum PluginTypes {
             onKey?(key: Key, state: State): boolean | void;
             onScroll?(event: ScrollEvent, state: State): void;
             onHotkey?(id: string, state: State): void;
-            onTopic?(topic: string, value: Json, state: State): void;
+            onTopic?(event: TopicEvent, state: State): void;
             methods?: { [name: string]: (...args: string[]) => Json | void | Promise<Json | void> };
             surface?: SurfaceExport;
             surfaces?: { [name: string]: SurfaceExport };

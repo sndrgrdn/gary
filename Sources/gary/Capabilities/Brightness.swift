@@ -9,7 +9,6 @@ extension Capability {
         summary: "Brightness of the built-in display and of external displays that support DDC. Set it.",
         types: """
         declare namespace Gary {
-          interface State { brightness?: Brightness }
           interface Brightness { displays: BrightnessDisplay[]; missing: string[] }
           interface BrightnessDisplay { id: string; name: string | null; builtin: boolean; brightness: number | null; control: "displayservices" | "ddc" | null }
           interface Host { brightness: BrightnessApi }
@@ -45,7 +44,7 @@ extension Capability {
                 }
             }
         },
-        topic: { BrightnessTopic($0) },
+        topic: CapabilityTopic(type: "Brightness") { BrightnessTopic($0) },
     )
 }
 

@@ -4,7 +4,6 @@ import GaryCore
 extension Capability {
     static let focus = Capability(name: "focus", summary: "Whether a Focus is on, and its name and symbol.", types: """
     declare namespace Gary {
-      interface State { focus?: Focus }
       interface Focus {
         available: boolean;
         active: boolean;
@@ -23,7 +22,7 @@ extension Capability {
         return focus.active ? { type: "icon", symbol: focus.symbol ?? "moon.fill", style: "active" } : { type: "text", text: "" };
       },
     } satisfies Gary.BarWidget;
-    """, permissions: [.fullDiskAccess], topic: { FocusTopic($0) })
+    """, permissions: [.fullDiskAccess], topic: CapabilityTopic(type: "Focus") { FocusTopic($0) })
 }
 
 private final class FocusTopic: TopicFeed {

@@ -44,7 +44,12 @@ struct SkillTests {
         let folder = FileManager.default.temporaryDirectory.appending(path: "gary-examples-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
-        let declarations = PluginTypes.declarations(capabilities: Capability.all.map(\.types), pluginTopics: [], theme: nil)
+        let declarations = PluginTypes.declarations(
+            capabilities: Capability.all.map(\.types),
+            topics: Capability.all.compactMap { capability in capability.topic.map { PluginTypes.TopicType(.capability(capability.name), $0.type) } },
+            published: "Json",
+            theme: nil,
+        )
         try Data(declarations.utf8).write(to: folder.appending(path: "gary.d.ts"))
         let id = try #require(PluginID("you.examples"))
         let tsconfig = try #require(PluginScaffold.files(id: id, kinds: [.service])["tsconfig.json"])

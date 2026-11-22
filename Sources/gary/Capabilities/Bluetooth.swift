@@ -10,7 +10,6 @@ extension Capability {
         summary: "Bluetooth power and paired devices with their battery levels. Turn Bluetooth on or off, and connect or disconnect a device.",
         types: """
         declare namespace Gary {
-          interface State { bluetooth?: Bluetooth }
           interface Bluetooth {
             available: boolean;
             permission: "allowed" | "denied" | "restricted" | "notDetermined";
@@ -67,7 +66,7 @@ extension Capability {
                 }
             }
         },
-        topic: { BluetoothTopic($0) },
+        topic: CapabilityTopic(type: "Bluetooth") { BluetoothTopic($0) },
     )
 }
 

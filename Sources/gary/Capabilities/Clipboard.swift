@@ -7,7 +7,6 @@ extension Capability {
         summary: "A clipboard change counter and the types on the clipboard. Read the clipboard and write text to it.",
         types: """
         declare namespace Gary {
-          interface State { clipboard?: ClipboardChange }
           interface ClipboardChange { count: number; types: string[]; access: "default" | "ask" | "always" | "never" }
           interface ClipboardContents { count: number; text: string | null; image: string | null; files: string[] }
           interface Host { clipboard: ClipboardApi }
@@ -21,7 +20,7 @@ extension Capability {
         const history: string[] = [];
 
         export default {
-          onTopic(topic) {
+          onTopic({ topic }) {
             if (topic !== "clipboard") return;
             host.clipboard.read().then((contents) => {
               if (contents.text && contents.text !== history[0]) history.unshift(contents.text);
@@ -48,7 +47,7 @@ extension Capability {
                 }
             }
         },
-        topic: { ClipboardTopic($0) },
+        topic: CapabilityTopic(type: "ClipboardChange") { ClipboardTopic($0) },
     )
 }
 

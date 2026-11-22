@@ -43,8 +43,8 @@ extension Skill {
             if capability.install != nil {
                 entry.append("`\"uses\": [\"\(capability.name)\"]` for the functions")
             }
-            if capability.topic != nil {
-                entry.append("`\"subscribes\": [\"\(capability.name)\"]` for `state.\(capability.name)`")
+            if let topic = capability.topic {
+                entry.append("`\"subscribes\": [\"\(capability.name)\"]` for `state.\(capability.name)`, a `\(topic.type)`")
             }
             let permissions = capability.permissions.isEmpty ? "none" : capability.permissions.map { "\($0.name) (`\($0.rawValue)`)" }
                 .joined(separator: ", ")

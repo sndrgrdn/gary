@@ -78,7 +78,7 @@ private func pluginID(_ raw: String) throws -> PluginID {
     return id
 }
 
-private func shellConfig() throws -> ShellConfig {
+func shellConfig() throws -> ShellConfig {
     try FileManager.default.fileExists(atPath: Paths.shellConfig.path) ? ShellConfig
         .parse(JSON.parse(Data(contentsOf: Paths.shellConfig))) : .defaults
 }
@@ -349,34 +349,4 @@ private func list() throws {
     for source in config.packages where !PackageStore.isInstalled(source) {
         print("\(source.declaration)\t-\tmissing\tnot installed yet; run gary plugin update")
     }
-}
-
-private func writeTypes(_ directory: URL) throws -> String {
-    let capabilities = Capability.names()
-    var selected = Capability.all
-    var topics: [PluginID] = []
-    var scope = "every capability"
-    if let data = try? Data(contentsOf: directory.appending(path: "manifest.json")) {
-        do {
-            let manifest = try PluginManifest.parse(data, origin: .user, capabilities: capabilities)
-            let names = Set(manifest.uses + manifest.subscribes.map(\.description))
-            selected = Capability.all.filter { names.contains($0.name) }
-            topics = manifest.subscribes.compactMap {
-                if case let .plugin(id) = $0 {
-                    id
-                } else {
-                    nil
-                }
-            }
-            scope = "the uses and subscribes of \(manifest.id)"
-        } catch {
-            scope = "every capability, since manifest.json is invalid: \(error)"
-        }
-    }
-    let theme = try? JSON.parse(Data(contentsOf: Paths.defaultTheme))
-    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    let declarations = PluginTypes.declarations(capabilities: selected.map(\.types), pluginTopics: topics, theme: theme)
-    try Data(declarations.utf8).write(to: directory.appending(path: PluginTypes.declarationsFile))
-    try Data(PluginTypes.manifestSchema(capabilities).prettyText.utf8).write(to: directory.appending(path: PluginTypes.schemaFile))
-    return "wrote \(PluginTypes.declarationsFile) and \(PluginTypes.schemaFile) to \(directory.path) for \(scope)"
 }

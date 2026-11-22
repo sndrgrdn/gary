@@ -8,7 +8,6 @@ extension Capability {
         summary: "Notifications that Notification Center delivered. Open the app that sent one.",
         types: """
         declare namespace Gary {
-          interface State { notifications?: Notifications }
           interface Notifications { available: boolean; reason?: string; items: DeliveredNotification[] }
           interface DeliveredNotification {
             id: number;
@@ -53,7 +52,7 @@ extension Capability {
                 }
             }
         },
-        topic: { NotificationsTopic($0) },
+        topic: CapabilityTopic(type: "Notifications") { NotificationsTopic($0) },
     )
 }
 

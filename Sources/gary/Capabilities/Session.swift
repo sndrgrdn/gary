@@ -10,7 +10,6 @@ extension Capability {
         """,
         types: """
         declare namespace Gary {
-          interface State { session?: Session }
           interface Session { locked: boolean }
         }
         """,
@@ -18,15 +17,15 @@ extension Capability {
         let refreshed = "never";
 
         export default {
-          onTopic(topic, _value, state) {
-            if (topic === "session" && state.session?.locked === false) refreshed = new Date().toTimeString().slice(0, 5);
+          onTopic({ topic, value }) {
+            if (topic === "session" && !value.locked) refreshed = new Date().toTimeString().slice(0, 5);
           },
           render() {
             return { type: "text", text: `Refreshed ${refreshed}`, style: "dim" };
           },
         } satisfies Gary.BarWidget;
         """,
-        topic: { SessionTopic($0) },
+        topic: CapabilityTopic(type: "Session") { SessionTopic($0) },
     )
 }
 

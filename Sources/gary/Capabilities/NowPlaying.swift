@@ -5,7 +5,6 @@ import GaryCore
 extension Capability {
     static let nowplaying = Capability(name: "nowplaying", summary: "The track that any app is playing. Play, pause, skip, and seek.", types: """
     declare namespace Gary {
-      interface State { nowplaying?: NowPlaying }
       interface NowPlaying { available: boolean; reason?: string; track: Track | null }
       interface Track {
         app: string | null;
@@ -59,7 +58,7 @@ extension Capability {
             }
             return .now(.null)
         }
-    }, topic: { NowPlayingTopic($0) })
+    }, topic: CapabilityTopic(type: "NowPlaying") { NowPlayingTopic($0) })
 }
 
 private struct Adapter {

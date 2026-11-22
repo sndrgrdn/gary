@@ -54,6 +54,7 @@ struct Harness {
         kind: PluginKind = .barWidget,
         shown: [String] = [SurfaceAddress.main],
         subscribes: [String] = [],
+        uses: [String] = [],
         files: [String: String] = [:],
     ) throws {
         let directory = FileManager.default.temporaryDirectory.appending(path: "gary-runtime-\(UUID().uuidString)")
@@ -66,6 +67,7 @@ struct Harness {
             "kinds": .array([.string(kind.rawValue)]),
             "entryPoints": .object([kind.rawValue: .string("main.js")]),
             "subscribes": .array(subscribes.map(JSON.string)),
+            "uses": .array(uses.map(JSON.string)),
         ])
         try Data(manifest.text.utf8).write(to: directory.appending(path: "manifest.json"))
         var files = files
@@ -323,14 +325,14 @@ struct PluginRuntimeTests {
 
     @Test func `subscribed topics reach onTopic and the state`() async throws {
         let harness = try Harness(widget("""
-        onTopic: function (topic, value, state) { seen.push(topic + "=" + JSON.stringify(state[topic])); },
+        onTopic: function (event, state) { seen.push(event.topic + "=" + JSON.stringify(event.value) + "/" + JSON.stringify(state[event.topic])); },
         render: function () { return { type: "text", text: seen.join(",") }; },
         """, setup: "var seen = [];"), subscribes: ["test.other"])
         #expect(try await harness.text().isEmpty)
         try harness.hub.publish(.plugin(#require(PluginID("test.other"))), .number(7), Trace("test"))
-        #expect(try await harness.text() == "test.other=7")
+        #expect(try await harness.text() == "test.other=7/7")
         try harness.hub.publish(.plugin(#require(PluginID("test.other"))), .array([.string("a\"b")]), Trace("test"))
-        #expect(try await harness.text() == #"test.other=7,test.other=["a\"b"]"#)
+        #expect(try await harness.text() == #"test.other=7/7,test.other=["a\"b"]/["a\"b"]"#)
         harness.runtime.stop()
     }
 

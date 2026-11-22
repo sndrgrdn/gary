@@ -11,7 +11,7 @@ struct Capability {
     let example: String
     var permissions: [Permission] = []
     var install: ((JSValue, PluginRuntime) -> Void)?
-    var topic: TopicSource?
+    var topic: CapabilityTopic?
 
     static let all: [Capability] = [
         .apps,
@@ -43,8 +43,13 @@ struct Capability {
     }
 
     static var topics: [Topic: TopicSource] {
-        Dictionary(uniqueKeysWithValues: all.compactMap { capability in capability.topic.map { (Topic.capability(capability.name), $0) } })
+        Dictionary(uniqueKeysWithValues: all.compactMap { capability in capability.topic.map { (Topic.capability(capability.name), $0.source) } })
     }
+}
+
+struct CapabilityTopic {
+    let type: String
+    let source: TopicSource
 }
 
 func privateSymbol<T>(_ symbol: GarySymbol, as type: T.Type) -> T? {
