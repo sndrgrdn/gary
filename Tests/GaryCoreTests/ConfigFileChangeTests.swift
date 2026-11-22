@@ -23,13 +23,28 @@ struct ConfigFileChangeTests {
         .plugin(path: path, rescansCatalog: rescans)
     }
 
-    @Test func `a file inside a plugin root is a plugin change`() {
+    @Test func `a source file inside a plugin root is a plugin change`() {
         for path in [
             "/home/.config/gary/plugins/weather/widget.js",
             "/packages/git/host/o/r/weather/lib/util.js",
-            "/packages/npm/weather/widget.js",
+            "/packages/npm/weather/widget.tsx",
+            "/packages/npm/weather/topic.ts",
+            "/packages/npm/weather/glow.metal",
         ] {
             #expect(change(path) == plugin(path))
+        }
+    }
+
+    @Test func `assets, generated declarations and node modules are not a plugin change`() {
+        for path in [
+            "/packages/npm/weather/screenshot.png",
+            "/packages/npm/weather/README.md",
+            "/packages/npm/weather/tsconfig.json",
+            "/packages/npm/weather/manifest.schema.json",
+            "/packages/npm/weather/gary.d.ts",
+            "/packages/npm/weather/node_modules/effect/dist/index.js",
+        ] {
+            #expect(change(path) == nil, "\(path)")
         }
     }
 

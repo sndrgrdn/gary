@@ -86,7 +86,7 @@ public enum PluginScaffold {
 
         ## Develop
 
-        Gary reloads the plugin each time you save a file in its folder. \(effect
+        Gary reloads the plugin each time you save its manifest or a source file. \(effect
             ? "Run `npm install` once for the `effect` types, then type-check it with `npx tsc -p .`."
             : "Type-check it with `npx -p typescript tsc -p .`.")
         After you change `uses` or `subscribes` in `manifest.json`, run `gary plugin types .` to refresh `\(PluginTypes.declarationsFile)`.
