@@ -13,33 +13,28 @@ public enum JSON: Equatable, Sendable {
     }
 
     public static func parse(_ data: Data) throws -> JSON {
-        do {
-            return try JSONDecoder().decode(JSON.self, from: data)
-        } catch {
-            throw ParseError(description: "invalid JSON: \(error.localizedDescription)")
-        }
+        try data.withUnsafeBytes { try JSONScanner.parse($0.bindMemory(to: UInt8.self)) }
     }
 
     public static func parse(_ text: String) throws -> JSON {
-        try parse(Data(text.utf8))
+        var text = text
+        return try text.withUTF8 { try JSONScanner.parse($0) }
     }
 
     public func encoded() -> Data {
-        encoded(formatting: [])
+        Data(text.utf8)
     }
 
     public var text: String {
-        String(bytes: encoded(), encoding: .utf8) ?? "null"
+        var out = ""
+        write(to: &out)
+        return out
     }
 
     public var prettyText: String {
-        (String(bytes: encoded(formatting: .prettyPrinted), encoding: .utf8) ?? "null") + "\n"
-    }
-
-    private func encoded(formatting: JSONEncoder.OutputFormatting) -> Data {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = formatting.union([.sortedKeys, .withoutEscapingSlashes])
-        return (try? encoder.encode(self)) ?? Data("null".utf8)
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        return (String(bytes: (try? encoder.encode(self)) ?? Data("null".utf8), encoding: .utf8) ?? "null") + "\n"
     }
 
     public subscript(key: String) -> JSON? {
@@ -83,24 +78,7 @@ public enum JSON: Equatable, Sendable {
     }
 }
 
-extension JSON: Codable {
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        if container.decodeNil() {
-            self = .null
-        } else if let value = try? container.decode(Bool.self) {
-            self = .bool(value)
-        } else if let value = try? container.decode(Double.self) {
-            self = .number(value)
-        } else if let value = try? container.decode(String.self) {
-            self = .string(value)
-        } else if let value = try? container.decode([JSON].self) {
-            self = .array(value)
-        } else {
-            self = try .object(container.decode([String: JSON].self))
-        }
-    }
-
+extension JSON: Encodable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {

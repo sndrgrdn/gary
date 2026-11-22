@@ -129,5 +129,5 @@ Set `BASE_APP` to a release build of another commit to compare against it. It de
 
 To time the JSON crossing alternatives, run:
 
-    swiftc -O -o tmp/bin/crossing scripts/bench/crossing.swift
+    swiftc -O -parse-as-library -o tmp/bin/crossing scripts/bench/crossing.swift Sources/GaryCore/JSON.swift Sources/GaryCore/JSONText.swift
     tmp/bin/crossing scripts/bench/plugins 1000
