@@ -17,7 +17,7 @@ extension Shell {
     }
 
     func barLevel(_ display: String) -> Int {
-        barsAside[display] == nil ? levels.bar : levels.barAside
+        barsAside[display] == nil ? SurfaceLevels.bar : SurfaceLevels.barAside
     }
 
     private func applyBarLevel(_ display: String) {
@@ -89,7 +89,7 @@ extension Shell {
         let change = DisplayChange(from: displays, to: next)
         displays = next
         let appearance = appearance
-        let level = levels.bar
+        let level = SurfaceLevels.bar
         let barChange = bars.sync(usesBuiltinBar ? next : [], open: { [weak self] display in
             let bar = BarWindow(display: display, level: level)
             watchTopEdge(of: bar.content) { [weak self, weak bar] in

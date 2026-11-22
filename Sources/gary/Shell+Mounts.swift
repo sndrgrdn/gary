@@ -85,7 +85,7 @@ extension Shell {
             spec.exclusionMode = .ignore
             window.place(spec, on: display, origin: nil, level: barLevel(display.id), theme: theme)
         } else if let spec = slot.surfaces[key.surface] {
-            window.place(spec, on: display, origin: slot.shown[key.surface]?.origin, level: levels.level(spec.layer), theme: theme)
+            window.place(spec, on: display, origin: slot.shown[key.surface]?.origin, level: SurfaceLevels.level(spec.layer), theme: theme)
         }
         if isNew {
             open(window, key, focusable: slot.surfaces[key.surface]?.focusable == true)

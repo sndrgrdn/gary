@@ -11,7 +11,6 @@ struct MountKey: Hashable {
 final class Shell {
     let hub = StateHub(sources: Capability.topics)
     private let capabilities: CapabilityNames
-    let levels = SurfaceLevels.forSystem(ProcessInfo.processInfo.operatingSystemVersion)
     var theme: Theme
     var themePayload: JSON?
     var paletteFile: PaletteFile?
@@ -88,7 +87,7 @@ final class Shell {
         }
         log(PrivateSymbolCheck.summary())
         log(
-            "ready pid=\(getpid()) levels=bar:\(levels.bar),\(SurfaceLayer.allCases.map { "\($0.rawValue):\(levels.level($0))" }.joined(separator: ",")) plugins=\(catalog.sortedIDs.map(\.rawValue).joined(separator: ","))",
+            "ready pid=\(getpid()) levels=bar:\(SurfaceLevels.bar),\(SurfaceLayer.allCases.map { "\($0.rawValue):\(SurfaceLevels.level($0))" }.joined(separator: ",")) plugins=\(catalog.sortedIDs.map(\.rawValue).joined(separator: ","))",
         )
     }
 

@@ -65,7 +65,7 @@ struct Doctor {
         describeBuild(version, runtime)
 
         section("Window levels")
-        listWindowLevels(version)
+        listWindowLevels()
 
         section("Private API")
         checkPrivateSymbols()
@@ -96,11 +96,10 @@ struct Doctor {
         lines.append(runtime.map { "running as pid \($0.pid)" } ?? "not running; checks below read the files on disk")
     }
 
-    private mutating func listWindowLevels(_ version: OperatingSystemVersion) {
-        let levels = SurfaceLevels.forSystem(version)
-        info("bar \(levels.bar), and \(levels.barAside) while the macOS menu bar is revealed")
+    private mutating func listWindowLevels() {
+        info("bar \(SurfaceLevels.bar), and \(SurfaceLevels.barAside) while the macOS menu bar is revealed")
         for layer in SurfaceLayer.allCases {
-            info("\(layer.rawValue) \(levels.level(layer))")
+            info("\(layer.rawValue) \(SurfaceLevels.level(layer))")
         }
     }
 
