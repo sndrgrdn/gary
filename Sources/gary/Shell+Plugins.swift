@@ -103,12 +103,12 @@ extension Shell {
     func load(_ slot: PluginSlot, _ trace: Trace) {
         slot.candidate?.stop()
         let key = slot.key
+        let delivery = MainDelivery { [weak self] runtime, event in self?.handle(event, from: runtime, key) }
         let runtime = PluginRuntime(
             bundle: slot.bundle, kind: key.kind, scene: scene(for: slot),
             settings: config.settings[key.id] ?? .object([:]), theme: theme.json, hub: hub,
-        ) { [weak self] runtime, event in
-            DispatchQueue.main.async { self?.handle(event, from: runtime, key) }
-        }
+            deliver: delivery.send,
+        )
         slot.candidate = runtime
         runtime.load(trace)
     }
