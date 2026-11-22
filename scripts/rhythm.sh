@@ -15,6 +15,9 @@ rows share (green for left edges, red for right edges).
   --rect x,y,w,h   capture that screen area (screencapture -R), such as the
                    frame `gary action` prints
   --step n         grid step in points (default 4)
+  --bar            for a one-row strip such as the bar: draw the grid's columns
+                   too, and list every ink box's left, right and centre with
+                   each modulo the step
   --join n         merge ink less than n points apart vertically into one row (default 8)
   --tall n         a box taller than n points that holds other boxes is a frame (default 48)
   --scale n        pixels per point (default: from the image's resolution)
@@ -38,7 +41,7 @@ for (let i = 0; i < list.count; i++) {
 rows.join("\n");'
 }
 
-step=4 join=8 tall=48 scale="" out="" image=""
+step=4 join=8 tall=48 bar=0 scale="" out="" image=""
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
@@ -48,6 +51,7 @@ while (($#)); do
         --window) image="$work/capture.png"; screencapture -x -o -l"$2" "$image"; shift ;;
         --rect) image="$work/capture.png"; screencapture -x -R"$2" "$image"; shift ;;
         --step) step="$2"; shift ;;
+        --bar) bar=1 ;;
         --join) join="$2"; shift ;;
         --tall) tall="$2"; shift ;;
         --scale) scale="$2"; shift ;;
@@ -71,7 +75,7 @@ magick -quiet "$image" -background black -alpha remove -alpha off -colorspace gr
 
 read -r width height < <(magick identify -quiet -format '%w %h\n' "$image")
 
-awk -v s="$scale" -v reach="$reach" -v lift="$lift" -v step="$step" -v join="$join" -v tall="$tall" \
+awk -v s="$scale" -v reach="$reach" -v lift="$lift" -v step="$step" -v join="$join" -v tall="$tall" -v bar="$bar" \
     -v W="$width" -v H="$height" -v draw="$work/draw" '
 function pt(v) { return sprintf("%.1f", v) }
 function line(x1, y1, x2, y2, color) { printf "stroke %s line %d,%d %d,%d\n", color, x1 * s, y1 * s, x2 * s, y2 * s > draw }
@@ -125,6 +129,15 @@ END {
     }
     shared("left", lx, lr, nl, "lime")
     shared("right", rx, rr, rows, "red")
+    if (!bar) exit
+    for (x = 0; x < W / s; x += step) line(x, 0, x, H / s, x % (4 * step) ? "\"rgba(0,255,255,0.12)\"" : "\"rgba(0,255,255,0.35)\"")
+    for (k = 1; k <= m; k++) by[k] = order[k]
+    for (i = 2; i <= m; i++) for (j = i; j > 1 && L[by[j]] < L[by[j - 1]]; j--) { t = by[j]; by[j] = by[j - 1]; by[j - 1] = t }
+    print "boxes, pt: left right centre | left%step right%step centre%step"
+    for (k = 1; k <= m; k++) {
+        i = by[k]; c = (L[i] + R[i]) / 2
+        printf "  %7s %7s %7s | %5s %5s %5s\n", pt(L[i]), pt(R[i]), pt(c), pt(L[i] - step * int(L[i] / step)), pt(R[i] - step * int(R[i] / step)), pt(c - step * int(c / step))
+    }
 }' "$work/boxes"
 
 magick -quiet "$image" -fill none -strokewidth 1 -font /System/Library/Fonts/Supplemental/Arial.ttf -pointsize $((10 * scale)) -draw "@$work/draw" "$out"
