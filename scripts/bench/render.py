@@ -41,6 +41,7 @@ CASES = {
     "s5-small": feed(1_000),
     "s5-large": feed(200_000),
 }
+DARK_OK = {"s1-idle", "s2-busy-100", "s5-large"}
 STAGES = ["evaluate", "encode", "js_parse", "handler", "render", "stringify", "swift_parse", "node_parse", "compare", "apply", "layout",
           "display", "flush"]
 LINE = re.compile(r"^(\d+\.\d+) (commit|render) plugin=(\S+?)(?:/\S+)? (.*)$")
@@ -262,12 +263,14 @@ def first_render(case, log, trace):
     return {"summons": runs, "stats": stats(id)}
 
 
-def run(name, out, trace):
+def run(name, out, trace, dark_ok=False):
     case = CASES[name]
     log = os.path.join(WORK, f"{name}-{int(time.time())}.log")
     result = {"case": name, "trace": trace, "app": os.path.relpath(APP, ROOT), "time": time.time()}
+    if dark_ok:
+        result["dark_ok"] = True
     state = screen()
-    if state != "on":
+    if state != "on" and not (dark_ok and name in DARK_OK):
         result["error"] = f"screen is {state}, so windows are not composited"
         with open(out, "a") as file:
             file.write(json.dumps(result) + "\n")
@@ -353,7 +356,7 @@ def report(path):
     rows = [json.loads(line) for line in open(path)]
     by_case = {}
     for row in rows:
-        by_case.setdefault((row["case"], row["trace"], row.get("app", "build/Gary.app")), []).append(row)
+        by_case.setdefault((row["case"], row["trace"], row.get("app", "build/Gary.app"), row.get("dark_ok", False)), []).append(row)
 
     def spread(values, unit="", digits=1):
         values = [value for value in values if value is not None]
@@ -366,16 +369,18 @@ def report(path):
         seconds = (after["at"] - before["at"]) / 1000 if "at" in before and "at" in after else run["window_s"]
         return (after.get(counter, 0) - before.get(counter, 0)) / seconds
 
-    for (name, trace, app), runs in sorted(by_case.items()):
+    for (name, trace, app, dark_ok), runs in sorted(by_case.items()):
         errors = [run["error"] for run in runs if "error" in run]
         runs = [run for run in runs if "error" not in run]
-        dark = [run for run in runs if run["noise_before"].get("screen") != "on" or run["noise_after"].get("screen") != "on"]
+        screens = {run["noise_before"].get("screen") for run in runs} | {run["noise_after"].get("screen") for run in runs}
+        dark = [run for run in runs if run["noise_before"].get("screen") != run["noise_after"].get("screen")
+                or not dark_ok and run["noise_before"].get("screen") != "on"]
         runs = [run for run in runs if run not in dark]
-        print(f"## {name} {'traced' if trace else 'untraced'} {app}")
+        print(f"## {name} {'traced' if trace else 'untraced'} {app}{' screen ' + '/'.join(sorted(screens - {None})) if dark_ok else ''}")
         if errors:
             print(f"errors: {len(errors)}, first: {errors[0]}")
         if dark:
-            print(f"excluded {len(dark)} runs taken while the screen was locked or asleep")
+            print(f"excluded {len(dark)} runs taken while the screen was locked or asleep, or changed state")
         if not runs:
             continue
         loads = [run["noise_before"]["load1"] for run in runs] + [run["noise_after"]["load1"] for run in runs]
@@ -412,7 +417,7 @@ def report(path):
 if __name__ == "__main__":
     command = sys.argv[1] if len(sys.argv) > 1 else ""
     if command == "run" and len(sys.argv) >= 4 and sys.argv[2] in CASES:
-        run(sys.argv[2], sys.argv[3], "--trace" in sys.argv)
+        run(sys.argv[2], sys.argv[3], "--trace" in sys.argv, "--dark-ok" in sys.argv)
     elif command == "profile" and len(sys.argv) == 5 and sys.argv[2] in CASES:
         profile(sys.argv[2], int(sys.argv[3]), sys.argv[4])
     elif command == "report" and len(sys.argv) == 3:
@@ -420,5 +425,5 @@ if __name__ == "__main__":
     elif command == "restore":
         restore()
     else:
-        sys.exit(f"usage: render.py run <case> <out.jsonl> [--trace] | profile <case> <seconds> <out.txt> | report <out.jsonl> | restore\n"
+        sys.exit(f"usage: render.py run <case> <out.jsonl> [--trace] [--dark-ok] | profile <case> <seconds> <out.txt> | report <out.jsonl> | restore\n"
                  f"cases: {', '.join(CASES)}")
