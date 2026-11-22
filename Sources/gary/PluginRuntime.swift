@@ -230,10 +230,10 @@ final class PluginRuntime: Subscriber {
         stops.append(stop)
     }
 
-    func callBack(_ callback: JSValue, _ arguments: [Any], _ trace: Trace) {
+    func callBack(_ callback: JSValue, _ arguments: @autoclosure () -> [Any], _ trace: Trace) {
         guard isRunning else { return }
         do {
-            try invoke(callback, arguments, [.handler])
+            try invoke(callback, arguments(), [.handler])
             renderAll(trace)
         } catch {
             fail("\(error)")
@@ -353,10 +353,10 @@ private extension PluginRuntime {
     }
 
     @discardableResult
-    func invoke(_ function: JSValue, _ arguments: [Any], _ stages: [Stage] = []) throws -> JSValue {
+    func invoke(_ function: JSValue, _ arguments: @autoclosure () -> [Any], _ stages: [Stage] = []) throws -> JSValue {
         var spent = Timings()
         defer { timings.merge(spent) }
-        return try check(in: function.context) { function.call(arguments, timing: stages, into: &spent) }
+        return try check(in: function.context) { function.call(arguments(), timing: stages, into: &spent) }
     }
 
     func timed<T>(_ stage: Stage, _ body: () throws -> T) rethrows -> T {
