@@ -36,6 +36,7 @@ struct Capability {
         .paste,
         .permissions,
         .power,
+        .screen,
         .session,
         .system,
         .toast,

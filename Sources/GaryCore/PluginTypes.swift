@@ -99,6 +99,7 @@ public enum PluginTypes {
             notched: boolean;
             notch: { left: number; right: number } | null;
           }
+          type ScreenArea = { display?: string | null } | { window: number } | { x: number; y: number; width: number; height: number };
           type Theme = {
             mode: "light" | "dark";
             colors: { [name: string]: string };
