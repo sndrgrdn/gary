@@ -239,6 +239,9 @@ extension Skill {
     | `progress` | `value` from 0 to 1 | `null` |
     | `input` | `value`, `placeholder`, `change`, and `submit` | the text. `change` and `submit` name the actions. |
     | `spacer` | none. It fills the free space in a row or column, and a row with a spacer spans the width of its column, so the items after the spacer line up at the trailing edge. | `null` |
+    | `shape` | `viewBox` and `paths`, SVG paths to fill and stroke. The Drawing section covers it. | `null` |
+    | `chart` | `series`, `min`, `max`, and `axes`. The Drawing section covers it. | `null` |
+    | `grid` | `children` and `columns`, the number of cells in each row | `null` |
 
     - `width` and `height` give a node exactly that size, padding included, and `minWidth` keeps it at least that wide. A `scroll` grows with its content up to its `height`.
     - `padding` is one number for every side, `[vertical, horizontal]`, or `[top, right, bottom, left]`.

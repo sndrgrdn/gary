@@ -217,6 +217,12 @@ struct NodeView: View {
             Spacer(minLength: 0)
         case .button:
             HStack(alignment: .center, spacing: gap) { Children(node: node, theme: theme) }.fixedSize()
+        case let .shape(shape):
+            ShapeNode(shape: shape, theme: theme, color: look.color)
+        case let .chart(chart):
+            ChartNode(chart: chart, theme: theme, color: look.color)
+        case let .grid(_, columns):
+            GridNode(node: node, columns: columns, theme: theme, gap: gap, align: look.align ?? .leading)
         }
     }
 }

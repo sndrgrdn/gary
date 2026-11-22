@@ -28,7 +28,9 @@ struct NodeBox: Equatable {
         case .input: (width, action) = (width ?? 240, nil)
         case .progress: (width, height, background) = (width ?? 120, height ?? 6, nil)
         case .icon: alignment.horizontal = look.align.map(HorizontalAlignment.init) ?? .center
-        case .row, .button, .text, .spacer: break
+        case let .shape(shape): (width, height) = (width ?? shape.viewBox.map(\.width) ?? 24, height ?? shape.viewBox.map(\.height) ?? 24)
+        case .chart: (width, height) = (width ?? 60, height ?? 16)
+        case .row, .button, .text, .spacer, .grid: break
         }
     }
 }

@@ -205,12 +205,14 @@ extension Shell {
 extension Node {
     var summary: String {
         switch content {
-        case let .row(children), let .column(children), let .stack(children), let .scroll(children, _), let .button(children, _):
+        case let .row(children), let .column(children), let .stack(children), let .scroll(children, _), let .button(children, _),
+             let .grid(children, _):
             children.map(\.summary).filter { !$0.isEmpty }.joined(separator: " ")
         case let .text(value), let .icon(value), let .image(value): value.replacingOccurrences(of: " ", with: "_") + ":" + (style ?? "default")
         case let .slider(value), let .progress(value): "\(kind.rawValue)=\(value)"
         case let .input(input): "input=\(input.value)"
         case .spacer: ""
+        case .shape, .chart: kind.rawValue
         }
     }
 }

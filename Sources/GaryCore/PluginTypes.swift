@@ -220,6 +220,18 @@ public enum PluginTypes {
         case .slider, .progress: ["value: number;"]
         case .input: ["value?: string | number;", "placeholder?: string;", "change?: string;", "submit?: string;"]
         case .spacer: []
+        case .shape:
+            [
+                "viewBox?: [number, number];",
+                "paths: { d: string; fill?: Paint; stroke?: Paint; lineWidth?: number; cap?: \(union(ShapePath.Cap.allCases.map(\.rawValue))); "
+                    + "join?: \(union(ShapePath.Join.allCases.map(\.rawValue))); dash?: number[]; trim?: [number, number] }[];",
+            ]
+        case .chart:
+            [
+                "series: { values: number[]; mark?: \(union(ChartSeries.Mark.allCases.map(\.rawValue))); color?: Paint; smooth?: boolean }[];",
+                "min?: number;", "max?: number;", "axes?: boolean;",
+            ]
+        case .grid: ["columns: number;", "children?: Node[];"]
         }
     }
 }

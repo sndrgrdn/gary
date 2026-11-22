@@ -28,10 +28,13 @@ public struct Node: Equatable, Sendable {
         case progress(Double)
         case input(Input)
         case spacer
+        case shape(Shape)
+        case chart(Chart)
+        case grid([Node], columns: Int)
     }
 
     public enum Kind: String, CaseIterable, Sendable {
-        case row, column, stack, scroll, button, text, icon, image, slider, progress, input, spacer
+        case row, column, stack, scroll, button, text, icon, image, slider, progress, input, spacer, shape, chart, grid
     }
 
     public var content: Content
@@ -77,13 +80,17 @@ public struct Node: Equatable, Sendable {
         case .progress: .progress
         case .input: .input
         case .spacer: .spacer
+        case .shape: .shape
+        case .chart: .chart
+        case .grid: .grid
         }
     }
 
     public var children: [Node] {
         switch content {
-        case let .row(children), let .column(children), let .stack(children), let .scroll(children, _), let .button(children, _): children
-        case .text, .icon, .image, .slider, .progress, .input, .spacer: []
+        case let .row(children), let .column(children), let .stack(children), let .scroll(children, _), let .button(children, _),
+             let .grid(children, _): children
+        case .text, .icon, .image, .slider, .progress, .input, .spacer, .shape, .chart: []
         }
     }
 
@@ -95,7 +102,8 @@ public struct Node: Equatable, Sendable {
         case .stack: node.content = .stack(children)
         case let .scroll(_, reveal): node.content = .scroll(children, reveal: reveal)
         case let .button(_, hover): node.content = .button(children, hover: hover)
-        case .text, .icon, .image, .slider, .progress, .input, .spacer: break
+        case let .grid(_, columns): node.content = .grid(children, columns: columns)
+        case .text, .icon, .image, .slider, .progress, .input, .spacer, .shape, .chart: break
         }
         return node
     }
@@ -158,7 +166,7 @@ public extension Node {
     }
 }
 
-private struct NodeReader {
+struct NodeReader {
     let fields: [String: JSON]
     let path: String
     let depth: Int
@@ -199,6 +207,9 @@ private struct NodeReader {
         .progress: { try .progress($0.fraction()) },
         .input: { try .input($0.input()) },
         .spacer: { _ in .spacer },
+        .shape: { try .shape($0.shape()) },
+        .chart: { try .chart($0.chart()) },
+        .grid: { try .grid($0.children(), columns: $0.columns()) },
     ]
 
     func fail(_ reason: String) -> NodeError {

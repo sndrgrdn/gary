@@ -265,25 +265,25 @@ public struct StyleProps: Equatable, Sendable {
         return try Loop(spans, duration: duration, reverse: flag(fields["reverse"], "loop.reverse", fail: fail) ?? false)
     }
 
-    private static func present(_ value: JSON?) -> JSON? {
+    static func present(_ value: JSON?) -> JSON? {
         value == .null ? nil : value
     }
 
-    private static func flag(_ value: JSON?, _ name: String, fail: (String, String) -> Error) throws -> Bool? {
+    static func flag(_ value: JSON?, _ name: String, fail: (String, String) -> Error) throws -> Bool? {
         try present(value).map { value in
             guard let flag = value.bool else { throw fail(name, "must be true or false") }
             return flag
         }
     }
 
-    private static func paint(_ value: JSON?, _ name: String, fail: (String, String) -> Error) throws -> Paint? {
+    static func paint(_ value: JSON?, _ name: String, fail: (String, String) -> Error) throws -> Paint? {
         try present(value).map { value in
             guard let paint = Paint.parse(value) else { throw fail(name, "must be \(Paint.syntax)") }
             return paint
         }
     }
 
-    private static func number(_ value: JSON?, _ name: String, signed: Bool = false, fail: (String, String) -> Error) throws -> Double? {
+    static func number(_ value: JSON?, _ name: String, signed: Bool = false, fail: (String, String) -> Error) throws -> Double? {
         guard let value = present(value) else { return nil }
         guard let number = value.number, number.isFinite, signed || number >= 0 else {
             throw fail(name, signed ? "must be a number" : "must be a non-negative number")
@@ -291,7 +291,7 @@ public struct StyleProps: Equatable, Sendable {
         return number
     }
 
-    private static func choice<Value: RawRepresentable & CaseIterable>(
+    static func choice<Value: RawRepresentable & CaseIterable>(
         _ value: JSON?,
         _ name: String,
         fail: (String, String) -> Error,
