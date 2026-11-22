@@ -11,9 +11,9 @@ extension Capability {
         """,
         types: """
         declare namespace Gary {
-          interface CalendarChange { available: boolean; reason?: string; count: number }
-          interface EventCalendar { id: string; title: string; color: string; source: string }
-          interface CalendarEvent {
+          type CalendarChange = { available: boolean; reason?: string; count: number }
+          type EventCalendar = { id: string; title: string; color: string; source: string }
+          type CalendarEvent = {
             id: string;
             calendar: string;
             title: string;

@@ -25,7 +25,7 @@ extension Capability {
         height: number;
         icon: string | null;
       }
-      interface TrayPress { button?: "left" | "right"; modifiers?: ("cmd" | "ctrl" | "alt" | "shift")[] }
+      type TrayPress = { button?: "left" | "right"; modifiers?: ("cmd" | "ctrl" | "alt" | "shift")[] }
       interface Host { tray: TrayApi }
       interface TrayApi {
         press(id: string, options?: TrayPress): Promise<TrayItem & { opened: boolean }>;

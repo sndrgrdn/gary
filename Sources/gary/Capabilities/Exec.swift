@@ -18,10 +18,10 @@ extension Capability {
         declare namespace Gary {
           interface Host {
             exec(argv: string[]): Promise<ExecResult>;
-            spawn(argv: string[], onLine: (line: string) => void): Spawned;
+            spawn(argv: string[], onLine: (line: string) => void): SpawnApi;
           }
           type ExecResult = { status: number; stdout: string; stderr: string }
-          interface Spawned { exited: Promise<SpawnExit>; stop(): void }
+          interface SpawnApi { exited: Promise<SpawnExit>; stop(): void }
           type SpawnExit = { status: number; stderr: string }
         }
         """,

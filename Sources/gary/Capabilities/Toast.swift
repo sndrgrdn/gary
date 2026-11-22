@@ -14,7 +14,7 @@ extension Capability {
         """,
         types: """
         declare namespace Gary {
-          interface Toast { title: string; body?: string; icon?: string; timeout?: number }
+          type Toast = { title: string; body?: string; icon?: string; timeout?: number }
           interface Host { toast(toast: Toast): Promise<"clicked" | "expired"> }
         }
         """,

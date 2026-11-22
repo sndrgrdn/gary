@@ -15,7 +15,7 @@ extension Capability {
         """,
         types: """
         declare namespace Gary {
-          interface System {
+          type System = {
             cpu: { user: number; system: number; idle: number };
             memory: { used: number; total: number; pressure: "normal" | "warning" | "critical" };
             idleSeconds: number;

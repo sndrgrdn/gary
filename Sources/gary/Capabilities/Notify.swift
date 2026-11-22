@@ -12,7 +12,7 @@ extension Capability {
         """,
         types: """
         declare namespace Gary {
-          interface NotificationPost { title: string; subtitle?: string; body?: string; sound?: boolean }
+          type NotificationPost = { title: string; subtitle?: string; body?: string; sound?: boolean }
           interface Host { notify: { post(notification: NotificationPost): Promise<null> } }
         }
         """,
