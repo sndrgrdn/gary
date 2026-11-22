@@ -50,4 +50,45 @@ struct GestureViewTests {
         #expect(outer.hitTest(point, event: scroll()) === outer)
         #expect(outer.hitTest(CGPoint(x: 100, y: 80), event: mouse(.rightMouseDown)) === outer)
     }
+
+    private func scrolled(_ node: String) throws -> (sent: [String], offset: Double) {
+        let theme = try Theme.parse(
+            JSON.parse(Data(contentsOf: URL(fileURLWithPath: #filePath)
+                    .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+                    .appending(path: "Resources/theme.json"))),
+            palette: Palette(nil, system: .dark),
+        )
+        var sent: [String] = []
+        let host = try TreeHostingView(
+            tree: MountedTree(root: Node.parse(JSON.parse(node)), theme: theme),
+            onAction: { sent.append($0.name) },
+            onDismiss: { sent.append("dismiss") },
+        )
+        host.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        let list = try #require(host.descendants(NSScrollView.self).first)
+        let point = list.convert(CGPoint(x: 10, y: 10), to: nil)
+        let wheel = try #require(CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: -3, wheel2: 0, wheel3: 0))
+        wheel.location = CGPoint(x: point.x, y: CGDisplayBounds(CGMainDisplayID()).height - point.y)
+        let event = try #require(NSEvent(cgEvent: wheel))
+        let catcher = try #require(host.descendants(GestureView.self).first)
+        try #require(catcher.hitTest(catcher.superview?.convert(point, from: nil) ?? point, event: event)).scrollWheel(with: event)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.5))
+        return (sent, list.contentView.bounds.origin.y)
+    }
+
+    private let rows = (0..<40).map { #"{"type":"text","key":"\#($0)","text":"row \#($0)"}"# }.joined(separator: ",")
+
+    @Test func `a scroll node with a scroll action scrolls and sends the action`() throws {
+        let result = try scrolled(#"{"type":"scroll","height":100,"scrollAction":"wheel","children":[\#(rows)]}"#)
+        #expect(result.sent == ["wheel"])
+        #expect(result.offset > 0)
+    }
+
+    @Test func `a node with a scroll action inside a scroll node takes the scroll from it`() throws {
+        let result = try scrolled(#"{"type":"scroll","height":100,"children":[{"type":"column","scrollAction":"wheel","children":[\#(rows)]}]}"#)
+        #expect(result.sent == ["wheel"])
+        #expect(result.offset == 0)
+    }
 }

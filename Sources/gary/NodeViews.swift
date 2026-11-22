@@ -132,6 +132,14 @@ private extension Node {
     var identifiedChildren: [Child] {
         zip(childIDs, children).map(Child.init)
     }
+
+    var scrolls: Bool {
+        if case .scroll = content {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 struct NodeView: View {
@@ -262,7 +270,7 @@ private extension View {
             }
             .overlay {
                 if !node.actions.isEmpty || node.tooltip != nil {
-                    GestureCatcher(actions: node.actions, tooltip: node.tooltip, anchor: anchor)
+                    GestureCatcher(actions: node.actions, scrolls: node.scrolls, tooltip: node.tooltip, anchor: anchor)
                 }
             }
             .interactive(box.action, hovering: hovering, pressing: pressing) { _ in anchor.view?.send(.click, .null) }
