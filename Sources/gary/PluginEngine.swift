@@ -29,6 +29,9 @@ final class PluginEngine: @unchecked Sendable {
         if let effectLibrary {
             return effectLibrary
         }
+        let paused = state.withLock { current.take() }
+        let loading = ContinuousClock.now
+        defer { state.withLock { current = paused.map { ($0.plugin, $0.started + loading.duration(to: .now)) } } }
         guard let context = JSContext(virtualMachine: machine) else { throw RenderError("cannot load gary:effect: no JavaScript context") }
         context.name = "gary:effect"
         var failure: String?
