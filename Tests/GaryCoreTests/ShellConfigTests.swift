@@ -53,14 +53,14 @@ struct ShellConfigTests {
     @Test func `an empty file keeps the defaults`() throws {
         #expect(try config("{}") == ShellConfig.defaults)
         let resolution = try ShellConfig.defaults.resolve(standard)
-        #expect(try resolution.bar == [.left: [], .center: [], .right: [id("gary.battery"), id("gary.clock")], .notchLeft: [], .notchRight: []])
+        #expect(try resolution.bar == [.left: [], .center: [], .right: [id("gary.battery"), id("gary.clock")], .notchLeft: []])
         #expect(try resolution.enabled == Set(["gary.clock", "gary.battery", "gary.today"].map(id)))
         #expect(resolution.warnings.isEmpty)
     }
 
     @Test func `a user bar replaces the default bar whole`() throws {
         let parsed = try config(#"{"bar": {"left": ["gary.clock"]}}"#)
-        #expect(try parsed.bar == [.left: [id("gary.clock")], .center: [], .right: [], .notchLeft: [], .notchRight: []])
+        #expect(try parsed.bar == [.left: [id("gary.clock")], .center: [], .right: [], .notchLeft: []])
         #expect(try parsed.resolve(standard).bar[.right]?.isEmpty == true)
         #expect(try parsed.resolve(standard).enabled.contains(id("gary.battery")))
     }
@@ -91,7 +91,7 @@ struct ShellConfigTests {
 
     @Test func `the bar skips unknown non widget and repeated entries with warnings`() throws {
         let resolution = try config(#"{"bar": {"left": ["acme.ghost", "gary.today", "gary.clock"], "right": ["gary.clock"]}}"#).resolve(standard)
-        #expect(try resolution.bar == [.left: [id("gary.clock")], .center: [], .right: [], .notchLeft: [], .notchRight: []])
+        #expect(try resolution.bar == [.left: [id("gary.clock")], .center: [], .right: [], .notchLeft: []])
         #expect(resolution.warnings == [
             "bar.left: no plugin acme.ghost", "bar.left: gary.today is not a bar widget", "bar.right: gary.clock is already in the bar",
         ])
@@ -132,7 +132,7 @@ struct ShellConfigTests {
             (#"{"bar": []}"#, ShellConfigError(path: "bar", reason: "must be an object")),
             (
                 #"{"bar": {"top": []}}"#,
-                ShellConfigError(path: "bar.top", reason: "is not left, center, right, notchLeft, notchRight or revealMenuBar"),
+                ShellConfigError(path: "bar.top", reason: "is not left, center, right, notchLeft or revealMenuBar"),
             ),
             (#"{"bar": {"revealMenuBar": "no"}}"#, ShellConfigError(path: "bar.revealMenuBar", reason: "must be true or false")),
             (#"{"bar": {"left": ["Clock"]}}"#, ShellConfigError(path: "bar.left[0]", reason: "is not a plugin id")),
@@ -172,7 +172,6 @@ struct ShellConfigChangeTests {
             .center: [],
             .right: [#require(PluginID("gary.battery")), #require(PluginID("gary.clock")), widget],
             .notchLeft: [],
-            .notchRight: [],
         ])
         #expect(next["plugins"] == nil && next["disabledPlugins"] == nil)
         #expect(try ShellConfig.applying(.enable(widget, bar: .left), to: next) == next)

@@ -41,7 +41,7 @@ extension Skill {
 
     | Kind | Runs as |
     | --- | --- |
-    | `bar-widget` | A view in the built-in bar. `shell.json` places it in `bar.left`, `bar.center`, `bar.right`, `bar.notchLeft`, or `bar.notchRight`. When `render` returns `null`, the widget and its gap take no space in the bar until it returns a node again. |
+    | `bar-widget` | A view in the built-in bar. `shell.json` places it in `bar.left`, `bar.center`, `bar.right`, or `bar.notchLeft`. When `render` returns `null`, the widget and its gap take no space in the bar until it returns a node again. |
     | `bar` | A whole bar that replaces the built-in one. |
     | `panel` | A window that `gary summon <id>`, `gary toggle <id>`, or `host.show()` shows. |
     | `overlay` | A panel that covers the whole display above other windows. |
@@ -165,7 +165,7 @@ extension Skill {
 
     | Field | Meaning |
     | --- | --- |
-    | `bar` | `{ "left": [...], "center": [...], "right": [...], "notchLeft": [...], "notchRight": [...] }`, lists of bar widget ids. `notchLeft` ends at the notch's left edge and `notchRight` starts at its right edge, both `theme.bar.gap` away; without a notch they flank `center`. Naming a widget here enables it. Naming any section replaces the default sections. |
+    | `bar` | `{ "left": [...], "center": [...], "right": [...], "notchLeft": [...] }`, lists of bar widget ids. On a display with a notch, `notchLeft` ends at the notch's left edge and `center` starts at its right edge, both `theme.bar.gap` away. Without a notch, `center` is centred and `notchLeft` ends just left of it. Naming a widget here enables it. Naming any section replaces the default sections. |
     | `bar.revealMenuBar` | `true` by default: when the pointer reaches the top edge of a display, the bar hides so macOS can reveal its menu bar, and returns when the menu bar hides again. `false` keeps the bar over the macOS menu bar. While a plugin hides the menu bar with the `menubar` capability, the bar stays. |
     | `plugins` | Ids of enabled plugins that are not bar widgets, such as panels and services. |
     | `disabledPlugins` | Ids to turn off, including built-in ones. |

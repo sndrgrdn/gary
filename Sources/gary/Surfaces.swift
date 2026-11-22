@@ -163,7 +163,6 @@ final class BarWindow {
     private let center = NSStackView()
     private let right = NSStackView()
     private let notchLeft = NSStackView()
-    private let notchRight = NSStackView()
     private var constraints: [NSLayoutConstraint] = []
 
     init(display: DisplayInfo, level: Int) {
@@ -180,7 +179,7 @@ final class BarWindow {
     }
 
     private var sections: [NSStackView] {
-        [left, center, right, notchLeft, notchRight]
+        [left, center, right, notchLeft]
     }
 
     private func stack(_ section: BarSection) -> NSStackView {
@@ -189,7 +188,6 @@ final class BarWindow {
         case .center: center
         case .right: right
         case .notchLeft: notchLeft
-        case .notchRight: notchRight
         }
     }
 
@@ -213,18 +211,16 @@ final class BarWindow {
         if let notch = display.notch {
             constraints += [
                 notchLeft.trailingAnchor.constraint(equalTo: content.leadingAnchor, constant: notch.lowerBound - hug),
-                notchRight.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: notch.upperBound + hug),
+                center.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: notch.upperBound + hug),
                 left.trailingAnchor.constraint(lessThanOrEqualTo: notchLeft.leadingAnchor, constant: -edge),
-                center.leadingAnchor.constraint(greaterThanOrEqualTo: notchRight.trailingAnchor, constant: gap),
-                center.trailingAnchor.constraint(equalTo: right.leadingAnchor, constant: -4),
+                right.leadingAnchor.constraint(greaterThanOrEqualTo: center.trailingAnchor, constant: gap),
             ]
         } else {
             constraints += [
                 center.centerXAnchor.constraint(equalTo: content.centerXAnchor),
                 notchLeft.trailingAnchor.constraint(equalTo: center.leadingAnchor, constant: -hug),
-                notchRight.leadingAnchor.constraint(equalTo: center.trailingAnchor, constant: hug),
                 left.trailingAnchor.constraint(lessThanOrEqualTo: notchLeft.leadingAnchor, constant: -gap),
-                right.leadingAnchor.constraint(greaterThanOrEqualTo: notchRight.trailingAnchor, constant: gap),
+                right.leadingAnchor.constraint(greaterThanOrEqualTo: center.trailingAnchor, constant: gap),
             ]
         }
         NSLayoutConstraint.activate(constraints)

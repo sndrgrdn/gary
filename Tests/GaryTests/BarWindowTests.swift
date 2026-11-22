@@ -48,7 +48,7 @@ struct BarWindowTests {
         #expect(minX(clock, in: bar) == alone)
     }
 
-    @Test func `on a notched display the center section ends 4pt before the right one, and without a notch it is centred`() throws {
+    @Test func `notchLeft ends and center starts at the notch, and without one center is centred with notchLeft beside it`() throws {
         let theme = try #require(Self.theme)
         for notch in [nil, 760.0...968.0] {
             let screen = DisplayInfo(id: "built-in", index: 0, frame: CGRect(x: 0, y: 0, width: 1728, height: 1117), band: 32, notch: notch)
@@ -56,48 +56,24 @@ struct BarWindowTests {
             defer { bar.close() }
             bar.layout(theme: theme)
             let menu = view("menu", theme: theme)
+            let music = view("music", theme: theme)
             let indicator = view("●", theme: theme)
             let clock = view("12:00", theme: theme)
             let battery = view("battery", theme: theme)
             bar.setSection(.left, [menu])
+            bar.setSection(.notchLeft, [music])
             bar.setSection(.center, [indicator, clock])
             bar.setSection(.right, [battery])
             bar.content.layoutSubtreeIfNeeded()
-            let frames = [menu, indicator, clock, battery].map { $0.convert($0.bounds, to: nil) }
-
-            #expect(frames[1].maxX < frames[2].minX)
-            if let notch {
-                #expect(abs(frames[3].minX - frames[2].maxX - 4) < 0.001)
-                #expect(frames[0].maxX <= notch.lowerBound && frames[1].minX >= notch.upperBound)
-            } else {
-                #expect(abs((frames[1].minX + frames[2].maxX) / 2 - 864) < 0.001)
-            }
-        }
-    }
-
-    @Test func `the notch sections end and start at the notch, and without a notch they flank the center section`() throws {
-        let theme = try #require(Self.theme)
-        for notch in [nil, 760.0...968.0] {
-            let screen = DisplayInfo(id: "built-in", index: 0, frame: CGRect(x: 0, y: 0, width: 1728, height: 1117), band: 32, notch: notch)
-            let bar = BarWindow(display: screen, level: 0)
-            defer { bar.close() }
-            bar.layout(theme: theme)
-            let music = view("music", theme: theme)
-            let clock = view("12:00", theme: theme)
-            let timer = view("timer", theme: theme)
-            bar.setSection(.notchLeft, [music])
-            bar.setSection(.center, [clock])
-            bar.setSection(.notchRight, [timer])
-            bar.content.layoutSubtreeIfNeeded()
-            let frames = [music, clock, timer].map { $0.convert($0.bounds, to: nil) }
+            let frames = [menu, music, indicator, clock, battery].map { $0.convert($0.bounds, to: nil) }
             let gap = theme.bar.gap
 
+            #expect(frames[0].maxX < frames[1].minX && frames[3].maxX < frames[4].minX)
             if let notch {
-                #expect(abs(frames[0].maxX - (notch.lowerBound - gap)) < 0.001)
+                #expect(abs(frames[1].maxX - (notch.lowerBound - gap)) < 0.001)
                 #expect(abs(frames[2].minX - (notch.upperBound + gap)) < 0.001)
-                #expect(frames[1].minX >= frames[2].maxX)
             } else {
-                #expect(abs(frames[1].minX - frames[0].maxX - gap) < 0.001)
+                #expect(abs((frames[2].minX + frames[3].maxX) / 2 - 864) < 0.001)
                 #expect(abs(frames[2].minX - frames[1].maxX - gap) < 0.001)
             }
         }

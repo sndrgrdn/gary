@@ -17,7 +17,7 @@ struct ShellConfigParseTests {
     @Test func `a bar with sections and reveal sets both and fills missing sections`() throws {
         let parsed = try ShellConfig.parse(JSON.parse(#"{"bar": {"center": ["acme.a"], "revealMenuBar": false}, "disabledPlugins": ["acme.b"]}"#))
         let id = try #require(PluginID("acme.a"))
-        #expect(parsed.bar == [.left: [], .center: [id], .right: [], .notchLeft: [], .notchRight: []])
+        #expect(parsed.bar == [.left: [], .center: [id], .right: [], .notchLeft: []])
         #expect(!parsed.revealMenuBar)
         #expect(parsed.disabledPlugins == Set(["acme.b"].compactMap(PluginID.init)))
     }

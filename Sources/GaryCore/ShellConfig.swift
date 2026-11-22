@@ -1,7 +1,7 @@
 import Foundation
 
 public enum BarSection: String, CaseIterable, Sendable {
-    case left, center, right, notchLeft, notchRight
+    case left, center, right, notchLeft
 }
 
 public struct ShellConfigError: Error, Equatable, CustomStringConvertible {
@@ -22,7 +22,7 @@ public struct ShellConfig: Equatable, Sendable {
     public var warnings: [ShellConfigError] = []
 
     public static let defaults = ShellConfig(
-        bar: [.left: [], .center: [], .right: [PluginID(builtin: "battery"), PluginID(builtin: "clock")], .notchLeft: [], .notchRight: []],
+        bar: [.left: [], .center: [], .right: [PluginID(builtin: "battery"), PluginID(builtin: "clock")], .notchLeft: []],
         plugins: [], disabledPlugins: [], settings: [:], revealMenuBar: true, packages: [],
     )
 
