@@ -25,7 +25,7 @@ extension PluginRuntime {
             { [weak self] name in
                 guard let self else { return }
                 do {
-                    try deliver(self, .surface(request, surfaceName(name), origin: origin))
+                    try deliver(self, .surface(request, surfaceAddress(name), origin: origin))
                 } catch {
                     let context = JSContext.current()
                     context?.exception = JSValue(newErrorFromMessage: "host.\(request.rawValue): \(error)", in: context)
@@ -48,18 +48,19 @@ extension PluginRuntime {
             .call(withArguments: [logBlock, read, write, publishBlock] + surfaceBlocks + [callBlock, "\(id)", kinds])
     }
 
-    func surfaceName(_ value: JSValue) throws -> String {
+    func surfaceAddress(_ value: JSValue) throws -> SurfaceAddress {
         if value.isUndefined {
-            return SurfaceAddress.main
+            return SurfaceAddress(id)
         }
-        guard value.isString, let name = value.toString(), SurfaceAddress.isName(name) else {
-            throw RenderError("\(value.toString() ?? "this") is not a surface name; use lowercase letters, digits and hyphens")
+        guard value.isString, let text = value.toString(), let address = SurfaceAddress(text) ?? SurfaceAddress(id, surface: text) else {
+            throw RenderError("\(value.toString() ?? "this") is not a surface name or address; " +
+                "use lowercase letters, digits and hyphens, such as osd, you.music, or you.music:osd")
         }
-        guard bundle.manifest.surfaceKind(name) != nil else {
+        guard address.plugin != id || bundle.manifest.surfaceKind(address.surface) != nil else {
             let names = bundle.manifest.surfaceNames
-            throw RenderError("no surface \(name); " +
+            throw RenderError("no surface \(address.surface); " +
                 (names.isEmpty ? "this plugin has no panel, overlay, or menu" : "this plugin declares \(names.joined(separator: ", "))"))
         }
-        return name
+        return address
     }
 }

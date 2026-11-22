@@ -115,7 +115,7 @@ A `text` node is exactly as wide as its text, with no padding of its own. This r
 }
 ```
 
-A panel, overlay, or menu kind can show several windows at once. Export `surfaces`, which maps each surface name to what `surface` takes, instead of `surface`. `render` draws each surface with its name in `state.surface`. `host.show("osd")`, `host.hide("osd")`, and `host.toggle("osd")` act on one surface, and `gary summon you.music:osd` does the same from the command line. Without a name they act on `main`, the only surface of a module that exports `surface`. The `osd` example shows a settings panel and an on-screen display at the same time.
+A panel, overlay, or menu kind can show several windows at once. Export `surfaces`, which maps each surface name to what `surface` takes, instead of `surface`. `render` draws each surface with its name in `state.surface`. `host.show("osd")`, `host.hide("osd")`, and `host.toggle("osd")` act on one surface, and `gary summon you.music:osd` does the same from the command line. Without a name they act on `main`, the only surface of a module that exports `surface`. Given a surface address, such as `host.toggle("you.music:osd")`, they act on another enabled plugin's surface. The `osd` example shows a settings panel and an on-screen display at the same time.
 
 To give every panel, overlay, and menu a material, set it on the `surface` style in `~/.config/gary/theme.json`, with a translucent background:
 

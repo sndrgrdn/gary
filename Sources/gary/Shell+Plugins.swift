@@ -152,8 +152,8 @@ extension Shell {
             if slot.visible {
                 slot.answerWaiters(.ok("shown"))
             }
-        case let .surface(request, surface, origin):
-            surfaceRequested(request, surface, origin, by: key.id)
+        case let .surface(request, address, origin):
+            surfaceRequested(request, address, origin, by: key.id)
         case let .call(kind, method, arguments, reply):
             call(key.id, kind, method, arguments, reply)
         case let .failed(reason):
@@ -176,12 +176,11 @@ extension Shell {
         }
     }
 
-    private func surfaceRequested(_ request: SurfaceRequest, _ surface: String, _ origin: CGRect?, by id: PluginID) {
-        guard let address = SurfaceAddress(id, surface: surface) else { return }
+    private func surfaceRequested(_ request: SurfaceRequest, _ address: SurfaceAddress, _ origin: CGRect?, by id: PluginID) {
         let trace = Trace("host-\(request.rawValue)")
         let report: (Response) -> Void = { response in
             if case let .failure(reason) = response {
-                log("plugin \(id): host.\(request.rawValue)(\"\(surface)\"): \(reason)")
+                log("plugin \(id): host.\(request.rawValue)(\"\(address)\"): \(reason)")
             }
         }
         switch request {

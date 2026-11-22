@@ -282,7 +282,7 @@ struct PluginRuntimeTests {
         for request in [SurfaceRequest.show, .hide, .toggle] {
             harness.runtime.perform(request.rawValue, .null)
             guard case let .surface(next, surface, _) = try await harness.events.next() else { throw RenderError("expected \(request)") }
-            #expect(next == request && surface == SurfaceAddress.main)
+            #expect(next == request && surface == SurfaceAddress(harness.runtime.id))
         }
         #expect(listener.values == [.object(["n": .number(1)])])
         harness.runtime.stop()

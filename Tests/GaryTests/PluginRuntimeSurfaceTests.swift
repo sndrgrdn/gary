@@ -53,7 +53,7 @@ struct PluginRuntimeSurfaceTests {
             .failure() == "the module exports surfaces main, osd, but manifest.json gives the panel main; list its surface names in surfaces.panel")
     }
 
-    @Test func `host surface requests name a surface and throw for a name the manifest does not list`() async throws {
+    @Test func `host surface requests name a surface or another plugin's and throw for a name the manifest does not list`() async throws {
         let harness = try Harness(widget("""
         onAction: function (name) {
           try { if (name === "default") host.show(); else host.toggle(name); } catch (e) { count = e.message; }
@@ -65,17 +65,25 @@ struct PluginRuntimeSurfaceTests {
         ])
         #expect(try await harness.text() == "0")
         func next() async throws -> (SurfaceRequest, String) {
-            guard case let .surface(request, surface, _) = try await harness.events.next() else { throw RenderError("expected a surface request") }
-            return (request, surface)
+            guard case let .surface(request, address, _) = try await harness.events.next() else { throw RenderError("expected a surface request") }
+            return (request, address.description)
         }
         harness.runtime.perform("osd", .null)
-        #expect(try await next() == (.toggle, "osd"))
+        #expect(try await next() == (.toggle, "test.runtime:osd"))
         harness.runtime.perform("default", .null)
-        #expect(try await next() == (.show, "main"))
+        #expect(try await next() == (.show, "test.runtime"))
+        harness.runtime.perform("you.music", .null)
+        #expect(try await next() == (.toggle, "you.music"))
+        harness.runtime.perform("you.music:osd", .null)
+        #expect(try await next() == (.toggle, "you.music:osd"))
         harness.runtime.perform("nope", .null)
         #expect(try await harness.text() == "host.toggle: no surface nope; this plugin declares main, osd")
+        harness.runtime.perform("test.runtime:gone", .null)
+        #expect(try await harness.text() == "host.toggle: no surface gone; this plugin declares main, osd")
         harness.runtime.perform("Osd", .null)
-        #expect(try await harness.text() == "host.toggle: Osd is not a surface name; use lowercase letters, digits and hyphens")
+        #expect(try await harness
+            .text() ==
+            "host.toggle: Osd is not a surface name or address; use lowercase letters, digits and hyphens, such as osd, you.music, or you.music:osd")
         harness.runtime.stop()
     }
 }
