@@ -64,13 +64,26 @@ struct FilesRequestTests {
 }
 
 struct ClipboardRequestTests {
+    private func parse(_ method: String, _ arguments: JSON...) throws -> ClipboardRequest {
+        try ClipboardRequest.parse(HostCall(api: "clipboard", method: method, arguments: arguments), home: home, folder: folder)
+    }
+
     @Test func `read takes nothing and write text takes A string`() throws {
-        #expect(try ClipboardRequest.parse(call("clipboard", "read")) == .read)
-        #expect(try ClipboardRequest.parse(call("clipboard", "writeText", .string("hello"))) == .writeText("hello"))
-        #expect(throws: ArgumentError("host.clipboard.writeText: text must be a string")) {
-            try ClipboardRequest.parse(call("clipboard", "writeText", .number(5)))
+        #expect(try parse("read") == .read)
+        #expect(try parse("writeText", .string("hello")) == .write(.text("hello")))
+        #expect(throws: ArgumentError("host.clipboard.writeText: text must be a string")) { try parse("writeText", .number(5)) }
+        #expect(throws: ArgumentError.self) { try parse("clear") }
+    }
+
+    @Test func `write image and write files take paths resolved like other host paths`() throws {
+        #expect(try parse("writeImage", .string("~/shot.png")) == .write(.image(path: "/Users/gary/shot.png")))
+        #expect(try parse("writeFiles", .array([.string("/tmp/a.txt"), .string("icons/b.png")])) == .write(.files(paths: [
+            "/tmp/a.txt", "/Users/gary/plugins/clock/icons/b.png",
+        ])))
+        for paths in [JSON.array([]), .array([.string("")]), .array([.number(1)]), .string("/tmp/a.txt")] {
+            #expect(throws: ArgumentError.self) { try parse("writeFiles", paths) }
         }
-        #expect(throws: ArgumentError.self) { try ClipboardRequest.parse(call("clipboard", "clear")) }
+        #expect(throws: ArgumentError.self) { try parse("writeImage") }
     }
 }
 

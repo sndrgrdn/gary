@@ -4,7 +4,7 @@ import GaryCore
 extension Capability {
     static let clipboard = Capability(
         name: "clipboard",
-        summary: "A clipboard change counter and the types on the clipboard. Read the clipboard and write text to it.",
+        summary: "A clipboard change counter and the types on the clipboard. Read the clipboard, and write text, an image, or files to it.",
         types: """
         declare namespace Gary {
           type ClipboardChange = { count: number; types: string[]; access: "default" | "ask" | "always" | "never" }
@@ -13,37 +13,47 @@ extension Capability {
           interface ClipboardApi {
             read(): Promise<ClipboardContents>;
             writeText(text: string): { count: number };
+            writeImage(path: string): { count: number };
+            writeFiles(paths: string[]): { count: number };
           }
         }
         """,
         example: """
-        const history: string[] = [];
+        type Entry = { text: string } | { image: string } | { files: string[] };
+        const history: Entry[] = [];
 
         export default {
           onTopic({ topic }) {
             if (topic !== "clipboard") return;
             host.clipboard.read().then((contents) => {
-              if (contents.text && contents.text !== history[0]) history.unshift(contents.text);
+              if (contents.files.length > 0) history.unshift({ files: contents.files });
+              else if (contents.image) history.unshift({ image: contents.image });
+              else if (contents.text) history.unshift({ text: contents.text });
             });
           },
           render() {
-            return { type: "column", children: history.slice(0, 8).map((text, index) => ({ type: "text", key: String(index), text, action: text })) };
+            return {
+              type: "column",
+              children: history.slice(0, 8).map((entry, index): Gary.Node => "image" in entry
+                ? { type: "image", key: String(index), path: entry.image, height: 48, action: String(index) }
+                : { type: "text", key: String(index), text: "text" in entry ? entry.text : entry.files.join(", "), action: String(index) }),
+            };
           },
-          onAction(text) {
-            host.clipboard.writeText(text);
+          onAction(index) {
+            const entry = history[Number(index)];
+            if (!entry) return;
+            if ("image" in entry) host.clipboard.writeImage(entry.image);
+            else if ("files" in entry) host.clipboard.writeFiles(entry.files);
+            else host.clipboard.writeText(entry.text);
           },
         } satisfies Gary.Menu;
         """,
         install: { host, plugin in
+            let folder = plugin.bundle.directory.path
             plugin.installAPI(host, "clipboard", ClipboardRequest.methods) { call in
-                switch try ClipboardRequest.parse(call) {
-                case .read:
-                    return .later(.global(qos: .userInitiated)) { try readClipboard() }
-                case let .writeText(text):
-                    let board = NSPasteboard.general
-                    board.clearContents()
-                    board.setString(text, forType: .string)
-                    return .now(.object(["count": .number(Double(board.changeCount))]))
+                switch try ClipboardRequest.parse(call, home: home, folder: folder) {
+                case .read: .later(.global(qos: .userInitiated)) { try readClipboard(.general) }
+                case let .write(content): try .now(writeClipboard(content, to: .general))
                 }
             }
         },
@@ -77,8 +87,29 @@ private final class ClipboardTopic: TopicFeed {
     }
 }
 
-private func readClipboard() throws -> JSON {
-    let board = NSPasteboard.general
+func writeClipboard(_ content: ClipboardContent, to board: NSPasteboard) throws -> JSON {
+    switch content {
+    case let .text(text):
+        board.clearContents()
+        board.setString(text, forType: .string)
+    case let .image(path):
+        guard let tiff = NSImage(contentsOfFile: path)?.tiffRepresentation,
+              let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:])
+        else { throw HostFailure("\(path) is not an image file") }
+        board.clearContents()
+        board.setData(png, forType: .png)
+        board.setData(tiff, forType: .tiff)
+    case let .files(paths):
+        if let missing = paths.first(where: { !FileManager.default.fileExists(atPath: $0) }) {
+            throw HostFailure("no file at \(missing)")
+        }
+        board.clearContents()
+        board.writeObjects(paths.map { URL(fileURLWithPath: $0) as NSURL })
+    }
+    return .object(["count": .number(Double(board.changeCount))])
+}
+
+func readClipboard(_ board: NSPasteboard) throws -> JSON {
     let count = board.changeCount
     let files = (board.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []).map(\.path)
     var image: String?
