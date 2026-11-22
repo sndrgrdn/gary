@@ -85,6 +85,26 @@ struct PluginEffectTests {
         harness.runtime.stop()
     }
 
+    @Test func `a host function that throws fails with a HostError the plugin can catch`() async throws {
+        let harness = try Harness("""
+        import { Effect, host } from "gary:effect";
+        let text = "";
+        export default {
+          effect: host.readFile("missing.txt").pipe(
+            Effect.catchTag("HostError", (error) => Effect.succeed(error._tag)),
+            Effect.andThen((value) => Effect.sync(() => { text = value; })),
+          ),
+          render: () => ({ type: "text", text }),
+        };
+        """, uses: ["files"])
+        var text = ""
+        while text.isEmpty {
+            text = try await harness.text()
+        }
+        #expect(text == "HostError")
+        harness.runtime.stop()
+    }
+
     @Test func `an effect that dies fails the plugin`() async throws {
         let harness = try Harness("""
         import { Effect } from "gary:effect";
