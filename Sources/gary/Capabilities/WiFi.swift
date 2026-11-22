@@ -5,7 +5,7 @@ import GaryCore
 extension Capability {
     static let wifi = Capability(
         name: "wifi",
-        summary: "Wi-Fi power, network, signal, and rate. Scan, marking the networks this Mac has joined before, join one, and turn Wi-Fi on or off.",
+        summary: "Wi-Fi power, network, signal, rate, and latest scan. Scan, marking networks joined before, join one, and turn Wi-Fi on or off.",
         types: """
         declare namespace Gary {
           type WiFi = {
@@ -20,6 +20,7 @@ extension Capability {
             noise?: number | null;
             channel?: number | null;
             transmitRate?: number | null;
+            networks?: WiFiNetwork[] | null;
           }
           type WiFiNetwork = { ssid: string | null; bssid: string | null; rssi: number; noise: number; channel: number | null; secure: boolean; known: boolean }
           interface Host { wifi: WiFiApi }
@@ -76,11 +77,27 @@ func knownNetworks(_ configuration: CWConfiguration?) -> Set<String> {
     Set((configuration?.networkProfiles.array as? [CWNetworkProfile] ?? []).compactMap(\.ssid))
 }
 
+private final class LatestScan: @unchecked Sendable {
+    static let shared = LatestScan()
+    private let lock = NSLock()
+    private var stored: JSON?
+    var onChange: (() -> Void)?
+
+    var networks: JSON? {
+        lock.withLock { stored }
+    }
+
+    func store(_ networks: JSON) {
+        lock.withLock { stored = networks }
+        onChange?()
+    }
+}
+
 private func scan() throws -> JSON {
     let interface = try wifiInterface()
     let known = knownNetworks(interface.configuration())
     let networks = try interface.scanForNetworks(withSSID: nil).sorted { $0.rssiValue > $1.rssiValue }
-    return .array(networks.map { network in
+    let found = JSON.array(networks.map { network in
         .object([
             "ssid": network.ssid.map(JSON.string) ?? .null, "bssid": network.bssid.map(JSON.string) ?? .null,
             "rssi": .number(Double(network.rssiValue)), "noise": .number(Double(network.noiseMeasurement)),
@@ -88,6 +105,8 @@ private func scan() throws -> JSON {
             "known": .bool(network.ssid.map(known.contains) ?? false),
         ])
     })
+    LatestScan.shared.store(found)
+    return found
 }
 
 private func join(_ ssid: String, _ password: String?) throws -> JSON {
@@ -151,17 +170,22 @@ private final class WiFiTopic: NSObject, CWEventDelegate, TopicFeed {
         self.publish = publish
         super.init()
         LocationAccess.shared.onChange = { [weak self] in self?.send(Trace("location")) }
+        LatestScan.shared.onChange = { [weak self] in self?.send(Trace("wifi-scan")) }
         client.delegate = self
         for event in [CWEventType.powerDidChange, .ssidDidChange, .bssidDidChange, .linkDidChange, .linkQualityDidChange, .modeDidChange] {
             do { try client.startMonitoringEvent(with: event) } catch { log("wifi: cannot monitor \(event.rawValue): \(error)") }
         }
         send(Trace("wifi-start"))
+        if LatestScan.shared.networks == nil {
+            DispatchQueue.global(qos: .utility).async { _ = try? scan() }
+        }
     }
 
     deinit {
         try? client.stopMonitoringAllEvents()
         client.delegate = nil
         LocationAccess.shared.onChange = nil
+        LatestScan.shared.onChange = nil
     }
 
     private func send(_ trace: Trace) {
@@ -189,6 +213,7 @@ private final class WiFiTopic: NSObject, CWEventDelegate, TopicFeed {
             "channel": interface.wlanChannel().map { .number(Double($0.channelNumber)) } ?? .null,
             "transmitRate": linked ? .number(interface.transmitRate()) : .null,
             "location": .string(LocationAccess.shared.status),
+            "networks": LatestScan.shared.networks ?? .null,
         ]), trace)
     }
 
