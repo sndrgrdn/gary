@@ -240,7 +240,7 @@ extension Skill {
     | `settings` | The plugin's `settings`. Changing them reloads the plugin. |
     | `topic(name)` | A `Stream` of a subscribed topic: its current value, then each change. |
 
-    The default export's `effect` field is the plugin's long-running program, an `Effect<void, never, Scope>`. Gary runs it after load. On unload or reload, Gary closes the plugin's scope, which interrupts every fiber the plugin started and runs their finalizers. An effect that dies fails the plugin. Handle expected errors, such as a `HostError`, inside the effect. Keep `render` synchronous: store results in module variables, and Gary renders after each timer and host callback.
+    The default export's `effect` field is the plugin's long-running program, an `Effect<void, unknown, Scope>`. Gary runs it after load. On unload or reload, Gary closes the plugin's scope, which interrupts every fiber the plugin started and runs their finalizers. An effect that fails or dies fails the plugin. Handle expected errors, such as a `HostError`, inside the effect. Keep `render` synchronous: store results in module variables, and Gary renders after each timer and host callback.
 
     ```ts
     import { Effect, Schedule, host } from "gary:effect";
@@ -250,7 +250,7 @@ extension Skill {
     const refresh = Effect.gen(function* () {
       const result = yield* host.exec(["/usr/bin/uptime"]);
       uptime = result.status === 0 ? result.stdout.trim() : "?";
-    }).pipe(Effect.catchTag("HostError", (error) => host.log(error.message)), Effect.orDie);
+    }).pipe(Effect.catchTag("HostError", (error) => host.log(error.message)));
 
     export default {
       effect: Effect.repeat(refresh, Schedule.spaced("1 minute")),

@@ -264,7 +264,7 @@ public extension PluginTypes {
     static let effectDeclarations = """
     declare namespace Gary {
       interface Module {
-        effect?: import("effect").Effect.Effect<void, never, import("effect").Scope.Scope>;
+        effect?: import("effect").Effect.Effect<void, unknown, import("effect").Scope.Scope>;
       }
     }
 

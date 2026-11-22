@@ -249,7 +249,7 @@ public enum PluginScaffold {
     });
 
     export default {
-      effect: Effect.repeat(tick, Schedule.spaced("1 minute")).pipe(Effect.orDie),
+      effect: Effect.repeat(tick, Schedule.spaced("1 minute")),
 
       methods: {
         ticks: () => String(ticks),

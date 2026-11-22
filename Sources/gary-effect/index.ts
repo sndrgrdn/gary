@@ -261,7 +261,7 @@ export function forPlugin(env: Env) {
   return {
     exports: exportsOf(env, bound, topics.stream),
     receive: topics.receive,
-    start(program: Effect.Effect<void, never, Scope.Scope>) {
+    start(program: Effect.Effect<void, unknown, Scope.Scope>) {
       if (!Effect.isEffect(program)) {
         throw new TypeError("the default export's effect is not an Effect");
       }

@@ -15,10 +15,7 @@ const refresh = Effect.gen(function* () {
     usedPercent: Math.round((used / total) * 100),
     freeGB: Math.round(free / 1048576),
   });
-}).pipe(
-  Effect.catchTag("HostError", (error) => host.log(`df failed: ${error.message}`)),
-  Effect.orDie,
-);
+}).pipe(Effect.catchTag("HostError", (error) => host.log(`df failed: ${error.message}`)));
 
 export default {
   effect: Effect.repeat(refresh, Schedule.spaced("5 minutes")),
