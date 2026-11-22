@@ -43,19 +43,19 @@
     "bad": { "color": "bad" },
     "title": { "color": "bright", "font": "title" },
     "mono": { "font": "mono" },
-    "panel": { "background": "panel", "radius": "surface", "padding": 14 },
+    "panel": { "background": "panel", "radius": "surface", "padding": 16 },
     "surface": { "background": "panel", "radius": "surface" },
     "tooltip": {
       "background": "panel",
       "radius": "control",
-      "padding": [4, 8],
+      "padding": [5, 8],
       "fontSize": 11,
       "border": { "color": "border" }
     },
     "toast": {
       "background": "panel",
       "radius": "surface",
-      "padding": [10, 14],
+      "padding": [12, 16],
       "width": 340,
       "border": { "color": "border" }
     },
@@ -64,13 +64,13 @@
     "toast-icon": { "color": "accent", "fontSize": 20 },
     "hover": { "background": "hover", "radius": "control" },
     "selected": { "color": "bright", "background": "selected", "radius": "control" },
-    "button": { "background": "control", "radius": "control", "padding": 6 },
+    "button": { "background": "control", "radius": "control", "padding": [4, 12] },
     "button-hover": { "background": "alpha(foreground, 0.18)" },
     "primary": {
       "color": "on-accent",
       "background": "accent",
       "radius": "control",
-      "padding": 6
+      "padding": [4, 12]
     },
     "primary-hover": { "background": "mix(accent, foreground, 0.15)" }
   }

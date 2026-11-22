@@ -45,8 +45,9 @@ final class AppDragTile {
         close.contentTintColor = theme?.color("dim").map { NSColor($0) } ?? .secondaryLabelColor
         let row = NSStackView(views: [icon, label, close])
         row.alignment = .centerY
-        row.spacing = 12
-        row.edgeInsets = NSEdgeInsets(top: 12, left: 14, bottom: 12, right: 10)
+        let inset = theme?.spacing.section ?? 16
+        row.spacing = theme?.spacing.item ?? 8
+        row.edgeInsets = NSEdgeInsets(top: inset, left: inset, bottom: inset, right: inset)
         row.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(row)
         NSLayoutConstraint.activate([

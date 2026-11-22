@@ -85,7 +85,7 @@ final class ToastStack {
     private static func node(_ request: ToastRequest) -> Node {
         let lines = [Node(.text(request.title), style: "toast-title")] + (request.body.map { [Node(.text($0), style: "toast-body")] } ?? [])
         let icon = request.icon.map { Node(.icon($0), style: "toast-icon") }
-        return Node(.row([icon, Node(.column(lines), props: StyleProps(gap: 2))].compactMap(\.self)), style: "toast")
+        return Node(.row([icon, Node(.column(lines), props: StyleProps(gap: 0))].compactMap(\.self)), style: "toast")
     }
 
     private func close(_ card: ToastCard, _ outcome: ToastOutcome) {

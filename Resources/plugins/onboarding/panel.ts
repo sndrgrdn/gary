@@ -2,7 +2,7 @@ type Status = Gary.PermissionStatus;
 
 type Spacing = Gary.Theme["spacing"];
 
-const iconSize = 30;
+const iconSize = 32;
 
 const permissions: Record<
   Gary.PermissionName,
@@ -89,12 +89,7 @@ function button(action: string, text: string, primary = false): Gary.Node {
     action,
     style: primary ? "primary" : "button",
     hover: primary ? "primary-hover" : "button-hover",
-    gap: 0,
-    children: [
-      { type: "spacer", key: "lead", width: 6 },
-      { type: "text", key: "text", text, color: primary ? "on-accent" : "foreground" },
-      { type: "spacer", key: "trail", width: 6 },
-    ],
+    children: [{ type: "text", key: "text", text, color: primary ? "on-accent" : "foreground" }],
   };
 }
 
@@ -134,7 +129,7 @@ function statusControl(permission: Status): Gary.Node {
   }
 }
 
-function row(permission: Status): Gary.Node {
+function row(permission: Status, radius: Gary.Theme["radius"]): Gary.Node {
   return {
     type: "row",
     key: permission.name,
@@ -145,8 +140,8 @@ function row(permission: Status): Gary.Node {
         symbol: permissions[permission.name].symbol,
         width: iconSize,
         height: iconSize,
-        radius: 7,
-        fontSize: 14,
+        radius: radius.control,
+        fontSize: 16,
         background: "accent",
         color: "on-accent",
       },
@@ -240,7 +235,7 @@ export default {
     const shown = listed(all);
     const missing = shown.filter((permission) => !isDone(permission));
     const restarting = shown.some((permission) => permission.status === "needsRestart");
-    const { spacing } = state.theme;
+    const { spacing, radius } = state.theme;
 
     return {
       type: "column",
@@ -254,9 +249,9 @@ export default {
           key: "rows",
           gap: spacing.section,
           padding: spacing.section,
-          radius: 10,
+          radius: radius.surface,
           background: "control",
-          children: shown.map((permission) => row(permission)),
+          children: shown.map((permission) => row(permission, radius)),
         },
         {
           type: "row",
