@@ -1,24 +1,46 @@
 import Foundation
 
+public enum AppTarget: Equatable, Sendable, CustomStringConvertible {
+    case bundle(String)
+    case path(String)
+
+    static func parse(_ call: HostCall, home: String) throws -> AppTarget {
+        let raw = try call.string(0, "app")
+        if raw.hasPrefix("/") || raw.hasPrefix("~/") {
+            guard let path = absolutePath(raw, home: home, folder: home), path.hasSuffix(".app") else {
+                throw call.fail("path \"\(raw)\" must end in .app")
+            }
+            return .path(path)
+        }
+        guard !raw.isEmpty, raw.count <= 255, raw.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." || $0 == "-") }) else {
+            throw call.fail("app \"\(raw)\" must be a bundle id of letters, digits, dots and hyphens, or an absolute .app path")
+        }
+        return .bundle(raw)
+    }
+
+    public var description: String {
+        switch self {
+        case let .bundle(id): id
+        case let .path(path): path
+        }
+    }
+}
+
 public enum AppsRequest: Equatable, Sendable {
-    case launch(bundle: String)
-    case activate(bundle: String)
-    case quit(bundle: String)
+    case installed
+    case launch(AppTarget)
+    case activate(AppTarget)
+    case quit(AppTarget)
 
-    public static let methods = ["launch", "activate", "quit"]
+    public static let methods = ["installed", "launch", "activate", "quit"]
 
-    public static func parse(_ call: HostCall) throws -> AppsRequest {
-        let make: (String) -> AppsRequest
+    public static func parse(_ call: HostCall, home: String) throws -> AppsRequest {
         switch call.method {
-        case "launch": make = { .launch(bundle: $0) }
-        case "activate": make = { .activate(bundle: $0) }
-        case "quit": make = { .quit(bundle: $0) }
+        case "installed": .installed
+        case "launch": try .launch(AppTarget.parse(call, home: home))
+        case "activate": try .activate(AppTarget.parse(call, home: home))
+        case "quit": try .quit(AppTarget.parse(call, home: home))
         default: throw call.unknownMethod
         }
-        let bundle = try call.string(0, "bundle id")
-        guard !bundle.isEmpty, bundle.count <= 255, bundle.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." || $0 == "-") }) else {
-            throw call.fail("bundle id \"\(bundle)\" must be letters, digits, dots and hyphens")
-        }
-        return make(bundle)
     }
 }

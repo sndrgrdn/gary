@@ -212,17 +212,26 @@ struct TrayRequestTests {
 }
 
 struct AppsRequestTests {
-    @Test func `each method takes A bundle ID`() throws {
-        let parsed = try AppsRequest.methods.map { try AppsRequest.parse(call("apps", $0, .string("com.apple.Calculator"))) }
-        #expect(parsed == [.launch(bundle: "com.apple.Calculator"), .activate(bundle: "com.apple.Calculator"), .quit(bundle: "com.apple.Calculator")])
+    @Test func `each app method takes A bundle ID or an app path`() throws {
+        let parsed = try ["launch", "activate", "quit"].map { try AppsRequest.parse(call("apps", $0, .string("com.apple.Calculator")), home: home) }
+        #expect(parsed == [
+            .launch(.bundle("com.apple.Calculator")),
+            .activate(.bundle("com.apple.Calculator")),
+            .quit(.bundle("com.apple.Calculator")),
+        ])
+        #expect(try AppsRequest
+            .parse(call("apps", "launch", .string("/Applications/OrbStack.app/")), home: home) == .launch(.path("/Applications/OrbStack.app")))
+        #expect(try AppsRequest
+            .parse(call("apps", "quit", .string("~/Applications/Xcode.app")), home: home) == .quit(.path("/Users/gary/Applications/Xcode.app")))
+        #expect(try AppsRequest.parse(call("apps", "installed"), home: home) == .installed)
     }
 
-    @Test func `rejects what cannot be A bundle ID`() {
-        for value in [JSON.string(""), .string("com apple"), .string("com.apple/../x"), .number(1), .null] {
-            #expect(throws: ArgumentError.self) { try AppsRequest.parse(call("apps", "launch", value)) }
+    @Test func `rejects what cannot be A bundle ID or an app path`() {
+        for value in [JSON.string(""), .string("com apple"), .string("com.apple/../x"), .string("/Applications/notes.txt"), .number(1), .null] {
+            #expect(throws: ArgumentError.self) { try AppsRequest.parse(call("apps", "launch", value), home: home) }
         }
         #expect(throws: ArgumentError("host.apps.hide is not a method")) {
-            try AppsRequest.parse(call("apps", "hide", .string("com.apple.Calculator")))
+            try AppsRequest.parse(call("apps", "hide", .string("com.apple.Calculator")), home: home)
         }
     }
 }
