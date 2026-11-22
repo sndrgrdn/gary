@@ -104,6 +104,8 @@ private func join(_ ssid: String, _ password: String?) throws -> JSON {
 final class LocationAccess: NSObject, CLLocationManagerDelegate {
     static let shared = LocationAccess()
     private let manager = CLLocationManager()
+    private var waiting: [() -> Void] = []
+    private(set) var reported = false
     var onChange: (() -> Void)?
 
     override init() {
@@ -124,7 +126,19 @@ final class LocationAccess: NSObject, CLLocationManagerDelegate {
         manager.requestWhenInUseAuthorization()
     }
 
+    func whenReported(_ run: @escaping () -> Void) {
+        if reported {
+            run()
+        } else {
+            waiting.append(run)
+        }
+    }
+
     func locationManagerDidChangeAuthorization(_: CLLocationManager) {
+        reported = true
+        let ready = waiting
+        waiting = []
+        ready.forEach { $0() }
         onChange?()
     }
 }

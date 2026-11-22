@@ -125,6 +125,10 @@ extension Shell {
 
     func offerOnboarding(_ trace: Trace) {
         guard surfaceSlots(.onboarding).first?.visible == false else { return }
+        guard LocationAccess.shared.reported else {
+            LocationAccess.shared.whenReported { [weak self] in self?.offerOnboarding(trace) }
+            return
+        }
         let missing = missingPermissions
         let dismissed = (try? JSON.parse(Data(contentsOf: Paths.onboarding)))?["missing"]?.array?.compactMap(\.string)
         if let dismissed, Set(missing).isSubset(of: dismissed) {
