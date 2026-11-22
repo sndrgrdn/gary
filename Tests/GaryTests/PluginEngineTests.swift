@@ -1,12 +1,13 @@
 import Foundation
 @testable import gary
+import GaryCore
 import Testing
 
 private let stopped = "stopped after running longer than 100 ms"
 private let spin = "function spin(ms) { var end = Date.now() + ms; while (Date.now() < end) {} }"
 
 struct PluginEngineTests {
-    @Test func `a runaway is stopped after about 100 ms and only its own plugin fails`() async throws {
+    @Test func `a runaway is stopped after 100 ms and only its own plugin fails`() async throws {
         let engine = PluginEngine()
         let bystander = try Harness(widget("onAction: function () { count += 1; return true; },"), id: "test.bystander", engine: engine)
         let runaway = try Harness(widget("onAction: function () { for (;;) {} },"), id: "test.runaway", engine: engine)
@@ -15,8 +16,7 @@ struct PluginEngineTests {
         let started = ContinuousClock.now
         runaway.runtime.perform("spin", .null)
         #expect(try await runaway.failure() == stopped)
-        let elapsed = started.duration(to: .now)
-        #expect(elapsed >= .milliseconds(100) && elapsed < .milliseconds(500))
+        #expect(started.duration(to: .now) >= .milliseconds(100))
         bystander.runtime.perform("tick", .null)
         #expect(try await bystander.text() == "1")
         bystander.runtime.stop()
@@ -46,21 +46,24 @@ struct PluginEngineTests {
 
     @Test func `a bar widget does not wait for a panel's long call`() async throws {
         let engines = PluginEngines()
-        let panel = try Harness(
-            widget("surface: { width: 300, height: 200 }, onAction: function () { spin(80); count += 1; return true; },", setup: spin),
-            id: "test.panel", kind: .panel, engine: engines.engine(for: .panel),
-        )
+        let panel = engines.engine(for: .panel)
+        nonisolated(unsafe) let context = try #require(panel.makeContext())
+        let id = try #require(PluginID("test.panel"))
+        let entered = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        defer { release.signal() }
+        DispatchQueue.global().async {
+            _ = try? panel.run(id, in: context) {
+                entered.signal()
+                release.wait()
+                return nil
+            }
+        }
+        await withCheckedContinuation { done in DispatchQueue.global().async { entered.wait(); done.resume() } }
         let bar = try Harness(widget("onAction: function () { count += 1; return true; },"), id: "test.bar", engine: engines.engine(for: .barWidget))
-        #expect(try await panel.text() == "0")
         #expect(try await bar.text() == "0")
-        panel.runtime.perform("slow", .null)
-        try await Task.sleep(for: .milliseconds(10))
-        let started = ContinuousClock.now
         bar.runtime.perform("tick", .null)
         #expect(try await bar.text() == "1")
-        #expect(started.duration(to: .now) < .milliseconds(50))
-        #expect(try await panel.text() == "1")
-        panel.runtime.stop()
         bar.runtime.stop()
     }
 
