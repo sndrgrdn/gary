@@ -12,11 +12,10 @@ let pluginUsage: [CommandUsage] = [
     ),
     CommandUsage("plugin validate <path>", "Check a plugin folder with the checks Gary runs when it loads plugins.", nil),
     CommandUsage(
-        "plugin install <source> [--yes]",
+        "plugin install <source>",
         """
         Install a package from npm:<name>[@version|@tag], git:<host>/<owner>/<repo>[@ref], a git URL, or a local folder, \
-        add it to packages in shell.json, and enable its plugins. It shows each plugin's capabilities and permissions and asks first; \
-        --yes skips the question.
+        add it to packages in shell.json, and enable its plugins. It lists each plugin's capabilities and permissions.
         """,
         "gary plugin install git:github.com/you/gary-plugins",
     ),
@@ -45,7 +44,7 @@ private func dispatch(_ arguments: [String]) throws {
     switch arguments.first {
     case "new": try newPlugin(Arguments(rest, count: 1...1, options: ["--kind", "--from", "--dir"]))
     case "validate": try validate(Arguments(rest, count: 1...1).positional[0])
-    case "install": try install(Arguments(rest, count: 1...1, flags: ["--yes"]))
+    case "install": try install(Arguments(rest, count: 1...1).positional[0])
     case "update": try update(Arguments(rest, count: 0...1).positional.first)
     case "remove": try remove(Arguments(rest, count: 1...1).positional[0])
     case "enable": try enable(pluginID(Arguments(rest, count: 1...1).positional[0]))
@@ -156,8 +155,8 @@ private func validate(_ path: String) throws {
     print("ok \(manifest.id) \(manifest.version) \(manifest.kinds.map(\.rawValue).joined(separator: ","))")
 }
 
-private func install(_ arguments: Arguments) throws {
-    let source = try PackageSource.parse(arguments.positional[0], base: workingDirectory)
+private func install(_ argument: String) throws {
+    let source = try PackageSource.parse(argument, base: workingDirectory)
     let config = try shellConfig()
     let staged: URL?
     if case let .local(directory) = source {
@@ -171,17 +170,6 @@ private func install(_ arguments: Arguments) throws {
     let directory = staged ?? PackageStore.directory(source)
     let bundles = try packagePlugins(directory, of: source)
     try review(bundles, existing: installed(config.packages.filter { $0.identity != source.identity }))
-    if !arguments.flags.contains("--yes") {
-        guard isatty(STDIN_FILENO) != 0 else { throw CommandError("rerun with --yes to install \(source.declaration)") }
-        print(
-            "install \(source.declaration) and enable \(bundles.count == 1 ? "this plugin" : "these \(bundles.count) plugins")? [y/N] ",
-            terminator: "",
-        )
-        fflush(stdout)
-        guard readLine()?.lowercased().hasPrefix("y") == true else { print("not installed")
-            return
-        }
-    }
     let revision = PackageStore.revision(source, at: directory)
     if let staged {
         try PackageStore.commit(staged, as: source)
@@ -211,10 +199,6 @@ private func packagePlugins(_ directory: URL, of source: PackageSource) throws -
 }
 
 private func review(_ bundles: [PluginBundle], existing: PluginCatalog) {
-    print("""
-    warning: plugins run unsandboxed inside Gary, with your user account's access to files, \
-    the network and other programs, and with every macOS permission you granted Gary.
-    """)
     for bundle in bundles {
         let manifest = bundle.manifest
         print("\(manifest.id) \(manifest.version) (\(manifest.kinds.map(\.rawValue).joined(separator: ",")))")

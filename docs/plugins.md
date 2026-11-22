@@ -127,7 +127,7 @@ gary plugin install npm:gary-weather@1.2.0
 gary plugin install ~/src/gary-plugins
 ```
 
-`gary plugin install` fetches the package and validates its plugins without running any of them. It warns that plugins run unsandboxed, lists each plugin's capabilities with their macOS permissions, and asks before it installs. `--yes` skips the question. It then adds the source to `packages` in `~/.config/gary/shell.json` and enables each plugin. A bar widget goes to the end of the bar section named by its manifest's `bar` field, `right` by default. A plugin that `shell.json` already places or disables keeps that setting.
+`gary plugin install` fetches the package and validates its plugins without running any of them. It lists each plugin's capabilities with their macOS permissions, then adds the source to `packages` in `~/.config/gary/shell.json` and enables each plugin. A bar widget goes to the end of the bar section named by its manifest's `bar` field, `right` by default. A plugin that `shell.json` already places or disables keeps that setting.
 
 Gary keeps git and npm packages in `~/Library/Application Support/Gary/packages`. It clones git packages with the system `git`, and downloads npm packages from the registry without Node, checking each download against the registry's sha512 integrity. A local folder loads in place, and Gary reloads its plugins when you save, as it does for `~/.config/gary/plugins`. When Gary starts, it installs each declared package that is missing. If that fails, for example offline, Gary logs it, skips the package, and tries again on the next start.
 
