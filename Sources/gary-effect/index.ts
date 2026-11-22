@@ -1,6 +1,7 @@
 import "./text-encoder";
 import "./text-decoder";
 import {
+  Cache,
   Cause,
   Clock,
   Context,
@@ -20,6 +21,7 @@ import {
   Scheduler,
   Schema,
   Scope,
+  Semaphore,
   Stream,
   SubscriptionRef,
   pipe,
@@ -58,25 +60,21 @@ const ignore = (): void => undefined;
 
 class HostError extends Data.TaggedError("HostError")<{ readonly message: string }> {}
 
+function hostError(cause: unknown): HostError {
+  return new HostError({
+    message: Predicate.hasProperty(cause, "message") ? String(cause.message) : String(cause),
+  });
+}
+
 function lift(run: HostFunction, owner?: Host): Lifted {
   return (...args) =>
-    Effect.suspend(() => {
-      const result = run.apply(owner, args);
-
-      if (!Predicate.isPromiseLike(result)) {
-        return Effect.succeed(result);
-      }
-
-      return Effect.tryPromise({
-        try: () => Promise.resolve(result),
-        catch: (cause) =>
-          new HostError({
-            message: Predicate.hasProperty(cause, "message")
-              ? String(cause.message)
-              : String(cause),
-          }),
-      });
-    });
+    Effect.try({ try: () => run.apply(owner, args), catch: hostError }).pipe(
+      Effect.flatMap((result) =>
+        Predicate.isPromiseLike(result)
+          ? Effect.tryPromise({ try: () => Promise.resolve(result), catch: hostError })
+          : Effect.succeed(result),
+      ),
+    );
 }
 
 function mirror(host: Host): LiftedHost {
@@ -226,6 +224,7 @@ function exportsOf(
   topic: (name: string) => Stream.Stream<Json>,
 ) {
   return {
+    Cache,
     Cause,
     Context,
     Data,
@@ -242,6 +241,7 @@ function exportsOf(
     Schedule,
     Schema,
     Scope,
+    Semaphore,
     Stream,
     SubscriptionRef,
     pipe,

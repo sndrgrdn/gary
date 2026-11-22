@@ -64,7 +64,7 @@ let uptime = "…";
 const refresh = Effect.gen(function* () {
   const result = yield* host.exec(["/usr/bin/uptime"]);
   uptime = result.status === 0 ? result.stdout.trim() : "?";
-}).pipe(Effect.catchTag("HostError", (error) => host.log(error.message)));
+}).pipe(Effect.catchTag("HostError", (error) => host.log(error.message)), Effect.orDie);
 
 export default {
   effect: Effect.repeat(refresh, Schedule.spaced("1 minute")),

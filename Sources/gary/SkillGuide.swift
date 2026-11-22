@@ -234,8 +234,8 @@ extension Skill {
 
     | Export | What it is |
     | --- | --- |
-    | `Effect`, `Stream`, `Schedule`, `Schema`, `Layer`, `Context`, `Scope`, `Fiber`, `Queue`, `PubSub`, `Ref`, `SubscriptionRef`, `Deferred`, `Option`, `Exit`, `Cause`, `Data`, `Duration`, `pipe` | Effect's modules. `Effect.runFork`, `Effect.runPromise`, and the other run functions start fibers on the plugin's timers and in its scope. |
-    | `host` | The plugin's `host`, with each function returning an Effect. A function that returns a promise fails with a `HostError` that has a `message`. |
+    | `Effect`, `Stream`, `Schedule`, `Schema`, `Layer`, `Context`, `Scope`, `Fiber`, `Queue`, `PubSub`, `Ref`, `SubscriptionRef`, `Deferred`, `Semaphore`, `Cache`, `Option`, `Exit`, `Cause`, `Data`, `Duration`, `pipe` | Effect's modules. `Effect.runFork`, `Effect.runPromise`, and the other run functions start fibers on the plugin's timers and in its scope. |
+    | `host` | The plugin's `host`, with each function returning an Effect. A function that throws or returns a rejected promise fails with a `HostError` that has a `message`. |
     | `fetch` | `fetch` as an Effect, when the manifest uses `network`. |
     | `settings` | The plugin's `settings`. Changing them reloads the plugin. |
     | `topic(name)` | A `Stream` of a subscribed topic: its current value, then each change. |
@@ -250,7 +250,7 @@ extension Skill {
     const refresh = Effect.gen(function* () {
       const result = yield* host.exec(["/usr/bin/uptime"]);
       uptime = result.status === 0 ? result.stdout.trim() : "?";
-    }).pipe(Effect.catchTag("HostError", (error) => host.log(error.message)));
+    }).pipe(Effect.catchTag("HostError", (error) => host.log(error.message)), Effect.orDie);
 
     export default {
       effect: Effect.repeat(refresh, Schedule.spaced("1 minute")),
