@@ -81,7 +81,7 @@ struct HostExecTests {
     }
 }
 
-private func processID(in file: String) async throws -> pid_t {
+func processID(in file: String) async throws -> pid_t {
     for _ in 0..<400 {
         if let text = try? String(contentsOfFile: file, encoding: .utf8), let pid = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)) {
             return pid
@@ -91,7 +91,7 @@ private func processID(in file: String) async throws -> pid_t {
     throw RenderError("no pid in \(file)")
 }
 
-private func exits(_ pid: pid_t) async throws -> Bool {
+func exits(_ pid: pid_t) async throws -> Bool {
     for _ in 0..<400 where kill(pid, 0) == 0 {
         try await Task.sleep(for: .milliseconds(5))
     }

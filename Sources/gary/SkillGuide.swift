@@ -239,7 +239,7 @@ extension Skill {
     | Export | What it is |
     | --- | --- |
     | `Effect`, `Stream`, `Schedule`, `Schema`, `Layer`, `Context`, `Scope`, `Fiber`, `Queue`, `PubSub`, `Ref`, `SubscriptionRef`, `Deferred`, `Semaphore`, `Cache`, `Option`, `Exit`, `Cause`, `Data`, `Duration`, `pipe` | Effect's modules. `Effect.runFork`, `Effect.runPromise`, and the other run functions start fibers on the plugin's timers and in its scope. |
-    | `host` | The plugin's `host`, with each function returning an Effect. A function that throws or returns a rejected promise fails with a `HostError` that has a `message`. |
+    | `host` | The plugin's `host`, with each function returning an Effect. A function that throws or returns a rejected promise fails with a `HostError` that has a `message`. `host.spawn(argv)` returns a `Stream` of the command's stdout lines instead. It ends when the command exits with status 0, fails with a `HostError` that holds the status and the end of stderr otherwise, and stops the command when the stream is interrupted. |
     | `fetch` | `fetch` as an Effect, when the manifest uses `network`. |
     | `settings` | The plugin's `settings`. Changing them reloads the plugin. |
     | `topic(name)` | A `Stream` of a subscribed topic: its current value, then each change. |

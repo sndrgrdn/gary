@@ -1,5 +1,6 @@
 import "./text-encoder";
 import "./text-decoder";
+import { type Spawn, linesOf } from "./spawn";
 import {
   Cache,
   Cause,
@@ -39,12 +40,15 @@ interface Host {
 
 type Lifted = (...args: Json[]) => Effect.Effect<Json | undefined, HostError>;
 
+type LineStream = (argv: readonly string[]) => Stream.Stream<string, HostError>;
+
 interface LiftedHost {
-  [name: string]: Lifted | LiftedHost;
+  [name: string]: Lifted | LiftedHost | LineStream;
 }
 
 interface Env {
   readonly host: Host;
+  readonly spawn: Spawn | undefined;
   readonly fetch: HostFunction | undefined;
   readonly setTimeout: (callback: () => void, ms: number) => number;
   readonly clearTimeout: (id: number) => void;
@@ -82,6 +86,16 @@ function mirror(host: Host): LiftedHost {
 
   for (const [name, member] of Object.entries(host)) {
     lifted[name] = Predicate.isFunction(member) ? lift(member, host) : mirror(member);
+  }
+
+  return lifted;
+}
+
+function hostOf(env: Env): LiftedHost {
+  const lifted = mirror(env.host);
+
+  if (env.spawn !== undefined) {
+    lifted.spawn = linesOf(env.spawn, hostError);
   }
 
   return lifted;
@@ -245,7 +259,7 @@ function exportsOf(
     Stream,
     SubscriptionRef,
     pipe,
-    host: mirror(env.host),
+    host: hostOf(env),
     fetch: env.fetch === undefined ? undefined : lift(env.fetch),
     settings: env.settings,
     topic,

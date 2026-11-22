@@ -1,23 +1,33 @@
 import Foundation
 import GaryCore
+import JavaScriptCore
 
 extension Capability {
     static let exec = Capability(
         name: "exec",
         summary: """
-        Run a command off the main thread and get its exit status and output. Gary looks the command up in the PATH of the user's login shell, \
-        so commands from Homebrew and `~/.local/bin` need no absolute path. The promise resolves when the command exits, even if it left a child \
-        running in the background. Gary stops a command that runs longer than 60 seconds and rejects the promise, and stops every running command \
-        when the plugin stops.
+        Run a command off the main thread. Gary looks the command up in the PATH of the user's login shell, \
+        so commands from Homebrew and `~/.local/bin` need no absolute path, and stops every running command when the plugin stops. \
+        `host.exec` runs a one-shot command and resolves with its exit status and output when it exits, even if it left a child \
+        running in the background. Gary stops an `exec` command that runs longer than 60 seconds and rejects the promise. \
+        `host.spawn` runs a long-running command with no time limit and calls `onLine` with each line it writes to stdout, \
+        without the newline. `stop()` stops it. `exited` resolves when it exits, with its status and the last 4 KB of its stderr, \
+        or with status -1 when it could not start or was stopped before it started.
         """,
         types: """
         declare namespace Gary {
-          interface Host { exec(argv: string[]): Promise<ExecResult> }
+          interface Host {
+            exec(argv: string[]): Promise<ExecResult>;
+            spawn(argv: string[], onLine: (line: string) => void): Spawned;
+          }
           type ExecResult = { status: number; stdout: string; stderr: string }
+          interface Spawned { exited: Promise<SpawnExit>; stop(): void }
+          type SpawnExit = { status: number; stderr: string }
         }
         """,
         example: """
         let uptime = "…";
+        let lastLogin = "";
 
         async function refresh() {
           const result = await host.exec(["/usr/bin/uptime"]);
@@ -26,23 +36,62 @@ extension Capability {
         refresh();
         setInterval(refresh, 60_000);
 
+        host.spawn(["/usr/bin/log", "stream", "--style", "compact", "--process", "loginwindow"], (line) => {
+          lastLogin = line;
+        });
+
         export default {
           render() {
-            return { type: "text", text: uptime };
+            return { type: "text", text: lastLogin === "" ? uptime : `${uptime} · ${lastLogin}` };
           },
         } satisfies Gary.BarWidget;
         """,
         install: { host, plugin in
             let runs = ExecRuns(queue: plugin.queue)
-            plugin.onStop { runs.stopAll() }
+            let spawns = SpawnRuns(queue: plugin.queue)
+            plugin.onStop {
+                runs.stopAll()
+                spawns.stopAll()
+            }
             plugin.installAPI(host, nil, ["exec"]) { call in
                 let argv = try call.strings(0, "argv")
                 guard !argv.isEmpty else { throw call.fail("argv must not be empty") }
                 return .pending { finish in runs.start(argv, finish) }
             }
+            let start: @convention(block) (String, JSValue, JSValue) -> Int = { [weak plugin] text, deliver, finish in
+                guard let plugin else { return 0 }
+                let call = HostCall(api: nil, method: "spawn", arguments: [(try? JSON.parse(text)) ?? .null])
+                do {
+                    let argv = try call.strings(0, "argv")
+                    guard !argv.isEmpty else { throw call.fail("argv must not be empty") }
+                    return spawns.start(
+                        argv,
+                        lines: { [weak plugin] lines in plugin?.callBack(deliver, [lines], Trace("spawn")) },
+                        exit: { [weak plugin] status, stderr in plugin?.callBack(finish, [["status": status, "stderr": stderr]], Trace("spawn")) },
+                    )
+                } catch {
+                    let context = JSContext.current()
+                    context?.exception = context?.newError("\(error)")
+                    return 0
+                }
+            }
+            let stop: @convention(block) (Int) -> Void = { id in spawns.stop(id) }
+            host.context.evaluateScript(spawnScript).call(withArguments: [host, start, stop])
         },
     )
 }
+
+private let spawnScript = """
+(function (host, start, stop) {
+  host.spawn = function (argv, onLine) {
+    if (typeof onLine !== "function") throw new TypeError("host.spawn: onLine must be a function");
+    var finish;
+    var exited = new Promise(function (resolve) { finish = resolve; });
+    var id = start(JSON.stringify(argv), function (lines) { lines.forEach(function (line) { onLine(line); }); }, finish);
+    return { exited: exited, stop: function () { stop(id); } };
+  };
+})
+"""
 
 final class ExecRuns {
     private struct Run {
@@ -65,20 +114,14 @@ final class ExecRuns {
     func start(_ argv: [String], _ finish: @escaping (Result<JSON, Error>) -> Void) {
         queue.async { [self] in
             if !stopped {
-                spawn(argv, finish)
+                launch(argv, finish)
             }
         }
     }
 
-    private func spawn(_ argv: [String], _ finish: @escaping (Result<JSON, Error>) -> Void) {
-        let process = Process()
+    private func launch(_ argv: [String], _ finish: @escaping (Result<JSON, Error>) -> Void) {
+        let process = command(argv)
         let id = ObjectIdentifier(process)
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["--"] + argv
-        var environment = ProcessInfo.processInfo.environment
-        environment["PATH"] = searchPath
-        process.environment = environment
-        process.standardInput = FileHandle.nullDevice
         process.terminationHandler = { [weak self] _ in self?.queue.async { self?.exited(id) } }
         do {
             let stdout = try scratchFile()
@@ -114,6 +157,170 @@ final class ExecRuns {
             stderr: String(decoding: run.stderr.readDataToEndOfFile(), as: UTF8.self),
         )))
     }
+}
+
+final class SpawnRuns {
+    private final class Run {
+        let process: Process
+        let lines: ([String]) -> Void
+        let exit: (Int, String) -> Void
+        var stdout: PipeReader?
+        var stderr: PipeReader?
+        var buffer = LineBuffer()
+        var errors = Data()
+
+        init(_ process: Process, lines: @escaping ([String]) -> Void, exit: @escaping (Int, String) -> Void) {
+            self.process = process
+            self.lines = lines
+            self.exit = exit
+        }
+
+        func read(_ data: Data) {
+            let complete = buffer.append(data)
+            if !complete.isEmpty {
+                lines(complete)
+            }
+        }
+
+        func keep(_ data: Data) {
+            errors = (errors + data).suffix(4096)
+        }
+
+        func close() {
+            stdout?.close()
+            stderr?.close()
+        }
+    }
+
+    private let queue: DispatchQueue
+    private var runs: [Int: Run] = [:]
+    private var nextID = 1
+    private var stopped = false
+
+    init(queue: DispatchQueue) {
+        self.queue = queue
+    }
+
+    func start(_ argv: [String], lines: @escaping ([String]) -> Void, exit: @escaping (Int, String) -> Void) -> Int {
+        let id = nextID
+        nextID += 1
+        runs[id] = Run(command(argv), lines: lines, exit: exit)
+        queue.async { [self] in launch(id) }
+        return id
+    }
+
+    private func launch(_ id: Int) {
+        guard !stopped, let run = runs[id] else { return }
+        let stdout = Pipe()
+        let stderr = Pipe()
+        run.process.standardOutput = stdout
+        run.process.standardError = stderr
+        run.process.terminationHandler = { [weak self] _ in self?.queue.async { self?.exited(id) } }
+        do {
+            try run.process.run()
+        } catch {
+            runs[id] = nil
+            run.exit(-1, "\(error)")
+            return
+        }
+        run.stdout = PipeReader(stdout.fileHandleForReading, queue: queue) { [weak run] in run?.read($0) }
+        run.stderr = PipeReader(stderr.fileHandleForReading, queue: queue) { [weak run] in run?.keep($0) }
+    }
+
+    func stop(_ id: Int) {
+        guard let run = runs[id] else { return }
+        guard run.process.processIdentifier != 0 else {
+            runs[id] = nil
+            queue.async { run.exit(-1, "") }
+            return
+        }
+        run.process.terminate()
+    }
+
+    func stopAll() {
+        stopped = true
+        for run in runs.values where run.process.processIdentifier != 0 {
+            run.process.terminate()
+            run.close()
+        }
+        runs = [:]
+    }
+
+    private func exited(_ id: Int) {
+        guard let run = runs.removeValue(forKey: id) else { return }
+        run.stdout?.drain()
+        run.stderr?.drain()
+        run.close()
+        let rest = run.buffer.flush()
+        if !rest.isEmpty {
+            run.lines(rest)
+        }
+        run.exit(Int(run.process.terminationStatus), String(decoding: run.errors, as: UTF8.self))
+    }
+}
+
+private final class PipeReader {
+    private let handle: FileHandle
+    private let source: DispatchSourceRead
+    private let receive: (Data) -> Void
+
+    init(_ handle: FileHandle, queue: DispatchQueue, receive: @escaping (Data) -> Void) {
+        self.handle = handle
+        self.receive = receive
+        let descriptor = handle.fileDescriptor
+        _ = fcntl(descriptor, F_SETFL, fcntl(descriptor, F_GETFL) | O_NONBLOCK)
+        source = DispatchSource.makeReadSource(fileDescriptor: descriptor, queue: queue)
+        source.setEventHandler { [weak self] in self?.drain() }
+        source.setCancelHandler { try? handle.close() }
+        source.resume()
+    }
+
+    func drain() {
+        var chunk = [UInt8](repeating: 0, count: 65536)
+        while !source.isCancelled {
+            let count = read(handle.fileDescriptor, &chunk, chunk.count)
+            if count > 0 {
+                receive(Data(chunk[0..<count]))
+            } else {
+                if count == 0 {
+                    source.cancel()
+                }
+                return
+            }
+        }
+    }
+
+    func close() {
+        source.cancel()
+    }
+}
+
+struct LineBuffer {
+    private var pending = Data()
+
+    mutating func append(_ data: Data) -> [String] {
+        pending.append(data)
+        guard let last = pending.lastIndex(of: UInt8(ascii: "\n")) else { return [] }
+        let complete = pending[..<last]
+        pending = Data(pending[(last + 1)...])
+        return complete.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: false).map { String(decoding: $0, as: UTF8.self) }
+    }
+
+    mutating func flush() -> [String] {
+        defer { pending = Data() }
+        return pending.isEmpty ? [] : [String(decoding: pending, as: UTF8.self)]
+    }
+}
+
+private func command(_ argv: [String]) -> Process {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = ["--"] + argv
+    var environment = ProcessInfo.processInfo.environment
+    environment["PATH"] = searchPath
+    process.environment = environment
+    process.standardInput = FileHandle.nullDevice
+    return process
 }
 
 private func result(status: Int, stdout: String, stderr: String) -> JSON {
