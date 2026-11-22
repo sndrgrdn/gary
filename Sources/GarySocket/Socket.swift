@@ -2,7 +2,6 @@ import Foundation
 
 public enum SocketError: Error, Equatable, CustomStringConvertible {
     case unreachable(String)
-    case inUse(String)
     case timedOut
     case tooLarge
     case closed
@@ -12,7 +11,6 @@ public enum SocketError: Error, Equatable, CustomStringConvertible {
     public var description: String {
         switch self {
         case let .unreachable(path): "nothing is listening on \(path)"
-        case let .inUse(path): "another process is listening on \(path)"
         case .timedOut: "socket timed out"
         case .tooLarge: "message exceeds \(maxMessageBytes) bytes"
         case .closed: "connection closed before a full line"
@@ -52,10 +50,6 @@ public final class LineServer {
 
     @preconcurrency
     public init(path: String, handle: @escaping @Sendable (String) -> String) throws {
-        if let probe = try? connectSocket(path) {
-            close(probe)
-            throw SocketError.inUse(path)
-        }
         unlink(path)
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw SocketError.system(errno) }

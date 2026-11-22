@@ -53,12 +53,7 @@ struct LineServerTests {
         #expect((attributes[.posixPermissions] as? Int) == 0o600)
     }
 
-    @Test func `refuses A second server and replaces A stale socket`() throws {
-        let server = try LineServer(path: path) { _ in "first" }
-        #expect(throws: SocketError.inUse(path)) { try LineServer(path: path) { _ in "second" } }
-        server.stop()
-        Thread.sleep(forTimeInterval: 0.05)
-
+    @Test func `replaces A stale socket`() throws {
         let stale = socket(AF_UNIX, SOCK_STREAM, 0)
         var address = sockaddr_un()
         address.sun_family = sa_family_t(AF_UNIX)
