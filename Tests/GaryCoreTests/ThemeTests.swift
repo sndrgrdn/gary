@@ -123,12 +123,12 @@ struct ThemeTests {
         yellow = "#e0af68"
         """)
         #expect(theme.resolve(nil, StyleProps(color: "yellow")).color == RGBA(hex: "#e0af68"))
-        #expect(theme.resolve(nil, StyleProps(background: "alpha(yellow, 0.5)")).background == RGBA(
+        #expect(theme.resolve(nil, StyleProps(background: "alpha(yellow, 0.5)")).background == .color(RGBA(
             red: 0xE0 / 255,
             green: 0xAF / 255,
             blue: 0x68 / 255,
             alpha: 0.5,
-        ))
+        )))
         #expect(theme.resolve(nil, StyleProps(color: "accent")).color == RGBA(hex: "#ff0000"))
         #expect(theme.colors["selected"] == RGBA(red: 1, green: 0, blue: 0, alpha: 0.25))
         #expect(theme.resolve(nil, StyleProps(color: "no-such-color")).color == theme.style("default").color)
@@ -201,10 +201,15 @@ struct ThemeTests {
         let props = StyleProps(padding: Insets(4), fontSize: 20, background: "accent", color: "#ff0000")
         let resolved = theme.resolve("panel", props)
         #expect(resolved.padding == Insets(4) && resolved.radius == 12)
-        #expect(resolved.background == RGBA(hex: "#7aa2f7"))
+        #expect(resolved.background == RGBA(hex: "#7aa2f7").map(ResolvedPaint.color))
         #expect(resolved.color == RGBA(hex: "#ff0000"))
         #expect(resolved.font == FontToken(family: .system, size: 20, weight: .regular))
-        #expect(theme.resolve(nil, props, hover: "hover").background == RGBA(red: 0xA9 / 255, green: 0xB1 / 255, blue: 0xD6 / 255, alpha: 0.1))
+        #expect(theme.resolve(nil, props, hover: "hover").background == .color(RGBA(
+            red: 0xA9 / 255,
+            green: 0xB1 / 255,
+            blue: 0xD6 / 255,
+            alpha: 0.1,
+        )))
         #expect(theme.resolve(nil, StyleProps(color: "no-such-color")).color == theme.style("default").color)
         #expect(theme.motion.fade == 0.15)
     }

@@ -115,7 +115,7 @@ public struct StyleProps: Equatable, Sendable {
     public var clip: Bool?
     public var shadow: Shadow?
     public var border: Border?
-    public var background: String?
+    public var background: Paint?
     public var color: String?
     public var font: String?
 
@@ -132,7 +132,7 @@ public struct StyleProps: Equatable, Sendable {
         align: Align? = nil,
         animation: Animation? = nil,
         material: Material? = nil,
-        background: String? = nil,
+        background: Paint? = nil,
         color: String? = nil,
         font: String? = nil,
         x: Double? = nil,
@@ -185,9 +185,10 @@ public struct StyleProps: Equatable, Sendable {
         ("y", \.y),
         ("zIndex", \.zIndex),
     ]
-    public static let colors: [(String, WritableKeyPath<StyleProps, String?> & Sendable)] = [("background", \.background), ("color", \.color)]
+    public static let colors: [(String, WritableKeyPath<StyleProps, String?> & Sendable)] = [("color", \.color)]
     public static let names = numbers.map(\.0) + ["padding"] + signed.map(\.0)
-        + ["align", "animation", "material", "colorScheme", "transition", "fit", "clip", "shadow", "border"] + colors.map(\.0) + ["font"]
+        + ["align", "animation", "material", "colorScheme", "transition", "fit", "clip", "shadow", "border", "background"]
+        + colors.map(\.0) + ["font"]
 
     public static func parse(_ fields: [String: JSON], fail: (String, String) -> Error) throws -> StyleProps {
         var props = StyleProps()
@@ -211,10 +212,7 @@ public struct StyleProps: Equatable, Sendable {
         props.colorScheme = try choice(fields["colorScheme"], "colorScheme", fail: fail)
         props.transition = try choice(fields["transition"], "transition", fail: fail)
         props.fit = try choice(fields["fit"], "fit", fail: fail)
-        props.clip = try present(fields["clip"]).map { value in
-            guard let clip = value.bool else { throw fail("clip", "must be true or false") }
-            return clip
-        }
+        props.clip = try flag(fields["clip"], "clip", fail: fail)
         props.shadow = try object(fields["shadow"], "shadow", "an object with color, radius and y", fail: fail) { shadow in
             try Shadow(
                 color: color(shadow["color"], "shadow.color", fail: fail),
@@ -225,6 +223,7 @@ public struct StyleProps: Equatable, Sendable {
         props.border = try object(fields["border"], "border", "an object with color and width", fail: fail) { border in
             try Border(color: color(border["color"], "border.color", fail: fail), width: number(border["width"], "border.width", fail: fail) ?? 1)
         }
+        props.background = try paint(fields["background"], "background", fail: fail)
         for (name, path) in colors {
             props[keyPath: path] = try present(fields[name]).map { try color($0, name, fail: fail) }
         }
@@ -237,6 +236,20 @@ public struct StyleProps: Equatable, Sendable {
 
     private static func present(_ value: JSON?) -> JSON? {
         value == .null ? nil : value
+    }
+
+    private static func flag(_ value: JSON?, _ name: String, fail: (String, String) -> Error) throws -> Bool? {
+        try present(value).map { value in
+            guard let flag = value.bool else { throw fail(name, "must be true or false") }
+            return flag
+        }
+    }
+
+    private static func paint(_ value: JSON?, _ name: String, fail: (String, String) -> Error) throws -> Paint? {
+        try present(value).map { value in
+            guard let paint = Paint.parse(value) else { throw fail(name, "must be \(Paint.syntax)") }
+            return paint
+        }
     }
 
     private static func number(_ value: JSON?, _ name: String, signed: Bool = false, fail: (String, String) -> Error) throws -> Double? {
@@ -294,6 +307,7 @@ public struct StyleProps: Equatable, Sendable {
         merged.clip = clip ?? base.clip
         merged.shadow = shadow ?? base.shadow
         merged.border = border ?? base.border
+        merged.background = background ?? base.background
         merged.font = font ?? base.font
         return merged
     }
@@ -304,7 +318,7 @@ public struct ResolvedStyle: Equatable, Sendable {
     public var props: StyleProps
     public var color: RGBA
     public var font: FontToken
-    public var background: RGBA?
+    public var background: ResolvedPaint?
     public var shadowColor: RGBA?
     public var borderColor: RGBA?
 

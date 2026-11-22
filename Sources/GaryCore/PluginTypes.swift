@@ -26,6 +26,7 @@ public enum PluginTypes {
             "transition?: \(union(Transition.allCases.map(\.rawValue)));",
             "fit?: \(union(ImageFit.allCases.map(\.rawValue)));", "clip?: boolean;",
             "shadow?: { color: Color; radius?: number; y?: number };", "border?: { color: Color; width?: number };",
+            "background?: Paint;",
         ] + StyleProps.colors.map { "\($0.0)?: Color;" } + ["font?: FontName;"])
             .map { "    \($0)" }.joined(separator: "\n")
     }
@@ -49,6 +50,7 @@ public enum PluginTypes {
           type FontName = \(names("fonts", in: theme));
           type ColorName = \(names("colors", in: theme));
           type Color = ColorName;
+          type Paint = Color | { gradient: \(union(Gradient.Kind.allCases.map(\.rawValue))); colors: [Color, Color, ...Color[]]; angle?: number };
 
           interface StyleProps {
         \(styleFields)

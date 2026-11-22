@@ -82,7 +82,7 @@ public struct Theme: Equatable, Sendable {
         }
         return ResolvedStyle(
             props: merged, color: color(merged.color) ?? color(fallback.color) ?? palette.foreground, font: font,
-            background: color(merged.background),
+            background: paint(merged.background),
             shadowColor: color(merged.shadow?.color), borderColor: color(merged.border?.color),
         )
     }
@@ -220,7 +220,7 @@ public struct Theme: Equatable, Sendable {
 
     private func styleWarnings() -> [String] {
         styles.flatMap { name, props in
-            [("color", props.color), ("background", props.background)].compactMap { field, reference in
+            ([("color", props.color)] + (props.background?.colors ?? []).map { ("background", $0) }).compactMap { field, reference in
                 guard let reference, color(reference) == nil else { return nil }
                 return "styles.\(name).\(field): no colour \(reference) with this palette"
             }

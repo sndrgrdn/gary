@@ -5,7 +5,7 @@ struct NodeBox: Equatable {
     var width: Double?
     var height: Double?
     var padding: Insets
-    var background: RGBA?
+    var background: ResolvedPaint?
     var action: String?
     var alignment: Alignment
     var clip: Bool

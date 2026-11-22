@@ -20,6 +20,8 @@ struct PluginTypesTests {
         for (name, _) in StyleProps.colors {
             #expect(text.contains("\(name)?: Color;"))
         }
+        #expect(text.contains("background?: Paint;"))
+        #expect(text.contains("type Paint = Color | { gradient: \"linear\" | \"radial\" | \"angular\";"))
         for kind in PluginKind.allCases {
             #expect(text.contains("type \(PluginTypes.typeName(kind.rawValue)) = "))
         }

@@ -23,7 +23,7 @@ struct NodeBoxTests {
         #expect(box.width == 40)
         #expect(box.height == 20)
         #expect(box.padding == Insets(4))
-        #expect(box.background == RGBA(hex: "#ff0000"))
+        #expect(box.background == RGBA(hex: "#ff0000").map(ResolvedPaint.color))
         #expect(box.action == "open")
         #expect(box.alignment == Alignment(horizontal: .trailing, vertical: .center))
         #expect(box.clip)

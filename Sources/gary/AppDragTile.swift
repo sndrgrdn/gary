@@ -23,7 +23,12 @@ final class AppDragTile {
         let look = theme?.style("surface")
         let card = NSView()
         card.wantsLayer = true
-        card.layer?.backgroundColor = (look?.background.map { NSColor($0) } ?? .windowBackgroundColor).cgColor
+        let background: RGBA? = if case let .color(color)? = look?.background {
+            color
+        } else {
+            nil
+        }
+        card.layer?.backgroundColor = (background.map { NSColor($0) } ?? .windowBackgroundColor).cgColor
         card.layer?.cornerRadius = look?.radius ?? 12
         card.layer?.borderWidth = 1
         card.layer?.borderColor = theme?.color("border").map { NSColor($0).cgColor }

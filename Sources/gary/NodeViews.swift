@@ -204,8 +204,13 @@ struct NodeView: View {
             SliderNode(value: value, action: node.actions[.click], tint: node.props.color == nil ? nil : Color(look.color))
         case let .progress(value):
             let shape = RoundedRectangle(cornerRadius: look.radius ?? 3)
-            shape.fill(Color(look.background ?? RGBA(red: look.color.red, green: look.color.green, blue: look.color.blue, alpha: 0.25)))
-                .overlay(alignment: .leading) { GeometryReader { area in shape.fill(Color(look.color)).frame(width: area.size.width * value) } }
+            shape.fill(AnyShapeStyle(look.background ?? .color(RGBA(
+                red: look.color.red,
+                green: look.color.green,
+                blue: look.color.blue,
+                alpha: 0.25,
+            ))))
+            .overlay(alignment: .leading) { GeometryReader { area in shape.fill(Color(look.color)).frame(width: area.size.width * value) } }
         case let .input(input):
             InputNode(input: input, font: nsFont(look.font), color: Color(look.color))
         case .spacer:
@@ -234,7 +239,7 @@ private extension View {
             .frame(minWidth: look.minWidth.map { CGFloat($0) }, alignment: box.alignment)
             .background {
                 if let background = box.background {
-                    shape.fill(Color(background))
+                    shape.fill(AnyShapeStyle(background))
                 }
             }
             .material(look.material, radius: look.radius ?? 0)
@@ -294,7 +299,7 @@ private extension View {
             let shape = RoundedRectangle(cornerRadius: card.radius)
             background {
                 if let background = card.look.background {
-                    shape.fill(Color(background))
+                    shape.fill(AnyShapeStyle(background))
                 }
             }
             .material(card.look.material, radius: card.radius)
