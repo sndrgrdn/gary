@@ -3,9 +3,7 @@ import Foundation
 import GaryCore
 import Testing
 
-private let deno = (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":")
-    .map { URL(fileURLWithPath: String($0)).appending(path: "deno") }
-    .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+private let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../..").standardizedFileURL
 
 struct SkillTests {
     private var guide: String {
@@ -40,7 +38,7 @@ struct SkillTests {
         }
     }
 
-    @Test(.enabled(if: deno != nil, "deno is not installed")) func `every capability example and built in plugin type checks`() throws {
+    @Test func `every capability example and built in plugin type checks`() throws {
         let folder = FileManager.default.temporaryDirectory.appending(path: "gary-examples-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -54,24 +52,22 @@ struct SkillTests {
         let id = try #require(PluginID("you.examples"))
         let tsconfig = try #require(PluginScaffold.files(id: id, kinds: [.service])["tsconfig.json"])
         try Data(tsconfig.utf8).write(to: folder.appending(path: "tsconfig.json"))
-        var files = Capability.all.map { "\($0.name).ts" }
         for capability in Capability.all {
             try Data(capability.example.utf8).write(to: folder.appending(path: "\(capability.name).ts"))
         }
-        let builtins = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../../Resources/plugins").standardizedFileURL
+        let builtins = root.appending(path: "Resources/plugins")
         for plugin in try FileManager.default.contentsOfDirectory(atPath: builtins.path) {
             for entry in try FileManager.default.contentsOfDirectory(atPath: builtins.appending(path: plugin).path) where entry.hasSuffix(".ts") {
-                files.append("builtin-\(plugin)-\(entry)")
                 try FileManager.default.copyItem(
                     at: builtins.appending(path: "\(plugin)/\(entry)"),
-                    to: folder.appending(path: #require(files.last)),
+                    to: folder.appending(path: "builtin-\(plugin)-\(entry)"),
                 )
             }
         }
         let check = Process()
-        check.executableURL = deno
+        check.executableURL = root.appending(path: "node_modules/.bin/tsc")
         check.currentDirectoryURL = folder
-        check.arguments = ["check", "--quiet", "--config", "tsconfig.json", "gary.d.ts"] + files
+        check.arguments = ["-p", "."]
         let output = Pipe()
         check.standardOutput = output
         check.standardError = output
