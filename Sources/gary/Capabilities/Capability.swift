@@ -34,6 +34,7 @@ struct Capability {
         .paste,
         .permissions,
         .session,
+        .system,
         .tray,
         .wallpaper,
         .wifi,
