@@ -7,7 +7,7 @@ public struct PluginBundle: Equatable, Sendable {
 
     public static func load(_ directory: URL, origin: PluginOrigin, capabilities: CapabilityNames) throws -> PluginBundle {
         let manifest = try PluginManifest.parse(
-            Data(contentsOf: resolveInside(directory, "manifest.json")),
+            Data(contentsOf: regularFile(in: directory, "manifest.json")),
             origin: origin,
             capabilities: capabilities,
         )
@@ -20,7 +20,7 @@ public struct PluginBundle: Equatable, Sendable {
 
     public func entryPoint(_ kind: PluginKind) throws -> String {
         guard let relative = manifest.entryPoints[kind] else { throw ManifestError.missingEntryPoint(kind) }
-        _ = try resolveInside(directory, relative)
+        _ = try regularFile(in: directory, relative)
         return relative
     }
 }
@@ -91,35 +91,21 @@ public struct PluginCatalog: Equatable, Sendable {
 
 public enum PluginFileError: Error, Equatable, CustomStringConvertible {
     case missing(String)
-    case symlink(String)
     case notRegularFile(String)
 
     public var description: String {
         switch self {
         case let .missing(path): "\(path) does not exist"
-        case let .symlink(path): "\(path) is a symlink"
         case let .notRegularFile(path): "\(path) is not a regular file"
         }
     }
 }
 
-func resolveInside(_ directory: URL, _ relative: String) throws -> URL {
-    guard relative == "manifest.json" || isSafeRelativeScriptPath(relative) else { throw ManifestError.unsafeEntryPoint(relative) }
-    var url = directory
-    let components = relative.split(separator: "/").map(String.init)
-    for (index, component) in components.enumerated() {
-        url.appendPathComponent(component)
-        var info = stat()
-        guard lstat(url.path, &info) == 0 else { throw PluginFileError.missing(relative) }
-        let type = info.st_mode & S_IFMT
-        if type == S_IFLNK {
-            throw PluginFileError.symlink(relative)
-        }
-        let isLast = index == components.count - 1
-        if isLast ? type != S_IFREG : type != S_IFDIR {
-            throw PluginFileError.notRegularFile(relative)
-        }
-    }
+func regularFile(in directory: URL, _ relative: String) throws -> URL {
+    let url = directory.appending(path: relative)
+    var info = stat()
+    guard stat(url.path, &info) == 0 else { throw PluginFileError.missing(relative) }
+    guard info.st_mode & S_IFMT == S_IFREG else { throw PluginFileError.notRegularFile(relative) }
     return url
 }
 

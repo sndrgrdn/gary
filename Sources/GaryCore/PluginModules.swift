@@ -24,14 +24,18 @@ public extension PluginBundle {
     func resolveImport(_ specifier: String, from importer: String) throws -> String {
         let fail = { (reason: String) in ImportError(description: "cannot import \"\(specifier)\" from \(importer): \(reason)") }
         guard specifier.hasPrefix("./") || specifier.hasPrefix("../") else {
-            throw fail("Gary resolves only relative paths inside the plugin folder, such as \"./parse\"")
+            throw fail("Gary resolves only relative paths, such as \"./parse\"")
         }
         var parts = importer.split(separator: "/").dropLast().map(String.init)
         for component in specifier.split(separator: "/") {
             switch component {
             case ".": continue
             case "..":
-                guard parts.popLast() != nil else { throw fail("the path leaves the plugin folder") }
+                if let last = parts.last, last != ".." {
+                    parts.removeLast()
+                } else {
+                    parts.append("..")
+                }
             default: parts.append(String(component))
             }
         }
@@ -40,7 +44,7 @@ public extension PluginBundle {
         let candidates = ScriptLanguage(path: base) != nil ? [base] : ScriptLanguage.allCases.map { "\(base).\($0.rawValue)" } + index
         for candidate in candidates {
             do {
-                _ = try resolveInside(directory, candidate)
+                _ = try regularFile(in: directory, candidate)
                 return candidate
             } catch PluginFileError.missing {
                 continue

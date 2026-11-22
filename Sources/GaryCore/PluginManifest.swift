@@ -72,7 +72,7 @@ public enum ManifestError: Error, Equatable, CustomStringConvertible {
     case duplicateKind(PluginKind)
     case missingEntryPoint(PluginKind)
     case entryPointWithoutKind(String)
-    case unsafeEntryPoint(String)
+    case entryPointNotScript(String)
     case unknownTopic(String)
     case unknownService(String)
     case invalidHotkey(String)
@@ -92,7 +92,7 @@ public enum ManifestError: Error, Equatable, CustomStringConvertible {
         case let .duplicateKind(kind): "kind \(kind.rawValue) is listed twice"
         case let .missingEntryPoint(kind): "no entry point for kind \(kind.rawValue)"
         case let .entryPointWithoutKind(key): "entry point \(key) has no matching kind"
-        case let .unsafeEntryPoint(path): "entry point \(path) must be a relative \(ScriptLanguage.extensions) path inside the plugin"
+        case let .entryPointNotScript(path): "entry point \(path) must be a \(ScriptLanguage.extensions) file"
         case let .unknownTopic(topic): "unknown subscription \(topic)"
         case let .unknownService(service): "unknown host service \(service)"
         case let .invalidHotkey(keys): "hotkey \"\(keys)\" must be modifiers and a key, such as ctrl+alt+space"
@@ -179,7 +179,7 @@ public struct PluginManifest: Equatable, Sendable {
         for (key, value) in rawEntries {
             guard let kind = PluginKind(rawValue: key), kinds.contains(kind) else { throw ManifestError.entryPointWithoutKind(key) }
             guard let path = value.string else { throw ManifestError.wrongType("entryPoints.\(key)") }
-            guard isSafeRelativeScriptPath(path) else { throw ManifestError.unsafeEntryPoint(path) }
+            guard ScriptLanguage(path: path) != nil else { throw ManifestError.entryPointNotScript(path) }
             entryPoints[kind] = path
         }
         if let missing = kinds.first(where: { entryPoints[$0] == nil }) {
@@ -232,10 +232,4 @@ private struct ManifestFields {
     func optionalStrings(_ name: String) throws -> [String] {
         json[name] == nil ? [] : try strings(name)
     }
-}
-
-func isSafeRelativeScriptPath(_ path: String) -> Bool {
-    let components = path.split(separator: "/", omittingEmptySubsequences: false)
-    return !path.hasPrefix("/") && !path.hasPrefix("~") && ScriptLanguage(path: path) != nil && !path.contains("\0")
-        && components.allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." }
 }

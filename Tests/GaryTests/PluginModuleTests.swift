@@ -27,11 +27,13 @@ struct PluginModuleTests {
 
     @Test func `an import Gary cannot resolve fails the load and names the specifier`() async throws {
         let cases = [
-            "lodash": "cannot import \"lodash\" from main.js: Gary resolves only relative paths inside the plugin folder, such as \"./parse\"",
+            "lodash": "cannot import \"lodash\" from main.js: Gary resolves only relative paths, such as \"./parse\"",
             "./missing": """
             cannot import "./missing" from main.js: no file missing.ts, missing.tsx, missing.js, missing/index.ts, missing/index.tsx, missing/index.js
             """,
-            "../outside": "cannot import \"../outside\" from main.js: the path leaves the plugin folder",
+            "../outside": """
+            cannot import "../outside" from main.js: no file ../outside.ts, ../outside.tsx, ../outside.js, ../outside/index.ts, ../outside/index.tsx, ../outside/index.js
+            """,
         ]
         for (specifier, reason) in cases {
             let harness = try Harness(widget(setup: "import \"\(specifier)\";"), shown: [])

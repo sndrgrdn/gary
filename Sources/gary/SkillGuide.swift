@@ -93,7 +93,7 @@ extension Skill {
     ### Write entry files
 
     - Each entry file is an ES module whose default export is an object with the fields in the Default export section.
-    - Import other files of the plugin by relative path, such as `import { parse } from "./parse"`. Gary finds `parse.ts`, `parse.tsx`, `parse.js`, or an `index` file in a `parse` folder, and refuses a path that leaves the plugin folder. Any other import, such as an npm package, fails the load with an error that names it. Each kind loads its own copy of an imported file, once.
+    - Import other files of the plugin by relative path, such as `import { parse } from "./parse"`. Gary finds `parse.ts`, `parse.tsx`, `parse.js`, or an `index` file in a `parse` folder. Any other import, such as an npm package, fails the load with an error that names it. Each kind loads its own copy of an imported file, once.
     - Gary compiles TypeScript and modules with a bundled copy of sucrase and keeps line numbers. It erases type-only imports. It does not type-check, so run `tsc`.
     - There is no DOM, no `console`, and no Node.js API. Use `host.log` for logging, and `host.exec`, `host.readFile`, and `fetch` through their capabilities.
     - Keep module-level variables for state that survives renders. A reload starts the module again from the top, and `host.storage` keeps values across reloads and restarts.
@@ -133,7 +133,7 @@ extension Skill {
     | `id` | string | Required. The plugin id, such as `you.weather`. |
     | `name`, `version` | string | Required. |
     | `kinds` | array | Required. One or more of \(PluginKind.allCases.map { "`\($0.rawValue)`" }.joined(separator: ", ")). |
-    | `entryPoints` | object | Required. One relative `.ts`, `.tsx`, or `.js` path per kind, such as `{ "panel": "panel.ts" }`. Symlinks are refused. |
+    | `entryPoints` | object | Required. One relative `.ts`, `.tsx`, or `.js` path per kind, such as `{ "panel": "panel.ts" }`. |
     | `subscribes` | array | Topics that appear in `state` and `onTopic`: capability topics, or other plugins' ids. |
     | `uses` | array | Capabilities that add functions to `host`. |
     | `keepLoaded` | boolean | Keep a panel, overlay, or menu running while it is hidden. |

@@ -199,7 +199,7 @@ public enum PluginTypes {
                 "kinds": type("array", ["minItems": .number(1), "uniqueItems": .bool(true), "items": .object(["enum": kinds])]),
                 "entryPoints": type("object", [
                     "propertyNames": .object(["enum": kinds]),
-                    "additionalProperties": type("string", ["pattern": .string(#"^(?![/~])(?!.*(^|/)\.{0,2}(/|$))[^\u0000]*\.(\#(scripts))$"#)]),
+                    "additionalProperties": type("string", ["pattern": .string(#"\.(\#(scripts))$"#)]),
                 ]),
                 "keepLoaded": type("boolean"),
                 "bar": .object(["enum": strings(BarSection.allCases.map(\.rawValue))]),

@@ -115,9 +115,9 @@ struct PluginManifestTests {
         rejects(["entryPoints": ["bar-widget": "w.js", "panel": "p.js"]], with: .entryPointWithoutKind("panel"))
     }
 
-    @Test func `entry points stay inside the plugin as scripts`() {
-        for path in ["../escape.js", "lib/../../escape.js", "/etc/x.js", "~/x.js", "widget.jsx", "widget.d", "./widget.js", "lib//w.js"] {
-            rejects(["entryPoints": ["bar-widget": .string(path)]], with: .unsafeEntryPoint(path))
+    @Test func `entry points are scripts`() {
+        for path in ["widget.jsx", "widget.d", "widget"] {
+            rejects(["entryPoints": ["bar-widget": .string(path)]], with: .entryPointNotScript(path))
         }
     }
 
@@ -252,19 +252,6 @@ struct PluginCatalogTests {
         #expect(catalog.problems.map { $0.directory.deletingLastPathComponent().lastPathComponent } == ["one", "two"])
     }
 
-    @Test func `rejects symlinked entry points and directories`() throws {
-        let outside = root.appendingPathComponent("outside.js")
-        try "while(true){}".write(to: outside, atomically: true, encoding: .utf8)
-        let linked = try plugin("linked", id: "acme.linked", writeEntry: false)
-        try FileManager.default.createSymbolicLink(at: linked.appendingPathComponent("widget.js"), withDestinationURL: outside)
-        let nested = try plugin("nested", id: "acme.nested", entry: "lib/widget.js", writeEntry: false)
-        try FileManager.default.createSymbolicLink(at: nested.appendingPathComponent("lib"), withDestinationURL: root)
-
-        let catalog = scan()
-        #expect(catalog.plugins.isEmpty)
-        #expect(catalog.problems.map(\.reason).sorted() == ["lib/widget.js is a symlink", "widget.js is a symlink"])
-    }
-
     @Test func `reports A missing entry point and A bad manifest`() throws {
         try plugin("missing", id: "acme.missing", writeEntry: false)
         let bad = root.appendingPathComponent("user/bad")
@@ -273,14 +260,5 @@ struct PluginCatalogTests {
         let catalog = scan()
         #expect(catalog.plugins.isEmpty)
         #expect(catalog.problems.map(\.reason).sorted() == ["manifest is not a JSON object", "widget.js does not exist"])
-    }
-
-    @Test func `entry point is checked again at load`() throws {
-        let directory = try plugin("media", id: "acme.media")
-        let mediaID = try #require(PluginID("acme.media"))
-        let bundle = try #require(scan().plugins[mediaID])
-        try FileManager.default.removeItem(at: directory.appendingPathComponent("widget.js"))
-        try FileManager.default.createSymbolicLink(at: directory.appendingPathComponent("widget.js"), withDestinationURL: root)
-        #expect(throws: PluginFileError.symlink("widget.js")) { try bundle.entryPoint(.barWidget) }
     }
 }

@@ -48,7 +48,7 @@ Gary logs `host.log` lines and load failures. The app writes them to `~/Library/
 Gary compiles TypeScript and modules with a bundled copy of [sucrase](https://github.com/alangpierce/sucrase) and keeps line numbers, so errors point at the `.ts` line. Gary does not type-check. Run `tsc` for that.
 
 - Write `export default { ... } satisfies Gary.BarWidget`, or `Gary.Panel`, `Gary.Service`, or the type for your kind. TypeScript then types `state` and checks the tree you return.
-- Split a plugin into files with relative imports, such as `import { parse } from "./parse"`. Gary finds `.ts`, `.tsx`, and `.js` files and `index` files in folders inside the plugin folder. Any other import, such as an npm package, fails the load with an error that names it.
+- Split a plugin into files with relative imports, such as `import { parse } from "./parse"`. Gary finds `.ts`, `.tsx`, and `.js` files and `index` files in folders. Any other import, such as an npm package, fails the load with an error that names it.
 - After you change `uses` or `subscribes`, run `gary plugin types <folder>`. `gary.d.ts` declares only the `host` functions and `state` fields that your manifest asks for, and `onTopic` narrows `value` by the topic name.
 - To type the value a plugin publishes, export `type Topic` from `topic.ts` in its folder. `gary plugin types` types `host.publish` with it, and `state["<id>"]` in every plugin that subscribes and sits in a sibling folder, in `~/.config/gary/plugins`, or in a package. The [`disk`](../examples/disk) example does this.
 
