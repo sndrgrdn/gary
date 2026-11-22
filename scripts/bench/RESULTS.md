@@ -211,6 +211,69 @@ Harness, n=5 per build, alternated:
 
 At 100 and 500 nodes the ranges overlap, so there is no measurable difference. At 1000 nodes a frame takes 0.16 ms (2%) longer, and at 2000 nodes 0.5 ms (3%) less, because the alignment cut saves more than the extra effects cost once the column is compressed. The first mount at 1000 and 2000 nodes is back at unit 2's 159 and 320 ms, since every node builds its effects again. The 100-node mount is the first in the process, as in unit 3.
 
+## Unit 7: the post-launch flush stall comes from a Shortcut, not from Gary
+
+The user's `sndrgrdn.weather` bar widget runs `shortcuts run "Current Weather"` when it loads. macOS then shows a Shortcuts Live Activity in the menu bar. For about 10 s, `MenuBarAgent` and `WidgetRenderer_Activities` redraw that activity without pause and keep the Core Animation render-server thread of WindowServer fully busy. Every commit from every process waits on that thread, and Gary's commits are no exception. No Gary code changed in this unit, because nothing in Gary's launch path is slow.
+
+The benchmarks inherit the user's `shell.json`, so every bench launch ran the Shortcut. `s6-launch-1000` measured the Shortcut, and so did the stall notes in `BASELINE.md` and unit 4.
+
+### Evidence
+
+- `sample` of Gary during the stall, in `s6-launch-1000`: of 1242 main-thread samples in `CATransaction.flush()`, nearly all wait in `mach_msg` on WindowServer. 515 wait for a fence for AppKit's window-server transaction (`_NSCGSTransactionGetEntanglingHandle_`). 359 wait to send the commit. 336 wait in `CABackingStoreSynchronize` for the server to release a layer's backing store.
+- `xctrace record --template "Time Profiler" --all-processes` during a launch, which works without root: for about 10 s after launch, the `com.apple.coreanimation.render-server` thread of WindowServer used a full core, in `CA::Render::Server::server_thread` handling command streams. In the same seconds, the main thread of `MenuBarAgent` used a full core inside its Core Animation commit handlers, and `WidgetRenderer_Activities` used about 1.75 cores. `ShortcutLiveActivityWidgetExtension` was running. Both Gary processes were almost idle.
+- `flushprobe.swift` is a separate process that recolors a layer and flushes at 20 Hz. While Gary launched, its flushes took up to 486 ms. With no launch, none took over 3 ms. So the stall hits every process that commits.
+
+Bisect: CPU time that `MenuBarAgent` and WindowServer used in the 16 s after `open` of a release build of fd63ef0. Each launch started after `MenuBarAgent` had been idle for 3 s. Display asleep.
+
+| Gary launch                                                               | `MenuBarAgent` CPU | WindowServer CPU   | Runs |
+| ------------------------------------------------------------------------- | ------------------ | ------------------ | ---- |
+| User's config                                                             | 9.1 s (8.5 to 9.2) | 7.0 s (6.5 to 7.3) | 3    |
+| User's config without `sndrgrdn.weather`                                  | 0.0 s and 1.6 s    | 0.10 s and 0.14 s  | 2    |
+| Only `sndrgrdn.weather` in the bar                                        | 8.6 s              | 7.0 s              | 1    |
+| Only `sndrgrdn.dinky`, `front-app`, `battery` or `clock` in the bar       | 0.0 s each         | 0.08 to 0.11 s     | 1    |
+| No bar widgets and no plugins                                             | 0.0 s              | 0.09 s             | 1    |
+| User's config, start stopped after `refreshDisplays`, before plugins load | 0.0 s              | 0.08 s             | 1    |
+
+The Shortcut alone, with no Gary launch and the user's Gary left running, against a control that runs nothing. `flushprobe` ran for 20 s and the Shortcut started 2 s in. n=5 per side, alternated, 15 s apart:
+
+| Side                              | Probe flushes over 100 ms | Slowest probe flush | `MenuBarAgent` CPU  | WindowServer CPU      |
+| --------------------------------- | ------------------------- | ------------------- | ------------------- | --------------------- |
+| Control                           | 0 (0 to 0)                | 2 ms (1 to 3)       | 0.0 s               | 0.22 s (0.21 to 0.29) |
+| `shortcuts run "Current Weather"` | 10 (9 to 13)              | 430 ms (390 to 511) | 9.3 s (9.2 to 12.7) | 8.0 s (6.8 to 10.6)   |
+
+The Shortcut itself returns after 1.1 s. The Live Activity keeps the three processes busy for about 9 s more.
+
+The first bisect runs were confounded. Each bench run ends by relaunching the user's Gary, whose weather widget starts its own storm, and that storm overlapped the next launch. `render.py` now waits until WindowServer has used under 10% CPU for 3 s in a row before it launches Gary, and records the wait as `quiet_wait_s`. After a relaunch of the user's Gary the wait is 14 to 15 s.
+
+### Before and after
+
+`s6-launch-1000-bare` is `s6-launch-1000` with the user's bar widgets and plugins removed, so the bench Gary loads only `bench.busy`. Both cases ran on the same release build of fd63ef0, traced, display asleep, load average 2.2 to 3.2, n=5 each, alternated with `ab.sh`. Flush counts cover every commit in the first 20 s after the supervisor started.
+
+| s6, n=5 each                            | User's config, with the weather widget | Without the user's widgets |
+| --------------------------------------- | -------------------------------------- | -------------------------- |
+| Flushes over 100 ms in the first 20 s   | 26 (24 to 48)                          | 0 (0 to 0)                 |
+| Slowest flush in the first 20 s         | 350 ms (321 to 664)                    | 14 ms (14 to 15)           |
+| Flushes in the first 20 s               | 382 (246 to 423)                       | 510 (510 to 511)           |
+| `since` p95 in the measured 15 s        | 194 ms (15.5 to 318)                   | 15.5 ms (15.4 to 15.5)     |
+| Commits per second in the measured 15 s | 19.9 (12.9 to 30.0)                    | 30.0 (30.0 to 30.0)        |
+| WindowServer CPU in the measured 15 s   | 41.9% (1.9 to 71.7)                    | 1.6% (1.5 to 1.7)          |
+
+Without the widgets, every flush of the first 20 s takes under 15 ms. The panel's first commit lands 0.4 s after launch, and the panel then commits 30 times per second until the run ends at about 17 s. Every run settled, had no error and no `failed` line, and rendered 30.1 times per second, so both sides did the same plugin work. The weather side's slowest run, 664 ms, launched only 3 s after the user's Gary had come back. Its storm likely overlapped that one (inferred). In the bare runs the limiter is the main thread's SwiftUI update, `layout` p50 10.9 ms, and flush p95 is 0.37 ms.
+
+### What this means
+
+- Any plugin that runs a Shortcut stalls every app's drawing for about 10 s, each time it runs. The weather widget does so at load, every 15 minutes, and 10 s after the screen unlocks. The blocking commit seen in a test process at 780446a fits this if the user's Gary ran the Shortcut during that test run (inferred, not reproduced).
+- Gary has nothing to warm up. With the user's other widgets, its bar window, the tooltip panel, the theme and a 1000-node panel, no flush took over 15 ms.
+- The fix belongs in `sndrgrdn.weather` in `sndrgrdn/gary-plugins`, which is outside this repository. It should fetch the weather without Shortcuts. The bare column bounds the gain.
+- `s6-launch-1000` keeps the user's config, so it still shows the stall while the user's bar has the weather widget.
+
+Rerun from the repository root. These commands quit and relaunch the user's Gary.
+
+    scripts/bundle.sh
+    APPS=build/Gary.app RUNS=5 CASES="s6-launch-1000 s6-launch-1000-bare" scripts/bench/ab.sh --trace --dark-ok
+    swiftc -O -o tmp/bin/flushprobe scripts/bench/flushprobe.swift
+    tmp/bin/flushprobe 20 0.05 > tmp/bench/probe.txt & sleep 2; shortcuts run "Current Weather"; wait
+
 ## Pending checks with the screen on
 
 Run these from the repository root with the screen unlocked. They quit and relaunch the user's Gary. `tmp/apps/base` is the rebased build 8a11dbb, and `build/Gary.app` is the head of this branch.
@@ -236,7 +299,8 @@ If `tmp/apps/base` is gone, rebuild it:
 ## Open issues
 
 - `GestureViewTests` "a scroll node with a scroll action scrolls and sends the action" fails while the display sleeps, on `main` 780446a too. Every other test passes.
-- The post-launch flush stall has no known cause. Unit 4 bounds its latency but not the stall.
+- The post-launch flush stall comes from the `sndrgrdn.weather` widget's Shortcut (unit 7). Its fix belongs in `sndrgrdn/gary-plugins`.
+- Unit 7 ran with the display asleep. With the screen on, the Live Activity is also composited, so the stall may be longer.
 - S5 still parses the whole 200 KB state in JavaScript on every render.
 - A node that gains or loses `shadow`, `clip`, `material`, `colorScheme`, a click action, or a `loop` still rebuilds its subtree. These branches predate unit 3.
 - `JSON` is no longer `Decodable`. Nothing in the repository decoded it with `Codable`.

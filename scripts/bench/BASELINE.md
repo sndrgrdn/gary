@@ -16,7 +16,7 @@ This file records what Gary's render pipeline costs before any optimization, wha
 
 - Load average was 2.9 to 10.6 during the reported runs. `mediaanalysisd` used 220 to 360% CPU through the whole session. Another agent's `swift-test` used up to 60% in some runs. Neither can be stopped without sudo, so cases run interleaved and every run sees the same background.
 - The display slept at 02:56 and the screen locked. Runs 3 to 5 ran with nothing composited. In those runs the S4 animations paused (S4 shader CPU 0.1% instead of 12%), WindowServer fell to about 1%, and S2-500 and S2-1000 CPU fell 8 to 10%. The report drops these runs. `render.py` now records the screen state, refuses to run while the screen is locked or asleep, and drops runs where it changed.
-- For the first 10 to 15 s after Gary launches, `CATransaction.flush()` blocks for about 190 ms per commit. A 1000-node panel at 30 Hz then falls up to 7.7 s behind and catches up at 41 commits/s. A panel summoned 30 s after launch shows no stall on its first or second summon. The cause is not known. The driver waits 20 s after launch so that the stall stays out of the measured window.
+- For the first 10 to 15 s after Gary launches, `CATransaction.flush()` blocks for about 190 ms per commit. A 1000-node panel at 30 Hz then falls up to 7.7 s behind and catches up at 41 commits/s. A panel summoned 30 s after launch shows no stall on its first or second summon. The user's `sndrgrdn.weather` widget causes the stall by running a Shortcut at load, as unit 7 in `RESULTS.md` shows. The driver waits 20 s after launch so that the stall stays out of the measured window.
 
 So the columns below are:
 
@@ -109,7 +109,6 @@ So SwiftUI bounds the cap. Raising it is safe for panels that change rarely. It 
 - Screen-dependent rows have n=2.
 - Instrumentation overhead with `GARY_TRACE` off: S2 100 shows no measurable difference against `main` (39.6% against 39.4%, ranges overlap, n=5 each). In S5 1 KB with the screen off, the ranges overlap (7.8% against 7.9%, n=3 and n=4). With the screen on, this branch measured 9.2% (n=2) against 8.1% for `main` (n=1), which is too few runs to decide. In the code, every timing call returns early when `tracing` is false.
 - GPU % is system-wide, not Gary's alone.
-- The post-launch flush stall has no known cause.
 - `swift_parse` takes 22.6 ms for the 1000-node tree in S3 but 7.8 ms in S2. Cold caches or a CPU still ramping its clock could explain it. Nothing here tests either.
 - `layout` covers the SwiftUI update run by `layoutSubtreeIfNeeded`. Display-cycle updates outside `commitFrame` are not attributed. They are about 3 ms per frame at 1000 nodes, the gap between the stage sum and the measured CPU.
 - No scenario goes past 1000 nodes, because the cap rejects bigger trees. The cap estimates above extrapolate from 100, 500 and 1000 nodes.
