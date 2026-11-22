@@ -33,6 +33,7 @@ struct Capability {
         .nowplaying,
         .paste,
         .permissions,
+        .power,
         .session,
         .system,
         .tray,
