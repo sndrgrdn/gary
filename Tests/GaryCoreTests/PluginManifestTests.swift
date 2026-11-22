@@ -100,7 +100,6 @@ struct PluginManifestTests {
 
     @Test func `reserves the gary namespace for builtins`() throws {
         try rejects(["id": "gary.clock"], with: .reservedID(#require(PluginID("gary.clock"))), origin: .user)
-        try rejects(["id": "acme.clock"], with: .builtinOutsideNamespace(#require(PluginID("acme.clock"))), origin: .builtin)
         #expect(try manifest(["id": "gary.clock"], origin: .builtin).id.isReserved)
     }
 

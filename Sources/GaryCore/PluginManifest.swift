@@ -66,7 +66,6 @@ public enum ManifestError: Error, Equatable, CustomStringConvertible {
     case unsupportedSchemaVersion(Double)
     case invalidID(String)
     case reservedID(PluginID)
-    case builtinOutsideNamespace(PluginID)
     case noKinds
     case unknownKind(String)
     case duplicateKind(PluginKind)
@@ -86,7 +85,6 @@ public enum ManifestError: Error, Equatable, CustomStringConvertible {
         case let .unsupportedSchemaVersion(version): "unsupported schemaVersion \(JSON.number(version).text)"
         case let .invalidID(id): "invalid id \"\(id)\""
         case let .reservedID(id): "id \(id) uses the reserved gary. namespace"
-        case let .builtinOutsideNamespace(id): "built-in id \(id) is outside the gary. namespace"
         case .noKinds: "kinds is empty"
         case let .unknownKind(kind): "unknown kind \(kind)"
         case let .duplicateKind(kind): "kind \(kind.rawValue) is listed twice"
@@ -156,11 +154,8 @@ public struct PluginManifest: Equatable, Sendable {
 
     private static func parseID(_ raw: String, origin: PluginOrigin) throws -> PluginID {
         guard let id = PluginID(raw) else { throw ManifestError.invalidID(raw) }
-        switch origin {
-        case .user where id.isReserved: throw ManifestError.reservedID(id)
-        case .builtin where !id.isReserved: throw ManifestError.builtinOutsideNamespace(id)
-        default: return id
-        }
+        guard origin == .builtin || !id.isReserved else { throw ManifestError.reservedID(id) }
+        return id
     }
 
     private static func parseKinds(_ rawKinds: [String]) throws -> [PluginKind] {
