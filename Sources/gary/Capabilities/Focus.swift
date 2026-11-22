@@ -2,7 +2,11 @@ import Foundation
 import GaryCore
 
 extension Capability {
-    static let focus = Capability(name: "focus", summary: "Whether a Focus is on, and its name and symbol.", types: """
+    static let focus = Capability(name: "focus", summary: """
+    Whether a Focus is on, and its name and symbol. Gary cannot turn a Focus on or off, because macOS has no public API \
+    for it. A plugin that uses `exec` can run a shortcut that the user made with the Set Focus action of the Shortcuts \
+    app: `host.exec(["shortcuts", "run", "<name>"])`.
+    """, types: """
     declare namespace Gary {
       type Focus = {
         available: boolean;
