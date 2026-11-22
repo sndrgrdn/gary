@@ -112,7 +112,11 @@ struct ShaderNode: View {
 
     var body: some View {
         MetalCanvas(program: program.wrappedValue, args: shader.args, animated: shader.animated && !reduceMotion)
-            .task(id: shader) { program.wrappedValue = await ShaderCache.shared.program(shader, plugin: plugin) }
+            .task(id: shader) {
+                let compiled = await ShaderCache.shared.program(shader, plugin: plugin)
+                guard !Task.isCancelled else { return }
+                program.wrappedValue = compiled
+            }
     }
 }
 
