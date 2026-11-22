@@ -8,8 +8,9 @@ public enum AudioRequest: Equatable, Sendable {
     case setVolume(Double, AudioScope)
     case setMuted(Bool, AudioScope)
     case setDefaultDevice(id: String, AudioScope)
+    case setAppVolume(pid: Int32, Double)
 
-    public static let methods = ["setVolume", "setMuted", "setDefaultDevice"]
+    public static let methods = ["setVolume", "setMuted", "setDefaultDevice", "setAppVolume"]
 
     public static func parse(_ call: HostCall) throws -> AudioRequest {
         let scope = { try call.choice(1, "scope", default: AudioScope.output) }
@@ -17,6 +18,10 @@ public enum AudioRequest: Equatable, Sendable {
         case "setVolume": return try .setVolume(call.fraction(0, "volume"), scope())
         case "setMuted": return try .setMuted(call.bool(0, "muted"), scope())
         case "setDefaultDevice": return try .setDefaultDevice(id: call.string(0, "id"), scope())
+        case "setAppVolume":
+            let pid = try call.number(0, "pid")
+            guard pid > 0, pid == pid.rounded(), pid <= Double(Int32.max) else { throw call.fail("pid must be a process id") }
+            return try .setAppVolume(pid: Int32(pid), call.fraction(1, "volume"))
         default: throw call.unknownMethod
         }
     }

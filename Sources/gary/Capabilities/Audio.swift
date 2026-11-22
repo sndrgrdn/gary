@@ -6,7 +6,10 @@ import GaryCore
 extension Capability {
     static let audio = Capability(
         name: "audio",
-        summary: "Audio devices, volume, mute, and the apps that use the microphone. Set the volume, mute, and the default device.",
+        summary: """
+        Audio devices, volume, mute, the apps that play audio, and the apps that use the microphone. \
+        Set the volume, mute, the default device, and the volume of each app.
+        """,
         types: """
         declare namespace Gary {
           type AudioScope = "output" | "input";
@@ -15,7 +18,9 @@ extension Capability {
             output: AudioDeviceState | null;
             input: AudioDeviceState | null;
             microphone: { pid: number; app: string | null; bundleId: string | null }[];
+            apps: AudioApp[];
           }
+          type AudioApp = { pid: number; name: string; bundleId: string | null; path: string | null; volume: number }
           type AudioDeviceSummary = { id: string; name: string; transport: string; output: boolean; input: boolean }
           type AudioDeviceState = { id: string; name: string; transport: string; volume: number | null; muted: boolean | null }
           interface Host { audio: AudioApi }
@@ -23,6 +28,7 @@ extension Capability {
             setVolume(volume: number, scope?: AudioScope): null;
             setMuted(muted: boolean, scope?: AudioScope): null;
             setDefaultDevice(id: string, scope?: AudioScope): null;
+            setAppVolume(pid: number, volume: number): Promise<null>;
           }
         }
         """,
@@ -38,6 +44,7 @@ extension Capability {
           },
         } satisfies Gary.Panel;
         """,
+        permissions: [.audioCapture],
         install: { host, plugin in
             plugin.installAPI(host, "audio", AudioRequest.methods) { call in
                 switch try AudioRequest.parse(call) {
@@ -55,6 +62,11 @@ extension Capability {
                     let status = setProperty(AudioObjectID(kAudioObjectSystemObject), address(scope.defaultSelector), device.id) ??
                         kAudioHardwareUnsupportedOperationError
                     guard status == noErr else { throw HostFailure("cannot make \(device.name) the default \(scope.rawValue) device (\(status))") }
+                case let .setAppVolume(pid, volume):
+                    return .later(appVolumes.queue) {
+                        try appVolumes.set(pid, volume)
+                        return .null
+                    }
                 }
                 return .now(.null)
             }
@@ -79,14 +91,14 @@ private func apply(_ scope: AudioScope, _ what: String, _ write: (AudioObjectID)
     guard status == noErr else { throw HostFailure("cannot set \(what) (\(status))") }
 }
 
-private func address(
+func address(
     _ selector: AudioObjectPropertySelector,
     _ scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal,
 ) -> AudioObjectPropertyAddress {
     AudioObjectPropertyAddress(mSelector: selector, mScope: scope, mElement: kAudioObjectPropertyElementMain)
 }
 
-private func property<T: BitwiseCopyable>(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress, _ initial: T) -> T? {
+func property<T: BitwiseCopyable>(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress, _ initial: T) -> T? {
     var address = address
     var value = initial
     var size = UInt32(MemoryLayout<T>.size)
@@ -105,7 +117,7 @@ private func setProperty(_ object: AudioObjectID, _ address: AudioObjectProperty
     return AudioObjectSetPropertyData(object, &address, 0, nil, UInt32(MemoryLayout.size(ofValue: value)), &value)
 }
 
-private func stringProperty(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress) -> String? {
+func stringProperty(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress) -> String? {
     property(object, address, nil as Unmanaged<CFString>?)??.takeRetainedValue() as String?
 }
 
@@ -118,7 +130,17 @@ private func objects(_ object: AudioObjectID, _ address: AudioObjectPropertyAddr
     return Array(list.prefix(Int(size) / MemoryLayout<AudioObjectID>.size))
 }
 
-private func defaultDevice(_ scope: AudioScope) -> AudioObjectID? {
+private func processName(_ pid: pid_t) -> String {
+    var name = [CChar](repeating: 0, count: 256)
+    guard proc_name(pid, &name, UInt32(name.count)) > 0 else { return "pid \(pid)" }
+    return String(cString: name)
+}
+
+private func rounded(_ volume: some BinaryFloatingPoint) -> JSON {
+    .number((Double(volume) * 1000).rounded() / 1000)
+}
+
+func defaultDevice(_ scope: AudioScope) -> AudioObjectID? {
     property(AudioObjectID(kAudioObjectSystemObject), address(scope.defaultSelector), AudioObjectID(0)).flatMap { $0 == 0 ? nil : $0 }
 }
 
@@ -130,7 +152,7 @@ private let transports: [UInt32: String] = [
     kAudioDeviceTransportTypeContinuityCaptureWireless: "continuity",
 ]
 
-private struct AudioDevice {
+struct AudioDevice {
     let id: AudioObjectID
     let uid: String
     let name: String
@@ -138,7 +160,7 @@ private struct AudioDevice {
     let scopes: Set<AudioScope>
 
     init?(_ id: AudioObjectID) {
-        guard let uid = stringProperty(id, address(kAudioDevicePropertyDeviceUID)),
+        guard let uid = stringProperty(id, address(kAudioDevicePropertyDeviceUID)), !uid.hasPrefix(tapDevicePrefix),
               property(id, address(kAudioDevicePropertyIsHidden), UInt32(0)) != 1 else { return nil }
         self.id = id
         self.uid = uid
@@ -171,33 +193,67 @@ private struct AudioDevice {
         let muted = property(id, address(kAudioDevicePropertyMute, scope.scope), UInt32(0))
         return .object([
             "id": .string(uid), "name": .string(name), "transport": .string(transport),
-            "volume": volume.map { .number((Double($0) * 1000).rounded() / 1000) } ?? .null,
+            "volume": volume.map(rounded) ?? .null,
             "muted": muted.map { .bool($0 != 0) } ?? .null,
         ])
     }
 }
 
-private struct Listener: Hashable {
+struct Listener: Hashable {
     let object: AudioObjectID
     let selector: AudioObjectPropertySelector
-    let scope: AudioObjectPropertyScope
+    var scope = kAudioObjectPropertyScopeGlobal
+}
+
+final class AudioListeners {
+    private let queue: DispatchQueue
+    private let changed: () -> Void
+    private var blocks: [Listener: AudioObjectPropertyListenerBlock] = [:]
+
+    init(_ queue: DispatchQueue, _ changed: @escaping () -> Void) {
+        self.queue = queue
+        self.changed = changed
+    }
+
+    deinit { listen(to: []) }
+
+    func listen(to wanted: Set<Listener>) {
+        for (listener, block) in blocks where !wanted.contains(listener) {
+            var address = address(listener.selector, listener.scope)
+            AudioObjectRemovePropertyListenerBlock(listener.object, &address, queue, block)
+            blocks[listener] = nil
+        }
+        for listener in wanted where blocks[listener] == nil {
+            var address = address(listener.selector, listener.scope)
+            let block: AudioObjectPropertyListenerBlock = { [changed] _, _ in changed() }
+            if AudioObjectAddPropertyListenerBlock(listener.object, &address, queue, block) == noErr {
+                blocks[listener] = block
+            }
+        }
+    }
 }
 
 private final class AudioTopic: TopicFeed {
     private let publish: (JSON, Trace) -> Void
     private let queue = DispatchQueue(label: "gary.audio")
-    private var listeners: [Listener: AudioObjectPropertyListenerBlock] = [:]
+    private lazy var listeners = AudioListeners(queue) { [weak self] in self?.changed() }
+    private var volumes: [pid_t: Double] = [:]
     private var scheduled = false
     private var poll: DispatchWorkItem?
 
     init(_ publish: @escaping (JSON, Trace) -> Void) {
         self.publish = publish
         queue.async { [weak self] in self?.refresh(Trace("audio-start")) }
+        appVolumes.observe { [weak self] volumes in
+            self?.queue.async {
+                self?.volumes = volumes
+                self?.changed()
+            }
+        }
     }
 
     deinit {
         poll?.cancel()
-        listen(to: [])
     }
 
     private func changed() {
@@ -213,14 +269,14 @@ private final class AudioTopic: TopicFeed {
     private func refresh(_ trace: Trace) {
         let system = AudioObjectID(kAudioObjectSystemObject)
         var wanted: Set<Listener> = [
-            Listener(object: system, selector: kAudioHardwarePropertyDevices, scope: kAudioObjectPropertyScopeGlobal),
-            Listener(object: system, selector: kAudioHardwarePropertyDefaultOutputDevice, scope: kAudioObjectPropertyScopeGlobal),
-            Listener(object: system, selector: kAudioHardwarePropertyDefaultInputDevice, scope: kAudioObjectPropertyScopeGlobal),
-            Listener(object: system, selector: kAudioHardwarePropertyProcessObjectList, scope: kAudioObjectPropertyScopeGlobal),
+            Listener(object: system, selector: kAudioHardwarePropertyDevices),
+            Listener(object: system, selector: kAudioHardwarePropertyDefaultOutputDevice),
+            Listener(object: system, selector: kAudioHardwarePropertyDefaultInputDevice),
+            Listener(object: system, selector: kAudioHardwarePropertyProcessObjectList),
         ]
         let devices = AudioDevice.all()
         for device in devices where device.has(.input) {
-            wanted.insert(Listener(object: device.id, selector: kAudioDevicePropertyDeviceIsRunningSomewhere, scope: kAudioObjectPropertyScopeGlobal))
+            wanted.insert(Listener(object: device.id, selector: kAudioDevicePropertyDeviceIsRunningSomewhere))
         }
         var state: [String: JSON] = ["devices": .array(devices.map(\.summary))]
         for scope in AudioScope.allCases {
@@ -230,40 +286,48 @@ private final class AudioTopic: TopicFeed {
             wanted.insert(Listener(object: device.id, selector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume, scope: scope.scope))
             wanted.insert(Listener(object: device.id, selector: kAudioDevicePropertyMute, scope: scope.scope))
         }
-        var microphone: [JSON] = []
-        for process in objects(system, address(kAudioHardwarePropertyProcessObjectList)) {
-            guard property(process, address(kAudioProcessPropertyIsRunningInput), UInt32(0)) == 1,
-                  let pid = property(process, address(kAudioProcessPropertyPID), pid_t(0)) else { continue }
-            let app = NSRunningApplication(processIdentifier: pid)
-            let bundleID = stringProperty(process, address(kAudioProcessPropertyBundleID)).flatMap { $0.isEmpty ? nil : $0 } ?? app?.bundleIdentifier
-            microphone.append(.object([
-                "pid": .number(Double(pid)),
-                "app": app?.localizedName.map(JSON.string) ?? .null,
-                "bundleId": bundleID.map(JSON.string) ?? .null,
-            ]))
-        }
-        state["microphone"] = .array(microphone)
-        listen(to: wanted)
+        state.merge(processes(&wanted)) { $1 }
+        listeners.listen(to: wanted)
         publish(.object(state), trace)
         poll?.cancel()
-        poll = microphone.isEmpty ? nil : DispatchWorkItem { [weak self] in self?.changed() }
+        poll = state["microphone"]?.array?.isEmpty == false ? DispatchWorkItem { [weak self] in self?.changed() } : nil
         if let poll {
             queue.asyncAfter(deadline: .now() + 2, execute: poll)
         }
     }
 
-    private func listen(to wanted: Set<Listener>) {
-        for (listener, block) in listeners where !wanted.contains(listener) {
-            var address = address(listener.selector, listener.scope)
-            AudioObjectRemovePropertyListenerBlock(listener.object, &address, queue, block)
-            listeners[listener] = nil
-        }
-        for listener in wanted where listeners[listener] == nil {
-            var address = address(listener.selector, listener.scope)
-            let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in self?.changed() }
-            if AudioObjectAddPropertyListenerBlock(listener.object, &address, queue, block) == noErr {
-                listeners[listener] = block
+    private func processes(_ wanted: inout Set<Listener>) -> [String: JSON] {
+        var microphone: [JSON] = []
+        var apps: [(name: String, json: JSON)] = []
+        for process in objects(AudioObjectID(kAudioObjectSystemObject), address(kAudioHardwarePropertyProcessObjectList)) {
+            wanted.insert(Listener(object: process, selector: kAudioProcessPropertyIsRunningOutput))
+            guard let pid = property(process, address(kAudioProcessPropertyPID), pid_t(0)), pid != getpid() else { continue }
+            let recording = property(process, address(kAudioProcessPropertyIsRunningInput), UInt32(0)) == 1
+            let volume = volumes[pid] ?? (property(process, address(kAudioProcessPropertyIsRunningOutput), UInt32(0)) == 1 ? 1 : nil)
+            guard recording || volume != nil else { continue }
+            let app = NSRunningApplication(processIdentifier: pid)
+            let bundleID = stringProperty(process, address(kAudioProcessPropertyBundleID)).flatMap { $0.isEmpty ? nil : $0 } ?? app?.bundleIdentifier
+            if recording {
+                microphone.append(.object([
+                    "pid": .number(Double(pid)),
+                    "app": app?.localizedName.map(JSON.string) ?? .null,
+                    "bundleId": bundleID.map(JSON.string) ?? .null,
+                ]))
+            }
+            if let volume {
+                let name = app?.localizedName ?? processName(pid)
+                apps.append((name, .object([
+                    "pid": .number(Double(pid)),
+                    "name": .string(name),
+                    "bundleId": bundleID.map(JSON.string) ?? .null,
+                    "path": app?.bundleURL.map { .string($0.path) } ?? .null,
+                    "volume": rounded(volume),
+                ])))
             }
         }
+        return [
+            "microphone": .array(microphone),
+            "apps": .array(apps.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }.map(\.json)),
+        ]
     }
 }

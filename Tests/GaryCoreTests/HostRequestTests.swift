@@ -292,6 +292,16 @@ struct DeviceRequestTests {
         )) }
     }
 
+    @Test func `audio sets an app's volume by process id`() throws {
+        #expect(try AudioRequest.parse(call("audio", "setAppVolume", .number(4242), .number(0.3))) == .setAppVolume(pid: 4242, 0.3))
+        for pid in [JSON.number(0), .number(-1), .number(1.5), .number(1e12), .string("4242")] {
+            #expect(throws: ArgumentError.self) { try AudioRequest.parse(call("audio", "setAppVolume", pid, .number(0.3))) }
+        }
+        #expect(throws: ArgumentError("host.audio.setAppVolume: volume must be a number from 0 to 1")) {
+            try AudioRequest.parse(call("audio", "setAppVolume", .number(4242), .number(2)))
+        }
+    }
+
     @Test func `brightness takes A fraction and an optional display`() throws {
         #expect(try BrightnessRequest.parse(call("brightness", "set", .number(0.5))) == .set(0.5, display: nil))
         #expect(try BrightnessRequest.parse(call("brightness", "set", .number(0), .string("37D8"))) == .set(0, display: "37D8"))
