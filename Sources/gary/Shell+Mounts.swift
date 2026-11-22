@@ -125,7 +125,11 @@ extension Shell {
         }
         window.panel.onKey = { [weak self] key in self?.keyPressed(key, mount) }
         if mount.slot.kind == .menu {
-            window.panel.onResignKey = { [weak self] in self?.hide(mount, Trace("resign-key")) }
+            window.panel.onResignKey = { [weak self] in
+                if !ControlCenter.isOpen.load(ordering: .sequentiallyConsistent) {
+                    self?.hide(mount, Trace("resign-key"))
+                }
+            }
         }
         window.focus()
     }
