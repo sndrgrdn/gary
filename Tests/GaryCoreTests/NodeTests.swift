@@ -48,14 +48,14 @@ struct NodeTests {
         #expect(try parse(#"{"type":"input"}"#) == Node(.input(Node.Input(value: ""))))
     }
 
-    @Test func `parses padding per side A signed offset alignment animation and material`() throws {
+    @Test func `parses padding per side A signed y alignment animation and material`() throws {
         func props(_ fields: String) throws -> StyleProps {
             try parse(#"{"type":"text","text":"a",\#(fields)}"#).props
         }
         #expect(try props(#""padding":4"#).padding == Insets(4))
         #expect(try props(#""padding":[2,6]"#).padding == Insets(top: 2, right: 6, bottom: 2, left: 6))
         #expect(try props(#""padding":[1,2,3,4]"#).padding == Insets(top: 1, right: 2, bottom: 3, left: 4))
-        #expect(try props(#""offset":-1.5,"align":"center","minWidth":51"#) == StyleProps(minWidth: 51, offset: -1.5, align: .center))
+        #expect(try props(#""y":-1.5,"align":"center","minWidth":51"#) == StyleProps(minWidth: 51, align: .center, y: -1.5))
         let reason = "padding must be \(Insets.syntax)"
         for bad in [#""padding":[1,2,3]"#, #""padding":[1,-2]"#, #""padding":"4""#] {
             #expect(throws: NodeError(path: "root", reason: reason), "\(bad)") { try props(bad) }
@@ -69,7 +69,7 @@ struct NodeTests {
         #expect(throws: NodeError(path: "root", reason: "material must be one of \"vibrant\", \"glass\", \"none\"")) {
             try props(#""material":"blur""#)
         }
-        #expect(throws: NodeError(path: "root", reason: "offset must be a number")) { try props(#""offset":"1""#) }
+        #expect(throws: NodeError(path: "root", reason: "y must be a number")) { try props(#""y":"1""#) }
     }
 
     @Test func `parses A stack with placed layered and decorated children`() throws {

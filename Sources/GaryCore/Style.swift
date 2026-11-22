@@ -103,7 +103,6 @@ public struct StyleProps: Equatable, Sendable {
     public var duration: Double?
     public var blur: Double?
     public var rotation: Double?
-    public var offset: Double?
     public var x: Double?
     public var y: Double?
     public var zIndex: Double?
@@ -132,7 +131,6 @@ public struct StyleProps: Equatable, Sendable {
         radius: Double? = nil,
         fontSize: Double? = nil,
         opacity: Double? = nil,
-        offset: Double? = nil,
         align: Align? = nil,
         animation: Animation? = nil,
         material: Material? = nil,
@@ -163,7 +161,6 @@ public struct StyleProps: Equatable, Sendable {
         self.radius = radius
         self.fontSize = fontSize
         self.opacity = opacity
-        self.offset = offset
         self.align = align
         self.animation = animation
         self.material = material
@@ -193,7 +190,6 @@ public struct StyleProps: Equatable, Sendable {
         ("blur", \.blur),
     ]
     public static let signed: [(String, WritableKeyPath<StyleProps, Double?> & Sendable)] = [
-        ("offset", \.offset),
         ("x", \.x),
         ("y", \.y),
         ("zIndex", \.zIndex),

@@ -15,7 +15,7 @@ struct TreeViewIdentityTests {
 
     @Test(arguments: [
         #""opacity":0.5,"#, #""scale":0.9,"#, #""rotation":5,"#, #""blur":2,"#, #""blend":"multiply","#,
-        #""x":4,"#, #""y":4,"#, #""offset":4,"#, #""minWidth":300,"#,
+        #""x":4,"#, #""y":4,"#, #""minWidth":300,"#,
     ])
     func `a node that gains or loses a visual effect or minWidth keeps its children's state`(style: String) throws {
         var sent: [String] = []

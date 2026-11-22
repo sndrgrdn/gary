@@ -268,7 +268,7 @@ extension Skill {
     - `width` and `height` give a node exactly that size, padding included, and `minWidth` keeps it at least that wide. A `scroll` grows with its content up to its `height`.
     - `padding` is one number for every side, `[vertical, horizontal]`, or `[top, right, bottom, left]`.
     - `align` places the content of a node that is wider than its content, such as text with a `width`: `"leading"`, `"center"`, or `"trailing"`. It also aligns the lines of wrapped text. A node aligns to `"leading"`, and an icon to `"center"`.
-    - `x` and `y` move a node right and down from where its container places it, or left and up when negative, without moving its siblings. In a `stack` they place the child from the top left corner. `offset` is an older name for `y` and adds to it.
+    - `x` and `y` move a node right and down from where its container places it, or left and up when negative, without moving its siblings. In a `stack` they place the child from the top left corner.
     - `zIndex` draws a node above its siblings with a lower `zIndex`. It is `0` by default.
     - `scale` draws a node larger or smaller around its center, such as `0.97`, without changing its layout size.
     - `animation` animates what changes inside the node when `render` returns a different tree: `"smooth"`, `"spring"`, or `"none"`, which turns off an animation that an enclosing node set. `duration` sets its length in seconds. Sizes, positions, `x`, `y`, `scale`, `opacity`, colors, shadows, and progress values move, and changed text cross-fades. Keyed children keep their identity, so a child whose `x` or `width` changes slides and resizes. Gary draws no animation when the user turns on Reduce Motion.

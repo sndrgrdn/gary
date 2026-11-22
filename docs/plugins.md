@@ -64,7 +64,7 @@ Gary draws each node tree with SwiftUI. A `row` is a horizontal stack, a `column
 | `width`, `height`          | The exact size in points, padding included.                                                                                                                                                                              |
 | `minWidth`                 | The smallest width in points.                                                                                                                                                                                            |
 | `align`                    | `"leading"`, `"center"`, or `"trailing"`: where the content sits in a node wider than its content, and how wrapped lines align.                                                                                          |
-| `x`, `y`                   | Points to move the node right and down, or left and up when negative, without moving its siblings. In a `stack` they place the child. `offset` is an older name for `y`.                                                 |
+| `x`, `y`                   | Points to move the node right and down, or left and up when negative, without moving its siblings. In a `stack` they place the child.                                                                                    |
 | `zIndex`                   | Draws the node above siblings with a lower `zIndex`.                                                                                                                                                                     |
 | `scale`                    | Draws the node larger or smaller around its center without changing its layout size.                                                                                                                                     |
 | `animation`                | `"smooth"`, `"spring"`, or `"none"`: how the node animates what changes inside it between renders. `duration` sets its length in seconds. Reduce Motion turns it off.                                                    |
@@ -89,7 +89,7 @@ A `text` node is exactly as wide as its text, with no padding of its own. This r
 {
 	type: "row",
 	gap: 1,
-	children: [1, 2, 3].map((n): Gary.Node => ({ type: "text", key: String(n), text: n, width: 20, align: "center", offset: 1 })),
+	children: [1, 2, 3].map((n): Gary.Node => ({ type: "text", key: String(n), text: n, width: 20, align: "center", y: 1 })),
 }
 ```
 

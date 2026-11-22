@@ -53,7 +53,7 @@ struct VisualEffects: ViewModifier {
         blur = look.blur ?? 0
         opacity = look.opacity ?? 1
         blend = look.blend ?? .normal
-        offset = CGSize(width: look.x ?? 0, height: (look.offset ?? 0) + (look.y ?? 0))
+        offset = CGSize(width: look.x ?? 0, height: look.y ?? 0)
         loop = look.loop
         loops = look.loop != nil || [node.props, node.hovered, node.pressed].contains { $0?.loop != nil }
     }

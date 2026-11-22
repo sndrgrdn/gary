@@ -38,7 +38,7 @@ struct NodeEffectTests {
     }
 
     @Test func `a node's scale rotation blur opacity blend and offset draw as SwiftUI's own effects`() throws {
-        let props = StyleProps(opacity: 0.7, offset: 3, x: 9, y: -4, scale: 1.4, rotation: 30, blur: 1, blend: .multiply)
+        let props = StyleProps(opacity: 0.7, x: 9, y: -1, scale: 1.4, rotation: 30, blur: 1, blend: .multiply)
         try expectSame(
             shape.modifier(effects(props)),
             shape.scaleEffect(1.4).rotationEffect(.degrees(30)).blur(radius: 1).opacity(0.7).blendMode(.multiply).offset(x: 9, y: -1),
