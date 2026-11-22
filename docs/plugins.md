@@ -4,12 +4,13 @@ A plugin is a folder with a `manifest.json` and one entry file per kind. Gary ru
 
 Gary.app bundles the plugins in [`examples/`](../examples) in `Contents/Resources/examples`. Gary does not load them. Copy one under your own id to start:
 
-| Example                      | Shows                                                                    |
-| ---------------------------- | ------------------------------------------------------------------------ |
-| [`load`](../examples/load)   | A bar widget that runs a command with `host.exec`.                       |
-| [`disk`](../examples/disk)   | A service that publishes a value and a bar widget that subscribes to it. |
-| [`timer`](../examples/timer) | A panel with buttons, a slider, a progress bar, and `host.storage`.      |
-| [`today`](../examples/today) | A panel that subscribes to the `clock` and `battery` topics.             |
+| Example                          | Shows                                                                                         |
+| -------------------------------- | --------------------------------------------------------------------------------------------- |
+| [`load`](../examples/load)       | A bar widget that runs a command with `host.exec`.                                            |
+| [`disk`](../examples/disk)       | A service that publishes a value and a bar widget that subscribes to it.                      |
+| [`timer`](../examples/timer)     | A panel with buttons, a slider, a progress bar, and `host.storage`.                           |
+| [`today`](../examples/today)     | A panel that subscribes to the `clock` and `battery` topics.                                  |
+| [`gallery`](../examples/gallery) | A panel that draws a gradient, a progress ring, charts, a calendar grid, loops, and a shader. |
 
 The only built-in plugins are the `gary.clock` and `gary.battery` bar widgets, so a fresh install shows a bar.
 
@@ -66,7 +67,12 @@ Gary draws each node tree with SwiftUI. A `row` is a horizontal stack, a `column
 | `material`                 | `"vibrant"`, `"glass"`, or `"none"`: a material behind the node, inside its `radius`.                                                                                                                                    |
 | `colorScheme`              | `"dark"` or `"light"`: the appearance of the node and its children, whatever the theme's mode. A `material` and system colors follow it.                                                                                 |
 | `clip`, `border`, `shadow` | `clip: true` cuts the content to the rounded `radius`. `border` is `{ color, width }` and `shadow` is `{ color, radius, y }`.                                                                                            |
+| `rotation`                 | Degrees to turn the node clockwise around its center without changing its layout. It animates like `scale`.                                                                                                              |
+| `blur`, `blend`            | `blur` blurs the node by a radius in points. `blend` mixes its colors with what is under it: `"normal"`, `"multiply"`, `"screen"`, `"overlay"`, `"plusLighter"`, `"plusDarker"`, or `"difference"`.                      |
+| `loop`                     | `{ opacity, scale, rotation, x, y, duration, reverse }`: an animation that repeats without calling `render`. Each property is `[from, to]`. Reduce Motion turns it off.                                                  |
 | `fit`                      | `"fit"` or `"fill"`: how an `image` fills its size. Gary decodes images at the size they show, a file over 32 KB off the main thread. It appears when ready, faded only by the image's own `transition` and `animation`. |
+
+`background` takes a color or a gradient: `{ gradient: "linear", colors: ["accent", "panel"], angle: 90 }`, with `"linear"`, `"radial"`, or `"angular"` and two or more colors.
 
 A node also takes `hovered` and `pressed`: objects of style properties that apply while the pointer is over it, and while a node with `action` is held down.
 
@@ -90,7 +96,20 @@ To give every panel, overlay, and menu a material, set it on the `surface` style
 
 `host.exec` finds commands in the PATH of your login shell, so `["dinky", "workspace", "2"]` runs `/opt/homebrew/bin/dinky`. Subscribe to `session` to act when the screen is locked or unlocked.
 
-A path that does not start with `/` or `~` is relative to the plugin folder, in an `image` node, the `files` functions, and `host.wallpaper.set`. So a plugin finds the files it ships wherever it is installed, in `~/.config/gary/plugins` or in a package. Gary refuses a relative path whose `..` leaves the plugin folder.
+A path that does not start with `/` or `~` is relative to the plugin folder, in an `image` or `shader` node, the `files` functions, and `host.wallpaper.set`. So a plugin finds the files it ships wherever it is installed, in `~/.config/gary/plugins` or in a package. Gary refuses a relative path whose `..` leaves the plugin folder.
+
+## Draw shapes, charts, grids, and shaders
+
+Four node types draw more than text and images. The [`gallery`](../examples/gallery) example uses each of them.
+
+| Type     | Draws                                                                                                                               |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `shape`  | SVG `paths` scaled from a `viewBox`, each with a `fill`, a `stroke`, and a `trim` that animates, so a progress ring grows smoothly. |
+| `chart`  | A sparkline, area, or bar `series` with Swift Charts. `min` and `max` fix the y range, and `axes: true` adds axes.                  |
+| `grid`   | Its `children` in rows of `columns` cells, such as a month calendar.                                                                |
+| `shader` | A Metal function from a `.metal` file in the plugin folder, drawn into the node's frame and animated when `animated` is `true`.     |
+
+Run `gary skill show` for every field.
 
 ## Share and install plugins
 

@@ -8,6 +8,7 @@ extension Skill {
             concepts,
             developLoop,
             reference,
+            drawingSection,
             themeSection(theme),
             "## Core type declarations\n\n`gary plugin types` writes these into `gary.d.ts`, followed by the declarations of each capability the manifest names.\n\n```ts\n\(PluginTypes.declarations(capabilities: [], pluginTopics: [], theme: theme).trimmingCharacters(in: .newlines))\n```",
             capabilitySection,

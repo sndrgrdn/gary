@@ -1,0 +1,9 @@
+{
+  "$schema": "./manifest.schema.json",
+  "schemaVersion": 1,
+  "id": "example.gallery",
+  "name": "Gallery",
+  "version": "0.1.0",
+  "kinds": ["panel"],
+  "entryPoints": { "panel": "panel.ts" }
+}
