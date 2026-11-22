@@ -57,7 +57,9 @@ struct SkillTests {
         }
         let builtins = root.appending(path: "Resources/plugins")
         for plugin in try FileManager.default.contentsOfDirectory(atPath: builtins.path) {
-            for entry in try FileManager.default.contentsOfDirectory(atPath: builtins.appending(path: plugin).path) where entry.hasSuffix(".ts") {
+            for entry in try FileManager.default.contentsOfDirectory(atPath: builtins.appending(path: plugin).path)
+                where entry.hasSuffix(".ts") && entry != PluginTypes.declarationsFile
+            {
                 try FileManager.default.copyItem(
                     at: builtins.appending(path: "\(plugin)/\(entry)"),
                     to: folder.appending(path: "builtin-\(plugin)-\(entry)"),
