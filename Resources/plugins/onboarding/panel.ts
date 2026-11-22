@@ -18,6 +18,11 @@ const permissions: Record<
       tray: "open your menu bar items",
     },
   },
+  "audio-capture": {
+    symbol: "waveform",
+    general: "Lets plugins set the volume of each app.",
+    uses: { audio: "set the volume of each app" },
+  },
   automation: {
     symbol: "power",
     general: "Lets plugins restart, shut down and log out your Mac.",

@@ -21,6 +21,8 @@ typedef NS_ENUM(NSInteger, GarySymbol) {
     GarySymbolAVServiceReadI2C,
     GarySymbolAVServiceWriteI2C,
     GarySymbolDisplayInfo,
+    GarySymbolTCCAccessPreflight,
+    GarySymbolTCCAccessRequest,
 };
 
 typedef struct {

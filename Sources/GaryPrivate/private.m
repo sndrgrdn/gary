@@ -4,6 +4,7 @@
 #define SKYLIGHT "/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight"
 #define DISPLAY_SERVICES "/System/Library/PrivateFrameworks/DisplayServices.framework/DisplayServices"
 #define IOKIT_FRAMEWORK "/System/Library/Frameworks/IOKit.framework/IOKit"
+#define TCC "/System/Library/PrivateFrameworks/TCC.framework/TCC"
 
 static const GaryPrivateSymbol symbols[] = {
     [GarySymbolExecutionTimeLimit] = {"/System/Library/Frameworks/JavaScriptCore.framework/JavaScriptCore", "JSContextGroupSetExecutionTimeLimit", "plugin script time limit"},
@@ -22,6 +23,8 @@ static const GaryPrivateSymbol symbols[] = {
     [GarySymbolAVServiceReadI2C] = {IOKIT_FRAMEWORK, "IOAVServiceReadI2C", "brightness of external displays"},
     [GarySymbolAVServiceWriteI2C] = {IOKIT_FRAMEWORK, "IOAVServiceWriteI2C", "brightness of external displays"},
     [GarySymbolDisplayInfo] = {"/System/Library/Frameworks/CoreDisplay.framework/CoreDisplay", "CoreDisplay_DisplayCreateInfoDictionary", "brightness of external displays"},
+    [GarySymbolTCCAccessPreflight] = {TCC, "TCCAccessPreflight", "System Audio Recording status"},
+    [GarySymbolTCCAccessRequest] = {TCC, "TCCAccessRequest", "System Audio Recording prompt"},
 };
 
 size_t gary_private_symbol_count(void)

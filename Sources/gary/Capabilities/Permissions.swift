@@ -234,6 +234,13 @@ extension Permission {
         switch self {
         case .accessibility:
             return AXIsProcessTrusted() ? .granted : .notGranted
+        case .audioCapture:
+            switch AudioCaptureAccess.preflight?(AudioCaptureAccess.service, nil) {
+            case 0: return .granted
+            case 1: return .denied
+            case nil: return .notGranted
+            default: return .notAsked
+            }
         case .automation:
             switch loginWindowConsent(ask: false) {
             case noErr: return .granted
@@ -302,12 +309,14 @@ extension Permission {
             _ = CGRequestScreenCaptureAccess()
             NSWorkspace.shared.open(settingsPane)
             return "asked macOS for Screen Recording and opened \(pane). Turn Gary on there, then quit and reopen Gary."
-        case .automation, .location, .bluetooth, .calendars, .notifications:
+        case .audioCapture, .automation, .location, .bluetooth, .calendars, .notifications:
             guard current == .notAsked else {
                 NSWorkspace.shared.open(settingsPane)
                 return "Gary was refused \(name) before, so macOS shows no prompt. Opened \(pane). Turn Gary on there."
             }
             switch self {
+            case .audioCapture: AudioCaptureAccess
+                .request?(AudioCaptureAccess.service, nil) { log("permissions: System Audio Recording \($0 ? "allowed" : "refused")") }
             case .location: LocationAccess.shared.request()
             case .calendars: CalendarStore.request()
             case .notifications: NotificationPoster.request()
@@ -321,6 +330,15 @@ extension Permission {
             return "macOS has no prompt for Full Disk Access. Opened \(pane) and showed Gary's icon to drag into its list. Turn Gary on there, then restart Gary."
         }
     }
+}
+
+private enum AudioCaptureAccess {
+    static let service = "kTCCServiceAudioCapture" as CFString
+    static let preflight = privateSymbol(.tccAccessPreflight, as: (@convention(c) (CFString, CFDictionary?) -> Int32).self)
+    static let request = privateSymbol(
+        .tccAccessRequest,
+        as: (@convention(c) (CFString, CFDictionary?, @convention(block) (Bool) -> Void) -> Void).self,
+    )
 }
 
 func launchingProgram() -> String? {

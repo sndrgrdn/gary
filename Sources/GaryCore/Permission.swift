@@ -2,6 +2,7 @@ import Foundation
 
 public enum Permission: String, CaseIterable, Sendable {
     case accessibility
+    case audioCapture = "audio-capture"
     case automation
     case bluetooth
     case calendars
@@ -13,6 +14,7 @@ public enum Permission: String, CaseIterable, Sendable {
     public var name: String {
         switch self {
         case .accessibility: "Accessibility"
+        case .audioCapture: "System Audio Recording"
         case .automation: "Automation"
         case .bluetooth: "Bluetooth"
         case .calendars: "Calendars"
@@ -27,6 +29,7 @@ public enum Permission: String, CaseIterable, Sendable {
         let privacy = "com.apple.preference.security?Privacy_"
         let pane = switch self {
         case .accessibility: privacy + "Accessibility"
+        case .audioCapture: privacy + "AudioCapture"
         case .automation: privacy + "Automation"
         case .bluetooth: privacy + "Bluetooth"
         case .calendars: privacy + "Calendars"

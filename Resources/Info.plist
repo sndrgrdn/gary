@@ -26,6 +26,8 @@
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Gary asks loginwindow to restart, shut down, or log out for shell plugins that use the power capability.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Gary sets the volume of each app for shell plugins that use the audio capability.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Gary shows and controls your Bluetooth devices for shell plugins that use the bluetooth capability.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
