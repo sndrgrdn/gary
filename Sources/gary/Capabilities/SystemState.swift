@@ -145,8 +145,10 @@ enum SystemState {
         var attributes: posix_spawnattr_t?
         posix_spawn_file_actions_init(&actions)
         posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
+        posix_spawn_file_actions_addinherit_np(&actions, STDOUT_FILENO)
+        posix_spawn_file_actions_addinherit_np(&actions, STDERR_FILENO)
         posix_spawnattr_init(&attributes)
-        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETPGROUP))
+        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_CLOEXEC_DEFAULT))
         posix_spawnattr_setpgroup(&attributes, 0)
         let argv = ["gary-restore", "restore-after", String(getpid())].map { strdup($0) } + [nil]
         let status = posix_spawn(&watchdog, path, &actions, &attributes, argv, environ)
