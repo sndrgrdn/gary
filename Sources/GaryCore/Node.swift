@@ -15,6 +15,28 @@ public struct Node: Equatable, Sendable {
         }
     }
 
+    public struct Fraction: Equatable, Sendable {
+        public var value: Double
+        public var rate: Double
+        public var at: Double?
+
+        public init(_ value: Double, rate: Double = 0, at: Double? = nil) {
+            self.value = value
+            self.rate = rate
+            self.at = at
+        }
+
+        public func value(at time: Double) -> Double {
+            guard let at else { return value }
+            return min(1, max(0, value + rate * (time - at) / 1000))
+        }
+
+        public var end: Double? {
+            guard let at, rate != 0 else { return nil }
+            return at + ((rate > 0 ? 1 : 0) - value) / rate * 1000
+        }
+    }
+
     public enum Content: Equatable, Sendable {
         case row([Node])
         case column([Node])
@@ -24,8 +46,8 @@ public struct Node: Equatable, Sendable {
         case text(String)
         case icon(String)
         case image(String)
-        case slider(Double, release: String?)
-        case progress(Double)
+        case slider(Fraction, release: String?)
+        case progress(Fraction)
         case input(Input)
         case spacer
         case shape(Shape)
@@ -240,9 +262,13 @@ struct NodeReader {
         return value
     }
 
-    func fraction() throws -> Double {
+    func fraction() throws -> Node.Fraction {
         guard let value = fields["value"]?.number, value.isFinite else { throw fail("value must be a number from 0 to 1") }
-        return min(1, max(0, value))
+        return try Node.Fraction(
+            min(1, max(0, value)),
+            rate: number(fields["rate"], "rate", signed: true) ?? 0,
+            at: number(fields["at"], "at", signed: true),
+        )
     }
 
     func input() throws -> Node.Input {

@@ -30,26 +30,77 @@ struct Vibrancy: NSViewRepresentable {
     }
 }
 
-struct SliderNode: View {
+extension Date {
+    var milliseconds: Double {
+        timeIntervalSince1970 * 1000
+    }
+}
+
+struct Advancing<Content: View>: View {
+    let fraction: Node.Fraction
+    let width: Double
+    @ViewBuilder let content: (Double) -> Content
+    private let since = State<Double?>(initialValue: nil)
+
+    var body: some View {
+        let now = Date()
+        var anchored = fraction
+        anchored.at = fraction.at ?? since.wrappedValue ?? now.milliseconds
+        return TimelineView(.explicit(Self.ticks(anchored, from: now, width: width))) { context in
+            content(anchored.value(at: context.date.milliseconds))
+        }
+        .onChange(of: fraction, initial: true) { since.wrappedValue = now.milliseconds }
+    }
+
+    private static func ticks(_ fraction: Node.Fraction, from now: Date, width: Double) -> [Date] {
+        guard let end = fraction.end, end > now.milliseconds else { return [] }
+        let interval = max(1.0 / 60, 1 / (abs(fraction.rate) * max(width, 1) * 2))
+        return stride(from: 0, through: (end - now.milliseconds) / 1000 + interval, by: interval).map { now.addingTimeInterval($0) }
+    }
+}
+
+struct ProgressBar: View {
     let value: Double
+    let look: ResolvedStyle
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: look.radius ?? 3)
+        shape.fill(AnyShapeStyle(look.background ?? .color(RGBA(red: look.color.red, green: look.color.green, blue: look.color.blue, alpha: 0.25))))
+            .overlay(alignment: .leading) { GeometryReader { area in shape.fill(Color(look.color)).frame(width: area.size.width * value) } }
+    }
+}
+
+struct SliderNode: View {
+    let fraction: Node.Fraction
+    let width: Double
     let action: String?
     let release: String?
     let tint: Color?
     @Environment(\.nodeAction) private var perform
-    private let shown = State(initialValue: 0.0)
+    private let held = State<Node.Fraction?>(initialValue: nil)
+    private let dragging = State(initialValue: false)
 
     var body: some View {
-        Slider(value: Binding(get: { shown.wrappedValue }, set: { next in
-            shown.wrappedValue = next
-            send(action, next)
-        }), in: 0...1) { editing in
-            if !editing {
-                send(release, shown.wrappedValue)
+        Advancing(fraction: held.wrappedValue ?? fraction, width: width) { value in
+            Slider(value: Binding(get: { value }, set: { next in
+                held.wrappedValue = Node.Fraction(next, at: Date().milliseconds)
+                send(action, next)
+            }), in: 0...1) { editing in
+                let current = dragging.wrappedValue ? held.wrappedValue?.value ?? value : value
+                dragging.wrappedValue = editing
+                held.wrappedValue = Node.Fraction(current, rate: editing ? 0 : fraction.rate, at: Date().milliseconds)
+                if !editing {
+                    send(release, current)
+                }
             }
         }
         .tint(tint)
         .focusEffectDisabled()
-        .onChange(of: value, initial: true) { _, next in shown.wrappedValue = next }
+        .onChange(of: fraction) {
+            if !dragging.wrappedValue {
+                held.wrappedValue = nil
+            }
+        }
     }
 
     private func send(_ name: String?, _ value: Double) {

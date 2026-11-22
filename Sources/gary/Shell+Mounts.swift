@@ -226,7 +226,7 @@ extension Node {
              let .grid(children, _):
             children.map(\.summary).filter { !$0.isEmpty }.joined(separator: " ")
         case let .text(value), let .icon(value), let .image(value): value.replacingOccurrences(of: " ", with: "_") + ":" + (style ?? "default")
-        case let .slider(value, _), let .progress(value): "\(kind.rawValue)=\(value)"
+        case let .slider(value, _), let .progress(value): "\(kind.rawValue)=\(value.value)"
         case let .input(input): "input=\(input.value)"
         case .spacer: ""
         case .shape, .chart, .shader: kind.rawValue

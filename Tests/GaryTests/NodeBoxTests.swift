@@ -58,17 +58,17 @@ struct NodeBoxTests {
     }
 
     @Test func `sliders and inputs take a default width and handle their own clicks`() throws {
-        let slider = try box(.slider(0.5, release: nil))
+        let slider = try box(.slider(Node.Fraction(0.5), release: nil))
         #expect(slider.width == 120)
         #expect(slider.action == nil)
         let input = try box(.input(Node.Input(value: "")))
         #expect(input.width == 240)
         #expect(input.action == nil)
-        #expect(try box(.slider(0.5, release: nil), StyleProps(width: 80)).width == 80)
+        #expect(try box(.slider(Node.Fraction(0.5), release: nil), StyleProps(width: 80)).width == 80)
     }
 
     @Test func `a progress bar is 120 by 6 by default and paints no box background`() throws {
-        let box = try box(.progress(0.5), StyleProps(background: "#ff0000"))
+        let box = try box(.progress(Node.Fraction(0.5)), StyleProps(background: "#ff0000"))
         #expect(box.width == 120)
         #expect(box.height == 6)
         #expect(box.background == nil)

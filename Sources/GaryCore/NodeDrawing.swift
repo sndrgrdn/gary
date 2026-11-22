@@ -196,7 +196,7 @@ extension NodeReader {
         { field, reason in NodeError(path: path, reason: "\(field) \(reason)") }
     }
 
-    private func number(_ value: JSON?, _ name: String, signed: Bool = false) throws -> Double? {
+    func number(_ value: JSON?, _ name: String, signed: Bool = false) throws -> Double? {
         try StyleProps.number(value, name, signed: signed, fail: report)
     }
 

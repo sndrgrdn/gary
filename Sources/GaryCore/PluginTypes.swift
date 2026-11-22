@@ -242,8 +242,8 @@ public enum PluginTypes {
         case .text: ["text: string | number;"]
         case .icon: ["symbol: string;"]
         case .image: ["path: string;"]
-        case .slider: ["value: number;", "release?: string;"]
-        case .progress: ["value: number;"]
+        case .slider: ["value: number;", "rate?: number;", "at?: number;", "release?: string;"]
+        case .progress: ["value: number;", "rate?: number;", "at?: number;"]
         case .input: ["value?: string | number;", "placeholder?: string;", "change?: string;", "submit?: string;"]
         case .spacer: []
         case .shape:

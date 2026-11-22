@@ -211,17 +211,16 @@ struct NodeView: View {
                 arrival: reduceMotion ? nil : look.animation.flatMap { SwiftUI.Animation($0, duration: look.duration) },
                 transition: AnyTransition(look.transition ?? .opacity),
             )
-        case let .slider(value, release):
-            SliderNode(value: value, action: node.actions[.click], release: release, tint: node.props.color == nil ? nil : Color(look.color))
-        case let .progress(value):
-            let shape = RoundedRectangle(cornerRadius: look.radius ?? 3)
-            shape.fill(AnyShapeStyle(look.background ?? .color(RGBA(
-                red: look.color.red,
-                green: look.color.green,
-                blue: look.color.blue,
-                alpha: 0.25,
-            ))))
-            .overlay(alignment: .leading) { GeometryReader { area in shape.fill(Color(look.color)).frame(width: area.size.width * value) } }
+        case let .slider(fraction, release):
+            SliderNode(
+                fraction: fraction,
+                width: look.width ?? 120,
+                action: node.actions[.click],
+                release: release,
+                tint: node.props.color == nil ? nil : Color(look.color),
+            )
+        case let .progress(fraction):
+            Advancing(fraction: fraction, width: look.width ?? 120) { value in ProgressBar(value: value, look: look) }
         case let .input(input):
             InputNode(input: input, font: nsFont(look.font), color: Color(look.color))
         case .spacer:

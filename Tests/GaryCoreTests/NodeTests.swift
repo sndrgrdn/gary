@@ -40,8 +40,8 @@ struct NodeTests {
                 actions: [.click: "open"],
                 props: StyleProps(radius: 6),
             ),
-            Node(.slider(0.25, release: "set"), actions: [.click: "volume"]),
-            Node(.progress(1), props: StyleProps(opacity: 0.5, color: "accent")),
+            Node(.slider(Node.Fraction(0.25), release: "set"), actions: [.click: "volume"]),
+            Node(.progress(Node.Fraction(1)), props: StyleProps(opacity: 0.5, color: "accent")),
             Node(.input(Node.Input(value: "saf", placeholder: "Search", change: "query", submit: "run")), props: StyleProps(fontSize: 16)),
             Node(.scroll([Node(.text("a"))], reveal: "a"), props: StyleProps(height: 200)),
         ]), style: "panel", props: StyleProps(padding: Insets(8), gap: 4, background: "#000000")))
@@ -225,5 +225,28 @@ struct SeededRandom {
     mutating func next(_ bound: Int) -> Int {
         state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
         return Int((state >> 33) % UInt64(bound))
+    }
+}
+
+struct NodeFractionTests {
+    @Test func `a slider or progress reads a rate per second and the time its value was at`() throws {
+        let node = try Node.parse(JSON.parse(#"{"type":"progress","value":0.25,"rate":0.01,"at":1700000000000}"#))
+        #expect(node.content == .progress(Node.Fraction(0.25, rate: 0.01, at: 1_700_000_000_000)))
+        #expect(try Node.parse(JSON.parse(#"{"type":"slider","value":2}"#)).content == .slider(Node.Fraction(1), release: nil))
+        #expect(throws: NodeError(path: "root", reason: "rate must be a number")) {
+            try Node.parse(JSON.parse(#"{"type":"progress","value":0,"rate":"1x"}"#))
+        }
+    }
+
+    @Test func `a fraction moves by its rate from at and stops at the end it moves toward`() {
+        let forward = Node.Fraction(0.5, rate: 0.1, at: 10000)
+        #expect(forward.value(at: 12000) == 0.7)
+        #expect(forward.value(at: 30000) == 1)
+        #expect(forward.end == 15000)
+        let back = Node.Fraction(0.5, rate: -0.25, at: 0)
+        #expect(back.value(at: 1000) == 0.25)
+        #expect(back.end == 2000)
+        #expect(Node.Fraction(0.5, rate: 0.1).value(at: 99999) == 0.5)
+        #expect(Node.Fraction(0.5, at: 0).end == nil)
     }
 }

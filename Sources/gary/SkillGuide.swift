@@ -304,8 +304,8 @@ extension Skill {
     | `text` | `text`, a string or number | `null` |
     | `icon` | `symbol`, an SF Symbol name such as `battery.75percent` | `null` |
     | `image` | `path` to an image file, absolute, from `~`, or relative to the plugin folder, and `fit` | `null` |
-    | `slider` | `value` from 0 to 1, and `release`, an action sent once when the user lets go | the new value, to `action` while the user drags and to `release` when they let go |
-    | `progress` | `value` from 0 to 1 | `null` |
+    | `slider` | `value` from 0 to 1, `rate` and `at`, and `release`, an action sent once when the user lets go | the new value, to `action` while the user drags and to `release` when they let go |
+    | `progress` | `value` from 0 to 1, `rate` and `at` | `null` |
     | `input` | `value`, `placeholder`, `change`, and `submit` | the text. `change` and `submit` name the actions. |
     | `spacer` | none. It fills the free space in a row or column, and a row with a spacer spans the width of its column, so the items after the spacer line up at the trailing edge. | `null` |
     | `shape` | `viewBox` and `paths`, SVG paths to fill and stroke. The Drawing section covers it. | `null` |
@@ -313,6 +313,7 @@ extension Skill {
     | `grid` | `children` and `columns`, the number of cells in each row | `null` |
     | `shader` | `path`, `function`, `args`, and `animated`, a Metal function that draws the node. The Drawing section covers it. | `null` |
 
+    - `rate` moves a `slider` or `progress` on its own by that fraction per second, from `value` at `at`, a time in milliseconds since 1970 such as `Date.now()` or a track's `elapsedAt`, or from when Gary first shows it. It stops at 0 or 1. After a drag, a slider moves on from where the user let go until `render` returns a different value. A seek bar for a `nowplaying` track needs no timer: `{ value: track.elapsed / track.duration, rate: track.playing ? track.rate / track.duration : 0, at: track.elapsedAt }`.
     - `width` and `height` give a node exactly that size, padding included, and `minWidth` keeps it at least that wide. A `scroll` grows with its content up to its `height`.
     - `padding` is one number for every side, `[vertical, horizontal]`, or `[top, right, bottom, left]`.
     - `align` places the content of a node that is wider than its content, such as text with a `width`: `"leading"`, `"center"`, or `"trailing"`. It also aligns the lines of wrapped text. A node aligns to `"leading"`, and an icon to `"center"`.
