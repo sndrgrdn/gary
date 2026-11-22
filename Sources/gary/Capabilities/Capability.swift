@@ -20,6 +20,7 @@ struct Capability {
         .battery,
         .bluetooth,
         .brightness,
+        .calendar,
         .clipboard,
         .clock,
         .dock,

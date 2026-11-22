@@ -19,6 +19,11 @@ const permissions: Record<
     general: "Lets plugins show your Bluetooth devices and connect them.",
     uses: { bluetooth: "show your Bluetooth devices and connect them" },
   },
+  calendars: {
+    symbol: "calendar",
+    general: "Lets plugins show the events in your calendars.",
+    uses: { calendar: "show the events in your calendars" },
+  },
   "full-disk-access": {
     symbol: "internaldrive.fill",
     general: "Lets plugins show your current Focus and the notifications you receive.",

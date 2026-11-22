@@ -3,6 +3,7 @@ import Foundation
 public enum Permission: String, CaseIterable, Sendable {
     case accessibility
     case bluetooth
+    case calendars
     case fullDiskAccess = "full-disk-access"
     case location
     case screenRecording = "screen-recording"
@@ -11,6 +12,7 @@ public enum Permission: String, CaseIterable, Sendable {
         switch self {
         case .accessibility: "Accessibility"
         case .bluetooth: "Bluetooth"
+        case .calendars: "Calendars"
         case .fullDiskAccess: "Full Disk Access"
         case .location: "Location"
         case .screenRecording: "Screen Recording"
@@ -21,6 +23,7 @@ public enum Permission: String, CaseIterable, Sendable {
         let anchor = switch self {
         case .accessibility: "Privacy_Accessibility"
         case .bluetooth: "Privacy_Bluetooth"
+        case .calendars: "Privacy_Calendars"
         case .fullDiskAccess: "Privacy_AllFiles"
         case .location: "Privacy_LocationServices"
         case .screenRecording: "Privacy_ScreenCapture"

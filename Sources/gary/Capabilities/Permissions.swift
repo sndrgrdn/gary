@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import CoreBluetooth
+import EventKit
 import GaryCore
 
 extension Capability {
@@ -239,6 +240,13 @@ extension Permission {
             case .notDetermined: return .notAsked
             default: return .denied
             }
+        case .calendars:
+            switch EKEventStore.authorizationStatus(for: .event) {
+            case .fullAccess: return .granted
+            case .notDetermined: return .notAsked
+            case .writeOnly: return .notGranted
+            default: return .denied
+            }
         case .fullDiskAccess:
             let home = FileManager.default.homeDirectoryForCurrentUser
             let probes = [
@@ -280,15 +288,15 @@ extension Permission {
             _ = CGRequestScreenCaptureAccess()
             NSWorkspace.shared.open(settingsPane)
             return "asked macOS for Screen Recording and opened \(pane). Turn Gary on there, then quit and reopen Gary."
-        case .location, .bluetooth:
+        case .location, .bluetooth, .calendars:
             guard current == .notAsked else {
                 NSWorkspace.shared.open(settingsPane)
                 return "Gary was refused \(name) before, so macOS shows no prompt. Opened \(pane). Turn Gary on there."
             }
-            if self == .location {
-                LocationAccess.shared.request()
-            } else {
-                BluetoothAccess.shared.request()
+            switch self {
+            case .location: LocationAccess.shared.request()
+            case .calendars: CalendarStore.request()
+            default: BluetoothAccess.shared.request()
             }
             return "macOS shows its \(name) prompt for Gary. Choose Allow."
         case .fullDiskAccess:
