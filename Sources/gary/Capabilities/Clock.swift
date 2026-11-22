@@ -2,18 +2,28 @@ import AppKit
 import GaryCore
 
 extension Capability {
-    static let clock = Capability(name: "clock", summary: "The current minute, updated each minute and after sleep.", types: """
+    static let clock = Capability(name: "clock", summary: """
+    The current minute, updated each minute and after sleep, and whether macOS shows 12-hour time.
+    """, types: """
     declare namespace Gary {
-      type Clock = { epoch: number }
+      type Clock = { epoch: number; hour12: boolean }
     }
     """, example: """
     export default {
       render(state) {
         const now = new Date(state.clock?.epoch ?? Date.now());
-        return { type: "text", text: `${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`, style: "bright" };
+        const text = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: state.clock?.hour12 });
+        return { type: "text", text, style: "bright" };
       },
     } satisfies Gary.BarWidget;
     """, topic: CapabilityTopic(type: "Clock") { ClockTopic($0) })
+}
+
+extension Locale {
+    var hour12: Bool {
+        let pattern = DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: self) ?? "HH"
+        return !pattern.contains { "Hk".contains($0) }
+    }
 }
 
 private final class ClockTopic: TopicFeed {
@@ -31,11 +41,12 @@ private final class ClockTopic: TopicFeed {
             Observation { timer.invalidate() },
             Observation(NSWorkspace.shared.notificationCenter, NSWorkspace.didWakeNotification) { [weak self] in self?.send(Trace("wake")) },
             Observation(.default, .NSSystemClockDidChange) { [weak self] in self?.send(Trace("clock-change")) },
+            Observation(.default, NSLocale.currentLocaleDidChangeNotification) { [weak self] in self?.send(Trace("locale-change")) },
         ]
     }
 
     private func send(_ trace: Trace) {
         let minute = (Date().timeIntervalSince1970 / 60).rounded(.down) * 60
-        publish(.object(["epoch": .number(minute * 1000)]), trace)
+        publish(.object(["epoch": .number(minute * 1000), "hour12": .bool(Locale.autoupdatingCurrent.hour12)]), trace)
     }
 }
