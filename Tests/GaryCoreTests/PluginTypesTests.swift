@@ -75,6 +75,12 @@ struct PluginTypesTests {
 }
 
 struct PluginScaffoldTests {
+    @Test func `the effect version that scaffolds pin is the one Gary bundles`() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../package.json")
+        let package = try JSON.parse(Data(contentsOf: root))
+        #expect(package["devDependencies"]?["effect"] == .string(PluginTypes.effectVersion))
+    }
+
     @Test func `every scaffold passes the load time checks`() throws {
         let capabilities = makeTestCapabilities()
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("gary-scaffold-\(UUID().uuidString)")

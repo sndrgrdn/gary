@@ -3,11 +3,15 @@ import Foundation
 public enum PluginScaffold {
     public static func files(id: PluginID, kinds: [PluginKind]) -> [String: String] {
         let name = displayName(id)
+        let effect = kinds.contains(.service)
         var files = [
             "manifest.json": manifest(id: id, name: name, kinds: kinds),
             "tsconfig.json": tsconfig,
-            "README.md": readme(name: name, kinds: kinds),
+            "README.md": readme(name: name, kinds: kinds, effect: effect),
         ]
+        if effect {
+            files["package.json"] = packageJSON
+        }
         for kind in kinds {
             files[entryFile(kind)] = source(kind, name: name)
         }
@@ -50,13 +54,25 @@ public enum PluginScaffold {
         "jsxFragmentFactory": "Gary.Fragment",
         "types": [],
         "moduleDetection": "force",
-        "isolatedModules": true
+        "isolatedModules": true,
+        "skipLibCheck": true
       }
     }
 
     """
 
-    private static func readme(name: String, kinds: [PluginKind]) -> String {
+    private static let packageJSON = """
+    {
+      "private": true,
+      "devDependencies": {
+        "effect": "\(PluginTypes.effectVersion)",
+        "typescript": "5.9.3"
+      }
+    }
+
+    """
+
+    private static func readme(name: String, kinds: [PluginKind], effect: Bool) -> String {
         """
         # \(name)
 
@@ -70,7 +86,9 @@ public enum PluginScaffold {
 
         ## Develop
 
-        Gary reloads the plugin each time you save a file in its folder. Type-check it with `npx -p typescript tsc -p .`.
+        Gary reloads the plugin each time you save a file in its folder. \(effect
+            ? "Run `npm install` once for the `effect` types, then type-check it with `npx tsc -p .`."
+            : "Type-check it with `npx -p typescript tsc -p .`.")
         After you change `uses` or `subscribes` in `manifest.json`, run `gary plugin types .` to refresh `\(PluginTypes.declarationsFile)`.
 
         """
@@ -221,15 +239,18 @@ public enum PluginScaffold {
     """
 
     private static let serviceSource = """
+    import { Effect, Schedule, host } from "gary:effect";
+
     let ticks = 0;
 
-    setInterval(() => {
+    const tick = Effect.suspend(() => {
       ticks += 1;
-      host.publish({ ticks });
-    }, 60_000);
-    host.publish({ ticks });
+      return host.publish({ ticks });
+    });
 
     export default {
+      effect: Effect.repeat(tick, Schedule.spaced("1 minute")),
+
       methods: {
         ticks: () => String(ticks),
       },

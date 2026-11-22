@@ -70,7 +70,7 @@ extension Skill {
     	gary plugin new you.music --kind bar-widget,panel
     	```
 
-    	Gary writes `~/.config/gary/plugins/<id>/` with `manifest.json`, one entry file per kind, `gary.d.ts`, `manifest.schema.json`, `tsconfig.json`, and `README.md`. It turns the plugin on in `~/.config/gary/shell.json`, and a bar widget goes to the bar section that the manifest's `bar` field names, `right` by default. Gary reloads the plugin each time you save a file in that folder. `--dir <folder>` scaffolds elsewhere and records the folder in `packages` in `shell.json`, so Gary loads it in place.
+    	Gary writes `~/.config/gary/plugins/<id>/` with `manifest.json`, one entry file per kind, `gary.d.ts`, `manifest.schema.json`, `tsconfig.json`, and `README.md`, plus a `package.json` with the `effect` types for a service, whose entry file uses `gary:effect`. It turns the plugin on in `~/.config/gary/shell.json`, and a bar widget goes to the bar section that the manifest's `bar` field names, `right` by default. Gary reloads the plugin each time you save a file in that folder. `--dir <folder>` scaffolds elsewhere and records the folder in `packages` in `shell.json`, so Gary loads it in place.
     2. Edit `manifest.json`. Add the capabilities you call to `uses` and the topics you read to `subscribes`.
     3. Refresh the types after each change to `uses` or `subscribes`:
 
@@ -86,14 +86,15 @@ extension Skill {
     	gary plugin validate ~/.config/gary/plugins/you.weather
     	```
 
-    	Without `npx`, run `deno check --config tsconfig.json gary.d.ts *.ts` in the plugin folder. The config replaces Deno's own `fetch` and other globals with Gary's, and Deno warns that it ignores some of its options.
+    	For a plugin that imports `gary:effect`, run `npm install` in its folder first and use `npx tsc -p .`. Without `npx`, run `deno check --config tsconfig.json gary.d.ts *.ts` in the plugin folder. The config replaces Deno's own `fetch` and other globals with Gary's, and Deno warns that it ignores some of its options.
 
     6. Save. Gary reloads the plugin. Verify it as the next section describes.
 
     ### Write entry files
 
     - Each entry file is an ES module whose default export is an object with the fields in the Default export section.
-    - Import other files of the plugin by relative path, such as `import { parse } from "./parse"`. Gary finds `parse.ts`, `parse.tsx`, `parse.js`, or an `index` file in a `parse` folder. Any other import, such as an npm package, fails the load with an error that names it. Each kind loads its own copy of an imported file, once.
+    - Import other files of the plugin by relative path, such as `import { parse } from "./parse"`. Gary finds `parse.ts`, `parse.tsx`, `parse.js`, or an `index` file in a `parse` folder. The one other import is `gary:effect`, which the gary:effect section describes. Any other import, such as an npm package, fails the load with an error that names it. Each kind loads its own copy of an imported file, once.
+    - Write services, timers, `fetch`, and `host.exec` work with Effect from `gary:effect`, and keep `render` synchronous.
     - Gary compiles TypeScript and modules with a bundled copy of sucrase and keeps line numbers. It erases type-only imports. It does not type-check, so run `tsc`.
     - There is no DOM, no `console`, and no Node.js API. Use `host.log` for logging, and `host.exec`, `host.readFile`, and `fetch` through their capabilities.
     - Keep module-level variables for state that survives renders. A reload starts the module again from the top, and `host.storage` keeps values across reloads and restarts.
@@ -179,6 +180,7 @@ extension Skill {
     | `onTopic({ topic, value }, state)` | When a subscribed topic changes, and once per topic at load. `value` has the type of `topic`, so `if (topic === "clock")` narrows it to a `Clock`. |
     | `onMediaKey(event, state)` | When a key that `host.mediakeys.intercept` claimed is pressed. |
     | `methods` | `gary call <id> <method> [args...]` and `host.call(method, ...args)` run one with string arguments. It returns a JSON value, or a promise of one. |
+    | `effect` | Once after load, in the plugin's scope, when the module imports `gary:effect`. Unload and reload interrupt it. |
     | `surface` | An object, or a function of `state`, that places a panel, overlay, or menu. |
     | `surfaces` | An object that maps surface names to what `surface` takes, for a kind that shows several windows. Use it instead of `surface`. |
 
@@ -225,6 +227,42 @@ extension Skill {
     | `host.call(method, ...args)` | Runs a function from the plugin's own `methods`, in the kind that `gary call` would run, loading it if needed, and returns a promise of its result. It rejects with the error the function threw or rejected with, or after 60 seconds. Plugins reach each other only through `host.publish` and `subscribes`. |
 
     `setTimeout`, `setInterval`, `clearTimeout`, and `clearInterval` work as in a browser. An interval is at least 10 ms.
+
+    ## gary:effect
+
+    `gary:effect` gives a plugin [Effect](https://effect.website) \(PluginTypes.effectVersion). Only a plugin that imports it loads Effect, once per Gary process. Each importing plugin gets its own copy of the exports below, bound to that plugin's timers and its scope:
+
+    | Export | What it is |
+    | --- | --- |
+    | `Effect`, `Stream`, `Schedule`, `Schema`, `Layer`, `Context`, `Scope`, `Fiber`, `Queue`, `PubSub`, `Ref`, `SubscriptionRef`, `Deferred`, `Option`, `Exit`, `Cause`, `Data`, `Duration`, `pipe` | Effect's modules. `Effect.runFork`, `Effect.runPromise`, and the other run functions start fibers on the plugin's timers and in its scope. |
+    | `host` | The plugin's `host`, with each function returning an Effect. A function that returns a promise fails with a `HostError` that has a `message`. |
+    | `fetch` | `fetch` as an Effect, when the manifest uses `network`. |
+    | `settings` | The plugin's `settings`. Changing them reloads the plugin. |
+    | `topic(name)` | A `Stream` of a subscribed topic: its current value, then each change. |
+
+    The default export's `effect` field is the plugin's long-running program, an `Effect<void, never, Scope>`. Gary runs it after load. On unload or reload, Gary closes the plugin's scope, which interrupts every fiber the plugin started and runs their finalizers. An effect that dies fails the plugin. Handle expected errors, such as a `HostError`, inside the effect. Keep `render` synchronous: store results in module variables, and Gary renders after each timer and host callback.
+
+    ```ts
+    import { Effect, Schedule, host } from "gary:effect";
+
+    let uptime = "…";
+
+    const refresh = Effect.gen(function* () {
+      const result = yield* host.exec(["/usr/bin/uptime"]);
+      uptime = result.status === 0 ? result.stdout.trim() : "?";
+    }).pipe(Effect.catchTag("HostError", (error) => host.log(error.message)));
+
+    export default {
+      effect: Effect.repeat(refresh, Schedule.spaced("1 minute")),
+      render: () => ({ type: "text", text: uptime }),
+    } satisfies Gary.BarWidget;
+    ```
+
+    `gary plugin types` adds these declarations to `gary.d.ts` when a file of the plugin imports `gary:effect`. They import from the `effect` package, so run `npm install --save-dev effect@\(PluginTypes.effectVersion)` in the plugin folder, and set `"skipLibCheck": true` in `tsconfig.json`, because Effect's own declarations name browser types that Gary does not have.
+
+    ```ts
+    \(PluginTypes.effectDeclarations.trimmingCharacters(in: .newlines))
+    ```
 
     ## Nodes
 

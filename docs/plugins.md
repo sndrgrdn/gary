@@ -7,7 +7,7 @@ Gary.app bundles the plugins in [`examples/`](../examples) in `Contents/Resource
 | Example                          | Shows                                                                                          |
 | -------------------------------- | ---------------------------------------------------------------------------------------------- |
 | [`load`](../examples/load)       | A bar widget that runs a command with `host.exec`.                                             |
-| [`disk`](../examples/disk)       | A service that publishes a value and a bar widget that subscribes to it.                       |
+| [`disk`](../examples/disk)       | A service written with Effect that publishes a value, and a bar widget that subscribes to it.  |
 | [`timer`](../examples/timer)     | A panel with buttons, a slider, a progress bar, and `host.storage`.                            |
 | [`today`](../examples/today)     | A panel that subscribes to the `clock` and `battery` topics.                                   |
 | [`gallery`](../examples/gallery) | A panel that draws a gradient, a progress ring, charts, a calendar grid, loops, and a shader.  |
@@ -48,9 +48,31 @@ Gary logs `host.log` lines and load failures. The app writes them to `~/Library/
 Gary compiles TypeScript and modules with a bundled copy of [sucrase](https://github.com/alangpierce/sucrase) and keeps line numbers, so errors point at the `.ts` line. Gary does not type-check. Run `tsc` for that.
 
 - Write `export default { ... } satisfies Gary.BarWidget`, or `Gary.Panel`, `Gary.Service`, or the type for your kind. TypeScript then types `state` and checks the tree you return.
-- Split a plugin into files with relative imports, such as `import { parse } from "./parse"`. Gary finds `.ts`, `.tsx`, and `.js` files and `index` files in folders. Any other import, such as an npm package, fails the load with an error that names it.
+- Split a plugin into files with relative imports, such as `import { parse } from "./parse"`. Gary finds `.ts`, `.tsx`, and `.js` files and `index` files in folders. Besides `gary:effect`, any other import, such as an npm package, fails the load with an error that names it.
 - After you change `uses` or `subscribes`, run `gary plugin types <folder>`. `gary.d.ts` declares only the `host` functions and `state` fields that your manifest asks for, and `onTopic` narrows `value` by the topic name.
 - To type the value a plugin publishes, export `type Topic` from `topic.ts` in its folder. `gary plugin types` types `host.publish` with it, and `state["<id>"]` in every plugin that subscribes and sits in a sibling folder, in `~/.config/gary/plugins`, or in a package. The [`disk`](../examples/disk) example does this.
+
+## Write services and timers with Effect
+
+Import [Effect](https://effect.website) from `gary:effect` for work that outlives one handler: polling, timers, `fetch`, and `host.exec`. Put the long-running program in the default export's `effect` field. Gary runs it after load and interrupts it, with every fiber the plugin started, when the plugin unloads or reloads. `render` stays synchronous and reads module variables.
+
+```ts
+import { Effect, Schedule, host } from "gary:effect";
+
+let uptime = "…";
+
+const refresh = Effect.gen(function* () {
+  const result = yield* host.exec(["/usr/bin/uptime"]);
+  uptime = result.status === 0 ? result.stdout.trim() : "?";
+}).pipe(Effect.catchTag("HostError", (error) => host.log(error.message)));
+
+export default {
+  effect: Effect.repeat(refresh, Schedule.spaced("1 minute")),
+  render: () => <text>{uptime}</text>,
+} satisfies Gary.BarWidget;
+```
+
+`gary:effect` also exports `host` with each function as an Effect, `fetch`, `settings`, and `topic(name)`, a `Stream` of a subscribed topic. A plugin that does not import it never loads Effect. To type-check, install the matching version in the plugin folder with `npm install --save-dev effect@4.1.5`, and set `"skipLibCheck": true` in `tsconfig.json`. `gary plugin new --kind service` scaffolds a service this way, and the [`disk`](../examples/disk) example's service uses it.
 
 ## Lay out nodes
 

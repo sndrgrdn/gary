@@ -259,6 +259,8 @@ public enum PluginTypes {
 }
 
 public extension PluginTypes {
+    static let effectVersion = "4.1.5"
+
     static let effectDeclarations = """
     declare namespace Gary {
       interface Module {
