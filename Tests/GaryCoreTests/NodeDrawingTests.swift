@@ -69,6 +69,7 @@ struct NodeDrawingTests {
         #expect(Node.Chart([ChartSeries([3, -2, 7])]).domain == -2...7)
         #expect(Node.Chart([ChartSeries([4, 4])]).domain == 4...5)
         #expect(Node.Chart([ChartSeries([1, 2])], min: 0).domain == 0...2)
+        #expect(Node.Chart([ChartSeries([100, 100])], max: 100).domain == 99...100)
         #expect(Node.Chart([]).domain == 0...1)
     }
 

@@ -86,7 +86,8 @@ public extension Node {
             let values = series.flatMap(\.values)
             let low = min ?? values.min() ?? 0
             let high = max ?? values.max() ?? 1
-            return high > low ? low...high : low...(low + 1)
+            guard high <= low else { return low...high }
+            return max != nil && min == nil ? (high - 1)...high : low...(low + 1)
         }
 
         public var count: Int {
