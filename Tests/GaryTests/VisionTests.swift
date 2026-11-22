@@ -37,6 +37,12 @@ private func result(_ harness: Harness) async throws -> String {
     throw RenderError("no result in 60 seconds")
 }
 
+private let isVirtualMachine = {
+    var present: Int32 = 0
+    var size = MemoryLayout<Int32>.size
+    return sysctlbyname("kern.hv_vmm_present", &present, &size, nil, 0) == 0 && present == 1
+}()
+
 struct VisionTests {
     @Test func `read text resolves with the text in an image file`() async throws {
         let path = try writePNG {
@@ -46,7 +52,14 @@ struct VisionTests {
         let harness = try Harness(reader("readText(path)"), uses: ["vision"])
         #expect(try await harness.text() == "0")
         harness.runtime.perform(path, .null)
-        #expect(try await result(harness) == "\"Gary reads this\"")
+        let text = try await result(harness)
+        withKnownIssue("A paravirtualized Mac has no text recognition model that runs: Vision fails on its GPU and its CPU") {
+            #expect(text == "\"Gary reads this\"")
+        } when: {
+            isVirtualMachine
+        } matching: { _ in
+            text.contains("CRImageReaderError error 9")
+        }
         harness.runtime.stop()
     }
 
