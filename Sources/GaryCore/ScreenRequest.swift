@@ -41,27 +41,43 @@ public enum ScreenArea: Equatable, Sendable {
 public enum ScreenRequest: Equatable, Sendable {
     case select
     case capture(ScreenArea, path: String?, clipboard: Bool)
+    case record(ScreenArea, path: String, audio: Bool)
+    case stopRecording
 
-    public static let methods = ["select", "capture"]
+    public static let methods = ["select", "capture", "record", "stopRecording"]
 
     public static func parse(_ call: HostCall, home: String, folder: String) throws -> ScreenRequest {
         switch call.method {
         case "select": return .select
         case "capture":
             let area = try ScreenArea.parse(call.arguments.first, call)
-            let options = call.arguments.count > 1 ? call.arguments[1] : .null
-            guard options == .null || options.object != nil else { throw call.fail("options must be an object") }
+            let fields = try options(call, 1)
             var path: String?
-            if let raw = options["path"], raw != .null {
+            if let raw = fields["path"], raw != .null {
                 guard let text = raw.string, let absolute = absolutePath(text, home: home, folder: folder) else {
                     throw call.fail("options.path must be absolute, start with ~/, or be relative to the plugin folder")
                 }
                 path = absolute
             }
-            let clipboard = options["clipboard"] ?? .bool(false)
+            let clipboard = fields["clipboard"] ?? .bool(false)
             guard let copy = clipboard.bool else { throw call.fail("options.clipboard must be true or false") }
             return .capture(area, path: path, clipboard: copy)
+        case "record":
+            let area = try ScreenArea.parse(call.arguments.first, call)
+            let path = try call.path(1, home: home, folder: folder)
+            guard ["mov", "mp4"].contains(URL(fileURLWithPath: path).pathExtension.lowercased()) else {
+                throw call.fail("path must end in .mov or .mp4")
+            }
+            guard let audio = try (options(call, 2)["audio"] ?? .bool(false)).bool else { throw call.fail("options.audio must be true or false") }
+            return .record(area, path: path, audio: audio)
+        case "stopRecording": return .stopRecording
         default: throw call.unknownMethod
         }
+    }
+
+    private static func options(_ call: HostCall, _ index: Int) throws -> JSON {
+        let options = index < call.arguments.count ? call.arguments[index] : .null
+        guard options == .null || options.object != nil else { throw call.fail("options must be an object") }
+        return options
     }
 }

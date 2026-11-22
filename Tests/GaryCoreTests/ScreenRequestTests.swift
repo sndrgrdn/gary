@@ -32,6 +32,24 @@ struct ScreenRequestTests {
         #expect(try parse("select") == .select)
     }
 
+    @Test func `record takes an area A movie path and an optional audio flag and stop recording takes nothing`() throws {
+        #expect(try parse("record", .object([:]), .string("~/Movies/a.mov")) == .record(
+            .display(nil),
+            path: "/Users/gary/Movies/a.mov",
+            audio: false,
+        ))
+        #expect(try parse("record", region(0, 0, 640, 480), .string("/tmp/a.MP4"), .object(["audio": .bool(true)]))
+            == .record(.region(CGRect(x: 0, y: 0, width: 640, height: 480)), path: "/tmp/a.MP4", audio: true))
+        #expect(try parse("stopRecording") == .stopRecording)
+        #expect(throws: ArgumentError("host.screen.record: path must end in .mov or .mp4")) {
+            try parse("record", .object([:]), .string("/tmp/a.gif"))
+        }
+        #expect(throws: ArgumentError.self) { try parse("record", .object([:])) }
+        #expect(throws: ArgumentError("host.screen.record: options.audio must be true or false")) {
+            try parse("record", .object([:]), .string("/tmp/a.mov"), .object(["audio": .number(1)]))
+        }
+    }
+
     @Test func `rejects areas that are not one of the three shapes`() {
         for area: JSON in [
             .null, .string("main"), region(0, 0, 0, 10), region(0, 0, 10, -1),
