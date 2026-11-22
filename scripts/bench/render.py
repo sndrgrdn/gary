@@ -36,13 +36,14 @@ CASES = {
     "s2-busy-1000": busy(1000),
     "s3-first-1000": {**busy(1000, hz=0), "summon": None, "first": "bench.busy"},
     "s6-launch-1000": {**busy(1000), "settle": 0, "warm": 0},
+    "s6-launch-1000-bare": {**busy(1000), "settle": 0, "warm": 0, "bare": True},
     "s4-static": loops("static"),
     "s4-loops": loops("loops"),
     "s4-shader": loops("shader"),
     "s5-small": feed(1_000),
     "s5-large": feed(200_000),
 }
-DARK_OK = {"s1-idle", "s2-busy-100", "s5-large", "s6-launch-1000"}
+DARK_OK = {"s1-idle", "s2-busy-100", "s5-large", "s6-launch-1000", "s6-launch-1000-bare"}
 STAGES = ["evaluate", "encode", "js_parse", "handler", "render", "stringify", "swift_parse", "node_parse", "compare", "apply", "layout",
           "display", "flush"]
 LINE = re.compile(r"^(\d+\.\d+) (commit|render) plugin=(\S+?)(?:/\S+)? (.*)$")
@@ -100,6 +101,8 @@ def install(case):
         target = os.path.join(CONFIG, "plugins", id)
         shutil.copytree(os.path.join(PLUGINS, id), target)
         open(os.path.join(target, ".bench"), "w").close()
+    if case.get("bare"):
+        shell["bar"], shell["plugins"] = {}, []
     shell.setdefault("bar", {}).setdefault("right", [])
     shell["bar"]["right"] = case.get("bar", []) + shell["bar"]["right"]
     shell["plugins"] = shell.get("plugins", []) + case.get("plugins", [])
@@ -108,8 +111,19 @@ def install(case):
         json.dump(shell, file, indent=2)
 
 
+def quiet(limit=0.1, streak=3, timeout=60):
+    server = pids("WindowServer")[0]
+    started, calm = time.time(), 0
+    while calm < streak and time.time() - started < timeout:
+        before = cpu_seconds(server)
+        time.sleep(1)
+        calm = calm + 1 if cpu_seconds(server) - before < limit else 0
+    return time.time() - started
+
+
 def launch(log, trace):
     quit_all()
+    waited = quiet()
     command = ["open", "-g", "--stdout", log, "--stderr", log]
     if trace:
         command += ["--env", "GARY_TRACE=1"]
@@ -117,7 +131,7 @@ def launch(log, trace):
     pid = wait_for(lambda: pids(f"{APP}/Contents/MacOS/gary app$"), 15)
     if not pid or not wait_for(lambda: cli("ping").returncode == 0, 15):
         raise RuntimeError("bench Gary did not start")
-    return pid[0]
+    return pid[0], waited
 
 
 def stats(id):
@@ -206,7 +220,10 @@ def repainted(pid, wait):
     for index in range(2):
         path = os.path.join(WORK, f"repaint-{index}.png")
         subprocess.run(["screencapture", "-x", "-o", "-l", largest["id"], path])
+        if not os.path.exists(path):
+            return None
         shots.append(open(path, "rb").read())
+        os.remove(path)
         time.sleep(wait)
     return {"window": largest["frame"], "changed": shots[0] != shots[1]}
 
@@ -240,6 +257,14 @@ def transient(log, id, end, slow=100):
     late = [index for index, commit in enumerate(commits) if commit["since"] > slow]
     return {"peak_since_ms": max(commit["since"] for commit in commits),
             "slow_until_s": times[late[-1]] - times[0] if late and len(times) == len(commits) else 0}
+
+
+def flushes(log, seconds, slow=100):
+    lines = open(log, errors="replace").read().splitlines()
+    start = float(lines[0].split(" ", 1)[0])
+    times = [float(value) for line in lines if (found := LINE.match(line)) and found.group(2) == "commit"
+             and float(found.group(1)) <= start + seconds for value in re.findall(r" flush_ms=([\d.]+)", line)]
+    return {"count": len(times), "slow": sum(value > slow for value in times), "max_ms": max(times, default=0)}
 
 
 def percentiles(commits):
@@ -283,7 +308,7 @@ def run(name, out, trace, dark_ok=False):
         return
     try:
         install(case)
-        pid = launch(log, trace)
+        pid, result["quiet_wait_s"] = launch(log, trace)
         time.sleep(case.get("settle", SETTLE))
         if case.get("start"):
             result["started"] = cli("call", *case["start"]).stdout.strip()
@@ -315,6 +340,7 @@ def run(name, out, trace, dark_ok=False):
                 result["stages"] = percentiles(commits)
                 result["since_first_last"] = [commits[0]["since"], commits[-1]["since"]] if commits else None
                 result["transient"] = transient(log, case["stats"], end)
+                result["flushes"] = flushes(log, 20)
         result["noise_after"] = noise()
         result["failed_lines"] = [line.strip() for line in open(log, errors="replace") if "failed" in line or "stopped after" in line]
     except Exception as error:
@@ -334,7 +360,7 @@ def profile(name, seconds, out, dark_ok=False):
     log = os.path.join(WORK, f"profile-{name}-{int(time.time())}.log")
     try:
         install(case)
-        pid = launch(log, False)
+        pid, _ = launch(log, False)
         time.sleep(SETTLE)
         if case.get("start"):
             cli("call", *case["start"])
@@ -415,6 +441,11 @@ def report(path):
         if trace:
             print(f"commits/s {spread([run['commits'] / run['window_s'] for run in runs])}; "
                   f"unchanged renders/s {spread([run['unchanged_renders'] / run['window_s'] for run in runs])}")
+            if all("flushes" in run for run in runs):
+                print(f"first 20 s after launch: flushes {spread([run['flushes']['count'] for run in runs], digits=0)}; "
+                      f"over 100 ms {spread([run['flushes']['slow'] for run in runs], digits=0)}; "
+                      f"max {spread([run['flushes']['max_ms'] for run in runs], ' ms', 0)}; "
+                      f"quiet wait {spread([run['quiet_wait_s'] for run in runs], ' s')}")
             for stage in ["since"] + STAGES:
                 p50 = [run["stages"][stage]["p50"] for run in runs if stage in run["stages"]]
                 p95 = [run["stages"][stage]["p95"] for run in runs if stage in run["stages"]]
