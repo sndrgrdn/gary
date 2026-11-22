@@ -8,6 +8,12 @@ struct MediaKeyTests {
         #expect(MediaKey.decode(systemDefinedData: 7 << 16 | 0x0A00) == MediaKey.Press(key: .mute, down: true, isRepeat: false))
         #expect(MediaKey.decode(systemDefinedData: 2 << 16 | 0x0A00)?.key == .brightnessUp)
         #expect(MediaKey.decode(systemDefinedData: 3 << 16 | 0x0A00)?.key == .brightnessDown)
+        #expect(MediaKey.decode(systemDefinedData: 16 << 16 | 0x0A00)?.key == .play)
+    }
+
+    @Test func `the next and previous keys and the fast forward and rewind keys some keyboards send are next and previous`() {
+        #expect([17, 19].map { MediaKey.decode(systemDefinedData: $0 << 16 | 0x0A00)?.key } == [.next, .next])
+        #expect([18, 20].map { MediaKey.decode(systemDefinedData: $0 << 16 | 0x0A00)?.key } == [.previous, .previous])
     }
 
     @Test func `a held key is marked as A repeat`() {
@@ -15,7 +21,7 @@ struct MediaKeyTests {
     }
 
     @Test func `other system keys and malformed states are not media keys`() {
-        #expect(MediaKey.decode(systemDefinedData: 16 << 16 | 0x0A00) == nil)
+        #expect(MediaKey.decode(systemDefinedData: 6 << 16 | 0x0A00) == nil)
         #expect(MediaKey.decode(systemDefinedData: 21 << 16 | 0x0A00) == nil)
         #expect(MediaKey.decode(systemDefinedData: 0 << 16 | 0x0C00) == nil)
     }
@@ -57,6 +63,6 @@ struct MediaKeyTests {
 
     @Test func `plugins name the keys they intercept`() throws {
         #expect(try MediaKey.parse(["volume-up", "mute", "volume-up"]) == [.volumeUp, .mute])
-        #expect(throws: MediaKey.UnknownKey(name: "play")) { try MediaKey.parse(["volume-up", "play"]) }
+        #expect(throws: MediaKey.UnknownKey(name: "eject")) { try MediaKey.parse(["volume-up", "eject"]) }
     }
 }

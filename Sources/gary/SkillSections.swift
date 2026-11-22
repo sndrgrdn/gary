@@ -46,6 +46,9 @@ extension Skill {
             if let topic = capability.topic {
                 entry.append("`\"subscribes\": [\"\(capability.name)\"]` for `state.\(capability.name)`, a `\(topic.type)`")
             }
+            if let manifestEntry = capability.manifestEntry {
+                entry.append(manifestEntry)
+            }
             let permissions = capability.permissions.isEmpty ? "none" : capability.permissions.map { "\($0.name) (`\($0.rawValue)`)" }
                 .joined(separator: ", ")
             lines += [

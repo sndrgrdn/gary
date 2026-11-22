@@ -11,6 +11,13 @@ extension Shell {
         withRuntime(slot, trace) { runtime in runtime?.hotkey(binding.hotkey.id) }
     }
 
+    func mediaKeyPressed(_ event: JSON, _ keys: [SlotKey]) {
+        let trace = Trace("mediakey")
+        for slot in keys.compactMap({ slots[$0] }) {
+            withRuntime(slot, trace) { runtime in runtime?.mediaKey(event) }
+        }
+    }
+
     func handlerSlot(_ id: PluginID) -> PluginSlot? {
         PluginKind.handlerOrder.lazy.compactMap { self.slots[SlotKey(id: id, kind: $0)] }.first
     }
@@ -71,8 +78,19 @@ extension Shell {
                 }
             }
         }
+        claimMediaKeys()
         arrangeBars()
         commitFrame()
+    }
+
+    private func claimMediaKeys() {
+        var claims: [MediaKey: [SlotKey]] = [:]
+        for (key, slot) in slots {
+            for mediaKey in slot.bundle.manifest.mediaKeys[key.kind] ?? [] {
+                claims[mediaKey, default: []].append(key)
+            }
+        }
+        mediaKeys?.claim(claims)
     }
 
     func reload(_ slot: PluginSlot, _ trace: Trace) {

@@ -257,20 +257,6 @@ struct DeviceRequestTests {
         #expect(throws: ArgumentError("host.brightness.get is not a method")) { try BrightnessRequest.parse(call("brightness", "get")) }
     }
 
-    @Test func `media keys take an array of known key names`() throws {
-        #expect(try MediaKeysRequest.parse(call("mediakeys", "intercept", .array([.string("mute"), .string("volume-up")]))) == .intercept([
-            .mute,
-            .volumeUp,
-        ]))
-        #expect(try MediaKeysRequest.parse(call("mediakeys", "intercept", .array([]))) == .intercept([]))
-        #expect(throws: ArgumentError("host.mediakeys.intercept: keys must be an array of strings")) { try MediaKeysRequest.parse(call(
-            "mediakeys",
-            "intercept",
-            .string("mute"),
-        )) }
-        #expect(throws: ArgumentError.self) { try MediaKeysRequest.parse(call("mediakeys", "intercept", .array([.string("play")]))) }
-    }
-
     @Test func `now playing seeks to A position and otherwise takes no arguments`() throws {
         #expect(try ["play", "pause", "toggle", "next", "previous"].map { try NowPlayingRequest.parse(call("nowplaying", $0)) } == [
             .play,

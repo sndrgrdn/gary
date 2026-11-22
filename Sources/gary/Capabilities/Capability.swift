@@ -10,6 +10,7 @@ struct Capability {
     let types: String
     let example: String
     var permissions: [Permission] = []
+    var manifestEntry: String?
     var install: ((JSValue, PluginRuntime) -> Void)?
     var topic: CapabilityTopic?
 

@@ -9,5 +9,6 @@
   "keepLoaded": true,
   "surfaces": { "panel": ["main", "osd"] },
   "subscribes": ["audio"],
-  "uses": ["audio", "mediakeys"]
+  "uses": ["audio"],
+  "mediakeys": { "panel": ["volume-up", "volume-down"] }
 }

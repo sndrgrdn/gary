@@ -84,6 +84,7 @@ public enum ManifestError: Error, Equatable, CustomStringConvertible {
     case noSurfaces(PluginKind)
     case duplicateSurface(String)
     case surfacesDiffer(PluginKind, exported: [String], listed: [String])
+    case unknownMediaKey(String)
 
     public var description: String {
         switch self {
@@ -108,6 +109,7 @@ public enum ManifestError: Error, Equatable, CustomStringConvertible {
         case let .invalidSurfaceName(name): "surface name \"\(name)\" must be lowercase letters, digits, and hyphens"
         case let .noSurfaces(kind): "surfaces.\(kind.rawValue) lists no surface"
         case let .duplicateSurface(name): "surface \(name) belongs to two kinds; give each panel, overlay, and menu its own names in surfaces"
+        case let .unknownMediaKey(name): MediaKey.UnknownKey(name: name).description
         case let .surfacesDiffer(kind, exported, listed):
             "the module exports surfaces \(exported.joined(separator: ", ")), but manifest.json gives the \(kind.rawValue) "
                 + "\(listed.joined(separator: ", ")); list its surface names in surfaces.\(kind.rawValue)"
@@ -128,6 +130,7 @@ public struct PluginManifest: Equatable, Sendable {
     public let uses: [String]
     public let hotkeys: [Hotkey]
     public var surfaces: [PluginKind: [String]] = [:]
+    public var mediaKeys: [PluginKind: Set<MediaKey>] = [:]
     public var bar: BarSection = .right
 
     public var surfaceNames: [String] {
@@ -161,6 +164,9 @@ public struct PluginManifest: Equatable, Sendable {
         for case let .capability(name) in topics where !names.contains(name) {
             names.append(name)
         }
+        if !mediaKeys.isEmpty {
+            names.append(MediaKey.capability)
+        }
         return names
     }
 
@@ -185,10 +191,18 @@ public struct PluginManifest: Equatable, Sendable {
         let hotkeys = try parseHotkeys(fields.optional("hotkeys", \.array, default: []))
         let bar = try fields.optional("bar", { $0.string.flatMap(BarSection.init(rawValue:)) }, default: .right)
         let surfaces = try parseSurfaces(fields.perKind("surfaces", kinds: kinds), kinds: kinds)
+        let mediaKeys = try fields.perKind(MediaKey.capability, kinds: kinds).compactMapValues { names in
+            do {
+                let keys = try MediaKey.parse(names)
+                return keys.isEmpty ? nil : keys
+            } catch let error as MediaKey.UnknownKey {
+                throw ManifestError.unknownMediaKey(error.name)
+            }
+        }
 
         return PluginManifest(
             id: id, name: name, version: version, kinds: kinds, entryPoints: entryPoints,
-            keepLoaded: keepLoaded, subscriptions: subscriptions, uses: uses, hotkeys: hotkeys, surfaces: surfaces, bar: bar,
+            keepLoaded: keepLoaded, subscriptions: subscriptions, uses: uses, hotkeys: hotkeys, surfaces: surfaces, mediaKeys: mediaKeys, bar: bar,
         )
     }
 

@@ -6,8 +6,14 @@ public enum MediaKey: String, CaseIterable, Sendable {
     case mute
     case brightnessUp = "brightness-up"
     case brightnessDown = "brightness-down"
+    case play, next, previous
 
-    static let codes: [Int: MediaKey] = [0: .volumeUp, 1: .volumeDown, 7: .mute, 2: .brightnessUp, 3: .brightnessDown]
+    public static let capability = "mediakeys"
+
+    static let codes: [Int: MediaKey] = [
+        0: .volumeUp, 1: .volumeDown, 7: .mute, 2: .brightnessUp, 3: .brightnessDown,
+        16: .play, 17: .next, 19: .next, 18: .previous, 20: .previous,
+    ]
 
     public struct Press: Equatable, Sendable {
         public let key: MediaKey

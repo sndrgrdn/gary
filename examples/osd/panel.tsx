@@ -1,8 +1,6 @@
 const step = 1 / 16;
 let hideTimer = 0;
 
-host.mediakeys.intercept(["volume-up", "volume-down"]);
-
 function parseLevel(payload: Gary.ActionPayload): number | null {
   const level = Number(payload);
 

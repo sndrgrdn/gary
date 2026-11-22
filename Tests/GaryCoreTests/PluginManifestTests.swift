@@ -155,6 +155,16 @@ struct PluginManifestTests {
         rejects(kinds.merging(["subscribes": ["menu": ["weather"]]]) { $1 }, with: .unknownTopic("weather"))
     }
 
+    @Test func `mediakeys lists the keys each kind takes over and needs the mediakeys capability`() throws {
+        let kinds: [String: JSON] = ["kinds": ["service", "overlay"], "entryPoints": ["service": "s.js", "overlay": "o.js"]]
+        let parsed = try manifest(kinds.merging(["mediakeys": ["overlay": ["volume-up", "mute", "play"], "service": []]]) { $1 })
+        #expect(parsed.mediaKeys == [.overlay: [.volumeUp, .mute, .play]])
+        #expect(parsed.capabilities == ["mediakeys"])
+        #expect(try manifest(kinds).capabilities.isEmpty)
+        rejects(kinds.merging(["mediakeys": ["overlay": ["eject"]]]) { $1 }, with: .unknownMediaKey("eject"))
+        rejects(kinds.merging(["mediakeys": ["menu": ["mute"]]]) { $1 }, with: .kindNotListed(field: "mediakeys", kind: "menu"))
+    }
+
     @Test func `each panel overlay and menu has the surfaces the manifest lists or main`() throws {
         let parsed = try manifest([
             "kinds": ["bar-widget", "panel", "overlay"],

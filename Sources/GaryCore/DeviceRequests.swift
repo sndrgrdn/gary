@@ -33,21 +33,6 @@ public enum BrightnessRequest: Equatable, Sendable {
     }
 }
 
-public enum MediaKeysRequest: Equatable, Sendable {
-    case intercept(Set<MediaKey>)
-
-    public static let methods = ["intercept"]
-
-    public static func parse(_ call: HostCall) throws -> MediaKeysRequest {
-        guard call.method == "intercept" else { throw call.unknownMethod }
-        do {
-            return try .intercept(MediaKey.parse(call.strings(0, "keys")))
-        } catch let error as MediaKey.UnknownKey {
-            throw call.fail(error.description)
-        }
-    }
-}
-
 public enum NowPlayingRequest: Equatable, Sendable {
     case play, pause, toggle, next, previous
     case seek(seconds: Double)

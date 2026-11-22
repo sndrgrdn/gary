@@ -13,9 +13,9 @@ struct CapabilityRegistryTests {
         #expect(Set(names).count == names.count)
     }
 
-    @Test func `each capability installs an API or publishes A topic`() {
+    @Test func `each capability installs an API, publishes A topic, or has its own manifest entry`() {
         for capability in Capability.all {
-            #expect(capability.install != nil || capability.topic != nil, "\(capability.name)")
+            #expect(capability.install != nil || capability.topic != nil || capability.manifestEntry != nil, "\(capability.name)")
         }
     }
 }

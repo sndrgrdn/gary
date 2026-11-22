@@ -203,17 +203,13 @@ public enum PluginTypes {
                     "additionalProperties": type("string", ["pattern": .string(#"\.(\#(scripts))$"#)]),
                 ]),
                 "keepLoaded": type("boolean"),
-                "surfaces": type("object", [
-                    "propertyNames": .object(["enum": strings(PluginKind.allCases.filter(\.isSurface).map(\.rawValue))]),
-                    "additionalProperties": type("array", [
-                        "minItems": .number(1), "uniqueItems": .bool(true), "items": type("string", ["pattern": .string("^[a-z0-9-]+$")]),
-                    ]),
-                ]),
+                "surfaces": perKind(PluginKind.allCases.filter(\.isSurface), type("array", [
+                    "minItems": .number(1), "uniqueItems": .bool(true), "items": type("string", ["pattern": .string("^[a-z0-9-]+$")]),
+                ])),
                 "bar": .object(["enum": strings(BarSection.allCases.map(\.rawValue))]),
-                "subscribes": .object(["anyOf": .array([topics, type("object", [
-                    "propertyNames": .object(["enum": kinds]), "additionalProperties": topics,
-                ])])]),
+                "subscribes": .object(["anyOf": .array([topics, perKind(PluginKind.allCases, topics)])]),
                 "uses": type("array", ["items": .object(["enum": strings(capabilities.uses.sorted())])]),
+                "mediakeys": perKind(PluginKind.allCases, type("array", ["items": .object(["enum": strings(MediaKey.allCases.map(\.rawValue))])])),
                 "hotkeys": type("array", ["items": type("object", [
                     "required": strings(["id", "keys"]),
                     "properties": .object([
@@ -227,10 +223,6 @@ public enum PluginTypes {
 
     private static func type(_ name: String, _ fields: [String: JSON] = [:]) -> JSON {
         .object(fields.merging(["type": .string(name)]) { $1 })
-    }
-
-    private static func strings(_ values: [String]) -> JSON {
-        .array(values.map(JSON.string))
     }
 
     static func typeName(_ raw: String) -> String {
@@ -295,4 +287,14 @@ public extension PluginTypes {
     }
 
     """
+}
+
+private extension PluginTypes {
+    static func strings(_ values: [String]) -> JSON {
+        .array(values.map(JSON.string))
+    }
+
+    static func perKind(_ kinds: [PluginKind], _ items: JSON) -> JSON {
+        type("object", ["propertyNames": .object(["enum": strings(kinds.map(\.rawValue))]), "additionalProperties": items])
+    }
 }

@@ -30,6 +30,7 @@ final class Shell {
     let tooltipPanel: TooltipPanel
     var clickMonitors: [Any] = []
     private var hotkeys: HotkeyCenter?
+    var mediaKeys: MediaKeyTap?
     var previousApp: NSRunningApplication?
     private var server: LineServer?
     private var watcher: FileWatcher?
@@ -47,6 +48,7 @@ final class Shell {
 
     func start() throws {
         hotkeys = HotkeyCenter { [weak self] binding in self?.hotkeyPressed(binding) }
+        mediaKeys = MediaKeyTap { [weak self] event, keys in self?.mediaKeyPressed(event, keys) }
         server = try LineServer(path: socketPath) { [weak self] line in self?.serve(line) ?? Response.failure("shutting down").line }
         SystemState.restore()
         try FileManager.default.createDirectory(at: Paths.config, withIntermediateDirectories: true)

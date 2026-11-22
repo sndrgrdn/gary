@@ -138,6 +138,7 @@ extension Skill {
     | `subscribes` | array or object | Topics that appear in `state` and `onTopic`: capability topics, or other plugins' ids. An array gives every kind the same topics. An object gives each kind its own, such as `{ "menu": ["wifi"], "bar-widget": [] }`, so a topic runs only while a kind that reads it is loaded, and a kind it leaves out gets none. |
     | `uses` | array | Capabilities that add functions to `host`. |
     | `keepLoaded` | boolean | Keep a panel, overlay, or menu running while it is hidden. |
+    | `mediakeys` | object | The media keys each kind takes over, such as `{ "overlay": ["volume-up", "volume-down", "mute"] }`. Keys are \(MediaKey.allCases.map { "`\($0.rawValue)`" }.joined(separator: ", ")). While the plugin is enabled, macOS no longer acts on those keys. A press loads the kind if needed and calls its `onMediaKey`, so an overlay needs no service to catch keys. A bar widget takes its keys only while a bar section names it. Gary needs Accessibility. |
     | `surfaces` | object | The surface names of each panel, overlay, and menu, such as `{ "overlay": ["osd"] }`. A kind it leaves out has one surface, `main`. Two kinds cannot share a name. |
     | `bar` | string | `left`, `center`, or `right`, the default: the bar section that `gary plugin install`, `new`, and `enable` add a bar widget to. |
     | `hotkeys` | array | Global hotkeys, such as `{ "id": "open", "keys": "ctrl+alt+space" }`. Gary calls `onHotkey(id)`. A combination needs `cmd`, `ctrl`, or `alt`, unless its key is `f1` to `f12`. Modifiers are `cmd`, `ctrl`, `alt`, and `shift`. Keys are letters, digits, punctuation, `space`, `return`, `tab`, `delete`, `escape`, the arrows, and `f1` to `f12`. |
@@ -179,7 +180,7 @@ extension Skill {
     | `onScroll(event, state)` | When the user scrolls with a mouse wheel or trackpad over a panel, overlay, or menu, or over a node with `scrollAction` in any kind. `event` has `x` and `y`, the distance in points, or in lines when `precise` is `false`, and `phase`: `began`, `changed`, and `ended` for a trackpad gesture, `momentum` for the glide after it, and `none` for a mouse wheel. Over a node with `scrollAction`, `event.action` holds that name. A `scroll` node under the pointer scrolls as well. |
     | `onHotkey(id, state)` | When a manifest hotkey fires. |
     | `onTopic({ topic, value }, state)` | When a subscribed topic changes, and once per topic at load. `value` has the type of `topic`, so `if (topic === "clock")` narrows it to a `Clock`. |
-    | `onMediaKey(event, state)` | When a key that `host.mediakeys.intercept` claimed is pressed. |
+    | `onMediaKey(event, state)` | When a key that the manifest's `mediakeys` lists for this kind is pressed. Gary loads the kind first if it is not running. |
     | `methods` | `gary call <id> <method> [args...]` and `host.call` run one with string arguments. It returns a JSON value, or a promise of one. |
     | `effect` | Once after load, in the plugin's scope, when the module imports `gary:effect`. Unload and reload interrupt it. |
     | `surface` | An object, or a function of `state`, that places a panel, overlay, or menu. |

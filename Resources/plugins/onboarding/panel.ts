@@ -7,9 +7,9 @@ const permissions: Record<
   accessibility: {
     symbol: "hand.raised.fill",
     general:
-      "Lets plugins use your volume and brightness keys, paste for you, and open menu bar items.",
+      "Lets plugins use your volume, brightness, and playback keys, paste for you, and open menu bar items.",
     uses: {
-      mediakeys: "use your volume and brightness keys",
+      mediakeys: "use your volume, brightness, and playback keys",
       paste: "paste into the app you're using",
       tray: "open your menu bar items",
     },

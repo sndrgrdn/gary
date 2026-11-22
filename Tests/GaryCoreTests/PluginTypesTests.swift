@@ -72,6 +72,7 @@ struct PluginTypesTests {
         #expect(topics[0]["items"]?["anyOf"]?.array?.first?["enum"] == .array(["audio", "battery", "clock"].map(JSON.string)))
         #expect(topics[1]["additionalProperties"] == topics[0])
         #expect(properties["kinds"]?["items"]?["enum"] == .array(PluginKind.allCases.map { .string($0.rawValue) }))
+        #expect(properties["mediakeys"]?["additionalProperties"]?["items"]?["enum"] == .array(MediaKey.allCases.map { .string($0.rawValue) }))
         #expect(properties["schemaVersion"]?["const"] == .number(Double(PluginManifest.schemaVersion)))
     }
 }
