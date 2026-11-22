@@ -151,7 +151,8 @@ extension Shell {
 
     private func mounted(_ key: SlotKey) -> [TreeHostingView] {
         let pointer = pointerDisplay()
-        return mounts.filter { $0.key.slot == key && !$0.value.isHidden }.sorted { $0.key.display == pointer && $1.key.display != pointer }.map(\.value)
+        return mounts.filter { $0.key.slot == key && !$0.value.isHidden }.sorted { $0.key.display == pointer && $1.key.display != pointer }
+            .map(\.value)
     }
 
     private func describe(_ frame: CGRect) -> String {
