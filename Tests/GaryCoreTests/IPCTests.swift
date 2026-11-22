@@ -65,8 +65,8 @@ struct IPCTests {
                 ["request", "camera"],
                 "unknown permission \"camera\"; use accessibility, bluetooth, full-disk-access, location, screen-recording",
             ),
-            BadArguments("action", ["gary.today", "widget", "toggle"], "unknown kind \"widget\"; use bar-widget, bar, panel, overlay, menu, service"),
-            BadArguments("action", ["gary.today", "panel"], "action takes a plugin, a kind, an action and an optional payload"),
+            BadArguments("action", ["gary.today/widget", "toggle"], "unknown kind \"widget\"; use bar-widget, bar, panel, overlay, menu, service"),
+            BadArguments("action", ["gary.today/panel"], "action takes <plugin>/<kind>, an action and an optional payload"),
             BadArguments("reboot", [], "unknown verb \"reboot\""),
         ]
         for badCase in cases {

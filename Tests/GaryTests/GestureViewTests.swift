@@ -51,23 +51,43 @@ struct GestureViewTests {
         #expect(outer.hitTest(CGPoint(x: 100, y: 80), event: mouse(.rightMouseDown)) === outer)
     }
 
-    private func scrolled(_ node: String) throws -> (sent: [String], offset: Double) {
+    private func mount(_ node: String, onAction: @escaping ActionHandler) throws -> TreeHostingView {
         let theme = try Theme.parse(
             JSON.parse(Data(contentsOf: URL(fileURLWithPath: #filePath)
                     .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
                     .appending(path: "Resources/theme.json"))),
             palette: Palette(nil, system: .dark),
         )
-        var sent: [String] = []
         let host = try TreeHostingView(
             tree: MountedTree(root: Node.parse(JSON.parse(node)), theme: theme),
-            onAction: { sent.append($0.name) },
-            onDismiss: { sent.append("dismiss") },
+            onAction: onAction,
+            onDismiss: { onAction(ActionEvent(name: "dismiss", payload: .null, origin: nil)) },
         )
         host.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
         window.contentView = host
         host.layoutSubtreeIfNeeded()
         CATransaction.flush()
+        return host
+    }
+
+    @Test func `a clicked action reaches onAction with its gesture and the frame of its node`() throws {
+        var sent: [ActionEvent] = []
+        let row = #"{"type":"row","action":"open","rightAction":"menu","scrollAction":"wheel","width":80,"height":20,"children":[]}"#
+        let host = try mount(#"{"type":"column","action":"outer","children":[\#(row)]}"#) { sent.append($0) }
+        let menu = try #require(host.clickable("menu"))
+        #expect(menu.gesture == .rightClick)
+        #expect(menu.view.screenFrame?.size == CGSize(width: 80, height: 20))
+        menu.view.send(menu.gesture, .null)
+        #expect(sent.map(\.name) == ["menu"])
+        #expect(sent.first?.origin == menu.view.screenFrame)
+        #expect(host.clickable("open")?.view === menu.view)
+        #expect(host.clickable("wheel") == nil)
+        #expect(host.clickable("missing") == nil)
+    }
+
+    private func scrolled(_ node: String) throws -> (sent: [String], offset: Double) {
+        var sent: [String] = []
+        let host = try mount(node) { sent.append($0.name) }
         let list = try #require(host.descendants(NSScrollView.self).first)
         let point = list.convert(CGPoint(x: 10, y: 10), to: nil)
         let wheel = try #require(CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: -3, wheel2: 0, wheel3: 0))

@@ -29,8 +29,8 @@ struct IPCParseTests {
             (Invocation("reloadPlugins", ["gary.today"]), .reloadPlugins(today)), (Invocation("applyTheme"), .applyTheme(nil)),
             (Invocation("permissions"), .permissions),
             (Invocation("call", ["gary.today", "go", "1", "2"]), .call(today, method: "go", arguments: ["1", "2"])),
-            (Invocation("action", ["gary.today", "panel", "set"]), .action(today, kind: .panel, action: "set", payload: nil)),
-            (Invocation("action", ["gary.today", "panel", "set", "0.5"]), .action(today, kind: .panel, action: "set", payload: "0.5")),
+            (Invocation("action", ["gary.today/panel", "set"]), .action(today, kind: .panel, action: "set", payload: nil)),
+            (Invocation("action", ["gary.today/panel", "set", "0.5"]), .action(today, kind: .panel, action: "set", payload: "0.5")),
         ]
         for (invocation, request) in cases {
             #expect(try invocation.parse() == request, "\(invocation.verb) \(invocation.arguments)")
@@ -52,7 +52,8 @@ struct IPCParseTests {
                 Invocation("hide", ["gary.today:OSD"]),
                 "invalid surface name in \"gary.today:OSD\"; use lowercase letters, digits and hyphens after the colon",
             ),
-            (Invocation("action", ["gary.today", "panel", "set", "1", "2"]), "action takes a plugin, a kind, an action and an optional payload"),
+            (Invocation("action", ["gary.today/panel", "set", "1", "2"]), "action takes <plugin>/<kind>, an action and an optional payload"),
+            (Invocation("action", ["gary.today", "set"]), "action takes <plugin>/<kind>, such as gary.today/panel"),
         ]
         for (invocation, message) in cases {
             #expect(throws: RequestError(description: message)) { try invocation.parse() }

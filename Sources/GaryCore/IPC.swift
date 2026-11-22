@@ -70,9 +70,12 @@ public enum Request: Equatable, Sendable {
             "gary call you.weather forecast 3",
         ),
         CommandUsage(
-            "action <plugin> <kind> <action> [payload]",
-            "Send onAction to a running kind of a plugin, as a click, slider or input would, with an optional number or text payload.",
-            "gary action you.music panel volume 0.5",
+            "action <plugin>/<kind> <action> [payload]",
+            """
+            Click the shown node of a running kind whose action, rightAction or middleAction has this name, so onAction gets the node's frame \
+            as from a real click. Send any other action, such as an input's change, without a frame. The payload is an optional number or text.
+            """,
+            "gary action you.music/panel volume 0.5",
         ),
     ]
 
@@ -159,15 +162,29 @@ public enum Request: Equatable, Sendable {
         return try .call(plugin(arguments[0]), method: arguments[1], arguments: Array(arguments.dropFirst(2)))
     }
 
-    private static func action(_ arguments: [String]) throws -> Request {
-        guard (3...4).contains(arguments.count) else {
-            throw RequestError(description: "action takes a plugin, a kind, an action and an optional payload")
-        }
-        guard let kind = PluginKind(rawValue: arguments[1]) else {
+    private static func slot(_ raw: String) throws -> (PluginID, PluginKind?) {
+        let parts = raw.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+        let id = try plugin(parts[0])
+        guard parts.count == 2 else { return (id, nil) }
+        guard let kind = PluginKind(rawValue: parts[1]) else {
             let kinds = PluginKind.allCases.map(\.rawValue).joined(separator: ", ")
-            throw RequestError(description: "unknown kind \"\(arguments[1])\"; use \(kinds)")
+            throw RequestError(description: "unknown kind \"\(parts[1])\"; use \(kinds)")
         }
-        return try .action(plugin(arguments[0]), kind: kind, action: arguments[2], payload: arguments.count == 4 ? arguments[3] : nil)
+        return (id, kind)
+    }
+
+    private static func slotWithKind(_ raw: String, for verb: String) throws -> (PluginID, PluginKind) {
+        let (id, kind) = try slot(raw)
+        guard let kind else { throw RequestError(description: "\(verb) takes <plugin>/<kind>, such as \(id)/panel") }
+        return (id, kind)
+    }
+
+    private static func action(_ arguments: [String]) throws -> Request {
+        guard (2...3).contains(arguments.count) else {
+            throw RequestError(description: "action takes <plugin>/<kind>, an action and an optional payload")
+        }
+        let (id, kind) = try slotWithKind(arguments[0], for: "action")
+        return .action(id, kind: kind, action: arguments[1], payload: arguments.count == 3 ? arguments[2] : nil)
     }
 
     public var verb: String {
@@ -197,7 +214,7 @@ public enum Request: Equatable, Sendable {
         case let .reloadPlugins(id): id.map { [$0.rawValue] } ?? []
         case let .applyTheme(payload): payload.map { [$0.text] } ?? []
         case let .call(id, method, arguments): [id.rawValue, method] + arguments
-        case let .action(id, kind, action, payload): [id.rawValue, kind.rawValue, action] + (payload.map { [$0] } ?? [])
+        case let .action(id, kind, action, payload): ["\(id)/\(kind.rawValue)", action] + (payload.map { [$0] } ?? [])
         }
     }
 

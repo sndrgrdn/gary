@@ -100,15 +100,28 @@ final class GestureView: NSView {
         }
     }
 
+    var screenFrame: CGRect? {
+        window?.convertToScreen(convert(bounds, to: nil))
+    }
+
     func send(_ gesture: Node.Gesture, _ payload: JSON) {
         guard let action = actions[gesture] else { return }
-        handler?(ActionEvent(name: action, payload: payload, origin: window?.convertToScreen(convert(bounds, to: nil)), gesture: gesture))
+        handler?(ActionEvent(name: action, payload: payload, origin: screenFrame, gesture: gesture))
     }
 }
 
 extension NSView {
     func descendants<View: NSView>(_ type: View.Type) -> [View] {
         [self].compactMap { $0 as? View } + subviews.flatMap { $0.descendants(type) }
+    }
+
+    func clickable(_ action: String) -> (view: GestureView, gesture: Node.Gesture)? {
+        for view in descendants(GestureView.self) {
+            if let gesture = view.actions.first(where: { $0.key != .scroll && $0.value == action })?.key {
+                return (view, gesture)
+            }
+        }
+        return nil
     }
 }
 

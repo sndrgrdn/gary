@@ -67,7 +67,7 @@ extension Shell {
         case let .requestPermission(permission):
             reply(.ok(permission.request()))
         case let .action(id, kind, action, payload):
-            reply(send(action, payload, to: SlotKey(id: id, kind: kind)))
+            reply(click(action, payload, on: SlotKey(id: id, kind: kind)))
         case let .call(id, method, arguments):
             call(id, nil, method, arguments) { response in
                 guard case let .ok(text) = response, case let .string(string)? = try? JSON.parse(text) else { return reply(response) }
@@ -87,10 +87,25 @@ extension Shell {
         return .ok("reloading \(live.count)")
     }
 
-    private func send(_ action: String, _ payload: String?, to key: SlotKey) -> Response {
+    private func click(_ action: String, _ payload: String?, on key: SlotKey) -> Response {
         guard let runtime = slots[key]?.runtime else { return .failure("\(key.id) has no running \(key.kind.rawValue)") }
-        runtime.perform(action, payload.map { Double($0).map(JSON.number) ?? .string($0) } ?? .null)
-        return .ok("sent \(action) to \(key)")
+        let value = payload.map { Double($0).map(JSON.number) ?? .string($0) } ?? .null
+        guard let (view, gesture) = mounted(key).lazy.compactMap({ $0.clickable(action) }).first else {
+            runtime.perform(action, value)
+            return .ok("sent \(action) to \(key), where no shown node has it as its action")
+        }
+        view.send(gesture, value)
+        return .ok("clicked \(action) on \(key) at \(view.screenFrame.map(describe) ?? "no frame")")
+    }
+
+    private func mounted(_ key: SlotKey) -> [TreeHostingView] {
+        let pointer = pointerDisplay()
+        return mounts.filter { $0.key.slot == key }.sorted { $0.key.display == pointer && $1.key.display != pointer }.map(\.value)
+    }
+
+    private func describe(_ frame: CGRect) -> String {
+        let top = (NSScreen.screens.first?.frame.maxY ?? frame.maxY) - frame.maxY
+        return String(format: "%.0f,%.0f,%.0f,%.0f", frame.minX, top, frame.width, frame.height)
     }
 
     func call(_ id: PluginID, _ kind: PluginKind?, _ method: String, _ arguments: [String], _ reply: @escaping (Response) -> Void) {
