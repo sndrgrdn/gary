@@ -24,11 +24,11 @@ struct TreeViewBench {
         spec = try SurfaceSpec.parse(JSON.parse(#"{"width":1200,"height":900}"#), kind: .panel)
     }
 
-    private static func busy(_ nodes: Int, frame: Int) throws -> Node {
+    private static func busy(_ nodes: Int, frame: Int) -> String {
         let perRow = 20
         let rows = Int((Double(nodes - 1) / Double(perRow + 1)).rounded(.up))
         var leaves = nodes - 1 - rows
-        let children = try (0..<rows).map { row in
+        let children = (0..<rows).map { row in
             let count = min(perRow, leaves)
             leaves -= count
             let cells = (0..<count).map { column in
@@ -36,14 +36,20 @@ struct TreeViewBench {
                 let text = row == rows - 1 && column == count - 1 ? "frame \(frame)" : "cell \(index)"
                 return #"{"type":"text","key":"c\#(index)","text":"\#(text)","style":"dim"}"#
             }
-            return try Node.parse(JSON.parse(#"{"type":"row","key":"r\#(row)","gap":4,"children":[\#(cells.joined(separator: ","))]}"#))
+            return #"{"type":"row","key":"r\#(row)","gap":4,"children":[\#(cells.joined(separator: ","))]}"#
         }
-        return try Node.parse(JSON.parse(#"{"type":"column","gap":2,"padding":8,"children":[]}"#)).with(children: children)
+        return #"{"type":"column","gap":2,"padding":8,"children":[\#(children.joined(separator: ","))]}"#
     }
 
-    private static func milliseconds(_ body: () -> Void) -> Double {
+    private static func parse(_ text: String) throws -> Node {
+        let json = try JSON.parse(text)
+        let children = try (json["children"]?.array ?? []).map(Node.parse)
+        return try Node.parse(.object((json.object ?? [:]).merging(["children": .array([])]) { $1 })).with(children: children)
+    }
+
+    private static func milliseconds(_ body: () throws -> Void) rethrows -> Double {
         let start = DispatchTime.now().uptimeNanoseconds
-        body()
+        try body()
         return Double(DispatchTime.now().uptimeNanoseconds - start) / 1e6
     }
 
@@ -91,7 +97,13 @@ struct TreeViewBench {
     @Test(.enabled(if: !sizes.isEmpty, "set GARY_TREE_BENCH to a comma-separated list of node counts"))
     func `time the main-thread update of a busy panel per frame`() throws {
         for nodes in Self.sizes {
-            let trees = try (0...(Self.warmup + Self.frames)).map { try Self.busy(nodes, frame: $0) }
+            var parse: [Double] = []
+            let trees = try (0...(Self.warmup + Self.frames)).map { frame in
+                let text = Self.busy(nodes, frame: frame)
+                var tree: Node?
+                try parse.append(Self.milliseconds { tree = try Self.parse(text) })
+                return try #require(tree)
+            }
             let window = SurfaceWindow()
             var view: TreeHostingView?
             let mountTime = Self.milliseconds { view = mount(trees[0], in: window) }
@@ -104,6 +116,7 @@ struct TreeViewBench {
                 }
             }
             let fields = ["apply", "layout", "flush", "frame", "between_cpu"].map { Self.percentiles("\($0)_ms", stages[$0] ?? [0]) }
+                + [Self.percentiles("parse_ms", parse)]
             print("tree_bench nodes=\(nodes) frames=\(stages["frame"]?.count ?? 0) " + String(format: "mount_ms=%.3f ", mountTime) + fields
                 .joined(separator: " "))
             window.panel.close()

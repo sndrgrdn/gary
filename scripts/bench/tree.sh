@@ -36,5 +36,6 @@ for key in sorted({(row["variant"], int(row["nodes"])) for row in rows}, key=lam
         values = [float(row[name]) for row in group]
         return f"{statistics.median(values):.2f} ({min(values):.2f} to {max(values):.2f})"
     print(f"{key[0]} nodes={key[1]} n={len(group)} frame p50 {spread('frame_ms_p50')} ms; layout p50 {spread('layout_ms_p50')} ms; "
-          f"apply p50 {spread('apply_ms_p50')} ms; mount {spread('mount_ms')} ms")
+          f"apply p50 {spread('apply_ms_p50')} ms; mount {spread('mount_ms')} ms"
+          + (f"; parse p50 {spread('parse_ms_p50')} ms" if all("parse_ms_p50" in row for row in group) else ""))
 PY
