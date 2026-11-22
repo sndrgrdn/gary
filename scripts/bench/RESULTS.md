@@ -274,33 +274,36 @@ Rerun from the repository root. These commands quit and relaunch the user's Gary
     swiftc -O -o tmp/bin/flushprobe scripts/bench/flushprobe.swift
     tmp/bin/flushprobe 20 0.05 > tmp/bench/probe.txt & sleep 2; shortcuts run "Current Weather"; wait
 
-## Pending checks with the screen on
+## Screen-on A/B: main 780446a against 2917722
 
-Run these from the repository root with the screen unlocked. They quit and relaunch the user's Gary. `tmp/apps/base` is the rebased build 8a11dbb, and `build/Gary.app` is the head of this branch.
+Run on 2026-11-22 with the screen on and unlocked, release builds, 5 runs per side alternating, no failed lines, every run settled. Load average 1.9 to 4.8 on both sides. Raw lines are in `tmp/bench/display-ab.jsonl`.
 
-    scripts/bundle.sh
-    APPS="tmp/apps/base/Gary.app build/Gary.app" RUNS=5 CASES="s2-busy-500 s2-busy-1000 s3-first-1000 s4-static s4-loops s4-shader s6-launch-1000" scripts/bench/ab.sh
-    APPS="tmp/apps/base/Gary.app build/Gary.app" RUNS=3 CASES="s2-busy-500 s2-busy-1000 s3-first-1000 s6-launch-1000" scripts/bench/ab.sh --trace
+    APPS="tmp/apps/base/Gary.app tmp/apps/head/Gary.app" RUNS=5 CASES="s2-busy-500 s2-busy-1000 s3-first-1000 s4-static s4-loops s4-shader s6-launch-1000-bare" scripts/bench/ab.sh
 
-If `tmp/apps/base` is gone, rebuild it:
+| Case | Metric | 780446a | 2917722 |
+|---|---|---|---|
+| s2-busy-500 | Gary CPU | 50.7% (50.6 to 54.0) | 40.3% (40.0 to 40.8) |
+| s2-busy-500 | instructions | 9882 M/s | 4186 M/s |
+| s2-busy-500 | energy | 3548 mW | 782 mW (781 to 1332) |
+| s2-busy-1000 | Gary CPU | 101.9% (101.6 to 108.6) | 49.8% (49.7 to 50.2) |
+| s2-busy-1000 | instructions | 19563 M/s | 8173 M/s |
+| s2-busy-1000 | energy | 7213 mW | 3355 mW |
+| s3-first-1000 | cold summon to first commit | 236.5 ms (233.0 to 237.6) | 225.8 ms (223.7 to 234.8) |
+| s6-launch-1000-bare | Gary CPU | 100.6% | 50.0% |
+| s4-static | Gary CPU, WindowServer CPU | 0.1%, 10.9% | 0.1%, 10.9% |
+| s4-shader | Gary CPU, WindowServer CPU | 10.6%, 45.9% | 10.6%, 46.2% |
+| s4-loops | Gary instructions | 286 M/s | 248 M/s |
+| s4-loops | WindowServer CPU | 48.7% (48.7 to 55.5) | 58.8% (55.8 to 59.8) |
 
-    git worktree add --detach tmp/at-base 8a11dbb && (cd tmp/at-base && scripts/bundle.sh) && mkdir -p tmp/apps/base && cp -R tmp/at-base/build/Gary.app tmp/apps/base/
-
-- S2 500 and 1000: main-thread time and CPU with the display cycle running. Units 2 and 3 should show here. This also checks the harness's 20 to 25% gap at 1000 nodes and with it the node cap decision.
-- S3: first mount at 1000 nodes. The harness measured the mount alone at 160 ms before unit 3 and 135 ms after.
-- S4: loops and shader should not move, since no unit changed them. The static control checks that unit 3 left non-animated nodes alone.
-- `s6-launch-1000` with the screen on, against the 7.7 s backlog in `BASELINE.md`.
-- Rank 5, capping or moving `loop` and shader animations, was not attempted. To measure it, profile each case with the screen on:
-
-      /usr/bin/lockf -k /tmp/gary-live.lock python3 scripts/bench/render.py profile s4-loops 10 tmp/bench/s4-loops.txt
-      /usr/bin/lockf -k /tmp/gary-live.lock python3 scripts/bench/render.py profile s4-shader 10 tmp/bench/s4-shader.txt
-      python3 scripts/bench/profile.py tmp/bench/s4-loops.txt
+- At 1000 nodes the old build kept one core at 100% and still drew 30 frames a second, so the main thread was saturated. The new build halves it.
+- S3 moved by 4%, close to the run-to-run range.
+- s4-loops is a regression in WindowServer: about 10 points more CPU with ranges that do not overlap. Gary's own work fell. The likely cause is unit 6, which draws a loop's offset through `TransformEffect`.
+- Loops and shaders redraw at 120 Hz (123 to 167 wakeups a second) and cost WindowServer 46 to 59% CPU. Rank 5, capping them, is still open.
 
 ## Open issues
 
-- `GestureViewTests` "a scroll node with a scroll action scrolls and sends the action" fails while the display sleeps, on `main` 780446a too. Every other test passes.
+- `GestureViewTests` "a scroll node with a scroll action scrolls and sends the action" skips itself while the display sleeps, because AppKit then never moves the scroll view.
 - The post-launch flush stall comes from the `sndrgrdn.weather` widget's Shortcut (unit 7). Its fix belongs in `sndrgrdn/gary-plugins`.
-- Unit 7 ran with the display asleep. With the screen on, the Live Activity is also composited, so the stall may be longer.
 - S5 still parses the whole 200 KB state in JavaScript on every render.
 - A node that gains or loses `shadow`, `clip`, `material`, `colorScheme`, a click action, or a `loop` still rebuilds its subtree. These branches predate unit 3.
 - `JSON` is no longer `Decodable`. Nothing in the repository decoded it with `Codable`.
