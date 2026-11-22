@@ -1,17 +1,43 @@
 import Foundation
 
-public enum TrayRequest: Equatable, Sendable {
-    case items
-    case press(id: String)
+public enum TrayButton: String, CaseIterable, Sendable {
+    case left, right
+}
 
-    public static let methods = ["items", "press"]
+public struct TrayClick: Equatable, Sendable {
+    public var button: TrayButton
+    public var modifiers: KeyCombo.Modifiers
+
+    public init(button: TrayButton = .left, modifiers: KeyCombo.Modifiers = []) {
+        self.button = button
+        self.modifiers = modifiers
+    }
+
+    static let modifierNames: [String: KeyCombo.Modifiers] = ["cmd": .command, "ctrl": .control, "alt": .option, "shift": .shift]
+}
+
+public enum TrayRequest: Equatable, Sendable {
+    case press(id: String, TrayClick)
+
+    public static let methods = ["press"]
 
     public static func parse(_ call: HostCall) throws -> TrayRequest {
-        switch call.method {
-        case "items": .items
-        case "press": try .press(id: call.string(0, "id"))
-        default: throw call.unknownMethod
+        guard call.method == "press" else { throw call.unknownMethod }
+        let id = try call.string(0, "id")
+        guard call.arguments.count > 1, call.arguments[1] != .null else { return .press(id: id, TrayClick()) }
+        guard let options = call.arguments[1].object else { throw call.fail("options must be an object") }
+        var click = TrayClick()
+        if let raw = options["button"] {
+            guard let button = raw.string.flatMap(TrayButton.init(rawValue:)) else { throw call.fail("button must be \"left\" or \"right\"") }
+            click.button = button
         }
+        if let raw = options["modifiers"] {
+            let names = raw.array ?? [.null]
+            let modifiers = names.compactMap { $0.string.flatMap { TrayClick.modifierNames[$0] } }
+            guard modifiers.count == names.count else { throw call.fail("modifiers must be an array of \"cmd\", \"ctrl\", \"alt\" and \"shift\"") }
+            click.modifiers = KeyCombo.Modifiers(modifiers)
+        }
+        return .press(id: id, click)
     }
 }
 

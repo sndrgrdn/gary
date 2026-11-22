@@ -6,8 +6,12 @@ import GaryPrivate
 private let trayQueue = DispatchQueue(label: "gary.tray", qos: .userInitiated)
 
 extension Capability {
-    static let tray = Capability(name: "tray", summary: "The status items in the menu bar, with their icons. Press one.", types: """
+    static let tray = Capability(name: "tray", summary: """
+    The status items in the menu bar, with their icons, refreshed every 2 seconds while a plugin subscribes. \
+    Without Screen Recording the items have no icons, and reason says why. Press one with the left or right button and modifier keys.
+    """, types: """
     declare namespace Gary {
+      type Tray = { available: boolean; reason?: string; items: TrayItem[] }
       type TrayItem = {
         id: string;
         app: string;
@@ -21,34 +25,25 @@ extension Capability {
         height: number;
         icon: string | null;
       }
+      interface TrayPress { button?: "left" | "right"; modifiers?: ("cmd" | "ctrl" | "alt" | "shift")[] }
       interface Host { tray: TrayApi }
       interface TrayApi {
-        items(): Promise<{ items: TrayItem[]; iconError: string | null }>;
-        press(id: string): Promise<TrayItem & { opened: boolean }>;
+        press(id: string, options?: TrayPress): Promise<TrayItem & { opened: boolean }>;
       }
     }
     """, example: """
-    let items: Gary.TrayItem[] = [];
-
-    function refresh() {
-      host.tray.items().then((result) => {
-        items = result.items;
-      });
-    }
-    refresh();
-    setInterval(refresh, 5_000);
-
     export default {
-      render() {
+      render(state) {
         return {
           type: "row",
-          children: items.map((item): Gary.Node => item.icon
-            ? { type: "image", key: item.id, path: item.icon, action: item.id }
-            : { type: "text", key: item.id, text: item.name, action: item.id }),
+          children: (state.tray?.items ?? []).map((item): Gary.Node => item.icon
+            ? { type: "image", key: item.id, path: item.icon, action: item.id, rightAction: `right ${item.id}` }
+            : { type: "text", key: item.id, text: item.name, action: item.id, rightAction: `right ${item.id}` }),
         };
       },
-      onAction(id) {
-        host.tray.press(id).then((item) => host.log(`${item.name} opened a menu: ${item.opened}`));
+      onAction(action) {
+        const [button, id] = action.startsWith("right ") ? (["right", action.slice(6)] as const) : (["left", action] as const);
+        host.tray.press(id, { button }).then((item) => host.log(`${item.name} opened a menu: ${item.opened}`));
       },
     } satisfies Gary.BarWidget;
     """, permissions: [.accessibility, .screenRecording], install: { host, plugin in
@@ -57,22 +52,56 @@ extension Capability {
             return .later(trayQueue) {
                 guard AXIsProcessTrusted() else { throw HostFailure(missingGrant(.accessibility, "the tray")) }
                 switch request {
-                case .items:
-                    let items = try scan()
-                    let icons = capture(items)
-                    return .object([
-                        "items": .array(items.map { $0.json(icon: icons.paths[$0.id]) }),
-                        "iconError": icons.error.map(JSON.string) ?? .null,
-                    ])
-                case let .press(id):
+                case let .press(id, how):
                     guard let item = try scan().first(where: { $0.id == id }) else { throw HostFailure("no tray item \(id)") }
                     guard case var .object(fields) = item.json(icon: nil) else { return .null }
-                    fields["opened"] = try .bool(click(item.element.frame))
+                    fields["opened"] = try .bool(click(item.element.frame, how))
                     return .object(fields)
                 }
             }
         }
-    })
+    }, topic: CapabilityTopic(type: "Tray") { TrayTopic($0) })
+}
+
+private final class TrayTopic: TopicFeed {
+    private let publish: (JSON, Trace) -> Void
+    private let timer = DispatchSource.makeTimerSource(queue: trayQueue)
+    private var icons: Set<String> = []
+
+    init(_ publish: @escaping (JSON, Trace) -> Void) {
+        self.publish = publish
+        timer.setEventHandler { [weak self] in self?.refresh() }
+        timer.schedule(deadline: .now(), repeating: 2, leeway: .milliseconds(500))
+        timer.resume()
+    }
+
+    deinit {
+        timer.cancel()
+    }
+
+    private func refresh() {
+        let items: [TrayItem]
+        do {
+            guard AXIsProcessTrusted() else { throw HostFailure(missingGrant(.accessibility, "the tray")) }
+            items = try scan()
+        } catch {
+            publish(.object(["available": .bool(false), "reason": .string("\(error)"), "items": .array([])]), Trace("tray"))
+            return
+        }
+        let captured = capture(items)
+        let current = Set(captured.paths.values)
+        let folder = pngFolder("tray")
+        for name in (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [] {
+            let path = folder.appending(path: name).path
+            if !current.contains(path), !icons.contains(path) {
+                try? FileManager.default.removeItem(atPath: path)
+            }
+        }
+        icons = current
+        var tray: [String: JSON] = ["available": .bool(true), "items": .array(items.map { $0.json(icon: captured.paths[$0.id]) })]
+        tray["reason"] = captured.error.map(JSON.string)
+        publish(.object(tray), Trace("tray"))
+    }
 }
 
 private func attribute<Value>(_ element: AXUIElement, _ name: String, as _: Value.Type) -> Value? {
@@ -121,7 +150,18 @@ private func scan() throws -> [TrayItem] {
     return TrayItem.merge(elements)
 }
 
-private func click(_ frame: CGRect) throws -> Bool {
+private struct ModifierKey {
+    let modifier: KeyCombo.Modifiers
+    let code: CGKeyCode
+    let flag: CGEventFlags
+}
+
+private let modifierKeys = [
+    ModifierKey(modifier: .command, code: 55, flag: .maskCommand), ModifierKey(modifier: .shift, code: 56, flag: .maskShift),
+    ModifierKey(modifier: .option, code: 58, flag: .maskAlternate), ModifierKey(modifier: .control, code: 59, flag: .maskControl),
+]
+
+private func click(_ frame: CGRect, _ how: TrayClick) throws -> Bool {
     guard CGPreflightPostEventAccess() else { throw HostFailure(missingGrant(.accessibility, "tray.press")) }
     let point = CGPoint(x: frame.midX, y: frame.midY)
     let before = Set(popups())
@@ -134,17 +174,36 @@ private func click(_ frame: CGRect) throws -> Bool {
         post(.mouseMoved, at: edge)
         usleep(700_000)
     }
-    post(.leftMouseDown, at: point)
-    post(.leftMouseUp, at: point)
+    let held = modifierKeys.filter { how.modifiers.contains($0.modifier) }
+    var flags: CGEventFlags = []
+    for key in held {
+        flags.insert(key.flag)
+        post(key: key.code, down: true, flags: flags)
+    }
+    let right = how.button == .right
+    post(right ? .rightMouseDown : .leftMouseDown, at: point, button: right ? .right : .left, flags: flags)
+    post(right ? .rightMouseUp : .leftMouseUp, at: point, button: right ? .right : .left, flags: flags)
+    for key in held.reversed() {
+        flags.remove(key.flag)
+        post(key: key.code, down: false, flags: flags)
+    }
     if let pointer {
         CGWarpMouseCursorPosition(pointer)
     }
     return wait(for: { !Set(popups()).subtracting(before).isEmpty })
 }
 
-private func post(_ type: CGEventType, at point: CGPoint) {
-    CGEvent(mouseEventSource: CGEventSource(stateID: .hidSystemState), mouseType: type, mouseCursorPosition: point, mouseButton: .left)?
-        .post(tap: .cghidEventTap)
+private func post(_ type: CGEventType, at point: CGPoint, button: CGMouseButton = .left, flags: CGEventFlags = []) {
+    let event = CGEvent(mouseEventSource: CGEventSource(stateID: .hidSystemState), mouseType: type, mouseCursorPosition: point, mouseButton: button)
+    event?.flags = flags
+    event?.post(tap: .cghidEventTap)
+    usleep(20000)
+}
+
+private func post(key: CGKeyCode, down: Bool, flags: CGEventFlags) {
+    let event = CGEvent(keyboardEventSource: CGEventSource(stateID: .hidSystemState), virtualKey: key, keyDown: down)
+    event?.flags = flags
+    event?.post(tap: .cghidEventTap)
     usleep(20000)
 }
 

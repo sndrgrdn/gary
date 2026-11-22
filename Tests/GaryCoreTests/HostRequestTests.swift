@@ -217,10 +217,19 @@ struct TrayRequestTests {
         #expect(items[0].json(icon: nil)["title"] == .string("2"))
     }
 
-    @Test func `press takes an item ID`() throws {
-        #expect(try TrayRequest.parse(call("tray", "items")) == .items)
-        #expect(try TrayRequest.parse(call("tray", "press", .string("com.brnbw.dinky#1"))) == .press(id: "com.brnbw.dinky#1"))
+    @Test func `press takes an item ID and optionally A button and modifier keys`() throws {
+        let id = JSON.string("com.brnbw.dinky#1")
+        #expect(try TrayRequest.parse(call("tray", "press", id)) == .press(id: "com.brnbw.dinky#1", TrayClick()))
+        #expect(try TrayRequest.parse(call("tray", "press", id, .null)) == .press(id: "com.brnbw.dinky#1", TrayClick()))
+        #expect(try TrayRequest.parse(call("tray", "press", id, ["button": "right", "modifiers": ["alt", "cmd"]])) == .press(
+            id: "com.brnbw.dinky#1",
+            TrayClick(button: .right, modifiers: [.option, .command]),
+        ))
         #expect(throws: ArgumentError("host.tray.press: id must be a string")) { try TrayRequest.parse(call("tray", "press")) }
+        for options: JSON in [["button": "middle"], ["modifiers": "alt"], ["modifiers": ["option"]], "right"] {
+            #expect(throws: ArgumentError.self) { try TrayRequest.parse(call("tray", "press", id, options)) }
+        }
+        #expect(throws: ArgumentError("host.tray.items is not a method")) { try TrayRequest.parse(call("tray", "items")) }
     }
 }
 

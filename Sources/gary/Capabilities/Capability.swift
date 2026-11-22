@@ -105,8 +105,12 @@ private func message(_ error: Error, _ call: HostCall) -> String {
     }
 }
 
+func pngFolder(_ folder: String) -> URL {
+    URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: "gary/\(folder)")
+}
+
 func savePNG(_ data: Data, in folder: String) throws -> String {
-    let directory = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: "gary/\(folder)")
+    let directory = pngFolder(folder)
     let name = SHA256.hash(data: data).prefix(12).map { String(format: "%02x", $0) }.joined()
     let url = directory.appending(path: "\(name).png")
     if !FileManager.default.fileExists(atPath: url.path) {
