@@ -122,13 +122,12 @@ final class ExecRuns {
     private func launch(_ argv: [String], _ finish: @escaping (Result<JSON, Error>) -> Void) {
         let process = command(argv)
         let id = ObjectIdentifier(process)
-        process.terminationHandler = { [weak self] _ in self?.queue.async { self?.exited(id) } }
         do {
             let stdout = try scratchFile()
             let stderr = try scratchFile()
             process.standardOutput = stdout.writer
             process.standardError = stderr.writer
-            try process.run()
+            try LiveCommands.shared.run(process) { [weak self] in self?.queue.async { self?.exited(id) } }
             runs[id] = Run(process: process, stdout: stdout.reader, stderr: stderr.reader, finish: finish)
         } catch {
             finish(.success(result(status: -1, stdout: "", stderr: "\(error)")))
@@ -215,9 +214,8 @@ final class SpawnRuns {
         let stderr = Pipe()
         run.process.standardOutput = stdout
         run.process.standardError = stderr
-        run.process.terminationHandler = { [weak self] _ in self?.queue.async { self?.exited(id) } }
         do {
-            try run.process.run()
+            try LiveCommands.shared.run(run.process) { [weak self] in self?.queue.async { self?.exited(id) } }
         } catch {
             runs[id] = nil
             run.exit(-1, "\(error)")
@@ -295,7 +293,7 @@ private final class PipeReader {
     }
 }
 
-struct LineBuffer {
+private struct LineBuffer {
     private var pending = Data()
 
     mutating func append(_ data: Data) -> [String] {
@@ -309,6 +307,33 @@ struct LineBuffer {
     mutating func flush() -> [String] {
         defer { pending = Data() }
         return pending.isEmpty ? [] : [String(decoding: pending, as: UTF8.self)]
+    }
+}
+
+private final class LiveCommands: @unchecked Sendable {
+    static let shared = LiveCommands()
+    private let lock = NSLock()
+    private var running: Set<pid_t> = []
+
+    private init() {
+        atexit { LiveCommands.shared.stopAll() }
+    }
+
+    func run(_ process: Process, exited: @escaping () -> Void) throws {
+        process.terminationHandler = { [self] process in
+            lock.withLock { _ = running.remove(process.processIdentifier) }
+            exited()
+        }
+        try lock.withLock {
+            try process.run()
+            running.insert(process.processIdentifier)
+        }
+    }
+
+    func stopAll() {
+        for pid in lock.withLock({ running }) {
+            kill(pid, SIGTERM)
+        }
     }
 }
 
