@@ -155,7 +155,7 @@ struct ThemeTests {
         #expect(theme.style("panel").background == nil)
     }
 
-    @Test func `plugins get the mode the resolved colours the raw palette and the spacing`() throws {
+    @Test func `plugins get the mode the resolved colours the raw palette the spacing and the radius`() throws {
         let json = try theme(palette: "background = \"#fafafa\"\nforeground = \"#333333\"\naccent = \"#3060c0\"\nicon_mark = \"#8839ef\"").json
         #expect(json["mode"] == .string("light"))
         #expect(json["colors"]?["selected"] == .string("#3060c040"))
@@ -167,6 +167,14 @@ struct ThemeTests {
             "icon_mark": .string("#8839ef"),
         ]))
         #expect(json["spacing"] == .object(["item": .number(8), "section": .number(16), "edge": .number(20)]))
+        #expect(json["radius"] == .object(["control": .number(6), "surface": .number(12)]))
+    }
+
+    @Test func `a style radius that names the radius scale follows the scale`() throws {
+        let theme = try theme(#"{"radius": {"control": 4, "surface": 0}}"#)
+        #expect(theme.style("surface").radius == 0)
+        #expect(theme.style("selected").radius == 4)
+        #expect(try self.theme(#"{"styles": {"chip": {"radius": "surface"}}}"#).style("chip").radius == 12)
     }
 
     @Test func `the bundled theme resolves every style`() throws {
@@ -238,7 +246,11 @@ struct ThemeTests {
             (#"{"fonts": {"body": {"weight": "extra"}}}"#, ThemeError(path: "fonts.body.weight", reason: "unknown weight extra")),
             (#"{"bar": {"height": -1}}"#, ThemeError(path: "bar.height", reason: "must be a non-negative number")),
             (#"{"spacing": 8}"#, ThemeError(path: "spacing", reason: "must be an object")),
-            (#"{"styles": {"panel": {"radius": "round"}}}"#, ThemeError(path: "styles.panel.radius", reason: "must be a number")),
+            (
+                #"{"styles": {"panel": {"radius": "round"}}}"#,
+                ThemeError(path: "styles.panel.radius", reason: "must be a number or a radius name: control, surface"),
+            ),
+            (#"{"radius": {"control": -1}}"#, ThemeError(path: "radius.control", reason: "must be a non-negative number")),
             (#"{"motion": {"fade": "slow"}}"#, ThemeError(path: "motion.fade", reason: "must be a non-negative number")),
         ]
         for (override, error) in cases {

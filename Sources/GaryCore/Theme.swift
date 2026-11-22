@@ -30,6 +30,11 @@ public struct Theme: Equatable, Sendable {
         public var edge: Double
     }
 
+    public struct Radius: Equatable, Sendable {
+        public var control: Double
+        public var surface: Double
+    }
+
     public struct Bar: Equatable, Sendable {
         public var height: Double
         public var gap: Double
@@ -46,6 +51,7 @@ public struct Theme: Equatable, Sendable {
     public var colors: [String: RGBA]
     public var fonts: [String: FontToken]
     public var spacing: Spacing
+    public var radius: Radius
     public var bar: Bar
     public var motion: Motion
     public var styles: [String: StyleProps]
@@ -98,6 +104,7 @@ public struct Theme: Equatable, Sendable {
         return .object([
             "mode": .string(mode.rawValue), "colors": hexes(colors), "palette": hexes(palette.colors),
             "spacing": .object(["item": .number(spacing.item), "section": .number(spacing.section), "edge": .number(spacing.edge)]),
+            "radius": .object(["control": .number(radius.control), "surface": .number(radius.surface)]),
         ])
     }
 
@@ -110,6 +117,7 @@ public struct Theme: Equatable, Sendable {
             palette: palette,
         )
         let spacingFields = try object(json["spacing"], "spacing")
+        let radiusFields = try object(json["radius"], "radius")
         let barFields = try object(json["bar"], "bar")
         let motionFields = try object(json["motion"], "motion")
         let fonts = try fonts(json["fonts"], "fonts")
@@ -117,6 +125,10 @@ public struct Theme: Equatable, Sendable {
             item: number(spacingFields["item"], "spacing.item"),
             section: number(spacingFields["section"], "spacing.section"),
             edge: number(spacingFields["edge"], "spacing.edge"),
+        )
+        let radius = try Radius(
+            control: number(radiusFields["control"], "radius.control"),
+            surface: number(radiusFields["surface"], "radius.surface"),
         )
         let bar = try Bar(
             height: number(barFields["height"], "bar.height"),
@@ -126,7 +138,7 @@ public struct Theme: Equatable, Sendable {
             fonts: barFields["fonts"] == nil ? [:] : Self.fonts(barFields["fonts"], "bar.fonts"),
         )
         let motion = try Motion(fade: number(motionFields["fade"], "motion.fade"))
-        let styles = try styles(json["styles"], fonts: fonts)
+        let styles = try styles(json["styles"], fonts: fonts, radius: radiusFields)
         guard let fallback = styles["default"] else { throw ThemeError(path: "styles.default", reason: "must be an object") }
         if fallback.color == nil {
             throw ThemeError(path: "styles.default.color", reason: "must name a color")
@@ -134,7 +146,7 @@ public struct Theme: Equatable, Sendable {
         guard let fallbackFont = fallback.font.flatMap({ fonts[$0] })
         else { throw ThemeError(path: "styles.default.font", reason: "must name a font") }
         var theme = Theme(
-            palette: palette, colors: colors, fonts: fonts, spacing: spacing, bar: bar, motion: motion,
+            palette: palette, colors: colors, fonts: fonts, spacing: spacing, radius: radius, bar: bar, motion: motion,
             styles: styles, warnings: [], textLines: nil, fallback: fallback, fallbackFont: fallbackFont,
         )
         theme.warnings = (colorWarnings + theme.styleWarnings()).sorted()
@@ -216,11 +228,21 @@ public struct Theme: Equatable, Sendable {
         return try FontToken(family: family, size: number(fields["size"], "\(path).size"), weight: weight)
     }
 
-    private static func styles(_ value: JSON?, fonts: [String: FontToken]) throws -> [String: StyleProps] {
+    private static func styles(_ value: JSON?, fonts: [String: FontToken], radius: [String: JSON]) throws -> [String: StyleProps] {
         try object(value, "styles").reduce(into: [:]) { styles, entry in
             let (name, value) = entry
             let path = "styles.\(name)"
-            let props = try StyleProps.parse(object(value, path)) { field, reason in ThemeError(path: "\(path).\(field)", reason: reason) }
+            var fields = try object(value, path)
+            if let scale = fields["radius"]?.string {
+                guard let points = radius[scale] else {
+                    throw ThemeError(
+                        path: "\(path).radius",
+                        reason: "must be a number or a radius name: \(radius.keys.sorted().joined(separator: ", "))",
+                    )
+                }
+                fields["radius"] = points
+            }
+            let props = try StyleProps.parse(fields) { field, reason in ThemeError(path: "\(path).\(field)", reason: reason) }
             if let font = props.font, fonts[font] == nil {
                 throw ThemeError(path: "\(path).font", reason: "unknown font \(font)")
             }

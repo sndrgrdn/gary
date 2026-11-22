@@ -8,31 +8,6 @@ public enum PluginTypes {
         [coreTypes(theme: theme), stateTypes(topics: topics), moduleTypes(capabilities: capabilities, published: published)].joined(separator: "\n\n")
     }
 
-    private static func union(_ values: [String]) -> String {
-        values.map { "\"\($0)\"" }.joined(separator: " | ")
-    }
-
-    private static func names(_ section: String, in theme: JSON?) -> String {
-        let keys = theme?[section]?.object?.keys.sorted() ?? []
-        return (keys.map { "\"\($0)\"" } + ["(string & {})"]).joined(separator: " | ")
-    }
-
-    private static var styleFields: String {
-        (StyleProps.numbers.map { "\($0.0)?: number;" } + [
-            "padding?: number | [number, number] | [number, number, number, number];",
-        ] + StyleProps.signed.map { "\($0.0)?: number;" } + [
-            "align?: \(union(Align.allCases.map(\.rawValue)));", "animation?: \(union(Animation.allCases.map(\.rawValue)));",
-            "material?: \(union(Material.allCases.map(\.rawValue)));", "colorScheme?: \(union(ColorScheme.allCases.map(\.rawValue)));",
-            "transition?: \(union(Transition.allCases.map(\.rawValue)));",
-            "fit?: \(union(ImageFit.allCases.map(\.rawValue)));", "lines?: number;", "truncate?: \(union(Truncation.allCases.map(\.rawValue)));",
-            "clip?: boolean;", "shadow?: { color: Color; radius?: number; y?: number };", "border?: { color: Color; width?: number };",
-            "blend?: \(union(Blend.allCases.map(\.rawValue)));",
-            "loop?: { " + Loop.Property.allCases.map { "\($0.rawValue)?: [number, number]; " }.joined() + "duration?: number; reverse?: boolean };",
-            "background?: Paint;",
-        ] + StyleProps.colors.map { "\($0.0)?: Color;" } + ["font?: FontName;"])
-            .map { "    \($0)" }.joined(separator: "\n")
-    }
-
     private static func coreTypes(theme: JSON?) -> String {
         let nodes = Node.Kind.allCases.map { kind in
             "  interface \(typeName(kind.rawValue)) extends Style {\n    type: \"\(kind.rawValue)\";\(fields(kind).map { "\n    \($0)" }.joined())\n  }"
@@ -104,6 +79,7 @@ public enum PluginTypes {
             colors: { [name: string]: string };
             palette: { [name: string]: string };
             spacing: { item: number; section: number; edge: number };
+            radius: { control: number; surface: number };
           }
           interface Topics {
         \(fields)
@@ -307,5 +283,32 @@ private extension PluginTypes {
 
     static func perKind(_ kinds: [PluginKind], _ items: JSON) -> JSON {
         type("object", ["propertyNames": .object(["enum": strings(kinds.map(\.rawValue))]), "additionalProperties": items])
+    }
+}
+
+private extension PluginTypes {
+    static func union(_ values: [String]) -> String {
+        values.map { "\"\($0)\"" }.joined(separator: " | ")
+    }
+
+    static func names(_ section: String, in theme: JSON?) -> String {
+        let keys = theme?[section]?.object?.keys.sorted() ?? []
+        return (keys.map { "\"\($0)\"" } + ["(string & {})"]).joined(separator: " | ")
+    }
+
+    static var styleFields: String {
+        (StyleProps.numbers.map { "\($0.0)?: number;" } + [
+            "padding?: number | [number, number] | [number, number, number, number];",
+        ] + StyleProps.signed.map { "\($0.0)?: number;" } + [
+            "align?: \(union(Align.allCases.map(\.rawValue)));", "animation?: \(union(Animation.allCases.map(\.rawValue)));",
+            "material?: \(union(Material.allCases.map(\.rawValue)));", "colorScheme?: \(union(ColorScheme.allCases.map(\.rawValue)));",
+            "transition?: \(union(Transition.allCases.map(\.rawValue)));",
+            "fit?: \(union(ImageFit.allCases.map(\.rawValue)));", "lines?: number;", "truncate?: \(union(Truncation.allCases.map(\.rawValue)));",
+            "clip?: boolean;", "shadow?: { color: Color; radius?: number; y?: number };", "border?: { color: Color; width?: number };",
+            "blend?: \(union(Blend.allCases.map(\.rawValue)));",
+            "loop?: { " + Loop.Property.allCases.map { "\($0.rawValue)?: [number, number]; " }.joined() + "duration?: number; reverse?: boolean };",
+            "background?: Paint;",
+        ] + StyleProps.colors.map { "\($0.0)?: Color;" } + ["font?: FontName;"])
+            .map { "    \($0)" }.joined(separator: "\n")
     }
 }

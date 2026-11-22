@@ -23,6 +23,7 @@
     "mono": { "family": "monospaced", "size": 12, "weight": "regular" }
   },
   "spacing": { "item": 8, "section": 16, "edge": 20 },
+  "radius": { "control": 6, "surface": 12 },
   "bar": {
     "height": 32,
     "fonts": {
@@ -42,18 +43,18 @@
     "bad": { "color": "bad" },
     "title": { "color": "bright", "font": "title" },
     "mono": { "font": "mono" },
-    "panel": { "background": "panel", "radius": 12, "padding": 14 },
-    "surface": { "background": "panel", "radius": 12 },
+    "panel": { "background": "panel", "radius": "surface", "padding": 14 },
+    "surface": { "background": "panel", "radius": "surface" },
     "tooltip": {
       "background": "panel",
-      "radius": 6,
+      "radius": "control",
       "padding": [4, 8],
       "fontSize": 11,
       "border": { "color": "border" }
     },
     "toast": {
       "background": "panel",
-      "radius": 10,
+      "radius": "surface",
       "padding": [10, 14],
       "width": 340,
       "border": { "color": "border" }
@@ -61,11 +62,16 @@
     "toast-title": { "color": "bright", "font": "strong" },
     "toast-body": { "color": "secondary" },
     "toast-icon": { "color": "accent", "fontSize": 20 },
-    "hover": { "background": "hover", "radius": 6 },
-    "selected": { "color": "bright", "background": "selected", "radius": 6 },
-    "button": { "background": "control", "radius": 6, "padding": 6 },
+    "hover": { "background": "hover", "radius": "control" },
+    "selected": { "color": "bright", "background": "selected", "radius": "control" },
+    "button": { "background": "control", "radius": "control", "padding": 6 },
     "button-hover": { "background": "alpha(foreground, 0.18)" },
-    "primary": { "color": "on-accent", "background": "accent", "radius": 6, "padding": 6 },
+    "primary": {
+      "color": "on-accent",
+      "background": "accent",
+      "radius": "control",
+      "padding": 6
+    },
     "primary-hover": { "background": "mix(accent, foreground, 0.15)" }
   }
 }
