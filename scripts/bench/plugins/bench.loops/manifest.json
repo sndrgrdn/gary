@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "bench.loops",
+  "name": "Loops bench",
+  "version": "0.1.0",
+  "kinds": ["panel"],
+  "entryPoints": { "panel": "panel.js" }
+}

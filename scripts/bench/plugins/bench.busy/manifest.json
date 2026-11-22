@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "bench.busy",
+  "name": "Busy bench",
+  "version": "0.1.0",
+  "kinds": ["panel"],
+  "entryPoints": { "panel": "panel.js" }
+}

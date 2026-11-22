@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "bench.tick",
+  "name": "Tick bench",
+  "version": "0.1.0",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "bar-widget": "widget.js" }
+}
