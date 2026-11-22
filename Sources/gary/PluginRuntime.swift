@@ -13,14 +13,12 @@ final class PluginRuntime: Subscriber {
     let bundle: PluginBundle
     let kind: PluginKind
     let hub: StateHub
-    private let settings: JSON
     let deliver: (PluginRuntime, RuntimeEvent) -> Void
     let queue: DispatchQueue
     private let watchdog = Watchdog()
     private var functions: PluginFunctions?
     private var exception: String?
-    private var state: [Topic: JSON] = [:]
-    private var theme: JSON
+    private var state: StateText
     private var timers: [Int: DispatchSourceTimer] = [:]
     private var stops: [() -> Void] = []
     private var nextTimer = 1
@@ -48,8 +46,7 @@ final class PluginRuntime: Subscriber {
         self.kind = kind
         self.scene = scene
         initialScene = scene
-        self.settings = settings
-        self.theme = theme
+        state = StateText(settings: settings, theme: theme)
         self.hub = hub
         self.deliver = deliver
         queue = DispatchQueue(label: "gary.plugin.\(bundle.manifest.id)", qos: .userInitiated)
@@ -57,11 +54,12 @@ final class PluginRuntime: Subscriber {
 
     func load(_ trace: Trace) {
         queue.async { [self] in
-            state = hub.subscribe(self, to: bundle.manifest.subscribes)
+            let topics = hub.subscribe(self, to: bundle.manifest.subscribes)
+            let texts = Dictionary(uniqueKeysWithValues: topics.map { topic, value in (topic, timed(.encode) { state.set(topic, value) }) })
             do {
                 let functions = try timed(.evaluate) { try evaluate() }
-                for (topic, value) in state.sorted(by: { $0.key.description < $1.key.description }) {
-                    try announce(topic, value, to: functions)
+                for (topic, text) in texts.sorted(by: { $0.key.description < $1.key.description }) {
+                    try announce(topic, text, to: functions)
                 }
                 let names = kind.isSurface ? try surfaces(functions).keys.sorted() : []
                 surfaceNames = names
@@ -87,17 +85,17 @@ final class PluginRuntime: Subscriber {
 
     func setTheme(_ theme: JSON, _ trace: Trace) {
         queue.async { [self] in
-            self.theme = theme
+            state.setTheme(theme)
             renderAll(trace)
         }
     }
 
     func receive(_ topic: Topic, _ value: JSON, _ trace: Trace) {
         queue.async { [self] in
-            state[topic] = value
+            let text = timed(.encode) { state.set(topic, value) }
             guard let functions else { return }
             do {
-                try announce(topic, value, to: functions)
+                try announce(topic, text, to: functions)
                 renderAll(trace)
             } catch {
                 fail("\(error)")
@@ -105,8 +103,9 @@ final class PluginRuntime: Subscriber {
         }
     }
 
-    private func announce(_ topic: Topic, _ value: JSON, to functions: PluginFunctions) throws {
-        try invoke(functions.dispatch, ["onTopic", encode(.array([.string(topic.description), value])), stateText(for: nil)], [.jsParse, .handler])
+    private func announce(_ topic: Topic, _ text: String, to functions: PluginFunctions) throws {
+        let arguments = "[\(encode(.string(topic.description))),\(text)]"
+        try invoke(functions.dispatch, ["onTopic", arguments, stateText(for: nil)], [.jsParse, .handler])
     }
 
     func perform(_ action: String, _ payload: JSON, origin: CGRect? = nil) {
@@ -265,12 +264,7 @@ final class PluginRuntime: Subscriber {
     }
 
     private func stateText(for display: DisplayInfo?, surface: String? = nil) -> String {
-        var fields = Dictionary(uniqueKeysWithValues: state.map { ($0.key.description, $0.value) })
-        fields["settings"] = settings
-        fields["theme"] = theme
-        fields["display"] = display?.json
-        fields["surface"] = surface.map(JSON.string)
-        return encode(JSON.object(fields))
+        timed(.encode) { state.text(display: display, surface: surface) }
     }
 
     private func encode(_ json: JSON) -> String {

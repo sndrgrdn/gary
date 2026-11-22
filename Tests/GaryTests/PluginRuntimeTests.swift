@@ -125,6 +125,8 @@ struct PluginRuntimeTests {
         };
         """)
         #expect(try await harness.text() == "hi dark main")
+        harness.runtime.setTheme(.object(["name": .string("light")]), Trace("test"))
+        #expect(try await harness.text() == "hi light main")
         harness.runtime.stop()
     }
 
@@ -316,6 +318,8 @@ struct PluginRuntimeTests {
         #expect(try await harness.text().isEmpty)
         try harness.hub.publish(.plugin(#require(PluginID("test.other"))), .number(7), Trace("test"))
         #expect(try await harness.text() == "test.other=7")
+        try harness.hub.publish(.plugin(#require(PluginID("test.other"))), .array([.string("a\"b")]), Trace("test"))
+        #expect(try await harness.text() == #"test.other=7,test.other=["a\"b"]"#)
         harness.runtime.stop()
     }
 
