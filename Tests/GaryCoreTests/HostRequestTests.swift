@@ -302,6 +302,12 @@ struct DeviceRequestTests {
         }
     }
 
+    @Test func `audio lists AirPlay targets and selects one by name`() throws {
+        #expect(try AudioRequest.parse(call("audio", "airplay")) == .airplay)
+        #expect(try AudioRequest.parse(call("audio", "selectAirPlay", .string("Bedroom"))) == .selectAirPlay(name: "Bedroom"))
+        #expect(throws: ArgumentError.self) { try AudioRequest.parse(call("audio", "selectAirPlay", .number(1))) }
+    }
+
     @Test func `brightness takes A fraction and an optional display`() throws {
         #expect(try BrightnessRequest.parse(call("brightness", "set", .number(0.5))) == .set(0.5, display: nil))
         #expect(try BrightnessRequest.parse(call("brightness", "set", .number(0), .string("37D8"))) == .set(0, display: "37D8"))

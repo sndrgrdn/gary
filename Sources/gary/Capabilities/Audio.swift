@@ -8,7 +8,8 @@ extension Capability {
         name: "audio",
         summary: """
         Audio devices, volume, mute, the apps that play audio, and the apps that use the microphone. \
-        Set the volume, mute, the default device, and the volume of each app.
+        Set the volume, mute, the default device, and the volume of each app. \
+        airplay lists the AirPlay speakers and selectAirPlay plays to one, by opening Control Center's Sound control for about a second.
         """,
         types: """
         declare namespace Gary {
@@ -23,12 +24,15 @@ extension Capability {
           type AudioApp = { pid: number; name: string; bundleId: string | null; path: string | null; volume: number }
           type AudioDeviceSummary = { id: string; name: string; transport: string; output: boolean; input: boolean }
           type AudioDeviceState = { id: string; name: string; transport: string; volume: number | null; muted: boolean | null }
+          type AirPlayTarget = { name: string; selected: boolean }
           interface Host { audio: AudioApi }
           interface AudioApi {
             setVolume(volume: number, scope?: AudioScope): null;
             setMuted(muted: boolean, scope?: AudioScope): null;
             setDefaultDevice(id: string, scope?: AudioScope): null;
             setAppVolume(pid: number, volume: number): Promise<null>;
+            airplay(): Promise<AirPlayTarget[]>;
+            selectAirPlay(name: string): Promise<null>;
           }
         }
         """,
@@ -44,7 +48,7 @@ extension Capability {
           },
         } satisfies Gary.Panel;
         """,
-        permissions: [.audioCapture],
+        permissions: [.audioCapture, .accessibility],
         install: { host, plugin in
             plugin.installAPI(host, "audio", AudioRequest.methods) { call in
                 switch try AudioRequest.parse(call) {
@@ -67,12 +71,29 @@ extension Capability {
                         try appVolumes.set(pid, volume)
                         return .null
                     }
+                case .airplay:
+                    return .later(ControlCenter.queue, airplayTargets)
+                case let .selectAirPlay(name):
+                    return .later(ControlCenter.queue) { try selectAirPlay(name) }
                 }
                 return .now(.null)
             }
         },
         topic: CapabilityTopic(type: "Audio") { AudioTopic($0) },
     )
+}
+
+private func airplayTargets() throws -> JSON {
+    let local = Set(AudioDevice.all().filter { $0.has(.output) && $0.transport != "airplay" }.map(\.name))
+    return try .array(ControlCenter.soundOutputs().filter { !local.contains($0.name) }.map { .object([
+        "name": .string($0.name),
+        "selected": .bool($0.selected),
+    ]) })
+}
+
+private func selectAirPlay(_ name: String) throws -> JSON {
+    try ControlCenter.selectSoundOutput(name)
+    return .null
 }
 
 extension AudioScope {

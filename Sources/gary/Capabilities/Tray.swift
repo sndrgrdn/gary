@@ -105,13 +105,13 @@ private final class TrayTopic: TopicFeed {
     }
 }
 
-private func attribute<Value>(_ element: AXUIElement, _ name: String, as _: Value.Type) -> Value? {
+func attribute<Value>(_ element: AXUIElement, _ name: String, as _: Value.Type) -> Value? {
     var value: CFTypeRef?
     guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
     return value as? Value
 }
 
-private func children(_ element: AXUIElement, _ name: String = kAXChildrenAttribute) -> [AXUIElement] {
+func children(_ element: AXUIElement, _ name: String = kAXChildrenAttribute) -> [AXUIElement] {
     attribute(element, name, as: [AXUIElement].self) ?? []
 }
 
