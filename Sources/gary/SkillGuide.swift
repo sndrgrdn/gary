@@ -45,10 +45,10 @@ extension Skill {
     | `bar` | A whole bar that replaces the built-in one. |
     | `panel` | A window that `gary summon <id>`, `gary toggle <id>`, or `host.show()` shows. |
     | `overlay` | A panel that covers the whole display above other windows. |
-    | `menu` | A focusable panel that takes keys and hides when the user clicks outside it. |
+    | `menu` | A focusable panel that takes keys and hides when the user clicks outside it or presses escape. Each menu surface hides on its own. |
     | `service` | A script with no view. It publishes values for other plugins and answers `gary call`. |
 
-    A **surface** is the window of a panel, overlay, or menu. The module's `surface` export places it. Gary loads a surface when it is shown and stops it when it is hidden, unless the manifest sets `keepLoaded`. `host.show()`, `host.hide()`, and `host.toggle()` act on the plugin's surface from any of its kinds, so a bar widget opens its own plugin's panel with `host.toggle()`.
+    A **surface** is a window of a panel, overlay, or menu. The module's `surface` export places it. To show several windows at once, such as a settings panel and an on-screen display, export `surfaces` instead: an object that maps each surface name to what `surface` takes. A name is lowercase letters, digits, and hyphens. A module with only `surface` has one surface named `main`, and a module that exports both fails to load. Each surface is shown, placed, focused, and hidden on its own, and `render` draws each one with its name in `state.surface`. Gary loads a kind when it shows its first surface and stops it when its last surface hides, unless the manifest sets `keepLoaded`. `host.show(name)`, `host.hide(name)`, and `host.toggle(name)` act on the plugin's surface with that name, or `main` without one, from any of its kinds, so a bar widget opens its own plugin's panel with `host.toggle()`. When two kinds of a plugin declare the same name, the first kind in `kinds` takes it.
 
     A **topic** is a value that Gary keeps in the plugin's `state`. A capability topic, such as `clock` or `battery`, runs only while a plugin subscribes to it. A plugin topic is the last value that another plugin passed to `host.publish`, under that plugin's id. The manifest lists topics in `subscribes`.
 
@@ -101,7 +101,7 @@ extension Skill {
 
     ### Verify and debug
 
-    - `gary listPlugins` prints one line per plugin: id, version, `builtin` or `user`, and one state per kind, such as `bar-widget:running panel:hidden`. The states are:
+    - `gary listPlugins` prints one line per plugin: id, version, `builtin` or `user`, and one state per kind, such as `bar-widget:running panel:hidden`. A running kind with several surfaces gives one state per surface instead, such as `panel:main=shown,osd=hidden`. The states are:
     	- `running`: a bar widget, bar, or service that runs.
     	- `stopped`: a bar widget, bar, or service between a failure and its restart.
     	- `shown`: a panel, overlay, or menu on screen.
@@ -113,7 +113,7 @@ extension Skill {
     	- `failed(reason)`, or `disabled(reason)` after 5 failures in 60 seconds.
     - The log is `~/Library/Logs/gary.log` when Gary runs as an app. Plugin lines start with `plugin <id>/<kind>:` for loads and failures, and `plugin <id>:` for `host.log`. Run `grep 'plugin you.weather' ~/Library/Logs/gary.log | tail -n 20` after each save.
     - `gary call <id> <method> [args...]` runs a function from the module's `methods`, loading the plugin first if needed. When the function returns a promise, it waits up to 60 seconds for it. It prints a string result as is and anything else as JSON. A thrown error or rejected promise prints its message and exits with status 1. Add a `methods` entry that returns internal state when you need to inspect it.
-    - `gary summon <id>`, `gary hide <id>`, and `gary toggle <id>` show and hide a panel, overlay, or menu, as `host.show()`, `host.hide()`, and `host.toggle()` do.
+    - `gary summon <id>`, `gary hide <id>`, and `gary toggle <id>` show and hide a panel, overlay, or menu, as `host.show()`, `host.hide()`, and `host.toggle()` do. Add a colon and a surface name to act on a surface other than `main`, such as `gary summon you.music:osd`.
     - `gary action <id> <kind> <action> [payload]` sends `onAction` to a running kind, as a click on a node with that `action` would, and Gary renders again. Pass a number for a slider value or text for an input. Use it to test clicks instead of synthesizing mouse events, which need Accessibility for your terminal. For example, `gary action you.music bar-widget toggle` runs the widget's click handler, and `gary listPlugins` then shows `panel:shown`.
     - `gary reloadPlugins <id>` reloads a plugin from disk. `gary rescanPlugins` finds added and removed plugin folders.
     - `gary doctor` reports private API, permission, plugin, `shell.json`, and theme problems.
@@ -179,6 +179,7 @@ extension Skill {
     | `onMediaKey(event, state)` | When a key that `host.mediakeys.intercept` claimed is pressed. |
     | `methods` | `gary call <id> <method> [args...]` and `host.call(method, ...args)` run one with string arguments. It returns a JSON value, or a promise of one. |
     | `surface` | An object, or a function of `state`, that places a panel, overlay, or menu. |
+    | `surfaces` | An object that maps surface names to what `surface` takes, for a kind that shows several windows. Use it instead of `surface`. |
 
     ## state
 
@@ -187,6 +188,7 @@ extension Skill {
     | `settings` | The plugin's object from `settings.<id>` in `shell.json`, or `{}`. |
     | `theme` | `{ mode, colors, palette }`, with colors as hex strings. |
     | `display` | The display being rendered: `{ id, index, main, width, height, notched, notch }`. Only in `render`. |
+    | `surface` | The name of the surface being rendered, `main` for a module with only `surface` and for bar widgets and bars. Only in `render`. |
     | `<capability>` | The value of a subscribed capability topic. The capability sections below give its shape. |
     | `<plugin id>` | The last value that the plugin published. |
 
@@ -218,7 +220,7 @@ extension Skill {
     | `host.log(message)` | Writes `plugin <id>: <message>` to Gary's log. |
     | `host.storage.get(key)`, `host.storage.set(key, value)` | Keeps JSON values in `~/Library/Application Support/Gary/storage/<id>.json`. Setting `undefined` deletes the key. |
     | `host.publish(value)` | Publishes a JSON value as the topic named by the plugin's id. |
-    | `host.show()`, `host.hide()`, `host.toggle()` | Shows or hides the plugin's surface. Called from `onAction`, or from `onScroll` over a node with `scrollAction`, `show` and `toggle` pass on the frame of the node the user clicked or scrolled, which a surface with `attach` opens at. Called later, such as after a promise or a timer, they pass on no frame. |
+    | `host.show(name?)`, `host.hide(name?)`, `host.toggle(name?)` | Shows or hides the plugin's surface named `name`, or `main`. A name that is not lowercase letters, digits, and hyphens throws. In a panel, overlay, or menu module that is the plugin's only surface kind, a name the module does not declare throws too. From another kind, Gary logs a name that no kind declares. Called from `onAction`, or from `onScroll` over a node with `scrollAction`, `show` and `toggle` pass on the frame of the node the user clicked or scrolled, which a surface with `attach` opens at. Called later, such as after a promise or a timer, they pass on no frame. |
     | `host.call(method, ...args)` | Runs a function from the plugin's own `methods`, in the kind that `gary call` would run, loading it if needed, and returns a promise of its result. It rejects with the error the function threw or rejected with, or after 60 seconds. Plugins reach each other only through `host.publish` and `subscribes`. |
 
     `setTimeout`, `setInterval`, `clearTimeout`, and `clearInterval` work as in a browser. An interval is at least 10 ms.
@@ -271,6 +273,8 @@ extension Skill {
     - Colors are \(ColorExpr.syntax).
 
     ## surface
+
+    These fields place a surface, whether it comes from `surface` or from an entry in `surfaces`.
 
     | Field | Values | Default |
     | --- | --- | --- |

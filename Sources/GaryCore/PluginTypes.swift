@@ -92,6 +92,7 @@ public enum PluginTypes {
             settings: { [key: string]: Json };
             theme: Theme;
             display?: Display;
+            surface?: string;
         \(topics)
           }
 
@@ -125,9 +126,9 @@ public enum PluginTypes {
             log(message: string): void;
             storage: Storage;
             publish(value: Json): void;
-            show(): void;
-            hide(): void;
-            toggle(): void;
+            show(surface?: string): void;
+            hide(surface?: string): void;
+            toggle(surface?: string): void;
             call(method: string, ...args: string[]): Promise<Json | undefined>;
           }
 
@@ -139,8 +140,10 @@ public enum PluginTypes {
             onHotkey?(id: string, state: State): void;
             onTopic?(topic: string, value: Json, state: State): void;
             methods?: { [name: string]: (...args: string[]) => Json | void | Promise<Json | void> };
-            surface?: Surface | null | ((state: State) => Surface | null | undefined);
+            surface?: SurfaceExport;
+            surfaces?: { [name: string]: SurfaceExport };
           }
+          type SurfaceExport = Surface | null | ((state: State) => Surface | null | undefined);
           interface Rendered extends Module {
             render(state: State): Node;
           }

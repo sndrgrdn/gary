@@ -40,6 +40,15 @@ struct PluginTypesTests {
         }
     }
 
+    @Test func `declares named surfaces the rendered surface and host surface names`() {
+        let text = PluginTypes.declarations(capabilities: [], pluginTopics: [], theme: nil)
+        #expect(text.contains("surfaces?: { [name: string]: SurfaceExport };"))
+        #expect(text.contains("surface?: string;"))
+        for request in ["show", "hide", "toggle"] {
+            #expect(text.contains("\(request)(surface?: string): void;"))
+        }
+    }
+
     @Test func `adds capability declarations plugin topics and theme names`() throws {
         let text = try PluginTypes.declarations(
             capabilities: ["declare namespace Gary { interface State { clock?: Clock } }"], pluginTopics: [#require(PluginID("acme.counter"))],
