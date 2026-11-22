@@ -10,12 +10,21 @@ extension Capability {
         Sleep, lock the screen, restart, shut down, or log out. `sleep` asks the power manager directly and needs no permission. \
         `lock` presses the Lock Screen shortcut, control-command-Q, so it needs Accessibility. `restart`, `shutDown`, and `logOut` \
         ask loginwindow, as the Apple menu does, so apps can save their documents or cancel. macOS asks the user once, the first time, \
-        to let Gary control loginwindow, and the promise rejects while that Automation grant is missing.
+        to let Gary control loginwindow, and the promise rejects while that Automation grant is missing. \
+        `stayAwake` keeps the Mac awake, as caffeinate does, until the plugin calls it with `"off"` or stops: \
+        `"system"` keeps the Mac from sleeping when idle but lets the display sleep, and `"display"` keeps the display on too.
         """,
         types: """
         declare namespace Gary {
           interface Host {
-            power: { sleep(): null; lock(): null; restart(): Promise<null>; shutDown(): Promise<null>; logOut(): Promise<null> };
+            power: {
+              sleep(): null;
+              lock(): null;
+              restart(): Promise<null>;
+              shutDown(): Promise<null>;
+              logOut(): Promise<null>;
+              stayAwake(mode: "off" | "system" | "display"): null;
+            };
           }
         }
         """,
@@ -27,19 +36,26 @@ extension Capability {
           { action: "restart", symbol: "arrow.clockwise", title: "Restart" },
           { action: "shutDown", symbol: "power", title: "Shut Down" },
         ] as const;
+        let awake = false;
 
         export default {
           render() {
+            const items = [...actions, { action: "awake", symbol: awake ? "cup.and.saucer.fill" : "cup.and.saucer", title: "Stay Awake" }];
             return {
               type: "column",
               gap: 4,
-              children: actions.map(({ action, symbol, title }) => ({
+              children: items.map(({ action, symbol, title }) => ({
                 type: "button", key: action, action,
                 children: [{ type: "row", gap: 6, children: [{ type: "icon", symbol }, { type: "text", text: title }] }],
               })),
             };
           },
           onAction(action) {
+            if (action === "awake") {
+              awake = !awake;
+              host.power.stayAwake(awake ? "display" : "off");
+              return;
+            }
             host.hide();
             if (action === "lock") host.power.lock();
             else if (action === "sleep") host.power.sleep();
@@ -51,8 +67,14 @@ extension Capability {
         """,
         permissions: [.accessibility],
         install: { host, plugin in
-            plugin.installAPI(host, "power", ["sleep", "lock", "restart", "shutDown", "logOut"]) { call in
+            let awake = Awake(name: "Gary: \(plugin.id)")
+            plugin.onStop { awake.release() }
+            plugin.installAPI(host, "power", ["sleep", "lock", "restart", "shutDown", "logOut", "stayAwake"]) { call in
                 switch call.method {
+                case "stayAwake":
+                    let raw = try call.string(0, "mode")
+                    guard let mode = Awake.Mode(rawValue: raw) else { throw call.fail("mode must be \"off\", \"system\", or \"display\"") }
+                    try awake.hold(mode)
                 case "sleep": try sleepNow()
                 case "lock": try lockScreen()
                 case "restart": return .later(.global(qos: .userInitiated)) { try askLoginWindow(AEEventID(kAERestart)) }
@@ -102,4 +124,40 @@ private func askLoginWindow(_ event: AEEventID) throws -> JSON {
     )
     try message.sendEvent(options: [.noReply], timeout: 10)
     return .null
+}
+
+private final class Awake {
+    enum Mode: String {
+        case off, system, display
+
+        var assertionType: String? {
+            switch self {
+            case .off: nil
+            case .system: kIOPMAssertionTypePreventUserIdleSystemSleep
+            case .display: kIOPMAssertionTypePreventUserIdleDisplaySleep
+            }
+        }
+    }
+
+    private let name: String
+    private var assertion: IOPMAssertionID?
+
+    init(name: String) {
+        self.name = name
+    }
+
+    func hold(_ mode: Mode) throws {
+        release()
+        guard let type = mode.assertionType else { return }
+        var id = IOPMAssertionID(0)
+        let status = IOPMAssertionCreateWithName(type as CFString, IOPMAssertionLevel(kIOPMAssertionLevelOn), name as CFString, &id)
+        guard status == kIOReturnSuccess else { throw HostFailure("the power manager refused to keep the Mac awake (\(status))") }
+        assertion = id
+    }
+
+    func release() {
+        guard let assertion else { return }
+        IOPMAssertionRelease(assertion)
+        self.assertion = nil
+    }
 }
