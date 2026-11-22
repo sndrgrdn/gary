@@ -163,6 +163,54 @@ The rule from the brief: raise the cap to a round number below the node count at
 
 So the main thread reaches half of a 30 Hz frame within a few percent above 1000 nodes, and no round number above 1000 meets the rule. A panel whose content does not overflow grows only about 4 µs per node between 500 and 1000 nodes. A bench with a scroll node could justify a higher cap later, but this harness does not show it.
 
+## Unit 6: keep each node's structure when its effects or minWidth change
+
+Unit 3 skipped the visual effects and the `minWidth` frame with `@ViewBuilder` branches. A branch change gives the subtree a new identity, so a node that gained or lost `opacity`, `x` or `minWidth` between renders rebuilt its children. Text fields lost their text and focus, hover and press state reset, scroll positions reset, and a change to the default value snapped instead of animating. `TreeViewIdentityTests` types into an input inside a row and toggles each of the nine properties off and on. It fails on 5552630 and passes now.
+
+Every node now has the same structure:
+
+- `VisualEffects` applies scale, rotation and offset as one `TransformEffect`, a `GeometryEffect`, followed by blur, opacity and blend. `LoopEffect` adds the static offset to its own, so a loop's scale and rotation still apply before the static offset.
+- `MinWidth` is a `Layout` that passes sizes through when `minWidth` is nil and otherwise sizes and places like `.frame(minWidth:alignment:)`. It reports no explicit alignment guides. Gary's stacks, grids and frames align only to leading, center, trailing and top, and no Gary view sets those guides explicitly, so every position stays the same.
+- A spacer node gets its parent's axis and wraps its `Spacer` in a one-item stack on that axis. A `Layout` hides the stack axis from a `Spacer` inside it, which made spacers grow in both directions.
+
+`NodeEffectTests` checks the effects and the loop against SwiftUI's own modifiers pixel by pixel, checks `MinWidth` against `.frame(minWidth:)` for six alignments, and checks that a spacer grows along its row or column only. A scratch render of one tree with spacers in every container kind, `minWidth` with leading, center and trailing alignment, and every effect gave a byte-identical PNG and identical AppKit view frames against 5552630.
+
+### Candidates
+
+Harness, frame p50 at 1000 nodes, n=5 per variant, alternated, load average about 2. The first five rows keep 5552630's `minWidth` branch. The rows marked "probe" leave out loops, so they only measure cost and cannot ship.
+
+| Candidate                                                                                 | Frame p50                 |
+| ----------------------------------------------------------------------------------------- | ------------------------- |
+| 5552630, branches                                                                         | 7.27 ms (7.23 to 11.74)   |
+| One `ViewModifier` with the built-in effects                                              | 8.26 ms (8.24 to 8.41)    |
+| Same, plain-value fields only (probe)                                                     | 8.18 ms (8.15 to 8.24)    |
+| One `.visualEffect` closure plus `blendMode` (probe)                                      | 8.32 ms (8.29 to 8.34)    |
+| One `GeometryEffect` for scale, rotation and offset, plus blur, opacity and blend (probe) | 7.86 ms (7.82 to 8.01)    |
+| Same with the loop state and reduce-motion setting in that modifier                       | 8.31 ms (8.28 to 8.39)    |
+| 5552630's effects with a `MinWidth` that forwards alignment queries                       | 7.30 ms (7.27 to 7.31)    |
+| Built-in effects, `MinWidth` without alignment guides                                     | 7.76 ms (7.72 to 8.11)    |
+| `GeometryEffect`, `MinWidth` that forwards alignment queries                              | 8.01 ms (7.95 to 8.21)    |
+| `GeometryEffect`, `MinWidth` without alignment guides (kept)                              | 7.39 ms (7.38 to 7.43)    |
+| `.frame(minWidth:)` on every node, alignment cut at containers only, n=3                  | 14.94 ms (14.89 to 14.95) |
+
+- Wrapping the effects in a custom modifier saves nothing. Each effect costs about the same whatever its value. Per 1000 nodes, blur costs about 0.03 ms, opacity 0.07 ms, blend 0.14 ms, and `scaleEffect`, `rotationEffect` and `offset` together 0.5 ms (probes, n=3). One `GeometryEffect` in their place costs 0.25 ms.
+- Alignment queries were the larger cost. When `MinWidth` forwards them, each parent stack walks the whole subtree, and at 2000 nodes, where the column overflows and is compressed, the frame takes 28.34 ms (28.23 to 28.39) against 20.14 ms (20.09 to 20.15) with the cut.
+- A `@ViewBuilder` branch on every node costs about 0.5 ms per 1000 nodes even when both sides have the same type: 7.87 against 7.38 ms, n=3. So the spacer is handled inside the spacer case, not with a branch in every node's box.
+- The flexible frame costs about 7 µs per node by itself, so `MinWidth` replaces it.
+
+### Result
+
+Harness, n=5 per build, alternated:
+
+| Nodes | Frame p50, unit 2         | 5552630                   | Unit 6                    | First mount, 5552630 | Unit 6  |
+| ----- | ------------------------- | ------------------------- | ------------------------- | -------------------- | ------- |
+| 100   | 5.11 ms (4.52 to 5.22)    | 4.50 ms (4.28 to 4.74)    | 4.69 ms (4.54 to 4.80)    | 49.8 ms              | 35.6 ms |
+| 500   | 8.39 ms (8.32 to 8.43)    | 5.46 ms (5.18 to 5.83)    | 5.45 ms (5.11 to 5.54)    | 67.0 ms              | 79.5 ms |
+| 1000  | 16.84 ms (16.73 to 17.15) | 7.23 ms (7.19 to 7.32)    | 7.39 ms (7.38 to 7.43)    | 134 ms               | 159 ms  |
+| 2000  | 37.10 ms (36.91 to 38.23) | 20.66 ms (20.50 to 20.74) | 20.14 ms (20.09 to 20.15) | 271 ms               | 324 ms  |
+
+At 100 and 500 nodes the ranges overlap, so there is no measurable difference. At 1000 nodes a frame takes 0.16 ms (2%) longer, and at 2000 nodes 0.5 ms (3%) less, because the alignment cut saves more than the extra effects cost once the column is compressed. The first mount at 1000 and 2000 nodes is back at unit 2's 159 and 320 ms, since every node builds its effects again. The 100-node mount is the first in the process, as in unit 3.
+
 ## Pending checks with the screen on
 
 Run these from the repository root with the screen unlocked. They quit and relaunch the user's Gary. `tmp/apps/base` is the rebased build 8a11dbb, and `build/Gary.app` is the head of this branch.
@@ -190,5 +238,5 @@ If `tmp/apps/base` is gone, rebuild it:
 - `GestureViewTests` "a scroll node with a scroll action scrolls and sends the action" fails while the display sleeps, on `main` 780446a too. Every other test passes.
 - The post-launch flush stall has no known cause. Unit 4 bounds its latency but not the stall.
 - S5 still parses the whole 200 KB state in JavaScript on every render.
-- When a node without hover or pressed styles and without an animation gains or loses a visual effect, such as `opacity`, between renders, SwiftUI rebuilds its subtree, so text fields inside lose focus. The same holds for a node that gains or loses `minWidth`. Before unit 3 these changes kept the subtree.
+- A node that gains or loses `shadow`, `clip`, `material`, `colorScheme`, a click action, or a `loop` still rebuilds its subtree. These branches predate unit 3.
 - `JSON` is no longer `Decodable`. Nothing in the repository decoded it with `Codable`.
