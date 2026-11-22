@@ -77,7 +77,13 @@ struct SurfaceTests {
     }
 
     @Test func `an attached surface opens centred below the node it was shown from`() throws {
-        #expect(try attached(CGRect(x: 480, y: 772, width: 40, height: 24)) == CGRect(x: 400, y: 664, width: 200, height: 100))
+        #expect(try attached(CGRect(x: 480, y: 600, width: 40, height: 24)) == CGRect(x: 400, y: 492, width: 200, height: 100))
+    }
+
+    @Test func `a surface attached to a bar node opens below the bar whatever the node's height`() throws {
+        let below = CGRect(x: 400, y: 800 - 32 - 8 - 100, width: 200, height: 100)
+        #expect(try attached(CGRect(x: 480, y: 772, width: 40, height: 24)) == below)
+        #expect(try attached(CGRect(x: 480, y: 776, width: 40, height: 16)) == below)
     }
 
     @Test func `an attached surface flips above the node when there is no room below`() throws {

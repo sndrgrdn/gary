@@ -4,7 +4,6 @@ import SwiftUI
 
 final class TooltipPanel {
     static let delay = 0.5
-    static let gap = 6.0
 
     var theme: Theme
     private let panel = makeSurfacePanel(level: Int(CGWindowLevelForKey(.popUpMenuWindow)))
@@ -61,12 +60,12 @@ final class TooltipPanel {
             hide()
             return
         }
-        let origin = window.convertToScreen(owner.convert(owner.bounds, to: nil))
+        let origin = screen.display(index: 0, theme: theme).attachment(window.convertToScreen(owner.convert(owner.bounds, to: nil)))
         view.rootView = NodeView(node: Node(.text(text), style: "tooltip"), theme: theme)
         panel.appearance = NSAppearance(named: theme.mode == .dark ? .darkAqua : .aqua)
         view.layoutSubtreeIfNeeded()
         let bounds = screen.frame.insetBy(dx: theme.spacing.edge, dy: theme.spacing.edge)
-        panel.setFrame(SurfaceSpec.attached(view.intrinsicContentSize, to: origin, gap: Self.gap, within: bounds), display: true)
+        panel.setFrame(SurfaceSpec.attached(view.intrinsicContentSize, to: origin, gap: theme.spacing.item, within: bounds), display: true)
         panel.orderFrontRegardless()
     }
 }

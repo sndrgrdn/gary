@@ -27,6 +27,12 @@ public struct DisplayInfo: Equatable, Sendable {
             "notch": notch.map { .object(["left": .number($0.lowerBound), "right": .number($0.upperBound)]) } ?? .null,
         ])
     }
+
+    public func attachment(_ origin: CGRect) -> CGRect {
+        let bandBottom = frame.maxY - band
+        guard origin.minY >= bandBottom else { return origin }
+        return CGRect(x: origin.minX, y: bandBottom, width: origin.width, height: band)
+    }
 }
 
 public enum SurfaceLayer: String, CaseIterable, Sendable {
@@ -292,7 +298,9 @@ public struct SurfaceSpec: Equatable, Sendable {
         edge: Double,
         fitting: (_ width: Double?, _ height: Double?, _ limit: CGSize) -> CGSize,
     ) -> CGRect {
-        guard attach, let origin, display.frame.contains(CGPoint(x: origin.midX, y: origin.midY)) else { return frame(on: display, fitting: fitting) }
+        guard attach, let node = origin,
+              display.frame.contains(CGPoint(x: node.midX, y: node.midY)) else { return frame(on: display, fitting: fitting) }
+        let origin = display.attachment(node)
         let bounds = display.frame.insetBy(dx: edge, dy: edge)
         let limit = CGSize(
             width: max(0, bounds.width),
