@@ -81,7 +81,8 @@ struct GestureViewTests {
 
     private let rows = (0..<40).map { #"{"type":"text","key":"\#($0)","text":"row \#($0)"}"# }.joined(separator: ",")
 
-    @Test func `a scroll node with a scroll action scrolls and sends the action`() throws {
+    @Test(.enabled(if: CGDisplayIsAsleep(CGMainDisplayID()) == 0, "AppKit moves a scroll view only while a display is awake"))
+    func `a scroll node with a scroll action scrolls and sends the action`() throws {
         let result = try scrolled(#"{"type":"scroll","height":100,"scrollAction":"wheel","children":[\#(rows)]}"#)
         #expect(result.sent == ["wheel"])
         #expect(result.offset > 0)
