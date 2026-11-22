@@ -81,4 +81,61 @@ struct NodeLayoutTests {
         #expect(try drawn(#""truncate":"tail","#) == CGSize(width: 60, height: line))
         #expect(try drawn(#""lines":2,"#) == CGSize(width: 60, height: line * 2))
     }
+
+    private nonisolated static let inkSamples = [
+        ("JetBrainsMono Nerd Font", "\u{F00AF}"),
+        ("JetBrainsMono Nerd Font", "\u{F0928}"),
+        ("Snell Roundhand", "f"),
+    ]
+    .filter { NSFontManager.shared.availableFontFamilies.contains($0.0) }
+
+    private func text(_ text: String, family: String, fields: String = "") throws -> NodeView {
+        let base = try JSON.parse(Data(contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+                .appending(path: "Resources/theme.json")))
+        let theme = try Theme.parse(
+            base,
+            palette: Palette(nil, system: .dark),
+            override: JSON.parse(#"{"fonts":{"body":{"family":"\#(family)","size":13,"weight":"regular"}}}"#),
+        )
+        return try NodeView(node: Node.parse(JSON.parse(#"{"type":"text",\#(fields)"text":\#(JSON.string(text).text)}"#)), theme: theme)
+    }
+
+    private func width(_ text: String, family: String) throws -> CGFloat {
+        try NSHostingView(rootView: self.text(text, family: family)).fittingSize.width
+    }
+
+    private func line(_ text: String, family: String) throws -> (ink: CGRect, advance: Double) {
+        let font = try #require(NSFontManager.shared.font(withFamily: family, traits: [], weight: 5, size: 13))
+        let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: [.font: font]))
+        return (CTLineGetBoundsWithOptions(line, .useGlyphPathBounds), CTLineGetTypographicBounds(line, nil, nil, nil))
+    }
+
+    @Test(arguments: inkSamples)
+    func `a text node's frame holds the ink of glyphs that outrun their advance`(family: String, text: String) throws {
+        let (ink, advance) = try line(text, family: family)
+        #expect(try width(text, family: family) >= max(ink.maxX, advance) - min(ink.minX, 0))
+    }
+
+    @Test func `plain text keeps its typographic width`() throws {
+        let font = NSFont.systemFont(ofSize: 13)
+        let plain = NSHostingView(rootView: Text(verbatim: "Wi-Fi 100%").font(Font(font as CTFont)).fixedSize()).fittingSize.width
+        #expect(try width("Wi-Fi 100%", family: "system") == plain)
+    }
+
+    @Test(arguments: inkSamples.filter { $0.0 == "JetBrainsMono Nerd Font" })
+    func `a glyph in a fixed-width centred slot draws whole, centred by its ink`(family: String, glyph: String) throws {
+        let view = try NSHostingView(rootView: text(glyph, family: family, fields: #""width":27,"align":"center","#))
+        view.frame = CGRect(origin: .zero, size: view.fittingSize)
+        let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        let inked = (0..<bitmap.pixelsWide)
+            .filter { x in (0..<bitmap.pixelsHigh).contains { (bitmap.colorAt(x: x, y: $0)?.alphaComponent ?? 0) > 0.1 } }
+        let left = try #require(inked.first)
+        let right = try #require(inked.last)
+        let scale = Double(bitmap.pixelsWide) / view.bounds.width
+        #expect(view.bounds.width == 27)
+        #expect(try Double(right + 1 - left) / scale >= line(glyph, family: family).ink.width - 0.5)
+        #expect(abs(Double(left + right + 1) / 2 / scale - 13.5) <= 0.5)
+    }
 }
