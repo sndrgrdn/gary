@@ -1,0 +1,60 @@
+import Foundation
+import GaryCore
+import Vision
+
+extension Capability {
+    static let vision = Capability(
+        name: "vision",
+        summary: """
+        Read the text in an image file or an area of the screen with the Vision framework. An area is a `ScreenArea` from the `screen` \
+        capability, such as the one `host.screen.select()` resolves with, and needs Screen Recording; an image file needs no permission. \
+        The first read after Gary is installed or moved takes about 30 seconds while macOS prepares the text model.
+        """,
+        types: """
+        declare namespace Gary {
+          interface Host { vision: VisionApi }
+          interface VisionApi {
+            readText(image: string | ScreenArea): Promise<string>;
+          }
+        }
+        """,
+        example: """
+        export default {
+          async onAction() {
+            host.hide();
+            const area = await host.screen.select();
+            if (!area) return;
+            const text = await host.vision.readText(area);
+            host.clipboard.writeText(text);
+          },
+          render() {
+            return { type: "text", text: "Copy text from the screen", action: "read" };
+          },
+        } satisfies Gary.Menu;
+        """,
+        permissions: [.screenRecording],
+        install: { host, plugin in
+            let folder = plugin.bundle.directory.path
+            plugin.installAPI(host, "vision", VisionRequest.methods) { call in
+                switch try VisionRequest.parse(call, home: home, folder: folder) {
+                case let .readText(source): .task { try await .string(readText(source)) }
+                }
+            }
+        },
+    )
+}
+
+private func readText(_ source: ImageSource) async throws -> String {
+    var request = RecognizeTextRequest()
+    request.automaticallyDetectsLanguage = true
+    let observations = switch source {
+    case let .file(path): try await request.perform(on: imageURL(path))
+    case let .screen(area): try await request.perform(on: captureImage(area))
+    }
+    return observations.compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
+}
+
+private func imageURL(_ path: String) throws -> URL {
+    guard FileManager.default.isReadableFile(atPath: path) else { throw HostFailure("\(path) is not a readable image") }
+    return URL(fileURLWithPath: path)
+}

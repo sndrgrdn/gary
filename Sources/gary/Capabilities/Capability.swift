@@ -42,6 +42,7 @@ struct Capability {
         .system,
         .toast,
         .tray,
+        .vision,
         .wallpaper,
         .wifi,
     ]
