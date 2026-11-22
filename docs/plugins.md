@@ -103,7 +103,7 @@ To give every panel, overlay, and menu a material, set it on the `surface` style
 
 `host.exec` finds commands in the PATH of your login shell, so `["dinky", "workspace", "2"]` runs `/opt/homebrew/bin/dinky`. Subscribe to `session` to act when the screen is locked or unlocked.
 
-A path that does not start with `/` or `~` is relative to the plugin folder, in an `image` or `shader` node, the `files` functions, and `host.wallpaper.set`. So a plugin finds the files it ships wherever it is installed, in `~/.config/gary/plugins` or in a package. Gary refuses a relative path whose `..` leaves the plugin folder.
+A path that does not start with `/` or `~` is relative to the plugin folder, in an `image` or `shader` node, the `files` functions, and `host.wallpaper.set`. So a plugin finds the files it ships wherever it is installed, in `~/.config/gary/plugins` or in a package.
 
 ## Draw shapes, charts, grids, and shaders
 

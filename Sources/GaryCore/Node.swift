@@ -126,21 +126,17 @@ public struct Node: Equatable, Sendable {
         }
     }
 
-    public func resolvingPaths(against folder: URL) throws -> Node {
-        func resolved(_ path: String) throws -> String {
-            guard !path.hasPrefix("/"), !path.hasPrefix("~") else { return path }
-            guard let resolved = absolutePath(path, home: "", folder: folder.path) else {
-                throw NodeError(path: key ?? kind.rawValue, reason: "\(kind.rawValue) path \"\(path)\" must stay inside the plugin folder")
-            }
-            return resolved
+    public func resolvingPaths(against folder: URL) -> Node {
+        func resolved(_ path: String) -> String {
+            path.hasPrefix("/") || path.hasPrefix("~") ? path : folder.appending(path: path).standardized.path
         }
         var node = self
         switch content {
-        case let .image(path): node.content = try .image(resolved(path))
+        case let .image(path): node.content = .image(resolved(path))
         case var .shader(shader):
-            shader.path = try resolved(shader.path)
+            shader.path = resolved(shader.path)
             node.content = .shader(shader)
-        default: return try with(children: children.map { try $0.resolvingPaths(against: folder) })
+        default: return with(children: children.map { $0.resolvingPaths(against: folder) })
         }
         return node
     }

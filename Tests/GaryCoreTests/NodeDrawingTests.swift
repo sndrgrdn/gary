@@ -118,17 +118,10 @@ struct NodeDrawingTests {
         {"type":"grid","columns":2,"children":[{"type":"shader","path":"fx/glow.metal","function":"glow"},
         {"type":"shader","path":"/abs.metal","function":"glow"}]}
         """#)
-        let resolved = try tree.resolvingPaths(against: URL(fileURLWithPath: "/plugins/you.fx"))
+        let resolved = tree.resolvingPaths(against: URL(fileURLWithPath: "/plugins/you.fx"))
         #expect(resolved.children.map(\.content) == [
             .shader(Node.Shader(path: "/plugins/you.fx/fx/glow.metal", function: "glow")),
             .shader(Node.Shader(path: "/abs.metal", function: "glow")),
         ])
-    }
-
-    @Test func `a shader path that leaves the plugin folder is an error`() throws {
-        let tree = try parse(#"{"type":"shader","path":"../other/glow.metal","function":"glow"}"#)
-        #expect(throws: NodeError(path: "shader", reason: "shader path \"../other/glow.metal\" must stay inside the plugin folder")) {
-            try tree.resolvingPaths(against: URL(fileURLWithPath: "/plugins/you.fx"))
-        }
     }
 }

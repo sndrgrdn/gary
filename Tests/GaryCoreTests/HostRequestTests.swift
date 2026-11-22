@@ -17,13 +17,9 @@ struct HostCallTests {
         #expect(absolutePath("/tmp/../../x", home: home, folder: folder) == "/x")
         #expect(absolutePath("notes.txt", home: home, folder: folder) == "/Users/gary/plugins/clock/notes.txt")
         #expect(absolutePath("./icons/../notes.txt", home: home, folder: folder) == "/Users/gary/plugins/clock/notes.txt")
+        #expect(absolutePath("../theme/a.txt", home: home, folder: folder) == "/Users/gary/plugins/theme/a.txt")
         #expect(absolutePath("~other/notes.txt", home: home, folder: folder) == nil)
         #expect(absolutePath("", home: home, folder: folder) == nil)
-    }
-
-    @Test func `plugin relative paths cannot leave the plugin folder`() {
-        #expect(absolutePath("../theme/a.txt", home: home, folder: folder) == nil)
-        #expect(absolutePath("icons/../../clock/a.txt", home: home, folder: folder) == nil)
     }
 
     @Test func `errors name the host function the plugin called`() {
@@ -48,10 +44,7 @@ struct FilesRequestTests {
             == .read(path: "/Users/gary/plugins/clock/app_icons.tsv"))
     }
 
-    @Test func `rejects paths that leave the plugin folder missing text and unknown methods`() {
-        #expect(throws: ArgumentError("host.readFile: path \"../notes.txt\" must be absolute, start with ~/, or stay inside the plugin folder")) {
-            try FilesRequest.parse(call(nil, "readFile", .string("../notes.txt")), home: home, folder: folder)
-        }
+    @Test func `rejects missing text and unknown methods`() {
         #expect(throws: ArgumentError("host.writeFile: text must be a string")) {
             try FilesRequest.parse(call(nil, "writeFile", .string("/tmp/a.txt")), home: home, folder: folder)
         }
@@ -105,7 +98,6 @@ struct WallpaperRequestTests {
         ))
         #expect(try WallpaperRequest.parse(call("wallpaper", "set", .string("walls/a.png")), home: home, folder: folder)
             == .set(path: "/Users/gary/plugins/clock/walls/a.png", display: nil))
-        #expect(throws: ArgumentError.self) { try WallpaperRequest.parse(call("wallpaper", "set", .string("../a.png")), home: home, folder: folder) }
         #expect(throws: ArgumentError("host.wallpaper.set: display must be a string")) {
             try WallpaperRequest.parse(call("wallpaper", "set", .string("/a.png"), .number(0)), home: home, folder: folder)
         }

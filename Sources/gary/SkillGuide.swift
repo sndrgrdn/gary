@@ -285,7 +285,7 @@ extension Skill {
     - A node with `action` is clickable. Gary calls `onAction(action, payload)`.
     - `rightAction` and `middleAction` name the action for a right click and a middle click on the node, with a `null` payload. `scrollAction` sends a scroll over the node to `onScroll`, with the name in the event's `action`. A `scroll` node with `scrollAction` still scrolls its children. When nested nodes name an action for the same gesture, the innermost node under the pointer takes it. These work in bar widgets, bars, panels, overlays, and menus.
     - `tooltip` is text that Gary shows below the node after the pointer rests on it for half a second, or above the node when there is no room below. It hides when the pointer leaves, on any click, and when the node goes away. The theme's `tooltip` style paints it.
-    - An `image` path that does not start with `/` or `~` is relative to the plugin folder and must stay inside it, so a plugin can ship its own images. A path that ends in `.app` shows that app's icon.
+    - An `image` path that does not start with `/` or `~` is relative to the plugin folder, so a plugin can ship its own images. A path that ends in `.app` shows that app's icon.
     - Text wraps when its surface is narrower than the text, such as a surface with a fixed `width` or one at the display's edge. Text in a `button` stays on one line.
     - A tree holds at most 1000 nodes and 16 levels.
     - Colors are \(ColorExpr.syntax).
