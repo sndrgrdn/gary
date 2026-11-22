@@ -123,6 +123,19 @@ To give every panel, overlay, and menu a material, set it on the `surface` style
 { "styles": { "surface": { "material": "glass", "background": "alpha(panel, 0.4)" } } }
 ```
 
+The theme also sets the shell's spacing and corner radii, in points. Plugins read them from `state.theme.spacing` and `state.theme.radius`, so changing them in `~/.config/gary/theme.json` respaces and rounds every plugin alike. Only keys that differ from Gary's defaults need to be in your file:
+
+| Key               | Default           | What it sets                                                                                          |
+| ----------------- | ----------------- | ----------------------------------------------------------------------------------------------------- |
+| `spacing.item`    | `8`               | The gap between an icon and its label, and inside rows.                                               |
+| `spacing.section` | `16`              | Panel padding and the gap between blocks.                                                             |
+| `spacing.edge`    | `20`              | How far surfaces stay inside the display.                                                             |
+| `radius.control`  | `6`               | Rows, buttons, and other controls.                                                                    |
+| `radius.surface`  | `12`              | Panels, menus, toasts, and cards.                                                                     |
+| `bar.height`      | `32`              | The bar's height.                                                                                     |
+| `bar.gap`         | `spacing.section` | The gap between bar widgets. `0` lets widgets that draw their own fixed-width slots sit side by side. |
+| `bar.edge`        | `spacing.edge`    | How far the bar's left and right sections sit from the display's edges.                               |
+
 `host.exec` finds commands in the PATH of your login shell, so `["dinky", "workspace", "2"]` runs `/opt/homebrew/bin/dinky`. Subscribe to `session` to act when the screen is locked or unlocked.
 
 A path that does not start with `/` or `~` is relative to the plugin folder, in an `image` or `shader` node, the `files` functions, and `host.wallpaper.set`. So a plugin finds the files it ships wherever it is installed, in `~/.config/gary/plugins` or in a package.
