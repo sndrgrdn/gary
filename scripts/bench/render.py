@@ -35,13 +35,14 @@ CASES = {
     "s2-busy-500": busy(500),
     "s2-busy-1000": busy(1000),
     "s3-first-1000": {**busy(1000, hz=0), "summon": None, "first": "bench.busy"},
+    "s6-launch-1000": {**busy(1000), "settle": 0, "warm": 0},
     "s4-static": loops("static"),
     "s4-loops": loops("loops"),
     "s4-shader": loops("shader"),
     "s5-small": feed(1_000),
     "s5-large": feed(200_000),
 }
-DARK_OK = {"s1-idle", "s2-busy-100", "s5-large"}
+DARK_OK = {"s1-idle", "s2-busy-100", "s5-large", "s6-launch-1000"}
 STAGES = ["evaluate", "encode", "js_parse", "handler", "render", "stringify", "swift_parse", "node_parse", "compare", "apply", "layout",
           "display", "flush"]
 LINE = re.compile(r"^(\d+\.\d+) (commit|render) plugin=(\S+?)(?:/\S+)? (.*)$")
@@ -283,7 +284,7 @@ def run(name, out, trace, dark_ok=False):
     try:
         install(case)
         pid = launch(log, trace)
-        time.sleep(SETTLE)
+        time.sleep(case.get("settle", SETTLE))
         if case.get("start"):
             result["started"] = cli("call", *case["start"]).stdout.strip()
         if case.get("summon"):
