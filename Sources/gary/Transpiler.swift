@@ -64,7 +64,9 @@ final class Transpiler {
         try context.evaluateScript(String(contentsOf: sucrase, encoding: .utf8), withSourceURL: sucrase)
         guard context.exception == nil, let transform = context.evaluateScript("""
         (function (source, transforms) {
-          return Sucrase.transform(source, { transforms: transforms, disableESTransforms: true }).code;
+          return Sucrase.transform(source, {
+            transforms: transforms, disableESTransforms: true, production: true, jsxPragma: "Gary.h", jsxFragmentPragma: "Gary.Fragment"
+          }).code;
         })
         """), transform.isObject else { throw RenderError("cannot load the transpiler from \(sucrase.path)") }
         return (context, transform)

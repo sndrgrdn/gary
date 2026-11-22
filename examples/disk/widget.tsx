@@ -20,26 +20,15 @@ export default {
     const disk = parseDisk(state["example.disk"]);
 
     if (!disk) {
-      return { type: "text", text: "disk …", style: "dim" };
+      return <text style="dim">disk …</text>;
     }
 
-    return {
-      type: "row",
-      action: "toggle",
-      children: [
-        {
-          type: "icon",
-          key: "icon",
-          symbol: "internaldrive",
-          style: disk.usedPercent > 90 ? "bad" : "dim",
-        },
-        {
-          type: "text",
-          key: "value",
-          text: showFree ? `${disk.freeGB} GB free` : `${disk.usedPercent}%`,
-        },
-      ],
-    };
+    return (
+      <row action="toggle">
+        <icon key="icon" symbol="internaldrive" style={disk.usedPercent > 90 ? "bad" : "dim"} />
+        <text key="value">{showFree ? `${disk.freeGB} GB free` : `${disk.usedPercent}%`}</text>
+      </row>
+    );
   },
 
   onAction(action) {

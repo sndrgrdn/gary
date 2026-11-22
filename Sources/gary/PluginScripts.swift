@@ -83,6 +83,36 @@ enum PluginScripts {
     })
     """
 
+    static let jsx = """
+    (function () {
+      function Fragment() {}
+      function flatten(items, out) {
+        items.forEach(function (item) {
+          if (Array.isArray(item)) flatten(item, out);
+          else if (item !== null && item !== undefined && item !== false && item !== true) out.push(item);
+        });
+        return out;
+      }
+      function h(type, props) {
+        var children = Array.prototype.slice.call(arguments, 2);
+        if (typeof type === "function" && type !== Fragment) {
+          props = Object.assign({}, props);
+          if (children.length) props.children = children.length === 1 ? children[0] : children;
+          return type(props);
+        }
+        children = flatten(children, []);
+        if (type === Fragment) return children;
+        var node = Object.assign({ type: type }, props);
+        if (children.length) {
+          if (type === "text") node.text = children.join("");
+          else node.children = children;
+        }
+        return node;
+      }
+      globalThis.Gary = { h: h, Fragment: Fragment };
+    })
+    """
+
     static let timers = """
     (function (add, clear) {
       function timer(repeats) {

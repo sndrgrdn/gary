@@ -24,67 +24,52 @@ function nudge(state: Gary.State, by: number) {
   flash();
 }
 
-function button(action: string, label: string): Gary.Node {
-  return {
-    type: "button",
-    key: action,
-    action,
-    style: "button",
-    children: [{ type: "text", text: label }],
-  };
+function Button({ action, label }: { action: string; label: string }) {
+  return (
+    <button key={action} action={action} style="button">
+      <text>{label}</text>
+    </button>
+  );
 }
 
 function osd(state: Gary.State): Gary.Node {
   const level = volume(state);
 
-  return {
-    type: "row",
-    gap: 12,
-    padding: [14, 18],
-    radius: 18,
-    material: "vibrant",
-    background: "alpha(panel, 0.5)",
-    animation: "smooth",
-    children: [
-      {
-        type: "icon",
-        key: "icon",
-        symbol: level === 0 ? "speaker.slash.fill" : "speaker.wave.2.fill",
-        fontSize: 18,
-        width: 24,
-      },
-      { type: "progress", key: "level", value: level, width: 180 },
-    ],
-  };
+  return (
+    <row
+      gap={12}
+      padding={[14, 18]}
+      radius={18}
+      material="vibrant"
+      background="alpha(panel, 0.5)"
+      animation="smooth"
+    >
+      <icon
+        key="icon"
+        symbol={level === 0 ? "speaker.slash.fill" : "speaker.wave.2.fill"}
+        fontSize={18}
+        width={24}
+      />
+      <progress key="level" value={level} width={180} />
+    </row>
+  );
 }
 
 function settings(state: Gary.State): Gary.Node {
-  return {
-    type: "column",
-    style: "panel",
-    gap: 10,
-    children: [
-      { type: "text", key: "title", text: "Volume", style: "title" },
-      {
-        type: "slider",
-        key: "volume",
-        value: volume(state),
-        action: "volume",
-        width: 220,
-      },
-      {
-        type: "row",
-        key: "buttons",
-        gap: 8,
-        children: [
-          button("down", "−"),
-          button("up", "+"),
-          button("flash", "Show OSD"),
-          button("close", "Close"),
-        ],
-      },
-    ],
-  };
+  return (
+    <column style="panel" gap={10}>
+      <text key="title" style="title">
+        Volume
+      </text>
+      <slider key="volume" value={volume(state)} action="volume" width={220} />
+      <row key="buttons" gap={8}>
+        <Button action="down" label="−" />
+        <Button action="up" label="+" />
+        <Button action="flash" label="Show OSD" />
+        <Button action="close" label="Close" />
+      </row>
+    </column>
+  );
 }
 
 export default {

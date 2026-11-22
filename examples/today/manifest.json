@@ -5,6 +5,6 @@
   "name": "Today",
   "version": "0.1.0",
   "kinds": ["panel"],
-  "entryPoints": { "panel": "panel.ts" },
+  "entryPoints": { "panel": "panel.tsx" },
   "subscribes": ["clock", "battery"]
 }

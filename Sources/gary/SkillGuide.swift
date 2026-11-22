@@ -197,12 +197,12 @@ extension Skill {
 
     ## Open a panel from a bar widget
 
-    Give one plugin both kinds, and toggle the panel from the widget in `widget.ts`:
+    Give one plugin both kinds, and toggle the panel from the widget in `widget.tsx`:
 
-    ```ts
+    ```tsx
     export default {
       render(state) {
-        return { type: "text", text: state.nowplaying?.track?.title ?? "Nothing playing", action: "open" };
+        return <text action="open">{state.nowplaying?.track?.title ?? "Nothing playing"}</text>;
       },
       onAction(action) {
         if (action === "open") host.toggle();
@@ -210,7 +210,7 @@ extension Skill {
     } satisfies Gary.BarWidget;
     ```
 
-    The manifest has `"kinds": ["bar-widget", "panel"]`, an entry point for each, and `"subscribes": ["nowplaying"]`, so the panel's `panel.ts` reads `state.nowplaying` too.
+    The manifest has `"kinds": ["bar-widget", "panel"]`, an entry point for each, and `"subscribes": ["nowplaying"]`, so the panel's `panel.tsx` reads `state.nowplaying` too.
 
     ## host
 
@@ -228,7 +228,24 @@ extension Skill {
 
     ## Nodes
 
-    `render` returns a node: a plain object with a `type`. Every node takes `key`, `style`, \(Node.Gesture.allCases.map { "`\($0.rawValue)`" }.joined(separator: ", ")), `tooltip`, and the style properties \(StyleProps.names.map { "`\($0)`" }.joined(separator: ", ")). Numbers are points, except `opacity` from 0 to 1. A property on the node overrides the same property in its `style`.
+    `render` returns a node: a plain object with a `type`. In a `.tsx` file, JSX builds the same objects. A lowercase tag is a node type and its attributes are the node's fields. Child tags become `children`, and the text inside `<text>` becomes `text`. `false`, `null`, and `undefined` children drop out, and arrays flatten, so `{items.map(...)}` and `{done && <icon symbol="checkmark" />}` work. `<>...</>` groups children inside a node but is not a node itself. A capitalized tag calls a function of your own with the attributes as one object, and the child tags in `children`:
+
+    ```tsx
+    function Stat({ symbol, value }: { symbol: string; value: string }) {
+      return (
+        <row gap={4}>
+          <icon symbol={symbol} style="dim" />
+          <text>{value}</text>
+        </row>
+      );
+    }
+
+    export default {
+      render: () => <Stat symbol="cpu" value={load} />,
+    } satisfies Gary.BarWidget;
+    ```
+
+    `gary.d.ts` types each tag with the fields of its node and `tsconfig.json` sets `"jsx": "react"` with `Gary.h` as the factory, which `gary plugin new` writes for you. Every node takes `key`, `style`, \(Node.Gesture.allCases.map { "`\($0.rawValue)`" }.joined(separator: ", ")), `tooltip`, and the style properties \(StyleProps.names.map { "`\($0)`" }.joined(separator: ", ")). Numbers are points, except `opacity` from 0 to 1. A property on the node overrides the same property in its `style`.
 
     | `type` | Own fields | `onAction` payload |
     | --- | --- | --- |

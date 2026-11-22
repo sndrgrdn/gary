@@ -45,6 +45,9 @@ public enum PluginScaffold {
         "target": "es2023",
         "lib": ["es2023"],
         "module": "preserve",
+        "jsx": "react",
+        "jsxFactory": "Gary.h",
+        "jsxFragmentFactory": "Gary.Fragment",
         "types": [],
         "moduleDetection": "force",
         "isolatedModules": true
@@ -75,8 +78,9 @@ public enum PluginScaffold {
 
     public static func entryFile(_ kind: PluginKind) -> String {
         switch kind {
-        case .barWidget: "widget.ts"
-        case .bar, .panel, .overlay, .menu, .service: "\(kind.rawValue).ts"
+        case .barWidget: "widget.tsx"
+        case .bar, .panel, .overlay, .menu: "\(kind.rawValue).tsx"
+        case .service: "service.ts"
         }
     }
 
@@ -97,7 +101,11 @@ public enum PluginScaffold {
 
         export default {
           render() {
-            return { type: "text", text: "\(name) " + clicks, style: "active", action: "click" };
+            return (
+              <text style="active" action="click">
+                \(name) {clicks}
+              </text>
+            );
           },
           onAction(action) {
             if (action === "click") clicks += 1;
@@ -111,15 +119,15 @@ public enum PluginScaffold {
         """
         export default {
           render(state) {
-            return {
-              type: "row",
-              padding: 8,
-              children: [
-                { type: "text", key: "name", text: "\(name)", style: "active" },
-                { type: "spacer", key: "gap" },
-                { type: "text", key: "display", text: state.display ? state.display.width + "×" + state.display.height : "" },
-              ],
-            };
+            return (
+              <row padding={8}>
+                <text key="name" style="active">
+                  \(name)
+                </text>
+                <spacer key="gap" />
+                <text key="display">{state.display ? `${state.display.width}×${state.display.height}` : ""}</text>
+              </row>
+            );
           },
         } satisfies Gary.Bar;
 
@@ -134,22 +142,16 @@ public enum PluginScaffold {
           surface: { anchors: { top: true, right: true }, margins: { top: 8, right: 16 } },
 
           render() {
-            return {
-              type: "column",
-              style: "panel",
-              gap: 8,
-              children: [
-                { type: "text", key: "title", text: "\(name)", style: "title" },
-                {
-                  type: "button",
-                  key: "add",
-                  action: "add",
-                  hover: "hover",
-                  padding: 4,
-                  children: [{ type: "text", text: "Pressed " + count + " times" }],
-                },
-              ],
-            };
+            return (
+              <column style="panel" gap={8}>
+                <text key="title" style="title">
+                  \(name)
+                </text>
+                <button key="add" action="add" hover="hover" padding={4}>
+                  <text>Pressed {count} times</text>
+                </button>
+              </column>
+            );
           },
 
           onAction(action) {
@@ -164,16 +166,15 @@ public enum PluginScaffold {
         """
         export default {
           render() {
-            return {
-              type: "column",
-              background: "alpha(background, 0.6)",
-              action: "close",
-              children: [
-                { type: "spacer", key: "top" },
-                { type: "text", key: "title", text: "\(name): click to close", style: "title" },
-                { type: "spacer", key: "bottom" },
-              ],
-            };
+            return (
+              <column background="alpha(background, 0.6)" action="close">
+                <spacer key="top" />
+                <text key="title" style="title">
+                  \(name): click to close
+                </text>
+                <spacer key="bottom" />
+              </column>
+            );
           },
 
           onAction(action) {
@@ -190,17 +191,15 @@ public enum PluginScaffold {
 
     export default {
       render() {
-        return {
-          type: "column",
-          style: "panel",
-          children: choices.map((choice, index) => ({
-            type: "text",
-            key: choice,
-            text: choice,
-            style: index === selected ? "selected" : "default",
-            action: "pick:" + index,
-          })),
-        };
+        return (
+          <column style="panel">
+            {choices.map((choice, index) => (
+              <text key={choice} style={index === selected ? "selected" : "default"} action={`pick:${index}`}>
+                {choice}
+              </text>
+            ))}
+          </column>
+        );
       },
 
       onKey(key) {

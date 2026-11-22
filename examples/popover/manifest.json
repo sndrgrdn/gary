@@ -5,6 +5,6 @@
   "name": "Popover",
   "version": "0.1.0",
   "kinds": ["bar-widget", "panel"],
-  "entryPoints": { "bar-widget": "widget.ts", "panel": "panel.ts" },
+  "entryPoints": { "bar-widget": "widget.tsx", "panel": "panel.tsx" },
   "subscribes": ["example.popover"]
 }

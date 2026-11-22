@@ -11,19 +11,21 @@ publish();
 
 export default {
   render() {
-    return {
-      type: "row",
-      gap: 4,
-      action: "toggle",
-      rightAction: "style",
-      middleAction: "reset",
-      scrollAction: "count",
-      tooltip: "Scroll to count, right-click for a color, middle-click to reset",
-      children: [
-        { type: "icon", key: "icon", symbol: "square.stack", style: styles[style] },
-        { type: "text", key: "count", text: count, style: styles[style] },
-      ],
-    };
+    return (
+      <row
+        gap={4}
+        action="toggle"
+        rightAction="style"
+        middleAction="reset"
+        scrollAction="count"
+        tooltip="Scroll to count, right-click for a color, middle-click to reset"
+      >
+        <icon key="icon" symbol="square.stack" style={styles[style]} />
+        <text key="count" style={styles[style]}>
+          {count}
+        </text>
+      </row>
+    );
   },
 
   onAction(action) {

@@ -13,14 +13,12 @@ setInterval(refresh, 30_000);
 
 export default {
   render() {
-    return {
-      type: "row",
-      action: "refresh",
-      children: [
-        { type: "icon", key: "icon", symbol: "cpu", style: "dim" },
-        { type: "text", key: "load", text: load ?? "…" },
-      ],
-    };
+    return (
+      <row action="refresh">
+        <icon key="icon" symbol="cpu" style="dim" />
+        <text key="load">{load ?? "…"}</text>
+      </row>
+    );
   },
 
   onAction(action) {

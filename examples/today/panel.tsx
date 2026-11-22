@@ -20,36 +20,27 @@ export default {
     });
 
     const lines: Gary.Node[] = [
-      { type: "text", key: "title", text: day, style: "title" },
-      {
-        type: "text",
-        key: "time",
-        text: `${pad(date.getHours())}:${pad(date.getMinutes())}  ·  week ${week(date)}`,
-        style: "bright",
-      },
+      <text key="title" style="title">
+        {day}
+      </text>,
+      <text key="time" style="bright">
+        {`${pad(date.getHours())}:${pad(date.getMinutes())}  ·  week ${week(date)}`}
+      </text>,
     ];
 
     const battery = state.battery;
 
     if (battery && battery.present) {
-      lines.push({
-        type: "row",
-        key: "battery",
-        children: [
-          {
-            type: "icon",
-            symbol: battery.charging ? "bolt.fill" : "battery.75percent",
-            style: "dim",
-          },
-          {
-            type: "text",
-            text: `${battery.percent}% ${battery.source === "ac" ? "on power" : "on battery"}`,
-            style: "dim",
-          },
-        ],
-      });
+      lines.push(
+        <row key="battery">
+          <icon symbol={battery.charging ? "bolt.fill" : "battery.75percent"} style="dim" />
+          <text style="dim">
+            {battery.percent}% {battery.source === "ac" ? "on power" : "on battery"}
+          </text>
+        </row>,
+      );
     }
 
-    return { type: "column", style: "panel", children: lines };
+    return <column style="panel">{lines}</column>;
   },
 } satisfies Gary.Panel;

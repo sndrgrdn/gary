@@ -53,6 +53,8 @@ Gary compiles TypeScript and modules with a bundled copy of [sucrase](https://gi
 
 ## Lay out nodes
 
+`render` returns a tree of plain objects, such as `{ type: "text", text: "Hi" }`. In a `.tsx` file, write the same tree in JSX: `<row gap={8}><icon symbol="cpu" /><text>{load}</text></row>`. A lowercase tag is a node type, child tags become `children`, and the text inside `<text>` becomes `text`. A capitalized tag calls your own function with its attributes, so `<Button action="start" label="Start" />` runs `Button({ action: "start", label: "Start" })`. `gary.d.ts` types each tag, so a misspelled attribute is a `tsc` error. The [`timer`](../examples/timer) example writes its panel this way, and [`gallery`](../examples/gallery) keeps plain objects.
+
 Gary draws each node tree with SwiftUI. A `row` is a horizontal stack, a `column` is a vertical stack, a `stack` layers its children from its top left corner, and a `spacer` takes the free space. Every node takes these style properties, as does every style in `theme.json`:
 
 | Property                   | Value                                                                                                                                                                                                                    |

@@ -44,15 +44,12 @@ function format(milliseconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function button(action: string, label: string): Gary.Node {
-  return {
-    type: "button",
-    key: action,
-    action,
-    hover: "hover",
-    padding: 6,
-    children: [{ type: "text", text: label }],
-  };
+function Button({ action, label }: { action: string; label: string }) {
+  return (
+    <button key={action} action={action} hover="hover" padding={6}>
+      <text>{label}</text>
+    </button>
+  );
 }
 
 export default {
@@ -62,41 +59,31 @@ export default {
     const length = minutes * 60_000;
     const left = endsAt === null ? length : Math.max(0, endsAt - now);
 
-    return {
-      type: "column",
-      style: "panel",
-      gap: 10,
-      animation: "smooth",
-      children: [
-        { type: "text", key: "title", text: "Timer", style: "title" },
-        { type: "text", key: "left", text: format(left), style: "bright", fontSize: 28 },
-        { type: "progress", key: "progress", value: 1 - left / length, width: 220 },
-        {
-          type: "row",
-          key: "length",
-          gap: 8,
-          children: [
-            {
-              type: "slider",
-              key: "slider",
-              value: (minutes - 5) / 55,
-              action: "minutes",
-              width: 160,
-            },
-            { type: "text", key: "minutes", text: `${minutes} min`, style: "dim" },
-          ],
-        },
-        {
-          type: "row",
-          key: "buttons",
-          gap: 8,
-          children: [
-            endsAt === null ? button("start", "Start") : button("stop", "Stop"),
-            button("close", "Close"),
-          ],
-        },
-      ],
-    };
+    return (
+      <column style="panel" gap={10} animation="smooth">
+        <text key="title" style="title">
+          Timer
+        </text>
+        <text key="left" style="bright" fontSize={28}>
+          {format(left)}
+        </text>
+        <progress key="progress" value={1 - left / length} width={220} />
+        <row key="length" gap={8}>
+          <slider key="slider" value={(minutes - 5) / 55} action="minutes" width={160} />
+          <text key="minutes" style="dim">
+            {minutes} min
+          </text>
+        </row>
+        <row key="buttons" gap={8}>
+          {endsAt === null ? (
+            <Button action="start" label="Start" />
+          ) : (
+            <Button action="stop" label="Stop" />
+          )}
+          <Button action="close" label="Close" />
+        </row>
+      </column>
+    );
   },
 
   onAction(action, payload) {

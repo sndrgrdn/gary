@@ -5,7 +5,7 @@
   "name": "OSD",
   "version": "0.1.0",
   "kinds": ["panel"],
-  "entryPoints": { "panel": "panel.ts" },
+  "entryPoints": { "panel": "panel.tsx" },
   "keepLoaded": true,
   "subscribes": ["audio"],
   "uses": ["audio", "mediakeys"]
