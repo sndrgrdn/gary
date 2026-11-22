@@ -26,6 +26,8 @@ public enum PluginTypes {
             "transition?: \(union(Transition.allCases.map(\.rawValue)));",
             "fit?: \(union(ImageFit.allCases.map(\.rawValue)));", "clip?: boolean;",
             "shadow?: { color: Color; radius?: number; y?: number };", "border?: { color: Color; width?: number };",
+            "blend?: \(union(Blend.allCases.map(\.rawValue)));",
+            "loop?: { " + Loop.Property.allCases.map { "\($0.rawValue)?: [number, number]; " }.joined() + "duration?: number; reverse?: boolean };",
             "background?: Paint;",
         ] + StyleProps.colors.map { "\($0.0)?: Color;" } + ["font?: FontName;"])
             .map { "    \($0)" }.joined(separator: "\n")

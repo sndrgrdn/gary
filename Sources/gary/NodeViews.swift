@@ -258,7 +258,11 @@ private extension View {
             .interactive(box.action, hovering: hovering, pressing: pressing) { _ in anchor.view?.send(.click, .null) }
             .dropShadow(look.shadow, look.shadowColor)
             .scaleEffect(look.scale ?? 1)
+            .rotationEffect(.degrees(look.rotation ?? 0))
+            .blur(radius: look.blur ?? 0)
             .opacity(look.opacity ?? 1)
+            .blendMode(BlendMode(look.blend ?? .normal))
+            .modifier(LoopEffect(loop: look.loop, present: look.loop != nil || [node.props, node.hovered, node.pressed].contains { $0?.loop != nil }))
             .offset(x: look.x ?? 0, y: (look.offset ?? 0) + (look.y ?? 0))
     }
 

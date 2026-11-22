@@ -20,7 +20,14 @@ struct PluginTypesTests {
         for (name, _) in StyleProps.colors {
             #expect(text.contains("\(name)?: Color;"))
         }
+        for (name, _) in StyleProps.signed {
+            #expect(text.contains("\(name)?: number;"))
+        }
         #expect(text.contains("background?: Paint;"))
+        #expect(text.contains("blend?: " + Blend.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: " | ") + ";"))
+        for property in Loop.Property.allCases {
+            #expect(text.contains("\(property.rawValue)?: [number, number];"))
+        }
         #expect(text.contains("type Paint = Color | { gradient: \"linear\" | \"radial\" | \"angular\";"))
         for kind in PluginKind.allCases {
             #expect(text.contains("type \(PluginTypes.typeName(kind.rawValue)) = "))

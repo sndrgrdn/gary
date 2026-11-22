@@ -22,3 +22,41 @@ extension AnyShapeStyle {
         }
     }
 }
+
+extension BlendMode {
+    init(_ blend: Blend) {
+        switch blend {
+        case .normal: self = .normal
+        case .multiply: self = .multiply
+        case .screen: self = .screen
+        case .overlay: self = .overlay
+        case .plusLighter: self = .plusLighter
+        case .plusDarker: self = .plusDarker
+        case .difference: self = .difference
+        }
+    }
+}
+
+struct LoopEffect: ViewModifier {
+    let loop: Loop?
+    let present: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let start = State(initialValue: Date())
+
+    func body(content: Content) -> some View {
+        let loop = reduceMotion ? nil : loop
+        if present {
+            TimelineView(.animation(paused: loop == nil)) { context in
+                let phase = loop?.phase(after: context.date.timeIntervalSince(start.wrappedValue)) ?? 0
+                content
+                    .scaleEffect(loop?.spans[.scale]?.at(phase) ?? 1)
+                    .rotationEffect(.degrees(loop?.spans[.rotation]?.at(phase) ?? 0))
+                    .opacity(loop?.spans[.opacity]?.at(phase) ?? 1)
+                    .offset(x: loop?.spans[.x]?.at(phase) ?? 0, y: loop?.spans[.y]?.at(phase) ?? 0)
+            }
+            .onChange(of: loop) { start.wrappedValue = Date() }
+        } else {
+            content
+        }
+    }
+}

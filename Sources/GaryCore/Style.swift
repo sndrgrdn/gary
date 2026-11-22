@@ -101,6 +101,8 @@ public struct StyleProps: Equatable, Sendable {
     public var opacity: Double?
     public var scale: Double?
     public var duration: Double?
+    public var blur: Double?
+    public var rotation: Double?
     public var offset: Double?
     public var x: Double?
     public var y: Double?
@@ -115,6 +117,8 @@ public struct StyleProps: Equatable, Sendable {
     public var clip: Bool?
     public var shadow: Shadow?
     public var border: Border?
+    public var blend: Blend?
+    public var loop: Loop?
     public var background: Paint?
     public var color: String?
     public var font: String?
@@ -146,6 +150,10 @@ public struct StyleProps: Equatable, Sendable {
         shadow: Shadow? = nil,
         border: Border? = nil,
         colorScheme: ColorScheme? = nil,
+        rotation: Double? = nil,
+        blur: Double? = nil,
+        blend: Blend? = nil,
+        loop: Loop? = nil,
     ) {
         self.width = width
         self.height = height
@@ -173,21 +181,27 @@ public struct StyleProps: Equatable, Sendable {
         self.shadow = shadow
         self.border = border
         self.colorScheme = colorScheme
+        self.rotation = rotation
+        self.blur = blur
+        self.blend = blend
+        self.loop = loop
     }
 
     public static let numbers: [(String, WritableKeyPath<StyleProps, Double?> & Sendable)] = [
         ("width", \.width), ("height", \.height), ("minWidth", \.minWidth), ("gap", \.gap),
         ("radius", \.radius), ("fontSize", \.fontSize), ("opacity", \.opacity), ("scale", \.scale), ("duration", \.duration),
+        ("blur", \.blur),
     ]
     public static let signed: [(String, WritableKeyPath<StyleProps, Double?> & Sendable)] = [
         ("offset", \.offset),
         ("x", \.x),
         ("y", \.y),
         ("zIndex", \.zIndex),
+        ("rotation", \.rotation),
     ]
     public static let colors: [(String, WritableKeyPath<StyleProps, String?> & Sendable)] = [("color", \.color)]
     public static let names = numbers.map(\.0) + ["padding"] + signed.map(\.0)
-        + ["align", "animation", "material", "colorScheme", "transition", "fit", "clip", "shadow", "border", "background"]
+        + ["align", "animation", "material", "colorScheme", "transition", "fit", "clip", "shadow", "border", "blend", "loop", "background"]
         + colors.map(\.0) + ["font"]
 
     public static func parse(_ fields: [String: JSON], fail: (String, String) -> Error) throws -> StyleProps {
@@ -212,6 +226,7 @@ public struct StyleProps: Equatable, Sendable {
         props.colorScheme = try choice(fields["colorScheme"], "colorScheme", fail: fail)
         props.transition = try choice(fields["transition"], "transition", fail: fail)
         props.fit = try choice(fields["fit"], "fit", fail: fail)
+        props.blend = try choice(fields["blend"], "blend", fail: fail)
         props.clip = try flag(fields["clip"], "clip", fail: fail)
         props.shadow = try object(fields["shadow"], "shadow", "an object with color, radius and y", fail: fail) { shadow in
             try Shadow(
@@ -223,6 +238,7 @@ public struct StyleProps: Equatable, Sendable {
         props.border = try object(fields["border"], "border", "an object with color and width", fail: fail) { border in
             try Border(color: color(border["color"], "border.color", fail: fail), width: number(border["width"], "border.width", fail: fail) ?? 1)
         }
+        props.loop = try object(fields["loop"], "loop", Loop.syntax, fail: fail) { try loop($0, fail: fail) }
         props.background = try paint(fields["background"], "background", fail: fail)
         for (name, path) in colors {
             props[keyPath: path] = try present(fields[name]).map { try color($0, name, fail: fail) }
@@ -232,6 +248,21 @@ public struct StyleProps: Equatable, Sendable {
             return font
         }
         return props
+    }
+
+    private static func loop(_ fields: [String: JSON], fail: (String, String) -> Error) throws -> Loop {
+        var spans: [Loop.Property: Loop.Span] = [:]
+        for property in Loop.Property.allCases {
+            guard let value = present(fields[property.rawValue]) else { continue }
+            let ends = value.array?.compactMap(\.number).filter(\.isFinite) ?? []
+            guard ends.count == 2, value.array?.count == 2, property != .opacity || ends.allSatisfy((0...1).contains) else {
+                throw fail("loop.\(property.rawValue)", property == .opacity ? "must be [from, to] between 0 and 1" : "must be [from, to]")
+            }
+            spans[property] = Loop.Span(ends[0], ends[1])
+        }
+        let duration = try number(fields["duration"], "loop.duration", fail: fail) ?? 1
+        guard duration > 0 else { throw fail("loop.duration", "must be a positive number") }
+        return try Loop(spans, duration: duration, reverse: flag(fields["reverse"], "loop.reverse", fail: fail) ?? false)
     }
 
     private static func present(_ value: JSON?) -> JSON? {
@@ -307,6 +338,8 @@ public struct StyleProps: Equatable, Sendable {
         merged.clip = clip ?? base.clip
         merged.shadow = shadow ?? base.shadow
         merged.border = border ?? base.border
+        merged.blend = blend ?? base.blend
+        merged.loop = loop ?? base.loop
         merged.background = background ?? base.background
         merged.font = font ?? base.font
         return merged
