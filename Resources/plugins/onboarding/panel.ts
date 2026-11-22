@@ -1,5 +1,9 @@
 type Status = Gary.PermissionStatus;
 
+type Spacing = Gary.Theme["spacing"];
+
+const iconSize = 30;
+
 const permissions: Record<
   Gary.PermissionName,
   { symbol: string; general: string; uses: Record<string, string> }
@@ -134,14 +138,13 @@ function row(permission: Status): Gary.Node {
   return {
     type: "row",
     key: permission.name,
-    gap: 12,
     children: [
       {
         type: "icon",
         key: "symbol",
         symbol: permissions[permission.name].symbol,
-        width: 30,
-        height: 30,
+        width: iconSize,
+        height: iconSize,
         radius: 7,
         fontSize: 14,
         background: "accent",
@@ -150,7 +153,7 @@ function row(permission: Status): Gary.Node {
       {
         type: "column",
         key: "text",
-        gap: 2,
+        gap: 0,
         children: [
           { type: "text", key: "title", text: permission.title, style: "bright", font: "strong" },
           { type: "text", key: "benefit", text: benefit(permission), style: "secondary" },
@@ -158,6 +161,27 @@ function row(permission: Status): Gary.Node {
       },
       { type: "spacer", key: "push" },
       statusControl(permission),
+    ],
+  };
+}
+
+function header(text: string, spacing: Spacing): Gary.Node {
+  const size = spacing.section + iconSize;
+
+  return {
+    type: "row",
+    key: "header",
+    children: [
+      { type: "image", key: "icon", path: "Gary.icns", width: size, height: size },
+      {
+        type: "column",
+        key: "text",
+        gap: 0,
+        children: [
+          { type: "text", key: "title", text: "Set up Gary", style: "title", fontSize: 20 },
+          { type: "text", key: "intro", text, style: "secondary" },
+        ],
+      },
     ],
   };
 }
@@ -216,45 +240,30 @@ export default {
     const shown = listed(all);
     const missing = shown.filter((permission) => !isDone(permission));
     const restarting = shown.some((permission) => permission.status === "needsRestart");
+    const { spacing } = state.theme;
 
     return {
       type: "column",
       key: "onboarding",
-      padding: 22,
-      gap: 18,
+      padding: spacing.edge,
+      gap: spacing.section,
       children: [
-        {
-          type: "row",
-          key: "header",
-          gap: 14,
-          children: [
-            { type: "image", key: "icon", path: "Gary.icns", width: 64, height: 64 },
-            {
-              type: "column",
-              key: "text",
-              gap: 4,
-              children: [
-                { type: "text", key: "title", text: "Set up Gary", style: "title", fontSize: 20 },
-                {
-                  type: "text",
-                  key: "intro",
-                  text: intro(shown, missing, restarting),
-                  style: "secondary",
-                },
-              ],
-            },
-          ],
-        },
+        header(intro(shown, missing, restarting), spacing),
         {
           type: "column",
           key: "rows",
-          gap: 16,
-          padding: 14,
+          gap: spacing.section,
+          padding: spacing.section,
           radius: 10,
           background: "control",
           children: shown.map((permission) => row(permission)),
         },
-        { type: "row", key: "footer", gap: 8, children: footer(missing, restarting) },
+        {
+          type: "row",
+          key: "footer",
+          padding: [0, spacing.section],
+          children: footer(missing, restarting),
+        },
       ],
     };
   },
