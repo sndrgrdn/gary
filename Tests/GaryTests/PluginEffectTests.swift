@@ -64,6 +64,20 @@ struct PluginEffectTests {
         #expect(try await importing.failure().hasPrefix("Error: cannot load gary:effect from /nonexistent/effect.js"))
     }
 
+    @Test func `loading gary:effect does not count toward the time limit of the plugin that imports it first`() async throws {
+        let library = FileManager.default.temporaryDirectory.appending(path: "gary-effect-\(UUID().uuidString).js")
+        try Data("""
+        var end = Date.now() + 300;
+        while (Date.now() < end) {}
+        var GaryEffect = { forPlugin: function () { return { exports: {} }; } };
+        """.utf8).write(to: library)
+        defer { try? FileManager.default.removeItem(at: library) }
+        let engine = PluginEngine(effect: library)
+        let importing = try Harness(widget(setup: "import { Effect } from \"gary:effect\";"), id: "test.importing", engine: engine)
+        #expect(try await importing.text() == "0")
+        importing.runtime.stop()
+    }
+
     @Test func `a topic stream delivers each value of a subscribed topic`() async throws {
         let harness = try Harness("""
         import { Effect, Stream, topic } from "gary:effect";
