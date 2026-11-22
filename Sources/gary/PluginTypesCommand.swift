@@ -9,9 +9,9 @@ func writeTypes(_ directory: URL) throws -> String {
     if let data = try? Data(contentsOf: directory.appending(path: "manifest.json")) {
         do {
             let manifest = try PluginManifest.parse(data, origin: .user, capabilities: capabilities)
-            let names = Set(manifest.uses + manifest.subscribes.map(\.description))
+            let names = Set(manifest.capabilities)
             selected = Capability.all.filter { names.contains($0.name) }
-            subscribes = manifest.subscribes
+            subscribes = manifest.topics
             scope = "the uses and subscribes of \(manifest.id)"
         } catch {
             scope = "every capability, since manifest.json is invalid: \(error)"

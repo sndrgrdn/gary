@@ -124,7 +124,7 @@ public struct PluginManifest: Equatable, Sendable {
     public let kinds: [PluginKind]
     public let entryPoints: [PluginKind: String]
     public let keepLoaded: Bool
-    public let subscribes: [Topic]
+    public let subscriptions: [PluginKind: [Topic]]
     public let uses: [String]
     public let hotkeys: [Hotkey]
     public var surfaces: [PluginKind: [String]] = [:]
@@ -148,9 +148,17 @@ public struct PluginManifest: Equatable, Sendable {
         kinds.contains(.barWidget) ? bar : nil
     }
 
+    public var topics: [Topic] {
+        var topics: [Topic] = []
+        for topic in kinds.flatMap({ subscriptions[$0] ?? [] }) where !topics.contains(topic) {
+            topics.append(topic)
+        }
+        return topics
+    }
+
     public var capabilities: [String] {
         var names = uses
-        for case let .capability(name) in subscribes where !names.contains(name) {
+        for case let .capability(name) in topics where !names.contains(name) {
             names.append(name)
         }
         return names
@@ -169,7 +177,7 @@ public struct PluginManifest: Equatable, Sendable {
         let kinds = try parseKinds(fields.strings("kinds"))
         let entryPoints = try parseEntryPoints(fields.required("entryPoints", \.object), kinds: kinds)
         let keepLoaded = try fields.optional("keepLoaded", \.bool, default: false)
-        let subscribes = try fields.optionalStrings("subscribes").map { try parseTopic($0, capabilities: capabilities) }
+        let subscriptions = try fields.subscriptions(kinds: kinds).mapValues { try $0.map { try parseTopic($0, capabilities: capabilities) } }
         let uses = try fields.optionalStrings("uses")
         if let unknown = uses.first(where: { !capabilities.uses.contains($0) }) {
             throw ManifestError.unknownService(unknown)
@@ -180,7 +188,7 @@ public struct PluginManifest: Equatable, Sendable {
 
         return PluginManifest(
             id: id, name: name, version: version, kinds: kinds, entryPoints: entryPoints,
-            keepLoaded: keepLoaded, subscribes: subscribes, uses: uses, hotkeys: hotkeys, surfaces: surfaces, bar: bar,
+            keepLoaded: keepLoaded, subscriptions: subscriptions, uses: uses, hotkeys: hotkeys, surfaces: surfaces, bar: bar,
         )
     }
 
@@ -276,6 +284,15 @@ private struct ManifestFields {
 
     func optionalStrings(_ name: String) throws -> [String] {
         json[name] == nil ? [] : try strings(name)
+    }
+
+    func subscriptions(kinds: [PluginKind]) throws -> [PluginKind: [String]] {
+        if json["subscribes"]?.object != nil {
+            let lists = try perKind("subscribes", kinds: kinds)
+            return Dictionary(uniqueKeysWithValues: kinds.map { ($0, lists[$0] ?? []) })
+        }
+        let topics = try optionalStrings("subscribes")
+        return Dictionary(uniqueKeysWithValues: kinds.map { ($0, topics) })
     }
 
     func perKind(_ name: String, kinds: [PluginKind]) throws -> [PluginKind: [String]] {

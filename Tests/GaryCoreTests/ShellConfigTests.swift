@@ -26,7 +26,8 @@ struct ShellConfigTests {
             let manifest = PluginManifest(
                 id: pluginID, name: entry.raw, version: "1", kinds: entry.kinds,
                 entryPoints: Dictionary(uniqueKeysWithValues: entry.kinds.map { ($0, "main.js") }),
-                keepLoaded: false, subscribes: subscribes[entry.raw] ?? [], uses: [], hotkeys: [],
+                keepLoaded: false, subscriptions: Dictionary(uniqueKeysWithValues: entry.kinds.map { ($0, subscribes[entry.raw] ?? []) }),
+                uses: [], hotkeys: [],
             )
             catalog.plugins[pluginID] = PluginBundle(
                 manifest: manifest, directory: URL(fileURLWithPath: "/p/\(entry.raw)"), origin: entry.origin,

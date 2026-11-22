@@ -51,7 +51,7 @@ final class PluginRuntime: Subscriber {
 
     func load(_ trace: Trace) {
         queue.async { [self] in
-            let topics = hub.subscribe(self, to: bundle.manifest.subscribes)
+            let topics = hub.subscribe(self, to: bundle.manifest.subscriptions[kind] ?? [])
             let texts = Dictionary(uniqueKeysWithValues: topics.map { topic, value in (topic, timed(.encode) { state.set(topic, value) }) })
             do {
                 let functions = try timed(.evaluate) { try evaluate() }

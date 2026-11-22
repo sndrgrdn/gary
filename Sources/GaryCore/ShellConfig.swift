@@ -167,7 +167,7 @@ public struct ShellConfig: Equatable, Sendable {
             warnings.append("plugins: no plugin \(id)")
         }
         for manifest in enabledManifests {
-            for case let .plugin(source) in manifest.subscribes where !enabled.contains(source) {
+            for case let .plugin(source) in manifest.topics where !enabled.contains(source) {
                 let state = catalog.plugins[source] == nil ? "not installed" : "not enabled"
                 warnings.append("\(manifest.id) subscribes to \(source), which is \(state)")
             }

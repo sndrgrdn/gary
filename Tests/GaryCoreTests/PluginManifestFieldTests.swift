@@ -31,7 +31,7 @@ struct PluginManifestFieldTests {
     @Test func `subscriptions keep their order and split capabilities from plugins`() throws {
         let parsed = try parse(#"{"subscribes":["acme.counter","clock"],"keepLoaded":true}"#)
         let counter = try #require(PluginID("acme.counter"))
-        #expect(parsed.subscribes == [.plugin(counter), .capability("clock")])
+        #expect(parsed.subscriptions == [.panel: [.plugin(counter), .capability("clock")]])
         #expect(parsed.keepLoaded)
         #expect(parsed.hotkeys.isEmpty)
     }

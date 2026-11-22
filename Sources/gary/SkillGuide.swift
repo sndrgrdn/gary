@@ -37,7 +37,7 @@ extension Skill {
 
     A **plugin** is a folder with a `manifest.json` and one entry file per kind. Its id has two or more dot-separated segments of lowercase letters, digits, and hyphens, such as `you.weather`. The `gary.` namespace is reserved for the built-in plugins.
 
-    A plugin has one or more **kinds**. Each kind runs in its own JavaScriptCore context from its own entry file, so kinds share no variables. They share the manifest, so `uses` and `subscribes` apply to every kind. To share values between kinds, ask one kind from another with `host.call({ kind }, method)`, publish them from one kind with `host.publish` and subscribe to the plugin's own id, or keep them in `host.storage`:
+    A plugin has one or more **kinds**. Each kind runs in its own JavaScriptCore context from its own entry file, so kinds share no variables. They share the manifest, so `uses` applies to every kind, and so does `subscribes` unless it lists topics per kind. To share values between kinds, ask one kind from another with `host.call({ kind }, method)`, publish them from one kind with `host.publish` and subscribe to the plugin's own id, or keep them in `host.storage`:
 
     | Kind | Runs as |
     | --- | --- |
@@ -50,7 +50,7 @@ extension Skill {
 
     A **surface** is a window of a panel, overlay, or menu. The `surface` field of the default export places it. To show several windows at once, such as a settings panel and an on-screen display, give `surfaces` instead: an object that maps each surface name to what `surface` takes. A name is lowercase letters, digits, and hyphens. A module with only `surface` has one surface named `main`, and a module that gives both fails to load. The manifest's `surfaces` lists the names of each kind, so Gary knows which kind to load for a name. A kind it does not list has one surface, `main`, and a module whose names differ from its list fails to load. Each surface is shown, placed, focused, and hidden on its own, and `render` draws each one with its name in `state.surface`. Gary loads a kind when it shows its first surface and stops it when its last surface hides, unless the manifest sets `keepLoaded`. `host.show(name)`, `host.hide(name)`, and `host.toggle(name)` act on the plugin's surface with that name, or `main` without one, from any of its kinds, so a bar widget opens its own plugin's panel with `host.toggle()`.
 
-    A **topic** is a value that Gary keeps in the plugin's `state`. A capability topic, such as `clock` or `battery`, runs only while a plugin subscribes to it. A plugin topic is the last value that another plugin passed to `host.publish`, under that plugin's id. The manifest lists topics in `subscribes`. A plugin that publishes declares the type of its value in a `topic.ts` at the root of its folder, as `export type Topic = { ... }`. `gary plugin types` then types `host.publish` in that plugin, and `state["<id>"]` and `onTopic` in each plugin that subscribes to it and finds the publisher in a sibling folder, `~/.config/gary/plugins`, or a package in `shell.json`. Without a `topic.ts`, the value is `Json`.
+    A **topic** is a value that Gary keeps in the plugin's `state`. A capability topic, such as `clock` or `battery`, runs only while a loaded kind subscribes to it. A plugin topic is the last value that another plugin passed to `host.publish`, under that plugin's id. The manifest lists topics in `subscribes`. A plugin that publishes declares the type of its value in a `topic.ts` at the root of its folder, as `export type Topic = { ... }`. `gary plugin types` then types `host.publish` in that plugin, and `state["<id>"]` and `onTopic` in each plugin that subscribes to it and finds the publisher in a sibling folder, `~/.config/gary/plugins`, or a package in `shell.json`. Without a `topic.ts`, the value is `Json`.
 
     A **capability** adds functions to `host`, a state topic, or both. The manifest lists the functions it wants in `uses` and the topics in `subscribes`. `gary.d.ts` declares only what the manifest asks for. Some capabilities need a macOS permission for Gary.
 
@@ -135,7 +135,7 @@ extension Skill {
     | `name`, `version` | string | Required. |
     | `kinds` | array | Required. One or more of \(PluginKind.allCases.map { "`\($0.rawValue)`" }.joined(separator: ", ")). |
     | `entryPoints` | object | Required. One relative `.ts`, `.tsx`, or `.js` path per kind, such as `{ "panel": "panel.ts" }`. |
-    | `subscribes` | array | Topics that appear in `state` and `onTopic`: capability topics, or other plugins' ids. |
+    | `subscribes` | array or object | Topics that appear in `state` and `onTopic`: capability topics, or other plugins' ids. An array gives every kind the same topics. An object gives each kind its own, such as `{ "menu": ["wifi"], "bar-widget": [] }`, so a topic runs only while a kind that reads it is loaded, and a kind it leaves out gets none. |
     | `uses` | array | Capabilities that add functions to `host`. |
     | `keepLoaded` | boolean | Keep a panel, overlay, or menu running while it is hidden. |
     | `surfaces` | object | The surface names of each panel, overlay, and menu, such as `{ "overlay": ["osd"] }`. A kind it leaves out has one surface, `main`. Two kinds cannot share a name. |

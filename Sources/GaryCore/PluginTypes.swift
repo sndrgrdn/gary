@@ -182,6 +182,7 @@ public enum PluginTypes {
         let id = JSON.object(["$ref": .string("#/$defs/id")])
         let string = type("string")
         let scripts = ScriptLanguage.allCases.map(\.rawValue).joined(separator: "|")
+        let topics = type("array", ["items": .object(["anyOf": .array([.object(["enum": strings(capabilities.topics.sorted())]), id])])])
         return .object([
             "$schema": .string("https://json-schema.org/draft/2020-12/schema"),
             "title": .string("Gary plugin manifest"),
@@ -209,9 +210,9 @@ public enum PluginTypes {
                     ]),
                 ]),
                 "bar": .object(["enum": strings(BarSection.allCases.map(\.rawValue))]),
-                "subscribes": type("array", [
-                    "items": .object(["anyOf": .array([.object(["enum": strings(capabilities.topics.sorted())]), id])]),
-                ]),
+                "subscribes": .object(["anyOf": .array([topics, type("object", [
+                    "propertyNames": .object(["enum": kinds]), "additionalProperties": topics,
+                ])])]),
                 "uses": type("array", ["items": .object(["enum": strings(capabilities.uses.sorted())])]),
                 "hotkeys": type("array", ["items": type("object", [
                     "required": strings(["id", "keys"]),

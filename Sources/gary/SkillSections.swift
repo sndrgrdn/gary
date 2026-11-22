@@ -122,7 +122,7 @@ extension Skill {
             let details = [
                 manifest.map { "kinds: " + $0.kinds.map(\.rawValue).joined(separator: ", ") },
                 manifest.flatMap { $0.uses.isEmpty ? nil : "uses: " + $0.uses.joined(separator: ", ") },
-                manifest.flatMap { $0.subscribes.isEmpty ? nil : "subscribes: " + $0.subscribes.map(\.description).joined(separator: ", ") },
+                manifest.flatMap { $0.topics.isEmpty ? nil : "subscribes: " + $0.topics.map(\.description).joined(separator: ", ") },
             ].compactMap(\.self).joined(separator: "; ")
             return "- `\(example.name)`" + (details.isEmpty ? "" : " (\(details))") + ". \(example.summary)"
         }

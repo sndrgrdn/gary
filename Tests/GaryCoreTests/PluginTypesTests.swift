@@ -68,7 +68,9 @@ struct PluginTypesTests {
         let schema = PluginTypes.manifestSchema(makeTestCapabilities())
         let properties = try #require(schema["properties"])
         #expect(properties["uses"]?["items"]?["enum"] == .array(["audio", "exec", "files", "mediakeys", "network"].map(JSON.string)))
-        #expect(properties["subscribes"]?["items"]?["anyOf"]?.array?.first?["enum"] == .array(["audio", "battery", "clock"].map(JSON.string)))
+        let topics = try #require(properties["subscribes"]?["anyOf"]?.array)
+        #expect(topics[0]["items"]?["anyOf"]?.array?.first?["enum"] == .array(["audio", "battery", "clock"].map(JSON.string)))
+        #expect(topics[1]["additionalProperties"] == topics[0])
         #expect(properties["kinds"]?["items"]?["enum"] == .array(PluginKind.allCases.map { .string($0.rawValue) }))
         #expect(properties["schemaVersion"]?["const"] == .number(Double(PluginManifest.schemaVersion)))
     }

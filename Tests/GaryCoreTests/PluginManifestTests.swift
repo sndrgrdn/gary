@@ -42,7 +42,7 @@ struct PluginManifestTests {
         #expect(parsed.kinds == [.service, .barWidget])
         #expect(parsed.entryPoints == [.service: "lib/service.ts", .barWidget: "widget.js"])
         #expect(parsed.keepLoaded)
-        #expect(try parsed.subscribes == [.capability("clock"), .capability("battery"), .plugin(#require(PluginID("acme.counter")))])
+        #expect(try parsed.topics == [.capability("clock"), .capability("battery"), .plugin(#require(PluginID("acme.counter")))])
         #expect(parsed.uses == ["exec", "network", "files"])
     }
 
@@ -68,7 +68,7 @@ struct PluginManifestTests {
     @Test func `optional fields default to off`() throws {
         let parsed = try manifest([:])
         #expect(!parsed.keepLoaded)
-        #expect(parsed.subscribes.isEmpty)
+        #expect(parsed.topics.isEmpty)
         #expect(parsed.uses.isEmpty)
     }
 
@@ -134,11 +134,25 @@ struct PluginManifestTests {
         ])
         let parsed = try manifest(["uses": ["wifi", "volume"], "subscribes": ["wifi", "battery"]], capabilities: registry)
         #expect(parsed.uses == ["wifi", "volume"])
-        #expect(parsed.subscribes == [.capability("wifi"), .capability("battery")])
+        #expect(parsed.topics == [.capability("wifi"), .capability("battery")])
         #expect(throws: ManifestError.unknownService("battery")) { try manifest(["uses": ["battery"]], capabilities: registry) }
         #expect(throws: ManifestError.unknownService("exec")) { try manifest(["uses": ["exec"]], capabilities: registry) }
         #expect(throws: ManifestError.unknownTopic("volume")) { try manifest(["subscribes": ["volume"]], capabilities: registry) }
         #expect(throws: ManifestError.unknownTopic("clock")) { try manifest(["subscribes": ["clock"]], capabilities: registry) }
+    }
+
+    @Test func `subscribes lists topics for every kind or for each kind on its own`() throws {
+        let kinds: [String: JSON] = ["kinds": ["service", "menu"], "entryPoints": ["service": "s.js", "menu": "m.js"]]
+        let shared = try manifest(kinds.merging(["subscribes": ["clock"]]) { $1 })
+        #expect(shared.subscriptions == [.service: [.capability("clock")], .menu: [.capability("clock")]])
+        let split = try manifest(kinds.merging(["subscribes": ["menu": ["audio", "clock"], "service": ["clock"]]]) { $1 })
+        #expect(split.subscriptions == [.service: [.capability("clock")], .menu: [.capability("audio"), .capability("clock")]])
+        #expect(split.topics == [.capability("clock"), .capability("audio")])
+        #expect(split.capabilities == ["clock", "audio"])
+        let one = try manifest(kinds.merging(["subscribes": ["menu": ["audio"]]]) { $1 })
+        #expect(one.subscriptions == [.service: [], .menu: [.capability("audio")]])
+        rejects(kinds.merging(["subscribes": ["panel": ["clock"]]]) { $1 }, with: .kindNotListed(field: "subscribes", kind: "panel"))
+        rejects(kinds.merging(["subscribes": ["menu": ["weather"]]]) { $1 }, with: .unknownTopic("weather"))
     }
 
     @Test func `each panel overlay and menu has the surfaces the manifest lists or main`() throws {
