@@ -12,9 +12,9 @@ final class PluginRuntime: Subscriber {
 
     let bundle: PluginBundle
     let kind: PluginKind
-    private let hub: StateHub
+    let hub: StateHub
     private let settings: JSON
-    private let deliver: (PluginRuntime, RuntimeEvent) -> Void
+    let deliver: (PluginRuntime, RuntimeEvent) -> Void
     let queue: DispatchQueue
     private let watchdog = Watchdog()
     private var functions: PluginFunctions?
@@ -27,7 +27,7 @@ final class PluginRuntime: Subscriber {
     let initialScene: Scene
     private var scene: Scene
     private var output = RuntimeOutput()
-    private var origin: CGRect?
+    private(set) var origin: CGRect?
     private var surfaceNames: [String]?
     private var timings = Timings()
 
@@ -205,7 +205,7 @@ final class PluginRuntime: Subscriber {
         return try timed(.nodeParse) { try SurfaceSpec.parseAll(json, kind: kind) }
     }
 
-    private func surfaceName(_ value: JSValue) throws -> String {
+    func surfaceName(_ value: JSValue) throws -> String {
         if value.isUndefined {
             return SurfaceAddress.main
         }
@@ -303,7 +303,7 @@ private extension PluginRuntime {
         }, Unmanaged.passUnretained(watchdog).toOpaque()) {
             log("plugin \(id): no script time limit on this system")
         }
-        let host = try makeHost(in: context)
+        let host = try check { makeHost(in: context) }
         for capability in Capability.all where bundle.manifest.uses.contains(capability.name) {
             capability.install?(host, self)
         }
@@ -323,51 +323,6 @@ private extension PluginRuntime {
         }
         let clear: @convention(block) (Int) -> Void = { [weak self] id in self?.timers.removeValue(forKey: id)?.cancel() }
         try check { context.evaluateScript(PluginScripts.timers)?.call(withArguments: [add, clear]) }
-    }
-
-    func makeHost(in context: JSContext) throws -> JSValue {
-        let id = id
-        let logBlock: @convention(block) (String) -> Void = { message in log("plugin \(id): \(message)") }
-        let storageURL = Paths.storage.appending(path: "\(id).json")
-        let read: @convention(block) () -> String? = { try? String(contentsOf: storageURL, encoding: .utf8) }
-        let write: @convention(block) (String) -> Void = { text in
-            do {
-                try FileManager.default.createDirectory(at: Paths.storage, withIntermediateDirectories: true)
-                try Data(text.utf8).write(to: storageURL, options: .atomic)
-            } catch {
-                log("plugin \(id): storage not saved: \(error)")
-            }
-        }
-        let publishBlock: @convention(block) (JSValue) -> Void = { [weak self] value in
-            guard let self, let text = value.context.objectForKeyedSubscript("JSON").invokeMethod("stringify", withArguments: [value]).toString(),
-                  let json = try? JSON.parse(text) else { return }
-            hub.publish(.plugin(id), json, Trace("publish"))
-        }
-        let surfaceBlocks = [SurfaceRequest.show, .hide, .toggle].map { request in
-            { [weak self] name in
-                guard let self else { return }
-                do {
-                    try deliver(self, .surface(request, surfaceName(name), origin: origin))
-                } catch {
-                    let context = JSContext.current()
-                    context?.exception = JSValue(newErrorFromMessage: "host.\(request.rawValue): \(error)", in: context)
-                }
-            } as @convention(block) (JSValue) -> Void
-        }
-        let callBlock: @convention(block) (String, [String], JSValue, JSValue) -> Void = { [weak self] method, arguments, resolve, reject in
-            guard let self else { return }
-            deliver(self, .call(method: method, arguments: arguments) { [weak self] response in
-                self?.queue.async {
-                    switch response {
-                    case let .ok(text): self?.callBack(resolve, [text], Trace("host.call"))
-                    case let .failure(message): self?.callBack(reject, [message], Trace("host.call"))
-                    }
-                }
-            })
-        }
-        return try check {
-            context.evaluateScript(PluginScripts.host)?.call(withArguments: [logBlock, read, write, publishBlock] + surfaceBlocks + [callBlock])
-        }
     }
 
     func addTimer(_ callback: JSValue, milliseconds: Double, repeats: Bool) -> Int {
