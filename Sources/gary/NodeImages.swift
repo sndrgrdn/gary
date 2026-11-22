@@ -15,6 +15,7 @@ struct ImageNode: View {
     let path: String
     let fit: ImageFit
     let size: CGSize
+    let tint: Color?
     let arrival: SwiftUI.Animation?
     let transition: AnyTransition
     @Environment(\.displayScale) private var scale
@@ -25,7 +26,8 @@ struct ImageNode: View {
         let key = "\(path)|\(Int(pixels.width))x\(Int(pixels.height))|\(fit.rawValue)" as NSString
         ZStack {
             if let image = images.object(forKey: key) ?? (isSmall(path) ? decoded(path, pixels, fit, key) : nil) ?? shown.wrappedValue {
-                Image(nsImage: image).resizable().interpolation(.high).aspectRatio(contentMode: fit == .fill ? .fill : .fit).transition(transition)
+                Image(nsImage: image).renderingMode(tint == nil ? .original : .template).resizable().interpolation(.high)
+                    .aspectRatio(contentMode: fit == .fill ? .fill : .fit).foregroundStyle(tint ?? .primary).transition(transition)
             }
         }
         .task(id: key) {

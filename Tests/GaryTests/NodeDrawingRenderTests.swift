@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 @testable import gary
 import GaryCore
@@ -83,6 +84,24 @@ struct NodeDrawingRenderTests {
         #expect(image[4, 20].alpha == 0)
         #expect(image[20, 36].alpha == 0)
         #expect(image[20, 20].alpha == 0)
+    }
+
+    @Test func `an image with its own color draws its shape filled with that color`() throws {
+        let file = FileManager.default.temporaryDirectory.appending(path: "gary-tint-\(UUID().uuidString).png")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let context = try #require(CGContext(
+            data: nil, width: 20, height: 20, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue,
+        ))
+        context.setFillColor(CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 10, height: 20))
+        let drawn = try #require(context.makeImage())
+        try #require(NSBitmapImageRep(cgImage: drawn).representation(using: .png, properties: [:])).write(to: file)
+        let plain = try render(##"{"type":"image","path":"\##(file.path)","width":20,"height":20}"##)
+        #expect(plain[4, 10] == Pixel(red: 0, green: 0, blue: 0, alpha: 255))
+        let tinted = try render(##"{"type":"image","path":"\##(file.path)","width":20,"height":20,"color":"#ff0000"}"##)
+        #expect(isRed(tinted[4, 10]))
+        #expect(tinted[15, 10].alpha == 0)
     }
 
     @Test(.enabled(if: ShaderProgram.device != nil, "this Mac has no Metal device"))

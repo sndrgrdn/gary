@@ -207,6 +207,7 @@ struct NodeView: View {
                 path: path,
                 fit: look.fit ?? .fit,
                 size: CGSize(width: look.width ?? look.height ?? 16, height: look.height ?? look.width ?? 16),
+                tint: node.props.color == nil ? nil : Color(look.color),
                 arrival: reduceMotion ? nil : look.animation.flatMap { SwiftUI.Animation($0, duration: look.duration) },
                 transition: AnyTransition(look.transition ?? .opacity),
             )
