@@ -4,10 +4,12 @@ import Testing
 
 func makeTestCapabilities() throws -> CapabilityNames {
     try CapabilityNames([
+        CapabilityDeclaration("audio", installs: true, publishes: true),
         CapabilityDeclaration("battery", installs: false, publishes: true),
         CapabilityDeclaration("clock", installs: false, publishes: true),
         CapabilityDeclaration("exec", installs: true, publishes: false),
         CapabilityDeclaration("files", installs: true, publishes: false),
+        CapabilityDeclaration("mediakeys", installs: true, publishes: false),
         CapabilityDeclaration("network", installs: true, publishes: false),
     ])
 }

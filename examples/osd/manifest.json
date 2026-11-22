@@ -1,0 +1,12 @@
+{
+  "$schema": "./manifest.schema.json",
+  "schemaVersion": 1,
+  "id": "example.osd",
+  "name": "OSD",
+  "version": "0.1.0",
+  "kinds": ["panel"],
+  "entryPoints": { "panel": "panel.ts" },
+  "keepLoaded": true,
+  "subscribes": ["audio"],
+  "uses": ["audio", "mediakeys"]
+}

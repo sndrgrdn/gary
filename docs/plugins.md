@@ -12,6 +12,7 @@ Gary.app bundles the plugins in [`examples/`](../examples) in `Contents/Resource
 | [`today`](../examples/today)     | A panel that subscribes to the `clock` and `battery` topics.                                   |
 | [`gallery`](../examples/gallery) | A panel that draws a gradient, a progress ring, charts, a calendar grid, loops, and a shader.  |
 | [`popover`](../examples/popover) | A bar widget with right-click, middle-click, scroll, and tooltip that opens an attached panel. |
+| [`osd`](../examples/osd)         | A panel with two surfaces at once: a settings panel and a volume display that hides itself.    |
 
 The only built-in plugins are the `gary.clock` and `gary.battery` bar widgets, so a fresh install shows a bar.
 
@@ -89,7 +90,7 @@ A `text` node is exactly as wide as its text, with no padding of its own. This r
 }
 ```
 
-A panel, overlay, or menu kind can show several windows at once. Export `surfaces`, which maps each surface name to what `surface` takes, instead of `surface`. `render` draws each surface with its name in `state.surface`. `host.show("osd")`, `host.hide("osd")`, and `host.toggle("osd")` act on one surface, and `gary summon you.music:osd` does the same from the command line. Without a name they act on `main`, the only surface of a module that exports `surface`.
+A panel, overlay, or menu kind can show several windows at once. Export `surfaces`, which maps each surface name to what `surface` takes, instead of `surface`. `render` draws each surface with its name in `state.surface`. `host.show("osd")`, `host.hide("osd")`, and `host.toggle("osd")` act on one surface, and `gary summon you.music:osd` does the same from the command line. Without a name they act on `main`, the only surface of a module that exports `surface`. The `osd` example shows a settings panel and an on-screen display at the same time.
 
 To give every panel, overlay, and menu a material, set it on the `surface` style in `~/.config/gary/theme.json`, with a translucent background:
 
