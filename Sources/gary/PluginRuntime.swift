@@ -285,8 +285,11 @@ private extension PluginRuntime {
         context.name = "\(id)"
         context.exceptionHandler = { [weak self] _, value in self?.exception = value?.toString() ?? "unknown exception" }
         let host = try check(in: context) { makeHost(in: context) }
-        for capability in Capability.all {
-            capability.install?(host, self)
+        try check(in: context) {
+            for capability in Capability.all {
+                capability.install?(host, self)
+            }
+            return JSValue(undefinedIn: context)
         }
         context.setObject(host, forKeyedSubscript: "host" as NSString)
         try installTimers(in: context)
