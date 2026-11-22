@@ -223,8 +223,8 @@ struct PluginRuntimeTests {
         """, setup: "var shown = \"start\";"))
         #expect(try await harness.text() == "start")
         harness.runtime.perform("good", .null)
-        guard case let .call(kind, method, arguments, reply) = try await harness.events.next() else { throw RenderError("expected a call") }
-        #expect(kind == nil)
+        guard case let .call(target, method, arguments, reply) = try await harness.events.next() else { throw RenderError("expected a call") }
+        #expect(target.plugin == nil && target.kind == nil)
         #expect(method == "good")
         #expect(arguments == ["1", "two"])
         reply(.ok(#"{"a":1}"#))

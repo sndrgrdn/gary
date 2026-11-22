@@ -172,12 +172,16 @@ enum PluginScripts {
         hide: hide,
         toggle: toggle,
         call: function () {
-          var args = Array.prototype.slice.call(arguments), kind = "";
-          if (args[0] !== null && typeof args[0] === "object") kind = String(args.shift().kind);
+          var args = Array.prototype.slice.call(arguments), plugin = "", kind = "";
+          if (args[0] !== null && typeof args[0] === "object") {
+            var target = args.shift();
+            plugin = target.plugin === undefined || target.plugin === id ? "" : String(target.plugin);
+            kind = target.kind === undefined ? "" : String(target.kind);
+          }
           var method = String(args.shift());
           return new Promise(function (resolve, reject) {
-            if (kind !== "" && kinds.indexOf(kind) < 0) throw new Error("host.call: " + id + " has no kind " + kind);
-            call(kind, method, args.map(String), resolve, function (message) { reject(new Error(message)); });
+            if (plugin === "" && kind !== "" && kinds.indexOf(kind) < 0) throw new Error("host.call: " + id + " has no kind " + kind);
+            call(plugin, kind, method, args.map(String), resolve, function (message) { reject(new Error(message)); });
           }).then(function (text) { return text === "" ? undefined : JSON.parse(text); });
         }
       };

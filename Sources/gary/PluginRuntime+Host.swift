@@ -32,20 +32,29 @@ extension PluginRuntime {
                 }
             } as @convention(block) (JSValue) -> Void
         }
-        let callBlock: @convention(block) (String, String, [String], JSValue, JSValue) -> Void = { [weak self] kind, method, args, resolve, reject in
-            guard let self else { return }
-            deliver(self, .call(kind: PluginKind(rawValue: kind), method: method, arguments: args) { [weak self] response in
-                self?.queue.async {
-                    switch response {
-                    case let .ok(text): self?.callBack(resolve, [text], Trace("host.call"))
-                    case let .failure(message): self?.callBack(reject, [message], Trace("host.call"))
-                    }
+        let callBlock: @convention(block) (String, String, String, [String], JSValue, JSValue)
+            -> Void = { [weak self] plugin, kind, method, args, resolve, reject in
+                guard let self else { return }
+                guard let target = CallTarget(plugin: plugin, kind: kind) else {
+                    callBack(reject, ["\(plugin) is not a plugin id"], Trace("host.call"))
+                    return
                 }
-            })
-        }
+                callPlugin(target, method, args, resolve, reject)
+            }
         let kinds = bundle.manifest.kinds.map(\.rawValue)
         return context.evaluateScript(PluginScripts.host)?
             .call(withArguments: [logBlock, read, write, publishBlock] + surfaceBlocks + [callBlock, "\(id)", kinds])
+    }
+
+    private func callPlugin(_ target: CallTarget, _ method: String, _ args: [String], _ resolve: JSValue, _ reject: JSValue) {
+        deliver(self, .call(target, method: method, arguments: args) { [weak self] response in
+            self?.queue.async {
+                switch response {
+                case let .ok(text): self?.callBack(resolve, [text], Trace("host.call"))
+                case let .failure(message): self?.callBack(reject, [message], Trace("host.call"))
+                }
+            }
+        })
     }
 
     func surfaceAddress(_ value: JSValue) throws -> SurfaceAddress {

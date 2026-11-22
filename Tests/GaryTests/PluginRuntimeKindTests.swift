@@ -8,7 +8,7 @@ struct PluginRuntimeKindTests {
         let harness = try Harness(widget("""
         render: function () { return { type: "text", text: shown }; },
         onAction: function (name) {
-          host.call({ kind: name }, "ping", 3).then(
+          host.call(name === "other" ? { plugin: "you.other" } : { kind: name }, "ping", 3).then(
             function (value) { shown = "ok " + value; },
             function (error) { shown = error.message; }
           );
@@ -16,10 +16,15 @@ struct PluginRuntimeKindTests {
         """, setup: "var shown = \"start\";"))
         #expect(try await harness.text() == "start")
         harness.runtime.perform("bar-widget", .null)
-        guard case let .call(kind, method, arguments, reply) = try await harness.events.next() else { throw RenderError("expected a call") }
-        #expect(kind == .barWidget && method == "ping" && arguments == ["3"])
+        guard case let .call(target, method, arguments, reply) = try await harness.events.next() else { throw RenderError("expected a call") }
+        #expect(target.plugin == nil && target.kind == .barWidget && method == "ping" && arguments == ["3"])
         reply(.ok("4"))
         #expect(try await harness.text() == "ok 4")
+        harness.runtime.perform("other", .null)
+        guard case let .call(other, _, _, answer) = try await harness.events.next() else { throw RenderError("expected a call") }
+        #expect(other.plugin == PluginID("you.other"))
+        answer(.failure("you.other is not enabled"))
+        #expect(try await harness.text() == "you.other is not enabled")
         harness.runtime.perform("panel", .null)
         #expect(try await harness.text() == "host.call: test.runtime has no kind panel")
         harness.runtime.stop()

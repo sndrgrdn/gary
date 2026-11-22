@@ -20,11 +20,22 @@ enum SurfaceRequest: String {
     case show, hide, toggle
 }
 
+struct CallTarget {
+    let plugin: PluginID?
+    let kind: PluginKind?
+
+    init?(plugin: String, kind: String) {
+        guard plugin.isEmpty || PluginID(plugin) != nil else { return nil }
+        self.plugin = PluginID(plugin)
+        self.kind = PluginKind(rawValue: kind)
+    }
+}
+
 enum RuntimeEvent {
     case loaded(RuntimeOutput, Trace)
     case output(RuntimeOutput, Trace)
     case surface(SurfaceRequest, SurfaceAddress, origin: CGRect?)
-    case call(kind: PluginKind?, method: String, arguments: [String], reply: (Response) -> Void)
+    case call(CallTarget, method: String, arguments: [String], reply: (Response) -> Void)
     case failed(String)
 }
 

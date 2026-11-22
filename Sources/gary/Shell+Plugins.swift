@@ -154,8 +154,8 @@ extension Shell {
             }
         case let .surface(request, address, origin):
             surfaceRequested(request, address, origin, by: key.id)
-        case let .call(kind, method, arguments, reply):
-            call(key.id, kind, method, arguments, reply)
+        case let .call(target, method, arguments, reply):
+            call(target.plugin ?? key.id, target.kind, method, arguments, reply)
         case let .failed(reason):
             failed(slot, runtime, reason)
         }
