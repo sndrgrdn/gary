@@ -4,7 +4,7 @@ import GaryCore
 import Testing
 
 private let environment = ProcessInfo.processInfo.environment
-private let benchEngine = PluginEngine()
+private let benchEngine = engine
 private let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 private let gallery = URL(fileURLWithPath: environment["GARY_PLUGINS"] ?? NSHomeDirectory() + "/Developer/gary-plugins")
 private let stopMessage = "stopped after running longer than"
@@ -31,7 +31,7 @@ private final class Record: @unchecked Sendable {
     private var recording = false
     private var waits: [String: [Double]] = [:]
     private var failed: [String] = []
-    private var loaded: Set<String> = []
+    private var loaded: [String: Double] = [:]
     private var outputs: [String: Int] = [:]
 
     func start() {
@@ -54,7 +54,7 @@ private final class Record: @unchecked Sendable {
     func event(_ name: String, _ event: RuntimeEvent) {
         lock.withLock {
             switch event {
-            case .loaded: loaded.insert(name)
+            case .loaded: loaded[name] = now()
             case let .failed(reason): failed.append("\(name): \(reason)")
             case .output: if recording {
                     outputs[name, default: 0] += 1
@@ -76,14 +76,28 @@ private final class Record: @unchecked Sendable {
         lock.withLock { failed }
     }
 
-    func isLoaded(_ name: String) -> Bool {
-        lock.withLock { loaded.contains(name) }
+    func loadedAt(_ name: String) -> Double? {
+        lock.withLock { loaded[name] }
+    }
+}
+
+private final class LoadTimes: @unchecked Sendable {
+    private let lock = NSLock()
+    private var times: [String: Double] = [:]
+
+    func set(_ name: String, _ milliseconds: Double) {
+        lock.withLock { times[name] = milliseconds }
+    }
+
+    var all: [String: Double] {
+        lock.withLock { times }
     }
 }
 
 private struct Bench {
     let hub = StateHub(sources: [:])
     let record = Record()
+    let loadTimes = LoadTimes()
 
     func load(_ directory: URL, _ kind: PluginKind, settings: JSON = .object([:])) throws -> PluginRuntime {
         let bundle = try PluginBundle.load(directory, origin: .user, capabilities: Capability.names())
@@ -102,10 +116,12 @@ private struct Bench {
             engine: benchEngine,
             transpiler: transpiler,
         )
+        let started = now()
         runtime.load(Trace("load"))
-        for _ in 0..<200 where !record.isLoaded(name) {
-            Thread.sleep(forTimeInterval: 0.05)
+        for _ in 0..<2000 where record.loadedAt(name) == nil {
+            Thread.sleep(forTimeInterval: 0.005)
         }
+        loadTimes.set(name, ((record.loadedAt(name) ?? .nan) - started) * 1000)
         return runtime
     }
 
@@ -211,6 +227,7 @@ struct EngineBench {
             "widgets": summary(waits.values.flatMap(\.self)),
             "perWidget": waits.mapValues(summary),
             "memoryMB": summary(memory),
+            "loadMs": bench.loadTimes.all.filter(\.value.isFinite),
             "failures": failures,
             "outputs": bench.record.outputCounts,
             "falseKills": failures.count { $0.contains(stopMessage) && !$0.hasPrefix(runawayID) },

@@ -24,4 +24,5 @@ for run in runs:
     samples = int(run["widgets"]["n"])
     per = ", ".join(f"{name} p95 {stats['p95']:.2f}" for name, stats in sorted(run["perWidget"].items()))
     outputs = ", ".join(f"{name} {count / run['seconds']:.1f}/s" for name, count in sorted(run["outputs"].items()))
-    print(f"{run['side']}: {samples} widget samples; {per}; outputs {outputs}; failures {run['failures'] or 'none'}")
+    loads = ", ".join(f"{name} {ms:.1f}" for name, ms in sorted(run.get("loadMs", {}).items()))
+    print(f"{run['side']}: {samples} widget samples; {per}; outputs {outputs}; load ms {loads}; failures {run['failures'] or 'none'}")
