@@ -29,6 +29,7 @@ final class PluginRuntime: Subscriber {
     private var output = RuntimeOutput()
     private var origin: CGRect?
     private var surfaceNames: [String]?
+    private var timings = Timings()
 
     var id: PluginID {
         bundle.manifest.id
@@ -58,14 +59,14 @@ final class PluginRuntime: Subscriber {
         queue.async { [self] in
             state = hub.subscribe(self, to: bundle.manifest.subscribes)
             do {
-                let functions = try evaluate()
+                let functions = try timed(.evaluate) { try evaluate() }
                 for (topic, value) in state.sorted(by: { $0.key.description < $1.key.description }) {
                     try announce(topic, value, to: functions)
                 }
                 let names = kind.isSurface ? try surfaces(functions).keys.sorted() : []
                 surfaceNames = names
                 output = try renderOutput(functions)
-                deliver(self, .loaded(output, surfaces: names, trace))
+                deliver(self, .loaded(output, surfaces: names, traced(trace)))
             } catch {
                 teardown()
                 deliver(self, .failed("\(error)"))
@@ -105,7 +106,7 @@ final class PluginRuntime: Subscriber {
     }
 
     private func announce(_ topic: Topic, _ value: JSON, to functions: PluginFunctions) throws {
-        try invoke(functions.dispatch, ["onTopic", JSON.array([.string(topic.description), value]).text, stateText(for: nil)])
+        try invoke(functions.dispatch, ["onTopic", encode(.array([.string(topic.description), value])), stateText(for: nil)], [.jsParse, .handler])
     }
 
     func perform(_ action: String, _ payload: JSON, origin: CGRect? = nil) {
@@ -136,7 +137,7 @@ final class PluginRuntime: Subscriber {
             self.origin = origin
             defer { self.origin = nil }
             do {
-                let handled = try invoke(functions.dispatch, [handler, JSON.array(arguments).text, stateText(for: nil)])
+                let handled = try invoke(functions.dispatch, [handler, encode(JSON.array(arguments)), stateText(for: nil)], [.jsParse, .handler])
                 if !handled.isNull {
                     renderAll(trace)
                 }
@@ -154,7 +155,7 @@ final class PluginRuntime: Subscriber {
             guard let functions else { return reply(.failure("\(id) is not running")) }
             let done: @convention(block) (Bool, String) -> Void = { ok, text in reply(ok ? .ok(text) : .failure(text)) }
             do {
-                try invoke(functions.call, [method, JSON.array(arguments.map(JSON.string)).text, done])
+                try invoke(functions.call, [method, encode(JSON.array(arguments.map(JSON.string))), done], [.jsParse, .handler])
                 renderAll(Trace("call"))
             } catch {
                 reply(.failure("\(error)"))
@@ -166,9 +167,15 @@ final class PluginRuntime: Subscriber {
         guard let functions else { return }
         do {
             let next = try renderOutput(functions)
-            guard always || next != output else { return }
+            let changed = timed(.compare) { next != output }
+            guard always || changed else {
+                if tracing {
+                    log("render plugin=\(id)/\(kind.rawValue) cause=\(trace.cause) unchanged \(traced(trace).timings.fields)")
+                }
+                return
+            }
             output = next
-            deliver(self, .output(next, trace))
+            deliver(self, .output(next, traced(trace)))
         } catch {
             fail("\(error)")
         }
@@ -193,8 +200,9 @@ final class PluginRuntime: Subscriber {
     }
 
     private func surfaces(_ functions: PluginFunctions) throws -> [String: SurfaceSpec] {
-        let text = try invoke(functions.surfaces, [stateText(for: nil)]).toString() ?? "{}"
-        return try SurfaceSpec.parseAll(JSON.parse(text), kind: kind)
+        let text = try invoke(functions.surfaces, [stateText(for: nil)], [.jsParse, .render, .stringify])
+        let json = try timed(.swiftParse) { try JSON.parse(text.toString() ?? "{}") }
+        return try timed(.nodeParse) { try SurfaceSpec.parseAll(json, kind: kind) }
     }
 
     private func surfaceName(_ value: JSValue) throws -> String {
@@ -240,7 +248,7 @@ final class PluginRuntime: Subscriber {
     func callBack(_ callback: JSValue, _ arguments: [Any], _ trace: Trace) {
         guard isRunning else { return }
         do {
-            try invoke(callback, arguments)
+            try invoke(callback, arguments, [.handler])
             renderAll(trace)
         } catch {
             fail("\(error)")
@@ -248,9 +256,12 @@ final class PluginRuntime: Subscriber {
     }
 
     private func render(_ display: DisplayInfo, _ surface: String, with functions: PluginFunctions) throws -> Node {
-        let text = try invoke(functions.render, [stateText(for: display, surface: surface)])
-        guard text.isString, let json = text.toString() else { throw RenderError("render returned nothing") }
-        return try Node.parse(Data(json.utf8)).resolvingPaths(against: bundle.directory)
+        let value = try invoke(functions.render, [stateText(for: display, surface: surface)], [.jsParse, .render, .stringify])
+        let json = try timed(.swiftParse) { () throws -> JSON in
+            guard value.isString, let text = value.toString() else { throw RenderError("render returned nothing") }
+            return try JSON.parse(text)
+        }
+        return try timed(.nodeParse) { try Node.parse(json).resolvingPaths(against: bundle.directory) }
     }
 
     private func stateText(for display: DisplayInfo?, surface: String? = nil) -> String {
@@ -259,7 +270,18 @@ final class PluginRuntime: Subscriber {
         fields["theme"] = theme
         fields["display"] = display?.json
         fields["surface"] = surface.map(JSON.string)
-        return JSON.object(fields).text
+        return encode(JSON.object(fields))
+    }
+
+    private func encode(_ json: JSON) -> String {
+        timed(.encode) { json.text }
+    }
+
+    private func traced(_ trace: Trace) -> Trace {
+        var trace = trace
+        trace.timings.merge(timings)
+        timings = Timings()
+        return trace
     }
 }
 
@@ -371,8 +393,16 @@ private extension PluginRuntime {
     }
 
     @discardableResult
-    func invoke(_ function: JSValue, _ arguments: [Any]) throws -> JSValue {
-        try check { function.call(withArguments: arguments) }
+    func invoke(_ function: JSValue, _ arguments: [Any], _ stages: [Stage] = []) throws -> JSValue {
+        var spent = Timings()
+        defer { timings.merge(spent) }
+        return try check { function.call(arguments, timing: stages, into: &spent) }
+    }
+
+    func timed<T>(_ stage: Stage, _ body: () throws -> T) rethrows -> T {
+        var spent = Timings()
+        defer { timings.merge(spent) }
+        return try measure(stage, &spent, body)
     }
 
     @discardableResult

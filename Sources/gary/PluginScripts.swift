@@ -21,22 +21,33 @@ enum PluginScripts {
       var e = function () { return m.exports; };
       if (!headless && typeof e().render !== "function") throw new Error("module.exports.render is not a function");
       return [
-        function (state) { return JSON.stringify(e().render(JSON.parse(state))); },
-        function (name, args, state) {
+        function (state, mark) {
+          var s = JSON.parse(state);
+          if (mark) mark();
+          var n = e().render(s);
+          if (mark) mark();
+          return JSON.stringify(n);
+        },
+        function (name, args, state, mark) {
           var f = e()[name];
           if (typeof f !== "function") return null;
-          return f.apply(e(), JSON.parse(args).concat([JSON.parse(state)])) === true;
+          var a = JSON.parse(args).concat([JSON.parse(state)]);
+          if (mark) mark();
+          return f.apply(e(), a) === true;
         },
-        function (method, args, done) {
+        function (method, args, done, mark) {
           var f = e().methods && e().methods[method];
           if (typeof f !== "function") throw new Error("no method " + method);
-          var r = f.apply(null, JSON.parse(args));
+          var a = JSON.parse(args);
+          if (mark) mark();
+          var r = f.apply(null, a);
           var text = function (v) { return v === undefined ? "" : JSON.stringify(v); };
           if (!r || typeof r.then !== "function") return done(true, text(r));
           r.then(function (v) { done(true, text(v)); }, function (x) { done(false, x instanceof Error ? x.message : String(x)); });
         },
-        function (state) {
+        function (state, mark) {
           var x = e(), s = JSON.parse(state), out = {};
+          if (mark) mark();
           var resolve = function (v) {
             if (typeof v === "function") v = v(s);
             return v === undefined ? null : v;
@@ -50,6 +61,7 @@ enum PluginScripts {
               Object.keys(all).forEach(function (k) { out.surfaces[k] = resolve(all[k]); });
             }
           }
+          if (mark) mark();
           return JSON.stringify(out);
         }
       ];

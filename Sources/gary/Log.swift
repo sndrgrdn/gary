@@ -15,6 +15,7 @@ func log(_ message: String) {
 struct Trace {
     let cause: String
     let start: Double
+    var timings = Timings()
 
     init(_ cause: String, start: Double = now()) {
         self.cause = cause

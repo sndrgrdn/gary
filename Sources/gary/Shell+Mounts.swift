@@ -6,22 +6,42 @@ extension Shell {
         if slot.key.kind.isSurface, !slot.visible {
             return
         }
-        slot.surfaces = output.surfaces
-        for (surface, trees) in output.trees where !slot.key.kind.isSurface || slot.shown[surface] != nil {
-            for (display, tree) in trees {
-                mount(MountKey(slot: slot.key, surface: surface, display: display), tree, trace)
+        var timings = trace.timings
+        let changes = measure(.apply, &timings) {
+            slot.surfaces = output.surfaces
+            var changes: [MountKey: Bool] = [:]
+            for (surface, trees) in output.trees where !slot.key.kind.isSurface || slot.shown[surface] != nil {
+                for (display, tree) in trees {
+                    let key = MountKey(slot: slot.key, surface: surface, display: display)
+                    changes[key] = mount(key, tree)
+                }
             }
+            for key in mounts.keys where key.slot == slot.key && output.trees[key.surface]?[key.display] == nil {
+                unmount(key)
+            }
+            return changes
         }
-        for key in mounts.keys where key.slot == slot.key && output.trees[key.surface]?[key.display] == nil {
-            unmount(key)
+        timings.merge(commitFrame())
+        guard tracing else { return }
+        let end = now()
+        for (key, changed) in changes {
+            log(String(
+                format: "commit plugin=%@ surface=%@ display=%@ cause=%@ since_ms=%.3f changed=%d %@ tree=%@",
+                key.slot.id.rawValue,
+                key.surface,
+                key.display,
+                trace.cause,
+                (end - trace.start) * 1000,
+                changed ? 1 : 0,
+                timings.fields,
+                output.trees[key.surface]?[key.display]?.summary ?? "",
+            ))
         }
-        commitFrame()
     }
 
-    private func mount(_ key: MountKey, _ tree: Node, _ trace: Trace) {
+    private func mount(_ key: MountKey, _ tree: Node) -> Bool {
         let slotKey = key.slot
         let onAction: ActionHandler = { [weak self] event in self?.perform(event, slotKey) }
-        let started = now()
         let changed: Bool
         if let view = mounts[key] {
             changed = view.tree.root != tree
@@ -37,20 +57,7 @@ extension Shell {
             changed = true
         }
         place(key)
-        if tracing {
-            let end = now()
-            log(String(
-                format: "commit plugin=%@ surface=%@ display=%@ cause=%@ since_ms=%.3f apply_ms=%.3f changed=%d tree=%@",
-                slotKey.id.rawValue,
-                key.surface,
-                key.display,
-                trace.cause,
-                (end - trace.start) * 1000,
-                (end - started) * 1000,
-                changed ? 1 : 0,
-                tree.summary,
-            ))
-        }
+        return changed
     }
 
     func theme(for kind: PluginKind) -> Theme {

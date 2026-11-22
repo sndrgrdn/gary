@@ -72,12 +72,15 @@ extension Shell {
         NSAppearance(named: theme.mode == .dark ? .darkAqua : .aqua)
     }
 
-    func commitFrame() {
+    @discardableResult
+    func commitFrame() -> Timings {
+        var timings = Timings()
         for panel in panels where panel.isVisible {
-            panel.contentView?.layoutSubtreeIfNeeded()
-            panel.displayIfNeeded()
+            measure(.layout, &timings) { panel.contentView?.layoutSubtreeIfNeeded() }
+            measure(.display, &timings) { panel.displayIfNeeded() }
         }
-        CATransaction.flush()
+        measure(.flush, &timings) { CATransaction.flush() }
+        return timings
     }
 
     func refreshDisplays(_ trace: Trace) {
