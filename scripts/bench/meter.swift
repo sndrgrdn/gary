@@ -10,18 +10,23 @@ struct Sample {
     var footprint: UInt64
     var cpu: Double
     var wakeups: UInt64
+    var instructions: UInt64
+    var cycles: UInt64
+    var performanceCycles: UInt64
+    var energy: UInt64
     var time: Double
 }
 
 func sample(_ pid: Int32) -> Sample? {
-    var info = rusage_info_v4()
+    var info = rusage_info_v6()
     let result = withUnsafeMutablePointer(to: &info) {
-        $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V4, $0) }
+        $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V6, $0) }
     }
     guard result == 0 else { return nil }
     return Sample(
         footprint: info.ri_phys_footprint, cpu: Double(info.ri_user_time + info.ri_system_time) * tick / 1e9,
-        wakeups: info.ri_pkg_idle_wkups + info.ri_interrupt_wkups, time: Date().timeIntervalSince1970,
+        wakeups: info.ri_pkg_idle_wkups + info.ri_interrupt_wkups, instructions: info.ri_instructions, cycles: info.ri_cycles,
+        performanceCycles: info.ri_pcycles, energy: info.ri_energy_nj, time: Date().timeIntervalSince1970,
     )
 }
 
@@ -52,7 +57,8 @@ for (index, target) in targets.enumerated() {
     }
     let window = last.time - first.time
     print(String(
-        format: "%@ pid=%d footprint_start_mb=%.2f footprint_end_mb=%.2f cpu_pct=%.4f cpu_s=%.4f wakeups_per_s=%.2f window_s=%.1f",
+        format: "%@ pid=%d footprint_start_mb=%.2f footprint_end_mb=%.2f cpu_pct=%.4f cpu_s=%.4f wakeups_per_s=%.2f "
+            + "minstructions_per_s=%.2f mcycles_per_s=%.2f pcycles_pct=%.1f energy_mw=%.2f window_s=%.1f",
         target.name,
         target.pid,
         Double(first.footprint) / 1_048_576,
@@ -60,6 +66,10 @@ for (index, target) in targets.enumerated() {
         (last.cpu - first.cpu) / window * 100,
         last.cpu - first.cpu,
         Double(last.wakeups - first.wakeups) / window,
+        Double(last.instructions - first.instructions) / window / 1e6,
+        Double(last.cycles - first.cycles) / window / 1e6,
+        Double(last.performanceCycles - first.performanceCycles) / Double(max(1, last.cycles - first.cycles)) * 100,
+        Double(last.energy - first.energy) / window / 1e6,
         window,
     ))
 }

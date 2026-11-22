@@ -184,6 +184,10 @@ def measure(pid, seconds):
     return {
         "cpu_pct": float(fields["cpu_pct"]),
         "wakeups_per_s": float(fields["wakeups_per_s"]),
+        "minstructions_per_s": float(fields["minstructions_per_s"]),
+        "mcycles_per_s": float(fields["mcycles_per_s"]),
+        "pcycles_pct": float(fields["pcycles_pct"]),
+        "energy_mw": float(fields["energy_mw"]),
         "footprint_mb": float(fields["footprint_end_mb"]),
         "windowserver_cpu_pct": (cpu_seconds(server[0]) - server_start) / seconds * 100 if server else None,
         "gpu_pct": statistics.mean(gpu) if gpu else None,
@@ -401,6 +405,10 @@ def report(path):
         produced = [rate(run, counter) for run in runs]
         renders = [rate(run, "renders") for run in runs]
         print(f"gary cpu {spread([run['cpu_pct'] for run in runs], '%')}; wakeups/s {spread([run['wakeups_per_s'] for run in runs])}")
+        if all("energy_mw" in run for run in runs):
+            print(f"instructions {spread([run['minstructions_per_s'] for run in runs], ' M/s', 0)}; "
+                  f"cycles {spread([run['mcycles_per_s'] for run in runs], ' M/s', 0)}; "
+                  f"p-core cycles {spread([run['pcycles_pct'] for run in runs], '%')}; energy {spread([run['energy_mw'] for run in runs], ' mW')}")
         print(f"windowserver cpu {spread([run['windowserver_cpu_pct'] for run in runs], '%')}; gpu {spread([run['gpu_pct'] for run in runs], '%')}")
         print(f"footprint {spread([run['footprint_mb'] for run in runs], ' MB')}; {counter}/s {spread(produced)}; js renders/s {spread(renders)}")
         if trace:
