@@ -23,6 +23,7 @@ struct Capability {
         .calendar,
         .clipboard,
         .clock,
+        .colorpicker,
         .dock,
         .exec,
         .files,
