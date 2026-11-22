@@ -117,6 +117,10 @@ struct ShaderNode: View {
 }
 
 private final class PassThroughMetalView: MTKView {
+    var animated = false {
+        didSet { updatePaused() }
+    }
+
     override func hitTest(_: NSPoint) -> NSView? {
         nil
     }
@@ -124,6 +128,20 @@ private final class PassThroughMetalView: MTKView {
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
         layer?.contentsScale = window?.backingScaleFactor ?? 1
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        let center = NotificationCenter.default
+        center.removeObserver(self, name: NSWindow.didChangeOcclusionStateNotification, object: nil)
+        if let window {
+            center.addObserver(self, selector: #selector(updatePaused), name: NSWindow.didChangeOcclusionStateNotification, object: window)
+        }
+        updatePaused()
+    }
+
+    @objc private func updatePaused() {
+        isPaused = !animated || !(window?.occlusionState.contains(.visible) ?? false)
     }
 }
 
@@ -158,7 +176,7 @@ private struct MetalCanvas: NSViewRepresentable {
         Coordinator()
     }
 
-    func makeNSView(context: Context) -> MTKView {
+    func makeNSView(context: Context) -> PassThroughMetalView {
         let view = PassThroughMetalView(frame: .zero, device: ShaderProgram.device)
         view.colorPixelFormat = ShaderProgram.pixelFormat
         view.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
@@ -167,12 +185,12 @@ private struct MetalCanvas: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ view: MTKView, context: Context) {
+    func updateNSView(_ view: PassThroughMetalView, context: Context) {
         let coordinator = context.coordinator
         (coordinator.program, coordinator.args, coordinator.animated) = (program, args, animated)
         view.preferredFramesPerSecond = view.window?.screen?.maximumFramesPerSecond ?? 60
         view.enableSetNeedsDisplay = !animated
-        view.isPaused = !animated
+        view.animated = animated
         view.needsDisplay = true
     }
 }
