@@ -204,17 +204,17 @@ final class BarWindow {
         constraints = sections.map { $0.centerYAnchor.constraint(equalTo: content.centerYAnchor) } + [
             left.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: edge),
             right.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -edge),
-            right.leadingAnchor.constraint(greaterThanOrEqualTo: center.trailingAnchor, constant: gap),
         ]
         if let notch = display.notch {
             constraints += [
                 left.trailingAnchor.constraint(lessThanOrEqualTo: content.leadingAnchor, constant: notch.lowerBound - edge),
-                center.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: notch.upperBound + edge),
+                center.trailingAnchor.constraint(equalTo: right.leadingAnchor, constant: -4),
             ]
         } else {
             constraints += [
                 center.centerXAnchor.constraint(equalTo: content.centerXAnchor),
                 left.trailingAnchor.constraint(lessThanOrEqualTo: center.leadingAnchor, constant: -gap),
+                right.leadingAnchor.constraint(greaterThanOrEqualTo: center.trailingAnchor, constant: gap),
             ]
         }
         NSLayoutConstraint.activate(constraints)
