@@ -104,6 +104,7 @@ private struct Scanner {
     }
 
     private mutating func arc(_ origin: CGPoint) throws(NodeError) {
+        defer { (cubicControl, quadControl) = (nil, nil) }
         let radii = try CGPoint(x: abs(number()), y: abs(number()))
         let rotation = try number() * .pi / 180
         let large = try flag()

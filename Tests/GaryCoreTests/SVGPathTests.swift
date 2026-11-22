@@ -77,6 +77,17 @@ struct SVGPathTests {
         #expect(near(end(half[2]), point(10, 0)))
     }
 
+    @Test func `s and t after an arc start from the current point`() throws {
+        let smooth = try parse("M0 0 A5 5 0 0 1 10 0 S15 5 20 0")
+        #expect(smooth.last == .cubic(point(10, 0), point(15, 5), point(20, 0)))
+        let skipped = try parse("M0 0 C1 1 2 1 3 0 A5 5 0 0 1 3 0 S5 1 6 0 Q7 1 8 0 A5 5 0 0 1 8 0 T10 0")
+        #expect(skipped.dropFirst(2) == [
+            .cubic(point(3, 0), point(5, 1), point(6, 0)),
+            .quad(point(7, 1), point(8, 0)),
+            .quad(point(8, 0), point(10, 0)),
+        ])
+    }
+
     @Test func `the arc flags pick the side and the sweep and may run together`() throws {
         let below = try parse("M0 0 A5 5 0 0 0 10 0")
         #expect(near(end(below[1]), point(5, 5), within: 1e-6))
