@@ -58,6 +58,12 @@ public struct HostCall: Equatable, Sendable {
         return value
     }
 
+    public func optionalBool(_ index: Int, _ label: String) throws -> Bool? {
+        guard let value = argument(index), value != .null else { return nil }
+        guard let bool = value.bool else { throw fail("\(label) must be true or false") }
+        return bool
+    }
+
     public func strings(_ index: Int, _ label: String) throws -> [String] {
         guard let items = argument(index)?.array, case let strings = items.compactMap(\.string), strings.count == items.count else {
             throw fail("\(label) must be an array of strings")

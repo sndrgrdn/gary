@@ -4,7 +4,10 @@ import GaryCore
 extension Capability {
     static let clipboard = Capability(
         name: "clipboard",
-        summary: "A clipboard change counter and the types on the clipboard. Read the clipboard, and write text, an image, or files to it.",
+        summary: """
+        A clipboard change counter and the types on the clipboard. Read the clipboard, and write text, an image, or files to it. \
+        Text written as concealed, such as a password, carries `org.nspasteboard.ConcealedType`, so clipboard managers skip it.
+        """,
         types: """
         declare namespace Gary {
           type ClipboardChange = { count: number; types: string[]; access: "default" | "ask" | "always" | "never" }
@@ -12,7 +15,7 @@ extension Capability {
           interface Host { clipboard: ClipboardApi }
           interface ClipboardApi {
             read(): Promise<ClipboardContents>;
-            writeText(text: string): { count: number };
+            writeText(text: string, concealed?: boolean): { count: number };
             writeImage(path: string): { count: number };
             writeFiles(paths: string[]): { count: number };
           }
@@ -89,9 +92,12 @@ private final class ClipboardTopic: TopicFeed {
 
 func writeClipboard(_ content: ClipboardContent, to board: NSPasteboard) throws -> JSON {
     switch content {
-    case let .text(text):
+    case let .text(text, concealed):
         board.clearContents()
         board.setString(text, forType: .string)
+        if concealed {
+            board.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType"))
+        }
     case let .image(path):
         guard let tiff = NSImage(contentsOfFile: path)?.tiffRepresentation,
               let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:])

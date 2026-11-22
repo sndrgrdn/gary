@@ -26,6 +26,10 @@ struct ClipboardTests {
         let copy = try #require(read["image"]?.string)
         #expect(NSImage(contentsOfFile: copy)?.size == NSSize(width: 2, height: 2))
 
+        _ = try writeClipboard(.text("otpauth://totp/x", concealed: true), to: board)
+        #expect(board.types?.contains(NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")) == true)
+        #expect(board.string(forType: .string) == "otpauth://totp/x")
+
         _ = try writeClipboard(.files(paths: [image.path, folder.path]), to: board)
         #expect(try readClipboard(board)["files"] == .array([.string(image.path), .string(folder.path)]))
 

@@ -70,7 +70,9 @@ struct ClipboardRequestTests {
 
     @Test func `read takes nothing and write text takes A string`() throws {
         #expect(try parse("read") == .read)
-        #expect(try parse("writeText", .string("hello")) == .write(.text("hello")))
+        #expect(try parse("writeText", .string("hello")) == .write(.text("hello", concealed: false)))
+        #expect(try parse("writeText", .string("otp"), .bool(true)) == .write(.text("otp", concealed: true)))
+        #expect(throws: ArgumentError.self) { try parse("writeText", .string("otp"), .string("yes")) }
         #expect(throws: ArgumentError("host.clipboard.writeText: text must be a string")) { try parse("writeText", .number(5)) }
         #expect(throws: ArgumentError.self) { try parse("clear") }
     }
