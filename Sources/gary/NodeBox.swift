@@ -79,3 +79,74 @@ struct MinWidth: Layout {
         )
     }
 }
+
+struct RowLayout: Layout {
+    var spacing: Double
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache _: inout ()) -> CGSize {
+        let sizes = sizes(proposal, subviews)
+        return CGSize(width: sizes.map(\.width).reduce(0, +) + gaps(subviews), height: sizes.map(\.height).max() ?? 0)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal _: ProposedViewSize, subviews: Subviews, cache _: inout ()) {
+        var x = bounds.minX
+        for (subview, size) in zip(subviews, sizes(ProposedViewSize(bounds.size), subviews)) {
+            subview.place(at: CGPoint(x: x, y: bounds.midY), anchor: .leading, proposal: ProposedViewSize(width: size.width, height: bounds.height))
+            x += size.width + spacing
+        }
+    }
+
+    private func gaps(_ subviews: Subviews) -> CGFloat {
+        spacing * CGFloat(max(subviews.count - 1, 0))
+    }
+
+    private func sizes(_ proposal: ProposedViewSize, _ subviews: Subviews) -> [CGSize] {
+        func widths(_ width: CGFloat?) -> [CGFloat] {
+            subviews.map { $0.sizeThatFits(ProposedViewSize(width: width, height: proposal.height)).width }
+        }
+        let ideal = widths(nil)
+        var given = ideal
+        if let width = proposal.width {
+            let target = width - gaps(subviews)
+            let total = ideal.reduce(0, +)
+            if target > total {
+                given = level(zip(ideal, widths(.infinity)), to: target)
+            } else if target < total {
+                given = level(zip(widths(0), ideal), to: target)
+            }
+        }
+        return zip(subviews, given).map { $0.sizeThatFits(ProposedViewSize(width: $1, height: proposal.height)) }
+    }
+
+    private func level(_ ranges: Zip2Sequence<[CGFloat], [CGFloat]>, to target: CGFloat) -> [CGFloat] {
+        func widths(_ cap: CGFloat) -> [CGFloat] {
+            ranges.map { low, high in min(high, max(low, cap)) }
+        }
+        var low = CGFloat(0)
+        var high = max(target, ranges.map(\.1).filter(\.isFinite).max() ?? 0)
+        for _ in 0..<32 {
+            let cap = (low + high) / 2
+            if widths(cap).reduce(0, +) > target {
+                high = cap
+            } else {
+                low = cap
+            }
+        }
+        return widths(low)
+    }
+}
+
+struct TextNode: View {
+    let text: String
+    let look: ResolvedStyle
+    let lines: Int?
+
+    var body: some View {
+        let spills = look.width != nil && look.lines == nil && look.truncate == nil
+        Text(verbatim: text).font(Font(nsFont(look.font) as CTFont)).foregroundStyle(Color(look.color))
+            .multilineTextAlignment(TextAlignment(look.align ?? .leading))
+            .lineLimit(look.lines ?? (look.width == nil ? lines : 1))
+            .truncationMode(Text.TruncationMode(look.truncate ?? .tail))
+            .fixedSize(horizontal: spills, vertical: true)
+    }
+}

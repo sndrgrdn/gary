@@ -119,3 +119,16 @@ struct LoopPhaseTests {
         #expect(loop.phase(after: 0.25) < 0.25)
     }
 }
+
+struct TextStylePropsTests {
+    private func parse(_ text: String) throws -> StyleProps {
+        try StyleProps.parse(#require(JSON.parse(text).object)) { field, reason in NodeError(path: field, reason: reason) }
+    }
+
+    @Test func `reads a line limit and a truncation and clamps the limit to one line`() throws {
+        #expect(try parse(#"{"lines": 2, "truncate": "middle"}"#) == StyleProps(lines: 2, truncate: .middle))
+        #expect(try parse(#"{"lines": 0}"#).lines == 1)
+        #expect(throws: NodeError(path: "lines", reason: "must be a whole number")) { try parse(#"{"lines": 1.5}"#) }
+        #expect(StyleProps(truncate: .head).over(StyleProps(lines: 1, truncate: .tail)) == StyleProps(lines: 1, truncate: .head))
+    }
+}

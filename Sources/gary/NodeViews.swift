@@ -191,7 +191,7 @@ struct NodeView: View {
         let gap = look.gap ?? theme.spacing.item
         switch node.content {
         case .row:
-            HStack(alignment: .center, spacing: gap) { Children(node: node, theme: theme, axis: .horizontal) }
+            RowLayout(spacing: gap) { Children(node: node, theme: theme, axis: .horizontal) }
         case .column:
             VStack(alignment: .leading, spacing: gap) { Children(node: node, theme: theme, axis: .vertical) }
         case .stack:
@@ -199,8 +199,7 @@ struct NodeView: View {
         case .scroll:
             ScrollNode(node: node, theme: theme, gap: gap, padding: look.padding ?? Insets(0), maxHeight: look.height)
         case let .text(text):
-            Text(verbatim: text).font(Font(nsFont(look.font) as CTFont)).foregroundStyle(Color(look.color))
-                .multilineTextAlignment(TextAlignment(look.align ?? .leading)).fixedSize(horizontal: look.width != nil, vertical: true)
+            TextNode(text: text, look: look, lines: theme.textLines)
         case let .icon(symbol):
             Image(systemName: symbol).font(.system(size: look.font.size, weight: .init(look.font.weight))).foregroundStyle(Color(look.color))
         case let .image(path):

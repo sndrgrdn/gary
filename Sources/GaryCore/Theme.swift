@@ -48,6 +48,7 @@ public struct Theme: Equatable, Sendable {
     public var motion: Motion
     public var styles: [String: StyleProps]
     public var warnings: [String]
+    public private(set) var textLines: Int?
     private var fallback: StyleProps
     private var fallbackFont: FontToken
 
@@ -59,6 +60,7 @@ public struct Theme: Equatable, Sendable {
         var theme = self
         theme.fonts.merge(bar.fonts) { $1 }
         theme.fallbackFont = fallback.font.flatMap { bar.fonts[$0] } ?? fallbackFont
+        theme.textLines = 1
         return theme
     }
 
@@ -125,7 +127,7 @@ public struct Theme: Equatable, Sendable {
         else { throw ThemeError(path: "styles.default.font", reason: "must name a font") }
         var theme = Theme(
             palette: palette, colors: colors, fonts: fonts, spacing: spacing, bar: bar, motion: motion,
-            styles: styles, warnings: [], fallback: fallback, fallbackFont: fallbackFont,
+            styles: styles, warnings: [], textLines: nil, fallback: fallback, fallbackFont: fallbackFont,
         )
         theme.warnings = (colorWarnings + theme.styleWarnings()).sorted()
         return theme

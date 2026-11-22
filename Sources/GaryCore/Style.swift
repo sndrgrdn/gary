@@ -69,6 +69,10 @@ public enum ImageFit: String, CaseIterable, Sendable {
     }
 }
 
+public enum Truncation: String, CaseIterable, Sendable {
+    case tail, middle, head
+}
+
 public struct Shadow: Equatable, Sendable {
     public var color: String
     public var radius: Double
@@ -113,6 +117,8 @@ public struct StyleProps: Equatable, Sendable {
     public var colorScheme: ColorScheme?
     public var transition: Transition?
     public var fit: ImageFit?
+    public var lines: Int?
+    public var truncate: Truncation?
     public var clip: Bool?
     public var shadow: Shadow?
     public var border: Border?
@@ -152,6 +158,8 @@ public struct StyleProps: Equatable, Sendable {
         blur: Double? = nil,
         blend: Blend? = nil,
         loop: Loop? = nil,
+        lines: Int? = nil,
+        truncate: Truncation? = nil,
     ) {
         self.width = width
         self.height = height
@@ -182,6 +190,8 @@ public struct StyleProps: Equatable, Sendable {
         self.blur = blur
         self.blend = blend
         self.loop = loop
+        self.lines = lines
+        self.truncate = truncate
     }
 
     public static let numbers: [(String, WritableKeyPath<StyleProps, Double?> & Sendable)] = [
@@ -197,7 +207,22 @@ public struct StyleProps: Equatable, Sendable {
     ]
     public static let colors: [(String, WritableKeyPath<StyleProps, String?> & Sendable)] = [("color", \.color)]
     public static let names = numbers.map(\.0) + ["padding"] + signed.map(\.0)
-        + ["align", "animation", "material", "colorScheme", "transition", "fit", "clip", "shadow", "border", "blend", "loop", "background"]
+        + [
+            "align",
+            "animation",
+            "material",
+            "colorScheme",
+            "transition",
+            "fit",
+            "lines",
+            "truncate",
+            "clip",
+            "shadow",
+            "border",
+            "blend",
+            "loop",
+            "background",
+        ]
         + colors.map(\.0) + ["font"]
 
     public static func parse(_ fields: [String: JSON], fail: (String, String) -> Error) throws -> StyleProps {
@@ -219,6 +244,11 @@ public struct StyleProps: Equatable, Sendable {
         props.colorScheme = try choice(fields["colorScheme"], "colorScheme", fail: fail)
         props.transition = try choice(fields["transition"], "transition", fail: fail)
         props.fit = try choice(fields["fit"], "fit", fail: fail)
+        props.lines = try present(fields["lines"]).map { value in
+            guard let lines = value.number, lines.rounded() == lines else { throw fail("lines", "must be a whole number") }
+            return Int(min(max(lines, 1), Double(Int32.max)))
+        }
+        props.truncate = try choice(fields["truncate"], "truncate", fail: fail)
         props.blend = try choice(fields["blend"], "blend", fail: fail)
         props.clip = try flag(fields["clip"], "clip", fail: fail)
         props.shadow = try object(fields["shadow"], "shadow", "an object with color, radius and y", fail: fail) { shadow in
@@ -241,19 +271,6 @@ public struct StyleProps: Equatable, Sendable {
             return font
         }
         return props
-    }
-
-    private static func loop(_ fields: [String: JSON], fail: (String, String) -> Error) throws -> Loop {
-        var spans: [Loop.Property: Loop.Span] = [:]
-        for property in Loop.Property.allCases {
-            guard let value = present(fields[property.rawValue]) else { continue }
-            let ends = value.array?.compactMap(\.number).filter(\.isFinite) ?? []
-            guard ends.count == 2, value.array?.count == 2 else { throw fail("loop.\(property.rawValue)", "must be [from, to]") }
-            spans[property] = property == .opacity ? Loop.Span(min(1, max(0, ends[0])), min(1, max(0, ends[1]))) : Loop.Span(ends[0], ends[1])
-        }
-        let duration = try number(fields["duration"], "loop.duration", fail: fail) ?? 1
-        guard duration > 0 else { throw fail("loop.duration", "must be a positive number") }
-        return try Loop(spans, duration: duration, reverse: flag(fields["reverse"], "loop.reverse", fail: fail) ?? false)
     }
 
     static func present(_ value: JSON?) -> JSON? {
@@ -324,6 +341,8 @@ public struct StyleProps: Equatable, Sendable {
         merged.colorScheme = colorScheme ?? base.colorScheme
         merged.transition = transition ?? base.transition
         merged.fit = fit ?? base.fit
+        merged.lines = lines ?? base.lines
+        merged.truncate = truncate ?? base.truncate
         merged.clip = clip ?? base.clip
         merged.shadow = shadow ?? base.shadow
         merged.border = border ?? base.border
@@ -346,5 +365,20 @@ public struct ResolvedStyle: Equatable, Sendable {
 
     public subscript<Value>(dynamicMember path: KeyPath<StyleProps, Value>) -> Value {
         props[keyPath: path]
+    }
+}
+
+extension StyleProps {
+    private static func loop(_ fields: [String: JSON], fail: (String, String) -> Error) throws -> Loop {
+        var spans: [Loop.Property: Loop.Span] = [:]
+        for property in Loop.Property.allCases {
+            guard let value = present(fields[property.rawValue]) else { continue }
+            let ends = value.array?.compactMap(\.number).filter(\.isFinite) ?? []
+            guard ends.count == 2, value.array?.count == 2 else { throw fail("loop.\(property.rawValue)", "must be [from, to]") }
+            spans[property] = property == .opacity ? Loop.Span(min(1, max(0, ends[0])), min(1, max(0, ends[1]))) : Loop.Span(ends[0], ends[1])
+        }
+        let duration = try number(fields["duration"], "loop.duration", fail: fail) ?? 1
+        guard duration > 0 else { throw fail("loop.duration", "must be a positive number") }
+        return try Loop(spans, duration: duration, reverse: flag(fields["reverse"], "loop.reverse", fail: fail) ?? false)
     }
 }

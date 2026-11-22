@@ -40,6 +40,16 @@ extension TextAlignment {
     }
 }
 
+extension Text.TruncationMode {
+    init(_ truncation: Truncation) {
+        switch truncation {
+        case .tail: self = .tail
+        case .middle: self = .middle
+        case .head: self = .head
+        }
+    }
+}
+
 extension Font.Weight {
     init(_ weight: FontToken.Weight) {
         switch weight {
