@@ -22,7 +22,7 @@
     "title": { "family": "system", "size": 15, "weight": "semibold" },
     "mono": { "family": "monospaced", "size": 12, "weight": "regular" }
   },
-  "spacing": { "item": 8, "section": 14, "edge": 16 },
+  "spacing": { "item": 8, "section": 16, "edge": 20 },
   "bar": {
     "height": 32,
     "fonts": {

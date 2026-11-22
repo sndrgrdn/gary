@@ -166,7 +166,7 @@ struct ThemeTests {
             "accent": .string("#3060c0"),
             "icon_mark": .string("#8839ef"),
         ]))
-        #expect(json["spacing"] == .object(["item": .number(8), "section": .number(14), "edge": .number(16)]))
+        #expect(json["spacing"] == .object(["item": .number(8), "section": .number(16), "edge": .number(20)]))
     }
 
     @Test func `the bundled theme resolves every style`() throws {
