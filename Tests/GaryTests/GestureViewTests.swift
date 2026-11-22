@@ -67,6 +67,7 @@ struct GestureViewTests {
         host.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
         window.contentView = host
         host.layoutSubtreeIfNeeded()
+        CATransaction.flush()
         let list = try #require(host.descendants(NSScrollView.self).first)
         let point = list.convert(CGPoint(x: 10, y: 10), to: nil)
         let wheel = try #require(CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: -3, wheel2: 0, wheel3: 0))
