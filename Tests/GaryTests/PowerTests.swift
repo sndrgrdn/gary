@@ -1,5 +1,6 @@
 import Foundation
 @testable import gary
+@testable import GaryCore
 import IOKit.pwr_mgt
 import Testing
 
@@ -10,6 +11,15 @@ struct PowerTests {
         let declared = Capability.power.types.firstMatch(of: #/power: \{([^}]*)\}/#).map { String($0.1) } ?? ""
         #expect(declared.matches(of: #/(\w+)\(/#).map { String($0.1) }.sorted() == ["lock", "logOut", "restart", "shutDown", "sleep", "stayAwake"])
         harness.runtime.stop()
+    }
+
+    @Test func `gary permissions lists Automation as needed by power for a plugin that uses it`() throws {
+        let manifest = try PluginManifest(
+            id: #require(PluginID("test.menu")), name: "Menu", version: "1", kinds: [.menu], entryPoints: [.menu: "main.js"],
+            keepLoaded: false, subscriptions: [.menu: []], uses: ["power"], hotkeys: [],
+        )
+        let need = try #require(PermissionNeed.all(enabled: [manifest], checkGrants: false).first { $0.permission == .automation })
+        #expect(need.summary == "needed by power; used by test.menu (power)")
     }
 
     @Test func `stay awake holds one assertion that the next call replaces and stopping the plugin releases`() async throws {

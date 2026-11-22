@@ -9,8 +9,8 @@ extension Capability {
         summary: """
         Sleep, lock the screen, restart, shut down, or log out. `sleep` asks the power manager directly and needs no permission. \
         `lock` presses the Lock Screen shortcut, control-command-Q, so it needs Accessibility. `restart`, `shutDown`, and `logOut` \
-        ask loginwindow, as the Apple menu does, so apps can save their documents or cancel. macOS asks the user once, the first time, \
-        to let Gary control loginwindow, and the promise rejects while that Automation grant is missing. \
+        ask loginwindow, as the Apple menu does, so apps can save their documents or cancel. They need Automation to control loginwindow, \
+        and the promise rejects while that grant is missing instead of showing the macOS prompt. \
         `stayAwake` keeps the Mac awake, as caffeinate does, until the plugin calls it with `"off"` or stops: \
         `"system"` keeps the Mac from sleeping when idle but lets the display sleep, and `"display"` keeps the display on too.
         """,
@@ -65,7 +65,7 @@ extension Capability {
           },
         } satisfies Gary.Menu;
         """,
-        permissions: [.accessibility],
+        permissions: [.accessibility, .automation],
         install: { host, plugin in
             let awake = Awake(name: "Gary: \(plugin.id)")
             plugin.onStop { awake.release() }
@@ -77,9 +77,9 @@ extension Capability {
                     try awake.hold(mode)
                 case "sleep": try sleepNow()
                 case "lock": try lockScreen()
-                case "restart": return .later(.global(qos: .userInitiated)) { try askLoginWindow(AEEventID(kAERestart)) }
-                case "shutDown": return .later(.global(qos: .userInitiated)) { try askLoginWindow(AEEventID(kAEShutDown)) }
-                case "logOut": return .later(.global(qos: .userInitiated)) { try askLoginWindow(AEEventID(kAEReallyLogOut)) }
+                case "restart": return .later(.global(qos: .userInitiated)) { try askLoginWindow(AEEventID(kAERestart), "power.restart") }
+                case "shutDown": return .later(.global(qos: .userInitiated)) { try askLoginWindow(AEEventID(kAEShutDown), "power.shutDown") }
+                case "logOut": return .later(.global(qos: .userInitiated)) { try askLoginWindow(AEEventID(kAEReallyLogOut), "power.logOut") }
                 default: throw call.unknownMethod
                 }
                 return .now(.null)
@@ -105,20 +105,23 @@ private func lockScreen() throws {
     }
 }
 
-private func askLoginWindow(_ event: AEEventID) throws -> JSON {
-    let target = NSAppleEventDescriptor(bundleIdentifier: "com.apple.loginwindow")
-    let consent = AEDeterminePermissionToAutomateTarget(target.aeDesc, AEEventClass(kCoreEventClass), event, true)
+private let loginWindow = "com.apple.loginwindow"
+
+func loginWindowConsent(ask: Bool) -> OSStatus {
+    let target = NSAppleEventDescriptor(bundleIdentifier: loginWindow)
+    return AEDeterminePermissionToAutomateTarget(target.aeDesc, AEEventClass(kCoreEventClass), AEEventID(kAERestart), ask)
+}
+
+private func askLoginWindow(_ event: AEEventID, _ api: String) throws -> JSON {
+    let consent = loginWindowConsent(ask: false)
     guard consent == noErr else {
-        throw HostFailure(
-            consent == OSStatus(errAEEventNotPermitted)
-                ? "Gary may not control loginwindow; allow it in System Settings > Privacy & Security > Automation"
-                : "cannot reach loginwindow (\(consent))",
-        )
+        let missing = consent == OSStatus(errAEEventNotPermitted) || consent == OSStatus(errAEEventWouldRequireUserConsent)
+        throw HostFailure(missing ? missingGrant(.automation, api) : "cannot reach loginwindow (\(consent))")
     }
     let message = NSAppleEventDescriptor.appleEvent(
         withEventClass: AEEventClass(kCoreEventClass),
         eventID: event,
-        targetDescriptor: target,
+        targetDescriptor: NSAppleEventDescriptor(bundleIdentifier: loginWindow),
         returnID: AEReturnID(kAutoGenerateReturnID),
         transactionID: AETransactionID(kAnyTransactionID),
     )

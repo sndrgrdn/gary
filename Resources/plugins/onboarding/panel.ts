@@ -18,6 +18,11 @@ const permissions: Record<
       tray: "open your menu bar items",
     },
   },
+  automation: {
+    symbol: "power",
+    general: "Lets plugins restart, shut down and log out your Mac.",
+    uses: { power: "restart, shut down and log out your Mac" },
+  },
   bluetooth: {
     symbol: "antenna.radiowaves.left.and.right",
     general: "Lets plugins show your Bluetooth devices and connect them.",

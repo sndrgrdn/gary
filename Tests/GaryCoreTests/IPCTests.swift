@@ -65,7 +65,8 @@ struct IPCTests {
             BadArguments(
                 "permissions",
                 ["request", "camera"],
-                "unknown permission \"camera\"; use accessibility, bluetooth, calendars, full-disk-access, location, notifications, screen-recording",
+                "unknown permission \"camera\"; use accessibility, automation, bluetooth, calendars, full-disk-access, location, notifications, "
+                    + "screen-recording",
             ),
             BadArguments("action", ["gary.today/widget", "toggle"], "unknown kind \"widget\"; use bar-widget, bar, panel, overlay, menu, service"),
             BadArguments("action", ["gary.today/panel"], "action takes <plugin>/<kind>, an action and an optional payload"),

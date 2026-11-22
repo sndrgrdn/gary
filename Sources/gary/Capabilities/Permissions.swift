@@ -234,6 +234,13 @@ extension Permission {
         switch self {
         case .accessibility:
             return AXIsProcessTrusted() ? .granted : .notGranted
+        case .automation:
+            switch loginWindowConsent(ask: false) {
+            case noErr: return .granted
+            case OSStatus(errAEEventWouldRequireUserConsent): return .notAsked
+            case OSStatus(errAEEventNotPermitted): return .denied
+            default: return .notGranted
+            }
         case .bluetooth:
             switch CBManager.authorization {
             case .allowedAlways: return .granted
@@ -295,7 +302,7 @@ extension Permission {
             _ = CGRequestScreenCaptureAccess()
             NSWorkspace.shared.open(settingsPane)
             return "asked macOS for Screen Recording and opened \(pane). Turn Gary on there, then quit and reopen Gary."
-        case .location, .bluetooth, .calendars, .notifications:
+        case .automation, .location, .bluetooth, .calendars, .notifications:
             guard current == .notAsked else {
                 NSWorkspace.shared.open(settingsPane)
                 return "Gary was refused \(name) before, so macOS shows no prompt. Opened \(pane). Turn Gary on there."
@@ -304,6 +311,7 @@ extension Permission {
             case .location: LocationAccess.shared.request()
             case .calendars: CalendarStore.request()
             case .notifications: NotificationPoster.request()
+            case .automation: DispatchQueue.global(qos: .userInitiated).async { _ = loginWindowConsent(ask: true) }
             default: BluetoothAccess.shared.request()
             }
             return "macOS shows its \(name) prompt for Gary. Choose Allow."

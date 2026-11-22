@@ -2,6 +2,7 @@ import Foundation
 
 public enum Permission: String, CaseIterable, Sendable {
     case accessibility
+    case automation
     case bluetooth
     case calendars
     case fullDiskAccess = "full-disk-access"
@@ -12,6 +13,7 @@ public enum Permission: String, CaseIterable, Sendable {
     public var name: String {
         switch self {
         case .accessibility: "Accessibility"
+        case .automation: "Automation"
         case .bluetooth: "Bluetooth"
         case .calendars: "Calendars"
         case .fullDiskAccess: "Full Disk Access"
@@ -25,6 +27,7 @@ public enum Permission: String, CaseIterable, Sendable {
         let privacy = "com.apple.preference.security?Privacy_"
         let pane = switch self {
         case .accessibility: privacy + "Accessibility"
+        case .automation: privacy + "Automation"
         case .bluetooth: privacy + "Bluetooth"
         case .calendars: privacy + "Calendars"
         case .fullDiskAccess: privacy + "AllFiles"
