@@ -93,6 +93,22 @@ public extension Node {
             series.map(\.values.count).max() ?? 0
         }
     }
+
+    struct Shader: Equatable, Sendable {
+        public static let maxArgs = 1024
+
+        public var path: String
+        public var function: String
+        public var args: [Double]
+        public var animated: Bool
+
+        public init(path: String, function: String, args: [Double] = [], animated: Bool = false) {
+            self.path = path
+            self.function = function
+            self.args = args
+            self.animated = animated
+        }
+    }
 }
 
 extension NodeReader {
@@ -152,6 +168,16 @@ extension NodeReader {
             throw fail("columns must be a whole number from 1 to 100")
         }
         return Int(columns)
+    }
+
+    func shader() throws -> Node.Shader {
+        let function = try required("function")
+        let identifier = function.utf8.first.map { !(48...57).contains($0) } == true
+            && function.utf8.allSatisfy { $0 == 95 || (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0) }
+        guard identifier else { throw fail("function must name a Metal function") }
+        let args = try numbers(fields["args"], "args", "an array of numbers") { _ in true }
+        guard args.count <= Node.Shader.maxArgs else { throw fail("args holds at most \(Node.Shader.maxArgs) numbers") }
+        return try Node.Shader(path: required("path"), function: function, args: args, animated: flag(fields["animated"], "animated") ?? false)
     }
 
     private func list(_ name: String) throws -> [JSON] {

@@ -28,9 +28,9 @@ extension Shell {
                 view.tree.root = tree
             }
         } else {
-            mounts[key] = TreeHostingView(
-                tree: MountedTree(root: tree, theme: theme(for: slot.key.kind)), onAction: onAction, tooltipPanel: tooltipPanel,
-            ) { [weak self] in
+            let mounted = MountedTree(root: tree, theme: theme(for: slot.key.kind))
+            mounted.plugin = slotKey.id
+            mounts[key] = TreeHostingView(tree: mounted, onAction: onAction, tooltipPanel: tooltipPanel) { [weak self] in
                 _ = self?.hide(slotKey.id, Trace("click-outside"))
             }
             changed = true
@@ -212,7 +212,7 @@ extension Node {
         case let .slider(value), let .progress(value): "\(kind.rawValue)=\(value)"
         case let .input(input): "input=\(input.value)"
         case .spacer: ""
-        case .shape, .chart: kind.rawValue
+        case .shape, .chart, .shader: kind.rawValue
         }
     }
 }

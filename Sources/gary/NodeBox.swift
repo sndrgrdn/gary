@@ -30,6 +30,7 @@ struct NodeBox: Equatable {
         case .icon: alignment.horizontal = look.align.map(HorizontalAlignment.init) ?? .center
         case let .shape(shape): (width, height) = (width ?? shape.viewBox.map(\.width) ?? 24, height ?? shape.viewBox.map(\.height) ?? 24)
         case .chart: (width, height) = (width ?? 60, height ?? 16)
+        case .shader: (width, height) = (width ?? height ?? 100, height ?? width ?? 100)
         case .row, .button, .text, .spacer, .grid: break
         }
     }

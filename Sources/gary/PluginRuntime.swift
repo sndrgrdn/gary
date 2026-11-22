@@ -247,7 +247,7 @@ final class PluginRuntime: Subscriber {
     private func render(_ display: DisplayInfo, with functions: PluginFunctions) throws -> Node {
         let text = try invoke(functions.render, [stateText(for: display)])
         guard text.isString, let json = text.toString() else { throw RenderError("render returned nothing") }
-        return try Node.parse(Data(json.utf8)).resolvingImages(against: bundle.directory)
+        return try Node.parse(Data(json.utf8)).resolvingPaths(against: bundle.directory)
     }
 
     private func stateText(for display: DisplayInfo?) -> String {

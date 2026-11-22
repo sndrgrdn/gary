@@ -1,6 +1,7 @@
 import Foundation
 @testable import gary
 import GaryCore
+import Metal
 import SwiftUI
 import Testing
 
@@ -82,5 +83,48 @@ struct NodeDrawingRenderTests {
         #expect(image[4, 20].alpha == 0)
         #expect(image[20, 36].alpha == 0)
         #expect(image[20, 20].alpha == 0)
+    }
+
+    @Test(.enabled(if: ShaderProgram.device != nil, "this Mac has no Metal device"))
+    func `a shader draws its function into the frame in points from the top left`() throws {
+        let program = try ShaderProgram(source: """
+        half4 halves(float2 position, float2 size, float time, constant float *args, uint count) {
+            if (position.y < size.y / 2) return half4(args[0], args[1], args[2], 1);
+            return half4(0, 0, 1, count == 3 ? 0.5 : 1);
+        }
+        """, function: "halves")
+        let device = try #require(ShaderProgram.device)
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: ShaderProgram.pixelFormat, width: 16, height: 16, mipmapped: false)
+        descriptor.usage = [.renderTarget, .shaderRead]
+        descriptor.storageMode = .shared
+        let texture = try #require(device.makeTexture(descriptor: descriptor))
+        let pass = MTLRenderPassDescriptor()
+        pass.colorAttachments[0].texture = texture
+        pass.colorAttachments[0].loadAction = .clear
+        pass.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
+        pass.colorAttachments[0].storeAction = .store
+        let buffer = try #require(ShaderProgram.queue?.makeCommandBuffer())
+        let encoder = try #require(buffer.makeRenderCommandEncoder(descriptor: pass))
+        program.encode(encoder, size: CGSize(width: 8, height: 8), scale: 2, time: 0, args: [0, 1, 0])
+        encoder.endEncoding()
+        buffer.commit()
+        buffer.waitUntilCompleted()
+        var bytes = [UInt8](repeating: 0, count: 16 * 16 * 4)
+        texture.getBytes(&bytes, bytesPerRow: 16 * 4, from: MTLRegionMake2D(0, 0, 16, 16), mipmapLevel: 0)
+        for index in stride(from: 0, to: bytes.count, by: 4) {
+            bytes.swapAt(index, index + 2)
+        }
+        let pixels = Bitmap(width: 16, bytes: bytes)
+        #expect(pixels[3, 3] == Pixel(red: 0, green: 255, blue: 0, alpha: 255))
+        #expect(pixels[12, 12] == Pixel(red: 0, green: 0, blue: 128, alpha: 128))
+    }
+
+    @Test(.enabled(if: ShaderProgram.device != nil, "this Mac has no Metal device"))
+    func `a shader that does not compile throws the compiler's message`() {
+        #expect {
+            try ShaderProgram(source: "half4 broken(float2 position) { return nope; }", function: "broken")
+        } throws: { error in
+            error.localizedDescription.contains("nope")
+        }
     }
 }

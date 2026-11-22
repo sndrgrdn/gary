@@ -11,6 +11,7 @@ final class MountedTree: ObservableObject {
     @Published var fit: Fit?
     @Published var card: Card?
     @Published var backdrop = false
+    var plugin: PluginID?
 
     init(root: Node, theme: Theme) {
         self.root = root
@@ -58,6 +59,7 @@ struct TreeView: View {
         let root = NodeView(node: tree.root, theme: tree.theme)
             .environment(\.nodeAction, onAction)
             .environment(\.tooltipPanel, tooltipPanel)
+            .environment(\.pluginID, tree.plugin)
         if let fit = tree.fit, tree.backdrop {
             fit {
                 ZStack {
@@ -223,6 +225,8 @@ struct NodeView: View {
             ChartNode(chart: chart, theme: theme, color: look.color)
         case let .grid(_, columns):
             GridNode(node: node, columns: columns, theme: theme, gap: gap, align: look.align ?? .leading)
+        case let .shader(shader):
+            ShaderNode(shader: shader)
         }
     }
 }

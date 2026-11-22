@@ -242,6 +242,7 @@ extension Skill {
     | `shape` | `viewBox` and `paths`, SVG paths to fill and stroke. The Drawing section covers it. | `null` |
     | `chart` | `series`, `min`, `max`, and `axes`. The Drawing section covers it. | `null` |
     | `grid` | `children` and `columns`, the number of cells in each row | `null` |
+    | `shader` | `path`, `function`, `args`, and `animated`, a Metal function that draws the node. The Drawing section covers it. | `null` |
 
     - `width` and `height` give a node exactly that size, padding included, and `minWidth` keeps it at least that wide. A `scroll` grows with its content up to its `height`.
     - `padding` is one number for every side, `[vertical, horizontal]`, or `[top, right, bottom, left]`.

@@ -31,10 +31,11 @@ public struct Node: Equatable, Sendable {
         case shape(Shape)
         case chart(Chart)
         case grid([Node], columns: Int)
+        case shader(Shader)
     }
 
     public enum Kind: String, CaseIterable, Sendable {
-        case row, column, stack, scroll, button, text, icon, image, slider, progress, input, spacer, shape, chart, grid
+        case row, column, stack, scroll, button, text, icon, image, slider, progress, input, spacer, shape, chart, grid, shader
     }
 
     public var content: Content
@@ -83,6 +84,7 @@ public struct Node: Equatable, Sendable {
         case .shape: .shape
         case .chart: .chart
         case .grid: .grid
+        case .shader: .shader
         }
     }
 
@@ -90,7 +92,7 @@ public struct Node: Equatable, Sendable {
         switch content {
         case let .row(children), let .column(children), let .stack(children), let .scroll(children, _), let .button(children, _),
              let .grid(children, _): children
-        case .text, .icon, .image, .slider, .progress, .input, .spacer, .shape, .chart: []
+        case .text, .icon, .image, .slider, .progress, .input, .spacer, .shape, .chart, .shader: []
         }
     }
 
@@ -103,7 +105,7 @@ public struct Node: Equatable, Sendable {
         case let .scroll(_, reveal): node.content = .scroll(children, reveal: reveal)
         case let .button(_, hover): node.content = .button(children, hover: hover)
         case let .grid(_, columns): node.content = .grid(children, columns: columns)
-        case .text, .icon, .image, .slider, .progress, .input, .spacer, .shape, .chart: break
+        case .text, .icon, .image, .slider, .progress, .input, .spacer, .shape, .chart, .shader: break
         }
         return node
     }
@@ -124,16 +126,23 @@ public struct Node: Equatable, Sendable {
         }
     }
 
-    public func resolvingImages(against folder: URL) throws -> Node {
-        if case let .image(path) = content, !path.hasPrefix("/"), !path.hasPrefix("~") {
+    public func resolvingPaths(against folder: URL) throws -> Node {
+        func resolved(_ path: String) throws -> String {
+            guard !path.hasPrefix("/"), !path.hasPrefix("~") else { return path }
             guard let resolved = absolutePath(path, home: "", folder: folder.path) else {
-                throw NodeError(path: key ?? "image", reason: "image path \"\(path)\" must stay inside the plugin folder")
+                throw NodeError(path: key ?? kind.rawValue, reason: "\(kind.rawValue) path \"\(path)\" must stay inside the plugin folder")
             }
-            var node = self
-            node.content = .image(resolved)
-            return node
+            return resolved
         }
-        return try with(children: children.map { try $0.resolvingImages(against: folder) })
+        var node = self
+        switch content {
+        case let .image(path): node.content = try .image(resolved(path))
+        case var .shader(shader):
+            shader.path = try resolved(shader.path)
+            node.content = .shader(shader)
+        default: return try with(children: children.map { try $0.resolvingPaths(against: folder) })
+        }
+        return node
     }
 
     public var revealedChild: Int? {
@@ -210,6 +219,7 @@ struct NodeReader {
         .shape: { try .shape($0.shape()) },
         .chart: { try .chart($0.chart()) },
         .grid: { try .grid($0.children(), columns: $0.columns()) },
+        .shader: { try .shader($0.shader()) },
     ]
 
     func fail(_ reason: String) -> NodeError {

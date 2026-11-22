@@ -93,4 +93,41 @@ struct NodeDrawingTests {
             #expect(throws: NodeError(path: "root", reason: "columns must be a whole number from 1 to 100"), "\(bad)") { try parse(text) }
         }
     }
+
+    @Test func `a shader reads its file function arguments and animation`() throws {
+        #expect(try parse(#"{"type":"shader","path":"glow.metal","function":"glow","args":[0.5,1],"animated":true}"#).content
+            == .shader(Node.Shader(path: "glow.metal", function: "glow", args: [0.5, 1], animated: true)))
+        #expect(try parse(#"{"type":"shader","path":"a.metal","function":"_f2"}"#).content == .shader(Node.Shader(path: "a.metal", function: "_f2")))
+    }
+
+    @Test(arguments: [
+        (#"{"type":"shader","function":"glow"}"#, "path is required"),
+        (#"{"type":"shader","path":"a.metal"}"#, "function is required"),
+        (#"{"type":"shader","path":"a.metal","function":"glow(x)"}"#, "function must name a Metal function"),
+        (#"{"type":"shader","path":"a.metal","function":"2d"}"#, "function must name a Metal function"),
+        (#"{"type":"shader","path":"a.metal","function":"f","args":[true]}"#, "args must be an array of numbers"),
+        (#"{"type":"shader","path":"a.metal","function":"f","animated":1}"#, "animated must be true or false"),
+    ])
+    func `a malformed shader fails with the field that is wrong`(_ text: String, _ reason: String) {
+        #expect(throws: NodeError(path: "root", reason: reason)) { try parse(text) }
+    }
+
+    @Test func `a relative shader path resolves inside the plugin folder like an image`() throws {
+        let tree = try parse(#"""
+        {"type":"grid","columns":2,"children":[{"type":"shader","path":"fx/glow.metal","function":"glow"},
+        {"type":"shader","path":"/abs.metal","function":"glow"}]}
+        """#)
+        let resolved = try tree.resolvingPaths(against: URL(fileURLWithPath: "/plugins/you.fx"))
+        #expect(resolved.children.map(\.content) == [
+            .shader(Node.Shader(path: "/plugins/you.fx/fx/glow.metal", function: "glow")),
+            .shader(Node.Shader(path: "/abs.metal", function: "glow")),
+        ])
+    }
+
+    @Test func `a shader path that leaves the plugin folder is an error`() throws {
+        let tree = try parse(#"{"type":"shader","path":"../other/glow.metal","function":"glow"}"#)
+        #expect(throws: NodeError(path: "shader", reason: "shader path \"../other/glow.metal\" must stay inside the plugin folder")) {
+            try tree.resolvingPaths(against: URL(fileURLWithPath: "/plugins/you.fx"))
+        }
+    }
 }

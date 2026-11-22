@@ -4,7 +4,7 @@ import Testing
 struct NodeReaderTests {
     @Test(arguments: Node.Kind.allCases)
     func `every kind parses from its type name`(_ kind: Node.Kind) throws {
-        let fields = #""text":"t","symbol":"s","path":"/p","value":0.5,"paths":[],"series":[],"columns":2"#
+        let fields = #""text":"t","symbol":"s","path":"/p","value":0.5,"paths":[],"series":[],"columns":2,"function":"f""#
         #expect(try Node.parse(JSON.parse(#"{"type":"\#(kind.rawValue)",\#(fields)}"#)).kind == kind)
     }
 

@@ -232,6 +232,7 @@ public enum PluginTypes {
                 "min?: number;", "max?: number;", "axes?: boolean;",
             ]
         case .grid: ["columns: number;", "children?: Node[];"]
+        case .shader: ["path: string;", "function: string;", "args?: number[];", "animated?: boolean;"]
         }
     }
 }
