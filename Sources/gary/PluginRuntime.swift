@@ -1,22 +1,15 @@
 import Foundation
 import GaryCore
-import GaryPrivate
 import JavaScriptCore
 
-private final class Watchdog {
-    var fired = false
-}
-
 final class PluginRuntime: Subscriber {
-    static let timeLimit = 0.1
-
     let bundle: PluginBundle
     let kind: PluginKind
     let hub: StateHub
     let deliver: (PluginRuntime, RuntimeEvent) -> Void
     let queue: DispatchQueue
+    private let engine: PluginEngine
     private let transpiler: Transpiler
-    private let watchdog = Watchdog()
     private var functions: PluginFunctions?
     private var exception: String?
     private var state: StateText
@@ -42,6 +35,7 @@ final class PluginRuntime: Subscriber {
         theme: JSON,
         hub: StateHub,
         deliver: @escaping (PluginRuntime, RuntimeEvent) -> Void,
+        engine: PluginEngine,
         transpiler: Transpiler = .shared,
     ) {
         self.bundle = bundle
@@ -51,6 +45,7 @@ final class PluginRuntime: Subscriber {
         state = StateText(settings: settings, theme: theme)
         self.hub = hub
         self.deliver = deliver
+        self.engine = engine
         self.transpiler = transpiler
         queue = DispatchQueue(label: "gary.plugin.\(bundle.manifest.id)", qos: .userInitiated)
     }
@@ -286,33 +281,25 @@ private extension PluginRuntime {
     func evaluate() throws -> PluginFunctions {
         let entry = try bundle.entryPoint(kind)
         let modules = try transpiler.modules(of: bundle, from: entry)
-        guard let context = JSContext() else { throw RenderError("no JavaScript context") }
+        guard let context = engine.makeContext() else { throw RenderError("no JavaScript context") }
         context.name = "\(id)"
         context.exceptionHandler = { [weak self] _, value in self?.exception = value?.toString() ?? "unknown exception" }
-        if !gary_script_time_limit(context.jsGlobalContextRef, Self.timeLimit, { _, info in
-            if let info {
-                Unmanaged<Watchdog>.fromOpaque(info).takeUnretainedValue().fired = true
-            }
-            return true
-        }, Unmanaged.passUnretained(watchdog).toOpaque()) {
-            log("plugin \(id): no script time limit on this system")
-        }
-        let host = try check { makeHost(in: context) }
+        let host = try check(in: context) { makeHost(in: context) }
         for capability in Capability.all {
             capability.install?(host, self)
         }
         context.setObject(host, forKeyedSubscript: "host" as NSString)
         try installTimers(in: context)
-        try check { context.evaluateScript(PluginScripts.jsx)?.call(withArguments: []) }
+        try check(in: context) { context.evaluateScript(PluginScripts.jsx)?.call(withArguments: []) }
         var factories: [String: JSValue] = [:]
         for module in modules {
-            factories[module.path] = try check {
+            factories[module.path] = try check(in: context) {
                 context.evaluateScript("(function (exports, require) {\(module.code)\n})", withSourceURL: module.url)
             }
         }
         let links = Dictionary(uniqueKeysWithValues: modules.map { ($0.path, $0.links) })
-        let exported = try check { context.evaluateScript(PluginScripts.modules)?.call(withArguments: [factories, links, entry]) }
-        let wrappers = try check { context.evaluateScript(PluginScripts.functions)?.call(withArguments: [exported, kind == .service]) }
+        let exported = try check(in: context) { context.evaluateScript(PluginScripts.modules)?.call(withArguments: [factories, links, entry]) }
+        let wrappers = try check(in: context) { context.evaluateScript(PluginScripts.functions)?.call(withArguments: [exported, kind == .service]) }
         let functions = PluginFunctions(wrappers)
         self.functions = functions
         return functions
@@ -323,7 +310,7 @@ private extension PluginRuntime {
             self?.addTimer(callback, milliseconds: milliseconds, repeats: repeats) ?? 0
         }
         let clear: @convention(block) (Int) -> Void = { [weak self] id in self?.timers.removeValue(forKey: id)?.cancel() }
-        try check { context.evaluateScript(PluginScripts.timers)?.call(withArguments: [add, clear]) }
+        try check(in: context) { context.evaluateScript(PluginScripts.timers)?.call(withArguments: [add, clear]) }
     }
 
     func addTimer(_ callback: JSValue, milliseconds: Double, repeats: Bool) -> Int {
@@ -352,7 +339,7 @@ private extension PluginRuntime {
     func invoke(_ function: JSValue, _ arguments: [Any], _ stages: [Stage] = []) throws -> JSValue {
         var spent = Timings()
         defer { timings.merge(spent) }
-        return try check { function.call(arguments, timing: stages, into: &spent) }
+        return try check(in: function.context) { function.call(arguments, timing: stages, into: &spent) }
     }
 
     func timed<T>(_ stage: Stage, _ body: () throws -> T) rethrows -> T {
@@ -362,13 +349,9 @@ private extension PluginRuntime {
     }
 
     @discardableResult
-    func check(_ body: () -> JSValue?) throws -> JSValue {
+    func check(in context: JSContext, _ body: () -> JSValue?) throws -> JSValue {
         exception = nil
-        watchdog.fired = false
-        let result = body()
-        if watchdog.fired {
-            throw RenderError("stopped after running longer than \(Int(Self.timeLimit * 1000)) ms")
-        }
+        let result = try engine.run(id, in: context, body)
         if let exception {
             throw RenderError(exception)
         }

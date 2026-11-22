@@ -107,7 +107,7 @@ extension Shell {
         let runtime = PluginRuntime(
             bundle: slot.bundle, kind: key.kind, scene: scene(for: slot),
             settings: config.settings[key.id] ?? .object([:]), theme: theme.json, hub: hub,
-            deliver: delivery.send,
+            deliver: delivery.send, engine: engine,
         )
         slot.candidate = runtime
         runtime.load(trace)

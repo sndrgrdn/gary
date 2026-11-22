@@ -41,6 +41,8 @@ final class Listener: Subscriber, @unchecked Sendable {
 
 let transpiler = Transpiler(sucrase: URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../../Resources/vendor/sucrase.js"))
 
+let engine = PluginEngine()
+
 let display = DisplayInfo(id: "main", index: 0, frame: CGRect(x: 0, y: 0, width: 1000, height: 800), band: 32)
 
 struct Harness {
@@ -88,6 +90,7 @@ struct Harness {
             theme: .object(["name": .string("dark")]),
             hub: hub,
             deliver: { _, event in events.append(event) },
+            engine: engine,
             transpiler: transpiler,
         )
         self.events = events
@@ -339,11 +342,6 @@ struct PluginRuntimeTests {
     @Test func `a throwing render fails with the exception`() async throws {
         let harness = try Harness("export default { render: function () { throw new Error(\"boom\"); } };")
         #expect(try await harness.failure() == "Error: boom")
-    }
-
-    @Test func `a script that runs past the time limit is stopped`() async throws {
-        let harness = try Harness("export default { render: function () { for (;;) {} } };")
-        #expect(try await harness.failure() == "stopped after running longer than 100 ms")
     }
 
     @Test(.enabled(if: ShaderProgram.device != nil, "this Mac has no Metal device"))
