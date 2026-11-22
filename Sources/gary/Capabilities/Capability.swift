@@ -78,6 +78,7 @@ final class Observation {
 enum HostResult {
     case now(JSON)
     case later(DispatchQueue, () throws -> JSON)
+    case pending((@escaping (Result<JSON, Error>) -> Void) -> Void)
 }
 
 struct HostFailure: Error, CustomStringConvertible {
@@ -132,7 +133,9 @@ extension PluginRuntime {
             do {
                 switch try handle(call) {
                 case let .now(value): return JSValue(object: value.text, in: context)
-                case let .later(queue, work): return self?.promise(in: context, on: queue, call: call, work)
+                case let .later(queue, work):
+                    return self?.promise(in: context, call: call) { finish in queue.async { finish(Result { try work() }) } }
+                case let .pending(start): return self?.promise(in: context, call: call, start)
                 }
             } catch {
                 context.exception = context.newError(message(error, call))
@@ -151,11 +154,10 @@ extension PluginRuntime {
         """).call(withArguments: [target, bridge, methods])
     }
 
-    private func promise(in context: JSContext, on worker: DispatchQueue, call: HostCall, _ work: @escaping () throws -> JSON) -> JSValue {
+    private func promise(in context: JSContext, call: HostCall, _ start: @escaping (@escaping (Result<JSON, Error>) -> Void) -> Void) -> JSValue {
         JSValue(newPromiseIn: context) { [weak self] resolve, reject in
             guard let resolve, let reject else { return }
-            worker.async {
-                let result = Result { try work() }
+            start { result in
                 self?.queue.async {
                     guard let self else { return }
                     switch result {
