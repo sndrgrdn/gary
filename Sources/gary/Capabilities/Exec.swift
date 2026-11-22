@@ -55,6 +55,7 @@ final class ExecRuns {
     private let queue: DispatchQueue
     private let limit: TimeInterval
     private var runs: [ObjectIdentifier: Run] = [:]
+    private var stopped = false
 
     init(queue: DispatchQueue, limit: TimeInterval = 60) {
         self.queue = queue
@@ -62,6 +63,14 @@ final class ExecRuns {
     }
 
     func start(_ argv: [String], _ finish: @escaping (Result<JSON, Error>) -> Void) {
+        queue.async { [self] in
+            if !stopped {
+                spawn(argv, finish)
+            }
+        }
+    }
+
+    private func spawn(_ argv: [String], _ finish: @escaping (Result<JSON, Error>) -> Void) {
         let process = Process()
         let id = ObjectIdentifier(process)
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -90,6 +99,7 @@ final class ExecRuns {
     }
 
     func stopAll() {
+        stopped = true
         for run in runs.values {
             run.process.terminate()
         }

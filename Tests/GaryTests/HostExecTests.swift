@@ -51,6 +51,20 @@ struct HostExecTests {
         #expect(try await exits(pid))
     }
 
+    @Test func `a command started by a call that fails never runs`() async throws {
+        let file = FileManager.default.temporaryDirectory.appending(path: "gary-exec-\(UUID().uuidString)").path
+        let harness = try Harness(widget("""
+        onAction: function () {
+          host.exec(["/usr/bin/touch", "\(file)"]);
+          throw new Error("failed after exec");
+        },
+        """))
+        #expect(try await harness.text() == "0")
+        harness.runtime.perform("run", .null)
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(!FileManager.default.fileExists(atPath: file))
+    }
+
     @Test(.timeLimit(.minutes(1))) func `a command that outlives the deadline is stopped and rejects`() async throws {
         let pidFile = FileManager.default.temporaryDirectory.appending(path: "gary-exec-\(UUID().uuidString)").path
         let queue = DispatchQueue(label: "test.exec")
