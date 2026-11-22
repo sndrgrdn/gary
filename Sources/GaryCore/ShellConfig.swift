@@ -60,8 +60,8 @@ public struct ShellConfig: Equatable, Sendable {
         var identities = Set<PackageIdentity>()
         for (index, entry) in entries.enumerated() {
             let path = "packages[\(index)]"
-            guard let raw = entry.string ?? entry["source"]?.string else {
-                warn(path, "must be a source string or an object with a source")
+            guard let raw = entry.string else {
+                warn(path, "must be a source string")
                 continue
             }
             do {

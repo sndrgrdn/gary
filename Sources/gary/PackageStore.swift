@@ -150,9 +150,7 @@ enum PackageStore {
     }
 
     private static func packument(_ name: String) throws -> JSON {
-        let registry = ProcessInfo.processInfo.environment["npm_config_registry"].flatMap(URL.init(string:))
-            ?? URL(string: "https://registry.npmjs.org")
-        guard let url = registry?.appending(path: name) else { throw PackageError("invalid npm registry URL") }
+        guard let url = URL(string: "https://registry.npmjs.org")?.appending(path: name) else { throw PackageError("invalid npm registry URL") }
         return try JSON.parse(download(url, accept: "application/vnd.npm.install-v1+json"))
     }
 

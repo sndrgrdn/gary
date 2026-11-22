@@ -164,7 +164,7 @@ extension Skill {
     | `plugins` | Ids of enabled plugins that are not bar widgets, such as panels and services. |
     | `disabledPlugins` | Ids to turn off, including built-in ones. |
     | `settings` | `{ "<id>": { ... } }`. Each plugin reads its object as `state.settings`. |
-    | `packages` | Plugin packages that Gary installs and loads: `npm:<name>[@version\\|@tag]`, `git:<host>/<owner>/<repo>[@ref]`, a git URL, or an absolute or `~/` path to a folder that loads in place. An entry is a string or `{ "source": "..." }`. `gary plugin install` and `gary plugin remove` edit it. |
+    | `packages` | Plugin packages that Gary installs and loads: `npm:<name>[@version\\|@tag]`, `git:<host>/<owner>/<repo>[@ref]`, a git URL, or an absolute or `~/` path to a folder that loads in place. `gary plugin install` and `gary plugin remove` edit it. |
 
     ## Module exports
 
