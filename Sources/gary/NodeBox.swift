@@ -146,10 +146,22 @@ struct TextNode: View {
 
     var body: some View {
         let spills = look.width != nil && look.lines == nil && look.truncate == nil
-        Text(verbatim: text).font(Font(nsFont(look.font) as CTFont)).foregroundStyle(Color(look.color))
+        let font = nsFont(look.font)
+        let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: [.font: font]))
+        let ink = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+        Self.text(text, overhang: ink.maxX - CTLineGetTypographicBounds(line, nil, nil, nil))
+            .font(Font(font as CTFont)).foregroundStyle(Color(look.color))
             .multilineTextAlignment(TextAlignment(look.align ?? .leading))
             .lineLimit(look.lines ?? (look.width == nil ? lines : 1))
             .truncationMode(Text.TruncationMode(look.truncate ?? .tail))
             .fixedSize(horizontal: spills, vertical: true)
+            .padding(.leading, max(0, -ink.minX))
+    }
+
+    private static func text(_ text: String, overhang: Double) -> Text {
+        guard overhang > 0 else { return Text(verbatim: text) }
+        var string = AttributedString(text)
+        string[string.characters.index(before: string.endIndex)...].kern = overhang
+        return Text(string)
     }
 }
