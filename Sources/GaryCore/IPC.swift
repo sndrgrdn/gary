@@ -7,9 +7,9 @@ public struct RequestError: Error, Equatable, CustomStringConvertible {
 public enum Request: Equatable, Sendable {
     case ping
     case quit
-    case summon(PluginID)
-    case hide(PluginID)
-    case toggle(PluginID)
+    case summon(SurfaceAddress)
+    case hide(SurfaceAddress)
+    case toggle(SurfaceAddress)
     case reloadPlugins(PluginID?)
     case rescanPlugins
     case reloadConfig
@@ -24,9 +24,17 @@ public enum Request: Equatable, Sendable {
     public static let usage: [CommandUsage] = [
         CommandUsage("ping", "Check that Gary is running.", nil),
         CommandUsage("quit", "Stop Gary and its crash supervisor, restoring the menu bar and Dock settings that plugins changed.", nil),
-        CommandUsage("summon <plugin>", "Load and show a plugin's panel, overlay or menu.", "gary summon you.launcher"),
-        CommandUsage("hide <plugin>", "Hide a plugin's surface and unload it unless it is keepLoaded.", nil),
-        CommandUsage("toggle <plugin>", "Summon a hidden surface or hide a shown one.", nil),
+        CommandUsage(
+            "summon <plugin>[:<surface>]",
+            "Load and show a plugin's panel, overlay or menu. Name a surface to show one other than main.",
+            "gary summon you.music:osd",
+        ),
+        CommandUsage(
+            "hide <plugin>[:<surface>]",
+            "Hide a plugin's surface, main unless named, and unload the plugin when no surface of its kind stays shown, unless it is keepLoaded.",
+            nil,
+        ),
+        CommandUsage("toggle <plugin>[:<surface>]", "Summon a hidden surface or hide a shown one.", nil),
         CommandUsage("reloadPlugins [plugin]", "Reload one plugin, or every loaded plugin, from disk.", nil),
         CommandUsage("rescanPlugins", "Find added and removed plugin directories.", nil),
         CommandUsage("reloadConfig", "Re-read ~/.config/gary/shell.json.", nil),
@@ -76,10 +84,10 @@ public enum Request: Equatable, Sendable {
 
     private static let bareVerbs: [String: Request] = [
         "ping": .ping, "quit": .quit, "rescanPlugins": .rescanPlugins, "reloadConfig": .reloadConfig,
-        "listPlugins": .listPlugins, "doctor": .doctor, "onboarding": .summon(.onboarding),
+        "listPlugins": .listPlugins, "doctor": .doctor, "onboarding": .summon(SurfaceAddress(.onboarding)),
     ]
 
-    private static let pluginVerbs: [String: @Sendable (PluginID) -> Request] = [
+    private static let surfaceVerbs: [String: @Sendable (SurfaceAddress) -> Request] = [
         "summon": Request.summon, "hide": Request.hide, "toggle": Request.toggle,
     ]
 
@@ -88,9 +96,9 @@ public enum Request: Equatable, Sendable {
             try expect(arguments, count: 0, for: verb)
             return request
         }
-        if let request = pluginVerbs[verb] {
+        if let request = surfaceVerbs[verb] {
             try expect(arguments, count: 1, for: verb)
-            return try request(plugin(arguments[0]))
+            return try request(surface(arguments[0]))
         }
         switch verb {
         case "reloadPlugins":
@@ -117,6 +125,14 @@ public enum Request: Equatable, Sendable {
     private static func plugin(_ raw: String) throws -> PluginID {
         guard let id = PluginID(raw) else { throw RequestError(description: "invalid plugin id \"\(raw)\"") }
         return id
+    }
+
+    private static func surface(_ raw: String) throws -> SurfaceAddress {
+        guard let address = SurfaceAddress(raw) else {
+            _ = try plugin(raw.split(separator: ":", maxSplits: 1).first.map(String.init) ?? raw)
+            throw RequestError(description: "invalid surface name in \"\(raw)\"; use lowercase letters, digits and hyphens after the colon")
+        }
+        return address
     }
 
     private static func themeOverride(_ text: String) throws -> JSON {
@@ -177,7 +193,7 @@ public enum Request: Equatable, Sendable {
         switch self {
         case .ping, .quit, .rescanPlugins, .reloadConfig, .listPlugins, .doctor, .permissions: []
         case let .requestPermission(permission): ["request", permission.rawValue]
-        case let .summon(id), let .hide(id), let .toggle(id): [id.rawValue]
+        case let .summon(address), let .hide(address), let .toggle(address): [address.description]
         case let .reloadPlugins(id): id.map { [$0.rawValue] } ?? []
         case let .applyTheme(payload): payload.map { [$0.text] } ?? []
         case let .call(id, method, arguments): [id.rawValue, method] + arguments

@@ -4,6 +4,7 @@ import GarySocket
 
 struct MountKey: Hashable {
     let slot: SlotKey
+    let surface: String
     let display: String
 }
 
@@ -100,8 +101,9 @@ final class Shell {
 
     private func restart(reopening id: PluginID?) {
         log("restart: asked by \(id?.rawValue ?? "unknown")")
-        if let id, surfaceSlot(id)?.visible == true {
-            try? Data(JSON.array([.string(id.rawValue)]).text.utf8).write(to: Paths.reopen, options: .atomic)
+        let shown = id.map { id in surfaceSlots(id).flatMap(\.shown.keys).compactMap { SurfaceAddress(id, surface: $0) } } ?? []
+        if !shown.isEmpty {
+            try? Data(JSON.array(shown.map { .string($0.description) }).text.utf8).write(to: Paths.reopen, options: .atomic)
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.quit(ProcessExit.restart) }
     }
@@ -109,8 +111,8 @@ final class Shell {
     private func reopenAfterRestart(_ trace: Trace) {
         guard let data = try? Data(contentsOf: Paths.reopen) else { return }
         try? FileManager.default.removeItem(at: Paths.reopen)
-        for id in (try? JSON.parse(data))?.array?.compactMap({ $0.string.flatMap(PluginID.init) }) ?? [] {
-            summon(id, trace)
+        for address in (try? JSON.parse(data))?.array?.compactMap({ $0.string.flatMap(SurfaceAddress.init) }) ?? [] {
+            summon(address, trace)
         }
     }
 

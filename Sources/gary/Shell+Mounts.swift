@@ -6,19 +6,20 @@ extension Shell {
         if slot.key.kind.isSurface, !slot.visible {
             return
         }
-        slot.surface = output.surface
-        for (display, tree) in output.trees {
-            mount(slot, display, tree, trace)
+        slot.surfaces = output.surfaces
+        for (surface, trees) in output.trees where !slot.key.kind.isSurface || slot.shown[surface] != nil {
+            for (display, tree) in trees {
+                mount(MountKey(slot: slot.key, surface: surface, display: display), tree, trace)
+            }
         }
-        for key in mounts.keys where key.slot == slot.key && output.trees[key.display] == nil {
+        for key in mounts.keys where key.slot == slot.key && output.trees[key.surface]?[key.display] == nil {
             unmount(key)
         }
         commitFrame()
     }
 
-    private func mount(_ slot: PluginSlot, _ display: String, _ tree: Node, _ trace: Trace) {
-        let key = MountKey(slot: slot.key, display: display)
-        let slotKey = slot.key
+    private func mount(_ key: MountKey, _ tree: Node, _ trace: Trace) {
+        let slotKey = key.slot
         let onAction: ActionHandler = { [weak self] event in self?.perform(event, slotKey) }
         let started = now()
         let changed: Bool
@@ -28,10 +29,10 @@ extension Shell {
                 view.tree.root = tree
             }
         } else {
-            let mounted = MountedTree(root: tree, theme: theme(for: slot.key.kind))
+            let mounted = MountedTree(root: tree, theme: theme(for: slotKey.kind))
             mounted.plugin = slotKey.id
             mounts[key] = TreeHostingView(tree: mounted, onAction: onAction, tooltipPanel: tooltipPanel) { [weak self] in
-                _ = self?.hide(slotKey.id, Trace("click-outside"))
+                self?.hide(key, Trace("click-outside"))
             }
             changed = true
         }
@@ -39,9 +40,10 @@ extension Shell {
         if tracing {
             let end = now()
             log(String(
-                format: "commit plugin=%@ display=%@ cause=%@ since_ms=%.3f apply_ms=%.3f changed=%d tree=%@",
-                slot.key.id.rawValue,
-                display,
+                format: "commit plugin=%@ surface=%@ display=%@ cause=%@ since_ms=%.3f apply_ms=%.3f changed=%d tree=%@",
+                slotKey.id.rawValue,
+                key.surface,
+                key.display,
                 trace.cause,
                 (end - trace.start) * 1000,
                 (end - started) * 1000,
@@ -75,22 +77,25 @@ extension Shell {
             spec.height = .points(display.band)
             spec.exclusionMode = .ignore
             window.place(spec, on: display, origin: nil, level: barLevel(display.id), theme: theme)
-        } else if let spec = slot.surface {
-            window.place(spec, on: display, origin: slot.origin, level: levels.level(spec.layer), theme: theme)
+        } else if let spec = slot.surfaces[key.surface] {
+            window.place(spec, on: display, origin: slot.shown[key.surface]?.origin, level: levels.level(spec.layer), theme: theme)
         }
         if isNew {
-            open(window, key, slot)
+            open(window, key, focusable: slot.surfaces[key.surface]?.focusable == true)
         }
     }
 
     private func placeInBar(_ key: MountKey) {
         guard let bar = bars[key.display] else { return }
         for (section, ids) in resolution.bar where ids.contains(key.slot.id) {
-            bar.setSection(section, ids.compactMap { mounts[MountKey(slot: SlotKey(id: $0, kind: .barWidget), display: key.display)] })
+            bar.setSection(
+                section,
+                ids.compactMap { mounts[MountKey(slot: SlotKey(id: $0, kind: .barWidget), surface: key.surface, display: key.display)] },
+            )
         }
     }
 
-    private func open(_ window: SurfaceWindow, _ key: MountKey, _ slot: PluginSlot) {
+    private func open(_ window: SurfaceWindow, _ key: MountKey, focusable: Bool) {
         if key.slot.kind == .bar {
             watchTopEdge(of: window.card) { [weak self] in self?.pointerReachedTop(key.display) }
         }
@@ -99,31 +104,36 @@ extension Shell {
             let slotKey = key.slot
             window.panel.onScroll = { [weak self] event in self?.slots[slotKey]?.runtime?.scroll(event) }
         }
-        if key.slot.kind.isSurface, slot.surface?.focusable == true {
-            focus(window, key.slot)
+        if key.slot.kind.isSurface, focusable {
+            focus(window, key)
         }
         watchClicks()
     }
 
-    private func focus(_ window: SurfaceWindow, _ slot: SlotKey) {
+    private func focus(_ window: SurfaceWindow, _ mount: MountKey) {
         let front = NSWorkspace.shared.frontmostApplication
         if front?.processIdentifier != getpid() {
             previousApp = front
         }
-        window.panel.onKey = { [weak self] key in self?.keyPressed(key, slot) }
-        if slot.kind == .menu {
-            window.panel.onResignKey = { [weak self] in _ = self?.hide(slot.id, Trace("resign-key")) }
+        window.panel.onKey = { [weak self] key in self?.keyPressed(key, mount) }
+        if mount.slot.kind == .menu {
+            window.panel.onResignKey = { [weak self] in self?.hide(mount, Trace("resign-key")) }
         }
         window.focus()
     }
 
-    private func keyPressed(_ key: String, _ slot: SlotKey) {
+    private func hide(_ mount: MountKey, _ trace: Trace) {
+        guard let slot = slots[mount.slot] else { return }
+        _ = hide(mount.surface, in: slot, trace)
+    }
+
+    private func keyPressed(_ key: String, _ mount: MountKey) {
         if tracing {
-            log("key plugin=\(slot) key=\(key)")
+            log("key plugin=\(mount.slot) surface=\(mount.surface) key=\(key)")
         }
-        slots[slot]?.runtime?.key(key) { [weak self] in
-            if slot.kind.hides(onUnhandled: key) {
-                _ = self?.hide(slot.id, Trace("escape"))
+        slots[mount.slot]?.runtime?.key(key) { [weak self] in
+            if mount.slot.kind.hides(onUnhandled: key) {
+                self?.hide(mount, Trace("escape"))
             }
         }
     }
@@ -185,14 +195,14 @@ extension Shell {
     }
 
     private func clicked(at point: NSPoint) {
-        let menus = Set(windows.keys.filter { $0.slot.kind == .menu }.map(\.slot))
-        for menu in menus where !windows.contains(where: { $0.key.slot == menu && $0.value.contains(point) }) {
-            _ = hide(menu.id, Trace("click-outside"))
+        let menus = windows.keys.filter { $0.slot.kind == .menu }
+        for menu in menus where !windows.contains(where: { $0.key.slot == menu.slot && $0.key.surface == menu.surface && $0.value.contains(point) }) {
+            hide(menu, Trace("click-outside"))
         }
     }
 
-    func unmount(_ slot: SlotKey) {
-        for key in mounts.keys where key.slot == slot {
+    func unmount(_ slot: SlotKey, surface: String? = nil) {
+        for key in mounts.keys where key.slot == slot && (surface == nil || key.surface == surface) {
             unmount(key)
         }
         if slot.kind == .barWidget {

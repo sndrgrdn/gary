@@ -5,7 +5,13 @@ extension Shell {
     func arrangeBars() {
         for bar in bars.surfaces.values {
             for (section, ids) in resolution.bar {
-                bar.setSection(section, ids.compactMap { mounts[MountKey(slot: SlotKey(id: $0, kind: .barWidget), display: bar.display.id)] })
+                bar.setSection(
+                    section,
+                    ids
+                        .compactMap {
+                            mounts[MountKey(slot: SlotKey(id: $0, kind: .barWidget), surface: SurfaceAddress.main, display: bar.display.id)]
+                        },
+                )
             }
         }
     }

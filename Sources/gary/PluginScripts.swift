@@ -4,13 +4,13 @@ struct PluginFunctions {
     let render: JSValue
     let dispatch: JSValue
     let call: JSValue
-    let surface: JSValue
+    let surfaces: JSValue
 
     init(_ wrappers: JSValue) {
         render = wrappers.atIndex(0)
         dispatch = wrappers.atIndex(1)
         call = wrappers.atIndex(2)
-        surface = wrappers.atIndex(3)
+        surfaces = wrappers.atIndex(3)
     }
 }
 
@@ -36,9 +36,21 @@ enum PluginScripts {
           r.then(function (v) { done(true, text(v)); }, function (x) { done(false, x instanceof Error ? x.message : String(x)); });
         },
         function (state) {
-          var s = e().surface;
-          if (typeof s === "function") s = s(JSON.parse(state));
-          return JSON.stringify(s === undefined ? null : s);
+          var x = e(), s = JSON.parse(state), out = {};
+          var resolve = function (v) {
+            if (typeof v === "function") v = v(s);
+            return v === undefined ? null : v;
+          };
+          if (x.surface !== undefined) out.surface = resolve(x.surface);
+          var all = x.surfaces;
+          if (all !== undefined) {
+            out.surfaces = false;
+            if (all !== null && typeof all === "object" && !Array.isArray(all)) {
+              out.surfaces = {};
+              Object.keys(all).forEach(function (k) { out.surfaces[k] = resolve(all[k]); });
+            }
+          }
+          return JSON.stringify(out);
         }
       ];
     })

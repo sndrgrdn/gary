@@ -3,7 +3,7 @@ import Foundation
 import GaryCore
 import Testing
 
-private final class Events: @unchecked Sendable {
+final class Events: @unchecked Sendable {
     private let lock = NSLock()
     private var events: [RuntimeEvent] = []
 
@@ -26,7 +26,7 @@ private final class Events: @unchecked Sendable {
     }
 }
 
-private final class Listener: Subscriber, @unchecked Sendable {
+final class Listener: Subscriber, @unchecked Sendable {
     private let lock = NSLock()
     private var received: [JSON] = []
 
@@ -39,14 +39,20 @@ private final class Listener: Subscriber, @unchecked Sendable {
     }
 }
 
-private let display = DisplayInfo(id: "main", index: 0, frame: CGRect(x: 0, y: 0, width: 1000, height: 800), band: 32)
+let display = DisplayInfo(id: "main", index: 0, frame: CGRect(x: 0, y: 0, width: 1000, height: 800), band: 32)
 
-private struct Harness {
+struct Harness {
     let runtime: PluginRuntime
     let events: Events
     let hub: StateHub
 
-    init(_ source: String, id: String = "test.runtime", kind: PluginKind = .barWidget, shown: Bool = true, subscribes: [String] = []) throws {
+    init(
+        _ source: String,
+        id: String = "test.runtime",
+        kind: PluginKind = .barWidget,
+        shown: [String] = [SurfaceAddress.main],
+        subscribes: [String] = [],
+    ) throws {
         let directory = FileManager.default.temporaryDirectory.appending(path: "gary-runtime-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let manifest = JSON.object([
@@ -66,7 +72,7 @@ private struct Harness {
         runtime = PluginRuntime(
             bundle: bundle,
             kind: kind,
-            scene: Scene(displays: [display], shown: shown, focused: display.id),
+            scene: Scene(displays: [display], shown: Dictionary(uniqueKeysWithValues: shown.map { ($0, ShownSurface(focused: display.id)) })),
             settings: .object(["greeting": .string("hi")]),
             theme: .object(["name": .string("dark")]),
             hub: hub,
@@ -83,8 +89,10 @@ private struct Harness {
 
     static func text(of event: RuntimeEvent) throws -> String {
         switch event {
-        case let .loaded(output, _), let .output(output, _):
-            guard let node = output.trees[display.id], case let .text(text) = node.content else { throw RenderError("no text in \(output)") }
+        case let .loaded(output, _, _), let .output(output, _):
+            guard let node = output.trees[SurfaceAddress.main]?[display.id], case let .text(text) = node.content else {
+                throw RenderError("no text in \(output)")
+            }
             return text
         case let .failed(reason):
             throw RenderError("failed: \(reason)")
@@ -99,7 +107,7 @@ private struct Harness {
     }
 }
 
-private func widget(_ body: String) -> String {
+func widget(_ body: String) -> String {
     """
     var count = 0;
     \(body)
@@ -121,20 +129,20 @@ struct PluginRuntimeTests {
     }
 
     @Test func `a hidden scene loads with no output`() async throws {
-        let harness = try Harness(widget(""), shown: false)
-        guard case let .loaded(output, _) = try await harness.events.next() else { throw RenderError("expected loaded") }
+        let harness = try Harness(widget(""), shown: [])
+        guard case let .loaded(output, _, _) = try await harness.events.next() else { throw RenderError("expected loaded") }
         #expect(output == RuntimeOutput())
         harness.runtime.stop()
     }
 
     @Test func `a service loads without a render function`() async throws {
-        let harness = try Harness("module.exports.methods = {};", kind: .service, shown: false)
+        let harness = try Harness("module.exports.methods = {};", kind: .service, shown: [])
         guard case .loaded = try await harness.events.next() else { throw RenderError("expected loaded") }
         harness.runtime.stop()
     }
 
     @Test func `a missing render function fails the load`() async throws {
-        let harness = try Harness("", shown: false)
+        let harness = try Harness("", shown: [])
         #expect(try await harness.failure() == "Error: module.exports.render is not a function")
     }
 
@@ -249,8 +257,8 @@ struct PluginRuntimeTests {
         harness.runtime.perform("publish", .null)
         for request in [SurfaceRequest.show, .hide, .toggle] {
             harness.runtime.perform(request.rawValue, .null)
-            guard case let .surface(next, _) = try await harness.events.next() else { throw RenderError("expected \(request)") }
-            #expect(next == request)
+            guard case let .surface(next, surface, _) = try await harness.events.next() else { throw RenderError("expected \(request)") }
+            #expect(next == request && surface == SurfaceAddress.main)
         }
         #expect(listener.values == [.object(["n": .number(1)])])
         harness.runtime.stop()
@@ -267,7 +275,7 @@ struct PluginRuntimeTests {
         #expect(try await harness.text() == "0")
         let origin = CGRect(x: 10, y: 700, width: 40, height: 24)
         func next() async throws -> (SurfaceRequest, CGRect?) {
-            guard case let .surface(request, origin) = try await harness.events.next() else { throw RenderError("expected a surface request") }
+            guard case let .surface(request, _, origin) = try await harness.events.next() else { throw RenderError("expected a surface request") }
             return (request, origin)
         }
         harness.runtime.perform("now", .null, origin: origin)
@@ -293,7 +301,7 @@ struct PluginRuntimeTests {
         harness.runtime.scroll(.object(["y": .number(-2)]))
         #expect(try await harness.text() == "-2")
         harness.runtime.scroll(.object(["y": .number(3)]), action: "volume", origin: origin)
-        guard case let .surface(request, shownAt) = try await harness.events.next() else { throw RenderError("expected a surface request") }
+        guard case let .surface(request, _, shownAt) = try await harness.events.next() else { throw RenderError("expected a surface request") }
         #expect(request == .show && shownAt == origin)
         #expect(try await harness.text() == "volume 3")
         harness.runtime.stop()
@@ -308,14 +316,6 @@ struct PluginRuntimeTests {
         #expect(try await harness.text().isEmpty)
         try harness.hub.publish(.plugin(#require(PluginID("test.other"))), .number(7), Trace("test"))
         #expect(try await harness.text() == "test.other=7")
-        harness.runtime.stop()
-    }
-
-    @Test func `surfaces resolve their spec from the module`() async throws {
-        let harness = try Harness(widget("module.exports.surface = function (state) { return { width: 300, height: 200 }; };"), kind: .panel)
-        guard case let .loaded(output, _) = try await harness.events.next() else { throw RenderError("expected loaded") }
-        #expect(output.surface?.width == .points(300))
-        #expect(output.trees.keys.sorted() == [display.id])
         harness.runtime.stop()
     }
 

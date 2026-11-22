@@ -3,29 +3,6 @@ import GaryCore
 import GaryPrivate
 import JavaScriptCore
 
-struct Scene: Equatable {
-    var displays: [DisplayInfo] = []
-    var shown = false
-    var focused: String?
-}
-
-struct RuntimeOutput: Equatable {
-    var surface: SurfaceSpec?
-    var trees: [String: Node] = [:]
-}
-
-enum SurfaceRequest: String {
-    case show, hide, toggle
-}
-
-enum RuntimeEvent {
-    case loaded(RuntimeOutput, Trace)
-    case output(RuntimeOutput, Trace)
-    case surface(SurfaceRequest, origin: CGRect?)
-    case call(method: String, arguments: [String], reply: (Response) -> Void)
-    case failed(String)
-}
-
 private final class Watchdog {
     var fired = false
 }
@@ -51,6 +28,7 @@ final class PluginRuntime: Subscriber {
     private var scene: Scene
     private var output = RuntimeOutput()
     private var origin: CGRect?
+    private var surfaceNames: [String]?
 
     var id: PluginID {
         bundle.manifest.id
@@ -84,8 +62,10 @@ final class PluginRuntime: Subscriber {
                 for (topic, value) in state.sorted(by: { $0.key.description < $1.key.description }) {
                     try announce(topic, value, to: functions)
                 }
+                let names = kind.isSurface ? try surfaces(functions).keys.sorted() : []
+                surfaceNames = names
                 output = try renderOutput(functions)
-                deliver(self, .loaded(output, trace))
+                deliver(self, .loaded(output, surfaces: names, trace))
             } catch {
                 teardown()
                 deliver(self, .failed("\(error)"))
@@ -195,19 +175,39 @@ final class PluginRuntime: Subscriber {
     }
 
     private func renderOutput(_ functions: PluginFunctions) throws -> RuntimeOutput {
-        guard scene.shown else { return RuntimeOutput() }
+        guard !scene.shown.isEmpty else { return RuntimeOutput() }
+        let specs = kind.isSurface ? try surfaces(functions) : [:]
         var next = RuntimeOutput()
-        var targets = scene.displays
-        if kind.isSurface {
-            let text = try invoke(functions.surface, [stateText(for: nil)]).toString() ?? "null"
-            let surface = try SurfaceSpec.parse(JSON.parse(text), kind: kind)
-            targets = surface.screen.select(targets, focused: scene.focused)
-            next.surface = surface
-        }
-        for display in targets {
-            next.trees[display.id] = try render(display, with: functions)
+        for (name, shown) in scene.shown.sorted(by: { $0.key < $1.key }) {
+            var targets = scene.displays
+            if kind.isSurface {
+                guard let spec = specs[name] else { continue }
+                targets = spec.screen.select(targets, focused: shown.focused)
+                next.surfaces[name] = spec
+            }
+            next.trees[name] = try Dictionary(uniqueKeysWithValues: targets.map { display in
+                try (display.id, render(display, name, with: functions))
+            })
         }
         return next
+    }
+
+    private func surfaces(_ functions: PluginFunctions) throws -> [String: SurfaceSpec] {
+        let text = try invoke(functions.surfaces, [stateText(for: nil)]).toString() ?? "{}"
+        return try SurfaceSpec.parseAll(JSON.parse(text), kind: kind)
+    }
+
+    private func surfaceName(_ value: JSValue) throws -> String {
+        if value.isUndefined {
+            return SurfaceAddress.main
+        }
+        guard value.isString, let name = value.toString(), SurfaceAddress.isName(name) else {
+            throw RenderError("\(value.toString() ?? "this") is not a surface name; use lowercase letters, digits and hyphens")
+        }
+        if let surfaceNames, bundle.manifest.kinds.filter(\.isSurface) == [kind], !surfaceNames.contains(name) {
+            throw RenderError("no surface \(name); this module declares \(surfaceNames.joined(separator: ", "))")
+        }
+        return name
     }
 
     private func fail(_ reason: String) {
@@ -247,17 +247,18 @@ final class PluginRuntime: Subscriber {
         }
     }
 
-    private func render(_ display: DisplayInfo, with functions: PluginFunctions) throws -> Node {
-        let text = try invoke(functions.render, [stateText(for: display)])
+    private func render(_ display: DisplayInfo, _ surface: String, with functions: PluginFunctions) throws -> Node {
+        let text = try invoke(functions.render, [stateText(for: display, surface: surface)])
         guard text.isString, let json = text.toString() else { throw RenderError("render returned nothing") }
         return try Node.parse(Data(json.utf8)).resolvingPaths(against: bundle.directory)
     }
 
-    private func stateText(for display: DisplayInfo?) -> String {
+    private func stateText(for display: DisplayInfo?, surface: String? = nil) -> String {
         var fields = Dictionary(uniqueKeysWithValues: state.map { ($0.key.description, $0.value) })
         fields["settings"] = settings
         fields["theme"] = theme
         fields["display"] = display?.json
+        fields["surface"] = surface.map(JSON.string)
         return JSON.object(fields).text
     }
 }
@@ -321,10 +322,15 @@ private extension PluginRuntime {
             hub.publish(.plugin(id), json, Trace("publish"))
         }
         let surfaceBlocks = [SurfaceRequest.show, .hide, .toggle].map { request in
-            { [weak self] in
+            { [weak self] name in
                 guard let self else { return }
-                deliver(self, .surface(request, origin: origin))
-            } as @convention(block) () -> Void
+                do {
+                    try deliver(self, .surface(request, surfaceName(name), origin: origin))
+                } catch {
+                    let context = JSContext.current()
+                    context?.exception = JSValue(newErrorFromMessage: "host.\(request.rawValue): \(error)", in: context)
+                }
+            } as @convention(block) (JSValue) -> Void
         }
         let callBlock: @convention(block) (String, [String], JSValue, JSValue) -> Void = { [weak self] method, arguments, resolve, reject in
             guard let self else { return }

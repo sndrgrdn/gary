@@ -22,8 +22,9 @@ struct IPCTests {
     }
 
     @Test func `every request survives the wire`() throws {
+        let osd = try #require(SurfaceAddress(today, surface: "osd"))
         let requests: [Request] = [
-            .ping, .quit, .summon(today), .hide(today), .toggle(today), .reloadPlugins(nil), .reloadPlugins(today),
+            .ping, .quit, .summon(SurfaceAddress(today)), .hide(SurfaceAddress(today)), .toggle(osd), .reloadPlugins(nil), .reloadPlugins(today),
             .rescanPlugins, .reloadConfig, .applyTheme(nil), .applyTheme(.object(["colors": .object(["accent": .string("#ff0000")])])),
             .listPlugins, .call(today, method: "refresh", arguments: ["a b", "line\nbreak"]),
             .doctor, .permissions, .requestPermission(.fullDiskAccess),
@@ -37,13 +38,13 @@ struct IPCTests {
     }
 
     @Test func `the wire format is A verb and string args`() throws {
-        #expect(Request.toggle(today).line == #"{"args":["gary.today"],"verb":"toggle"}"#)
+        #expect(Request.toggle(SurfaceAddress(today)).line == #"{"args":["gary.today"],"verb":"toggle"}"#)
         #expect(try Request.decode(line: #"{"verb":"ping"}"#) == .ping)
-        #expect(try Request.parse(verb: "onboarding", arguments: []) == .summon(.onboarding))
+        #expect(try Request.parse(verb: "onboarding", arguments: []) == .summon(SurfaceAddress(.onboarding)))
     }
 
     @Test func `cli arguments parse like the wire`() throws {
-        #expect(try Request.parse(verb: "toggle", arguments: ["gary.today"]) == .toggle(today))
+        #expect(try Request.parse(verb: "toggle", arguments: ["gary.today"]) == .toggle(SurfaceAddress(today)))
         #expect(try Request.parse(verb: "call", arguments: ["gary.today", "refresh"]) == .call(today, method: "refresh", arguments: []))
         #expect(try Request
             .parse(verb: "applyTheme", arguments: [#"{"bar":{"height":28}}"#]) == .applyTheme(.object(["bar": .object(["height": .number(28)])])))

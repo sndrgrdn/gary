@@ -63,6 +63,7 @@ extension Shell {
             if let slot = slots[key] {
                 guard slot.bundle != bundle else { continue }
                 slot.bundle = bundle
+                slot.names = nil
                 reload(slot, trace)
             } else {
                 let slot = PluginSlot(key: key, bundle: bundle)
@@ -92,10 +93,10 @@ extension Shell {
 
     func scene(for slot: PluginSlot) -> Scene {
         switch slot.key.kind {
-        case .barWidget: Scene(displays: displays.filter { bars[$0.id] != nil }, shown: true)
-        case .bar: Scene(displays: displays, shown: true)
+        case .barWidget: Scene(displays: displays.filter { bars[$0.id] != nil }, shown: [SurfaceAddress.main: ShownSurface()])
+        case .bar: Scene(displays: displays, shown: [SurfaceAddress.main: ShownSurface()])
         case .service: Scene()
-        case .panel, .overlay, .menu: Scene(displays: displays, shown: slot.visible, focused: slot.focused)
+        case .panel, .overlay, .menu: Scene(displays: displays, shown: slot.shown)
         }
     }
 
@@ -127,16 +128,16 @@ extension Shell {
             return
         }
         switch event {
-        case let .loaded(output, trace):
-            loaded(slot, runtime, output, trace)
+        case let .loaded(output, surfaces, trace):
+            loaded(slot, runtime, output, surfaces, trace)
         case let .output(output, trace):
             guard slot.runtime === runtime else { return }
             present(slot, output, trace)
             if slot.visible {
                 slot.answerWaiters(.ok("shown"))
             }
-        case let .surface(request, origin):
-            surfaceRequested(request, origin, by: key.id)
+        case let .surface(request, surface, origin):
+            surfaceRequested(request, surface, origin, by: key.id)
         case let .call(method, arguments, reply):
             call(key.id, method, arguments, Trace("host-call"), reply)
         case let .failed(reason):
@@ -144,11 +145,25 @@ extension Shell {
         }
     }
 
-    private func loaded(_ slot: PluginSlot, _ runtime: PluginRuntime, _ output: RuntimeOutput, _ trace: Trace) {
+    private func loaded(_ slot: PluginSlot, _ runtime: PluginRuntime, _ output: RuntimeOutput, _ surfaces: [String], _ trace: Trace) {
         slot.candidate = nil
         slot.runtime?.stop()
         slot.phase = .running(runtime)
+        slot.names = surfaces
         log("plugin \(slot.key): loaded \(slot.bundle.manifest.version)")
+        let unknown = slot.shown.keys.filter { !surfaces.contains($0) }.sorted()
+        if !unknown.isEmpty {
+            for name in unknown {
+                slot.shown[name] = nil
+            }
+            let reason = "\(slot.key.id) has no surface \(unknown.joined(separator: ", ")); it declares \(surfaces.joined(separator: ", "))"
+            log("plugin \(slot.key): \(reason)")
+            slot.answerWaiters(.failure(reason))
+            if !slot.visible, !slot.bundle.manifest.keepLoaded {
+                stop(slot)
+                return
+            }
+        }
         present(slot, output, trace)
         if runtime.initialScene != scene(for: slot) {
             runtime.setScene(scene(for: slot), trace)
@@ -159,12 +174,18 @@ extension Shell {
         }
     }
 
-    private func surfaceRequested(_ request: SurfaceRequest, _ origin: CGRect?, by id: PluginID) {
+    private func surfaceRequested(_ request: SurfaceRequest, _ surface: String, _ origin: CGRect?, by id: PluginID) {
+        guard let address = SurfaceAddress(id, surface: surface) else { return }
         let trace = Trace("host-\(request.rawValue)")
+        let report: (Response) -> Void = { response in
+            if case let .failure(reason) = response {
+                log("plugin \(id): host.\(request.rawValue)(\"\(surface)\"): \(reason)")
+            }
+        }
         switch request {
-        case .show: summon(id, trace, origin: origin)
-        case .hide: _ = hide(id, trace)
-        case .toggle: toggle(id, trace, origin: origin)
+        case .show: summon(address, trace, origin: origin, report)
+        case .hide: report(hide(address, trace))
+        case .toggle: toggle(address, trace, origin: origin, report)
         }
     }
 
@@ -179,7 +200,7 @@ extension Shell {
         }
         slot.phase = .failed(reason)
         unmount(key)
-        slot.visible = false
+        slot.shown = [:]
         slot.answerWaiters(.failure("\(key.id) failed: \(reason)"))
         log("plugin \(key): failed: \(reason)")
         if !slot.failures.allowsRestart(afterFailureAt: now()) {

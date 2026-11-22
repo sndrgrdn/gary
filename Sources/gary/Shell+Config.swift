@@ -120,14 +120,14 @@ extension Shell {
     }
 
     func offerOnboarding(_ trace: Trace) {
-        guard surfaceSlot(.onboarding)?.visible == false else { return }
+        guard surfaceSlots(.onboarding).first?.visible == false else { return }
         let missing = missingPermissions
         let dismissed = (try? JSON.parse(Data(contentsOf: Paths.onboarding)))?["missing"]?.array?.compactMap(\.string)
         if let dismissed, Set(missing).isSubset(of: dismissed) {
             return
         }
         log("onboarding: shown, " + (dismissed == nil ? "first launch" : "missing \(missing.joined(separator: ", "))"))
-        summon(.onboarding, trace)
+        summon(SurfaceAddress(.onboarding), trace)
     }
 
     func recordOnboardingDismissed() {

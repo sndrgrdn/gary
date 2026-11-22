@@ -1,4 +1,3 @@
-import CoreGraphics
 import GaryCore
 
 struct SlotKey: Hashable, CustomStringConvertible {
@@ -22,15 +21,18 @@ final class PluginSlot {
     var phase = Phase.stopped
     var failures = RestartBudget(limit: 5, window: 60)
     var candidate: PluginRuntime?
-    var visible = false
-    var focused: String?
-    var origin: CGRect?
-    var surface: SurfaceSpec?
+    var shown: [String: ShownSurface] = [:]
+    var surfaces: [String: SurfaceSpec] = [:]
+    var names: [String]?
     var waiters: [(Response) -> Void] = []
 
     init(key: SlotKey, bundle: PluginBundle) {
         self.key = key
         self.bundle = bundle
+    }
+
+    var visible: Bool {
+        !shown.isEmpty
     }
 
     var runtime: PluginRuntime? {

@@ -42,12 +42,12 @@ extension Shell {
         case .quit:
             reply(.ok("quitting"))
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.quit() }
-        case let .summon(id):
-            summon(id, trace, reply)
-        case let .hide(id):
-            reply(hide(id, trace))
-        case let .toggle(id):
-            toggle(id, trace, reply)
+        case let .summon(address):
+            summon(address, trace, reply)
+        case let .hide(address):
+            reply(hide(address, trace))
+        case let .toggle(address):
+            toggle(address, trace, reply)
         case let .reloadPlugins(id):
             reply(reloadPlugins(id, trace))
         case .rescanPlugins:
@@ -114,8 +114,34 @@ extension Shell {
         }
     }
 
-    func surfaceSlot(_ id: PluginID) -> PluginSlot? {
-        catalog.plugins[id]?.manifest.kinds.lazy.filter(\.isSurface).compactMap { self.slots[SlotKey(id: id, kind: $0)] }.first
+    func surfaceSlots(_ id: PluginID) -> [PluginSlot] {
+        catalog.plugins[id]?.manifest.kinds.filter(\.isSurface).compactMap { slots[SlotKey(id: id, kind: $0)] } ?? []
+    }
+
+    private func shownSlot(_ address: SurfaceAddress) -> PluginSlot? {
+        surfaceSlots(address.plugin).first { $0.shown[address.surface] != nil }
+    }
+
+    private func route(_ address: SurfaceAddress, _ trace: Trace, _ body: @escaping (PluginSlot?) -> Void) {
+        let candidates = surfaceSlots(address.plugin).filter { $0.disabledReason == nil || $0.names?.contains(address.surface) == true }
+        switch SurfaceRoute.choose(address.surface, declared: candidates.map(\.names)) {
+        case let .show(index):
+            body(candidates[index])
+        case let .learn(index):
+            let slot = candidates[index]
+            withRuntime(slot, trace) { [weak self, weak slot] runtime in
+                guard let self, let slot else { return body(nil) }
+                guard runtime != nil, slot.names != nil else { return body(slot) }
+                route(address, trace) { [weak self] target in
+                    if target !== slot, !slot.visible, !slot.bundle.manifest.keepLoaded {
+                        self?.stop(slot)
+                    }
+                    body(target)
+                }
+            }
+        case .unknown:
+            body(nil)
+        }
     }
 
     private func pointerDisplay() -> String? {
@@ -123,30 +149,36 @@ extension Shell {
         return displays.first { NSMouseInRect(pointer, $0.frame, false) }?.id
     }
 
-    func toggle(_ id: PluginID, _ trace: Trace, origin: CGRect? = nil, _ reply: ((Response) -> Void)? = nil) {
-        if surfaceSlot(id)?.visible == true {
-            let response = hide(id, trace)
+    func toggle(_ address: SurfaceAddress, _ trace: Trace, origin: CGRect? = nil, _ reply: ((Response) -> Void)? = nil) {
+        if shownSlot(address) != nil {
+            let response = hide(address, trace)
             reply?(response)
         } else {
-            summon(id, trace, origin: origin, reply)
+            summon(address, trace, origin: origin, reply)
         }
     }
 
-    func summon(_ id: PluginID, _ trace: Trace, origin: CGRect? = nil, _ reply: ((Response) -> Void)? = nil) {
-        guard let slot = surfaceSlot(id) else { reply?(.failure("no enabled surface \(id)"))
-            return
+    func summon(_ address: SurfaceAddress, _ trace: Trace, origin: CGRect? = nil, _ reply: ((Response) -> Void)? = nil) {
+        route(address, trace) { [weak self] slot in
+            guard let self, let slot else {
+                reply?(.failure(self?.surfaceSlots(address.plugin)
+                        .isEmpty == false ? "\(address.plugin) has no surface \(address.surface)" : "no enabled surface \(address.plugin)"))
+                return
+            }
+            show(address.surface, in: slot, trace, origin: origin, reply)
         }
+    }
+
+    private func show(_ surface: String, in slot: PluginSlot, _ trace: Trace, origin: CGRect?, _ reply: ((Response) -> Void)?) {
         if let reason = slot.disabledReason {
-            reply?(.failure("\(id) is disabled: \(reason)"))
+            reply?(.failure("\(slot.key.id) is disabled: \(reason)"))
             return
         }
-        if slot.visible, slot.runtime != nil {
+        if slot.shown[surface] != nil, slot.runtime != nil {
             reply?(.ok("shown"))
             return
         }
-        slot.visible = true
-        slot.focused = pointerDisplay()
-        slot.origin = origin
+        slot.shown[surface] = ShownSurface(focused: pointerDisplay(), origin: origin)
         if let reply {
             slot.waiters.append(reply)
         }
@@ -157,21 +189,27 @@ extension Shell {
         }
     }
 
-    func hide(_ id: PluginID, _ trace: Trace) -> Response {
-        guard let slot = surfaceSlot(id) else { return .failure("no enabled surface \(id)") }
-        guard slot.visible else { return .ok("hidden") }
-        slot.visible = false
-        slot.origin = nil
-        if id == .onboarding {
+    func hide(_ address: SurfaceAddress, _ trace: Trace) -> Response {
+        guard let slot = shownSlot(address) else {
+            return surfaceSlots(address.plugin).isEmpty ? .failure("no enabled surface \(address.plugin)") : .ok("hidden")
+        }
+        return hide(address.surface, in: slot, trace)
+    }
+
+    func hide(_ surface: String, in slot: PluginSlot, _ trace: Trace) -> Response {
+        guard slot.shown.removeValue(forKey: surface) != nil else { return .ok("hidden") }
+        if slot.key.id == .onboarding {
             recordOnboardingDismissed()
         }
-        if slot.bundle.manifest.keepLoaded, let runtime = slot.runtime {
-            unmount(slot.key)
-            runtime.setScene(scene(for: slot), trace)
+        if slot.visible || slot.bundle.manifest.keepLoaded {
+            unmount(slot.key, surface: surface)
+            slot.runtime?.setScene(scene(for: slot), trace)
         } else {
             stop(slot)
         }
-        slot.answerWaiters(.ok("hidden"))
+        if !slot.visible {
+            slot.answerWaiters(.ok("hidden"))
+        }
         return .ok("hidden")
     }
 
@@ -199,6 +237,9 @@ extension Shell {
                 guard let slot = slots[SlotKey(id: id, kind: kind)]
                 else { return "\(kind.rawValue):\(kind == .barWidget ? "not-in-bar" : "inactive")" }
                 switch slot.phase {
+                case .running where (slot.names?.count ?? 0) > 1:
+                    return "\(kind.rawValue):" + (slot.names ?? []).map { "\($0)=\(slot.shown[$0] != nil ? "shown" : "hidden")" }
+                        .joined(separator: ",")
                 case .running: return "\(kind.rawValue):\(kind.isSurface ? (slot.visible ? "shown" : "paused") : "running")"
                 case .stopped: return "\(kind.rawValue):\(kind.isSurface ? "hidden" : "stopped")"
                 case let .failed(reason): return "\(kind.rawValue):failed(\(reason))"

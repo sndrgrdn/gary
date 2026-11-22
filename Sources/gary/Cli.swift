@@ -20,7 +20,7 @@ func runCli(_ verb: String, _ arguments: [String]) -> Int32 {
         let line: String
         do {
             line = try requestLine(request.line, path: socketPath, timeout: request.timeout + 5)
-        } catch SocketError.unreachable where request.verb == Request.permissions.verb || request == .summon(.onboarding) {
+        } catch SocketError.unreachable where request.verb == Request.permissions.verb || request == .summon(SurfaceAddress(.onboarding)) {
             try startApp()
             line = try requestLine(request.line, path: socketPath, timeout: request.timeout + 5)
         }
