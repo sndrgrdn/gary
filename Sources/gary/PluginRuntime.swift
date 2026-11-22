@@ -221,6 +221,7 @@ final class PluginRuntime: Subscriber {
     }
 
     private func teardown() {
+        functions.map(unload)
         hub.unsubscribe(self)
         for timer in timers.values {
             timer.cancel()
@@ -301,11 +302,34 @@ private extension PluginRuntime {
             }
         }
         let links = Dictionary(uniqueKeysWithValues: modules.map { ($0.path, $0.links) })
-        let exported = try check(in: context) { context.evaluateScript(PluginScripts.modules)?.call(withArguments: [factories, links, entry]) }
-        let wrappers = try check(in: context) { context.evaluateScript(PluginScripts.functions)?.call(withArguments: [exported, kind == .service]) }
+        let library: @convention(block) () -> JSValue? = { [engine] in
+            do {
+                return try engine.effect()
+            } catch {
+                let context = JSContext.current()
+                context?.exception = JSValue(newErrorFromMessage: "\(error)", in: context)
+                return nil
+            }
+        }
+        let loaded = try check(in: context) {
+            context.evaluateScript(PluginScripts.modules)?.call(withArguments: [factories, links, entry, library, state.settings])
+        }
+        let exported: JSValue = loaded.atIndex(0)
+        let effect: JSValue = loaded.atIndex(1)
+        let wrappers = try check(in: context) {
+            context.evaluateScript(PluginScripts.functions)?.call(withArguments: [exported, kind == .service, effect])
+        }
         let functions = PluginFunctions(wrappers)
         self.functions = functions
         return functions
+    }
+
+    func unload(_ functions: PluginFunctions) {
+        do {
+            try invoke(functions.unload, [])
+        } catch {
+            log("plugin \(id): unload failed: \(error)")
+        }
     }
 
     func installTimers(in context: JSContext) throws {

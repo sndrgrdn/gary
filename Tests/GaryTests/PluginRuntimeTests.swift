@@ -39,9 +39,11 @@ final class Listener: Subscriber, @unchecked Sendable {
     }
 }
 
-let transpiler = Transpiler(sucrase: URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../../Resources/vendor/sucrase.js"))
+let vendor = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../../Resources/vendor")
 
-let engine = PluginEngine()
+let transpiler = Transpiler(sucrase: vendor.appending(path: "sucrase.js"))
+
+let engine = PluginEngine(effect: vendor.appending(path: "effect.js"))
 
 let display = DisplayInfo(id: "main", index: 0, frame: CGRect(x: 0, y: 0, width: 1000, height: 800), band: 32)
 

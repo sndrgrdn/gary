@@ -27,7 +27,7 @@ struct PluginModuleTests {
 
     @Test func `an import Gary cannot resolve fails the load and names the specifier`() async throws {
         let cases = [
-            "lodash": "cannot import \"lodash\" from main.js: Gary resolves only relative paths, such as \"./parse\"",
+            "lodash": "cannot import \"lodash\" from main.js: Gary resolves only relative paths, such as \"./parse\", and gary:effect",
             "./missing": """
             cannot import "./missing" from main.js: no file missing.ts, missing.tsx, missing.js, missing/index.ts, missing/index.tsx, missing/index.js
             """,

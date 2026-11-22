@@ -5,21 +5,29 @@ struct PluginFunctions {
     let dispatch: JSValue
     let call: JSValue
     let surfaces: JSValue
+    let unload: JSValue
 
     init(_ wrappers: JSValue) {
         render = wrappers.atIndex(0)
         dispatch = wrappers.atIndex(1)
         call = wrappers.atIndex(2)
         surfaces = wrappers.atIndex(3)
+        unload = wrappers.atIndex(4)
     }
 }
 
 enum PluginScripts {
     static let modules = """
-    (function (factories, links, entry) {
-      var loaded = {};
+    (function (factories, links, entry, library, settings) {
+      var loaded = {}, effect = null;
       function load(path) {
         if (Object.prototype.hasOwnProperty.call(loaded, path)) return loaded[path];
+        if (path === "gary:effect") {
+          effect = library()({
+            host: host, fetch: globalThis.fetch, setTimeout: setTimeout, clearTimeout: clearTimeout, settings: JSON.parse(settings)
+          });
+          return loaded[path] = effect.exports;
+        }
         var exports = loaded[path] = {};
         factories[path](exports, function (specifier) {
           if (!Object.prototype.hasOwnProperty.call(links[path], specifier)) throw new Error("cannot import \\"" + specifier + "\\" from " + path);
@@ -27,14 +35,18 @@ enum PluginScripts {
         });
         return exports;
       }
-      return load(entry).default;
+      return [load(entry).default, effect];
     })
     """
 
     static let functions = """
-    (function (exported, headless) {
+    (function (exported, headless, effect) {
       if (exported === null || typeof exported !== "object") throw new Error("the entry file has no default export");
       if (!headless && typeof exported.render !== "function") throw new Error("the default export has no render function");
+      if (exported.effect !== undefined) {
+        if (effect === null) throw new Error("the default export has an effect, so the plugin must import gary:effect");
+        effect.start(exported.effect);
+      }
       return [
         function (state, mark) {
           var s = JSON.parse(state);
@@ -44,11 +56,12 @@ enum PluginScripts {
           return JSON.stringify(n);
         },
         function (name, args, state, mark) {
-          var f = exported[name];
-          if (typeof f !== "function") return null;
+          var f = exported[name], receive = name === "onTopic" && effect !== null;
+          if (typeof f !== "function" && !receive) return null;
           var a = JSON.parse(args).concat([JSON.parse(state)]);
           if (mark) mark();
-          return f.apply(exported, a) === true;
+          if (receive) effect.receive(a[0]);
+          return typeof f === "function" ? f.apply(exported, a) === true : null;
         },
         function (method, args, done, mark) {
           var f = exported.methods && exported.methods[method];
@@ -78,6 +91,9 @@ enum PluginScripts {
           }
           if (mark) mark();
           return JSON.stringify(out);
+        },
+        function () {
+          if (effect !== null) effect.close();
         }
       ];
     })

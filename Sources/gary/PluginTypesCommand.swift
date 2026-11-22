@@ -35,8 +35,26 @@ func writeTypes(_ directory: URL) throws -> String {
     }
     let theme = try? JSON.parse(Data(contentsOf: Paths.defaultTheme))
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    let declarations = PluginTypes.declarations(capabilities: selected.map(\.types), topics: topics, published: topicType(directory), theme: theme)
+    var declarations = PluginTypes.declarations(capabilities: selected.map(\.types), topics: topics, published: topicType(directory), theme: theme)
+    if importsEffect(directory) {
+        declarations += "\n" + PluginTypes.effectDeclarations
+    }
     try Data(declarations.utf8).write(to: directory.appending(path: PluginTypes.declarationsFile))
     try Data(PluginTypes.manifestSchema(capabilities).prettyText.utf8).write(to: directory.appending(path: PluginTypes.schemaFile))
     return "wrote \(PluginTypes.declarationsFile) and \(PluginTypes.schemaFile) to \(directory.path) for \(scope)"
+}
+
+private func importsEffect(_ directory: URL) -> Bool {
+    guard let files = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil, options: .skipsHiddenFiles) else { return false }
+    let specifiers = ["\"\(PluginBundle.effectModule)\"", "'\(PluginBundle.effectModule)'"]
+    for case let url as URL in files {
+        if url.lastPathComponent == "node_modules" {
+            files.skipDescendants()
+        } else if ScriptLanguage(path: url.lastPathComponent) != nil, let text = try? String(contentsOf: url, encoding: .utf8),
+                  specifiers.contains(where: text.contains)
+        {
+            return true
+        }
+    }
+    return false
 }

@@ -3,9 +3,11 @@ import GaryCore
 struct StateText {
     private var topics: [String: String] = [:]
     private var shared: [String: String]
+    let settings: String
 
     init(settings: JSON, theme: JSON) {
-        shared = ["settings": settings.text, "theme": theme.text]
+        self.settings = settings.text
+        shared = ["settings": self.settings, "theme": theme.text]
     }
 
     @discardableResult

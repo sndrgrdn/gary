@@ -23,7 +23,7 @@ cp Resources/theme.json Resources/Gary.icns scripts/install.sh "$APP/Contents/Re
 rsync -a --exclude gary.d.ts --exclude manifest.schema.json --exclude tsconfig.json Resources/plugins/ "$APP/Contents/Resources/plugins/"
 cp Resources/Gary.icns "$APP/Contents/Resources/plugins/onboarding/"
 rsync -a --exclude gary.d.ts --exclude manifest.schema.json --exclude node_modules examples/ "$APP/Contents/Resources/examples/"
-cp Resources/vendor/sucrase.js Resources/vendor/sucrase.LICENSE "$APP/Contents/Resources/"
+cp Resources/vendor/sucrase.js Resources/vendor/sucrase.LICENSE Resources/vendor/effect.js Resources/vendor/effect.LICENSE "$APP/Contents/Resources/"
 "$APP/Contents/MacOS/gary" plugin types "$APP/Contents/Resources/types" >/dev/null
 
 ADAPTER="$APP/Contents/Frameworks/MediaRemoteAdapter.framework"

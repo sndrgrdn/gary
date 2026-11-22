@@ -49,6 +49,7 @@ typecheck: build
         "$gary" plugin types "$dir" >/dev/null
         npx tsc -p "$dir"
     done
+    npx tsc -p Sources/gary-effect
 
 dead-code:
     swift build --build-system native --jobs 4 --scratch-path .build/periphery

@@ -257,3 +257,33 @@ public enum PluginTypes {
         }
     }
 }
+
+public extension PluginTypes {
+    static let effectDeclarations = """
+    declare namespace Gary {
+      interface Module {
+        effect?: import("effect").Effect.Effect<void, never, import("effect").Scope.Scope>;
+      }
+    }
+
+    declare module "\(PluginBundle.effectModule)" {
+      import type { Effect as E, Stream as S } from "effect";
+      export {
+        Cause, Context, Data, Deferred, Duration, Effect, Exit, Fiber, Layer, Option, PubSub, Queue, Ref, Schedule, Schema, Scope, Stream,
+        SubscriptionRef, pipe,
+      } from "effect";
+      export interface HostError {
+        readonly _tag: "HostError";
+        readonly message: string;
+      }
+      type Lift<T> = T extends (...args: infer A) => infer R
+        ? (...args: A) => E.Effect<Awaited<R>, R extends PromiseLike<unknown> ? HostError : never>
+        : { readonly [K in keyof T]: Lift<T[K]> };
+      export const host: Lift<Gary.Host>;
+      export const fetch: typeof globalThis extends { fetch: infer F } ? Lift<F> : never;
+      export const settings: Gary.State["settings"];
+      export function topic<K extends keyof Gary.Topics>(name: K): S.Stream<Gary.Topics[K]>;
+    }
+
+    """
+}

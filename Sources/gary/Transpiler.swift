@@ -27,7 +27,7 @@ final class Transpiler {
                 let specifier = String(match.1)
                 let target = try bundle.resolveImport(specifier, from: path)
                 links[specifier] = target
-                if seen.insert(target).inserted {
+                if target != PluginBundle.effectModule, seen.insert(target).inserted {
                     pending.append(target)
                 }
             }

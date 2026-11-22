@@ -21,10 +21,15 @@ public struct ImportError: Error, Equatable, CustomStringConvertible {
 }
 
 public extension PluginBundle {
+    static let effectModule = "gary:effect"
+
     func resolveImport(_ specifier: String, from importer: String) throws -> String {
         let fail = { (reason: String) in ImportError(description: "cannot import \"\(specifier)\" from \(importer): \(reason)") }
+        if specifier == Self.effectModule {
+            return specifier
+        }
         guard specifier.hasPrefix("./") || specifier.hasPrefix("../") else {
-            throw fail("Gary resolves only relative paths, such as \"./parse\"")
+            throw fail("Gary resolves only relative paths, such as \"./parse\", and \(Self.effectModule)")
         }
         var parts = importer.split(separator: "/").dropLast().map(String.init)
         for component in specifier.split(separator: "/") {
