@@ -258,6 +258,12 @@ extension Skill {
     } satisfies Gary.BarWidget;
     ```
 
+    For Effect style in general, follow the `effect` skill (kitlangton/skills) if it is installed. A plugin differs from the app that skill assumes:
+
+    - Use `fetch`, `settings`, and `topic` from `gary:effect`, not `HttpClient`, `Config`, or environment variables.
+    - Start long-running work in the `effect` field. Don't build a runtime, a `ManagedRuntime`, or Layers for it.
+    - Never use Effect's microtask scheduler. Its work runs inside one call and trips the 100 ms limit.
+
     `gary plugin types` adds these declarations to `gary.d.ts` when a file of the plugin imports `gary:effect`. They import from the `effect` package, so run `npm install --save-dev effect@\(PluginTypes.effectVersion)` in the plugin folder, and set `"skipLibCheck": true` in `tsconfig.json`, because Effect's own declarations name browser types that Gary does not have.
 
     ```ts
