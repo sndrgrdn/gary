@@ -67,23 +67,24 @@ private final class ShaderCache: @unchecked Sendable {
     private let compiler = DispatchQueue(label: "gary.shaders", qos: .userInitiated)
 
     func program(_ shader: Node.Shader, plugin: PluginID?) async -> ShaderProgram? {
-        let modified = (try? FileManager.default.attributesOfItem(atPath: shader.path)[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-        let key = "\(shader.path)|\(modified)|\(shader.function)"
+        let path = (shader.path as NSString).expandingTildeInPath
+        let modified = (try? FileManager.default.attributesOfItem(atPath: path)[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+        let key = "\(path)|\(modified)|\(shader.function)"
         if let cached = lock.withLock({ programs[key] }) {
             return try? cached.get()
         }
         return await withCheckedContinuation { continuation in
             compiler.async {
-                let result = self.lock.withLock { self.programs[key] } ?? Self.compile(shader, plugin: plugin)
+                let result = self.lock.withLock { self.programs[key] } ?? Self.compile(shader, path: path, plugin: plugin)
                 self.lock.withLock { self.programs[key] = result }
                 continuation.resume(returning: try? result.get())
             }
         }
     }
 
-    private static func compile(_ shader: Node.Shader, plugin: PluginID?) -> Result<ShaderProgram, ShaderError> {
+    private static func compile(_ shader: Node.Shader, path: String, plugin: PluginID?) -> Result<ShaderProgram, ShaderError> {
         do {
-            let source = try String(contentsOfFile: (shader.path as NSString).expandingTildeInPath, encoding: .utf8)
+            let source = try String(contentsOfFile: path, encoding: .utf8)
             return try .success(ShaderProgram(source: source, function: shader.function))
         } catch {
             log("plugin \(plugin?.description ?? "?"): shader \(shader.path): \(error.localizedDescription)")
