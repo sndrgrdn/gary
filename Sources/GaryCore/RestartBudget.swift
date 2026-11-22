@@ -22,6 +22,16 @@ public struct RestartBudget: Equatable, Sendable {
     public var summary: String {
         "\(failures.count) failures in \(Int(window)) s"
     }
+
+    public mutating func step(after exit: ProcessExit, at time: TimeInterval) -> SupervisorStep {
+        guard exit.isCrash || exit.asksForRestart else { return .stop }
+        guard allowsRestart(afterFailureAt: time) else { return .giveUp }
+        return exit.asksForRestart ? .restartNow : .restartAfterPause
+    }
+}
+
+public enum SupervisorStep: Equatable, Sendable {
+    case restartNow, restartAfterPause, stop, giveUp
 }
 
 public enum ProcessExit: Equatable, Sendable {

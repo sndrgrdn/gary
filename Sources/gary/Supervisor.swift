@@ -82,20 +82,19 @@ private func supervise(_ child: Child) -> Int32 {
         exited.wait()
         let exit: ProcessExit = process
             .terminationReason == .uncaughtSignal ? .signaled(process.terminationStatus) : .exited(process.terminationStatus)
-        if exit.asksForRestart, !child.isStopping {
-            log("supervisor: gary asked to restart")
-            continue
-        }
-        guard exit.isCrash, !child.isStopping else {
+        switch child.isStopping ? .stop : budget.step(after: exit, at: now()) {
+        case .stop:
             log("supervisor: gary \(exit.description); not restarting")
             return 0
-        }
-        guard budget.allowsRestart(afterFailureAt: now()) else {
+        case .giveUp:
             log("supervisor: gary \(exit.description); gave up after \(budget.summary), the limit is \(budget.limit)")
             return 1
+        case .restartNow:
+            log("supervisor: gary asked to restart (\(budget.summary), limit \(budget.limit))")
+        case .restartAfterPause:
+            log("supervisor: gary \(exit.description); restarting (\(budget.summary), limit \(budget.limit))")
+            Thread.sleep(forTimeInterval: 1)
         }
-        log("supervisor: gary \(exit.description); restarting (\(budget.summary), limit \(budget.limit))")
-        Thread.sleep(forTimeInterval: 1)
     }
 }
 

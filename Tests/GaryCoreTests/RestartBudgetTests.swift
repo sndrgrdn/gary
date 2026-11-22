@@ -31,6 +31,22 @@ struct RestartBudgetTests {
     }
 }
 
+struct SupervisorStepTests {
+    @Test func `restart requests count toward the budget and skip the pause`() {
+        var budget = RestartBudget(limit: 5, window: 60)
+        let steps = (0..<6).map { budget.step(after: .exited(ProcessExit.restart), at: 100 + Double($0)) }
+        #expect(steps == Array(repeating: .restartNow, count: 5) + [.giveUp])
+    }
+
+    @Test func `crashes restart after A pause and clean exits stop`() {
+        var budget = RestartBudget(limit: 1, window: 60)
+        #expect(budget.step(after: .exited(0), at: 0) == .stop)
+        #expect(budget.step(after: .signaled(SIGTERM), at: 0) == .stop)
+        #expect(budget.step(after: .signaled(SIGSEGV), at: 0) == .restartAfterPause)
+        #expect(budget.step(after: .exited(ProcessExit.restart), at: 1) == .giveUp)
+    }
+}
+
 struct ProcessExitTests {
     @Test func `kills and errors are crashes but quits and duplicates are not`() {
         #expect(ProcessExit.signaled(SIGKILL).isCrash)
