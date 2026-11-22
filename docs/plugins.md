@@ -4,13 +4,14 @@ A plugin is a folder with a `manifest.json` and one entry file per kind. Gary ru
 
 Gary.app bundles the plugins in [`examples/`](../examples) in `Contents/Resources/examples`. Gary does not load them. Copy one under your own id to start:
 
-| Example                          | Shows                                                                                         |
-| -------------------------------- | --------------------------------------------------------------------------------------------- |
-| [`load`](../examples/load)       | A bar widget that runs a command with `host.exec`.                                            |
-| [`disk`](../examples/disk)       | A service that publishes a value and a bar widget that subscribes to it.                      |
-| [`timer`](../examples/timer)     | A panel with buttons, a slider, a progress bar, and `host.storage`.                           |
-| [`today`](../examples/today)     | A panel that subscribes to the `clock` and `battery` topics.                                  |
-| [`gallery`](../examples/gallery) | A panel that draws a gradient, a progress ring, charts, a calendar grid, loops, and a shader. |
+| Example                          | Shows                                                                                          |
+| -------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [`load`](../examples/load)       | A bar widget that runs a command with `host.exec`.                                             |
+| [`disk`](../examples/disk)       | A service that publishes a value and a bar widget that subscribes to it.                       |
+| [`timer`](../examples/timer)     | A panel with buttons, a slider, a progress bar, and `host.storage`.                            |
+| [`today`](../examples/today)     | A panel that subscribes to the `clock` and `battery` topics.                                   |
+| [`gallery`](../examples/gallery) | A panel that draws a gradient, a progress ring, charts, a calendar grid, loops, and a shader.  |
+| [`popover`](../examples/popover) | A bar widget with right-click, middle-click, scroll, and tooltip that opens an attached panel. |
 
 The only built-in plugins are the `gary.clock` and `gary.battery` bar widgets, so a fresh install shows a bar.
 
