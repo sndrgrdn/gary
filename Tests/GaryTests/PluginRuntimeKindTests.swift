@@ -25,6 +25,24 @@ struct PluginRuntimeKindTests {
         harness.runtime.stop()
     }
 
+    @Test func `a bar widget that renders null has no tree until it renders a node and a panel that renders null fails`() async throws {
+        let source = """
+        var count = 0;
+        export default {
+          render: function () { return count ? { type: "text", text: String(count) } : null; },
+          onAction: function () { count += 1; },
+        };
+        """
+        let widget = try Harness(source)
+        guard case let .loaded(output, _) = try await widget.events.next() else { throw RenderError("expected loaded") }
+        #expect(output.trees == [SurfaceAddress.main: [display.id: nil]])
+        widget.runtime.perform("add", .null)
+        #expect(try await widget.text() == "1")
+        widget.runtime.stop()
+        let panel = try Harness(source, kind: .panel)
+        #expect(try await panel.failure() == "root: node must be an object")
+    }
+
     @Test func `a kind receives only the topics the manifest lists for it`() async throws {
         let harness = try Harness(widget("""
         onTopic: function (event) { seen.push(event.topic); },

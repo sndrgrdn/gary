@@ -19,7 +19,7 @@ struct MainDeliveryTests {
         var handled: [String] = []
         let delivery = MainDelivery { _, event in
             switch event {
-            case let .output(output, _): handled.append(output.trees[SurfaceAddress.main]?[display.id].map { "\($0.content)" } ?? "none")
+            case let .output(output, _): handled.append((output.trees[SurfaceAddress.main]?[display.id]??.content).map { "\($0)" } ?? "none")
             case let .failed(reason): handled.append("failed \(reason)")
             default: handled.append("other")
             }

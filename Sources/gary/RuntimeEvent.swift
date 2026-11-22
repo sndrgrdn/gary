@@ -13,7 +13,7 @@ struct Scene: Equatable {
 
 struct RuntimeOutput: Equatable {
     var surfaces: [String: SurfaceSpec] = [:]
-    var trees: [String: [String: Node]] = [:]
+    var trees: [String: [String: Node?]] = [:]
 }
 
 enum SurfaceRequest: String {

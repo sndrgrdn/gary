@@ -109,7 +109,7 @@ struct Harness {
     static func text(of event: RuntimeEvent) throws -> String {
         switch event {
         case let .loaded(output, _), let .output(output, _):
-            guard let node = output.trees[SurfaceAddress.main]?[display.id], case let .text(text) = node.content else {
+            guard case let .text(text)? = output.trees[SurfaceAddress.main]?[display.id]??.content else {
                 throw RenderError("no text in \(output)")
             }
             return text

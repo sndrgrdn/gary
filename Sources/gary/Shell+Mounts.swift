@@ -16,7 +16,7 @@ extension Shell {
                     changes[key] = mount(key, tree)
                 }
             }
-            for key in mounts.keys where key.slot == slot.key && output.trees[key.surface]?[key.display] == nil {
+            for key in mounts.keys where key.slot == slot.key && output.trees[key.surface]?.keys.contains(key.display) != true {
                 unmount(key)
             }
             return changes
@@ -34,21 +34,22 @@ extension Shell {
                 (end - trace.start) * 1000,
                 changed ? 1 : 0,
                 timings.fields,
-                output.trees[key.surface]?[key.display]?.summary ?? "",
+                output.trees[key.surface]?[key.display]??.summary ?? "",
             ))
         }
     }
 
-    private func mount(_ key: MountKey, _ tree: Node) -> Bool {
+    private func mount(_ key: MountKey, _ tree: Node?) -> Bool {
         let slotKey = key.slot
         let onAction: ActionHandler = { [weak self] event in self?.perform(event, slotKey) }
         let changed: Bool
         if let view = mounts[key] {
-            changed = view.tree.root != tree
-            if changed {
-                view.tree.root = tree
+            changed = view.apply(tree)
+            if tree == nil {
+                tooltipPanel.hide(inside: view)
             }
         } else {
+            guard let tree else { return false }
             let mounted = MountedTree(root: tree, theme: theme(for: slotKey.kind))
             mounted.plugin = slotKey.id
             mounts[key] = TreeHostingView(tree: mounted, onAction: onAction, tooltipPanel: tooltipPanel) { [weak self] in
@@ -216,6 +217,16 @@ extension Shell {
             arrangeBars()
         }
         watchClicks()
+    }
+}
+
+extension TreeHostingView {
+    func apply(_ root: Node?) -> Bool {
+        let changed = isHidden != (root == nil)
+        isHidden = root == nil
+        guard let root, root != tree.root else { return changed }
+        tree.root = root
+        return true
     }
 }
 

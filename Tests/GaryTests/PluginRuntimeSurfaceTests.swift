@@ -32,7 +32,7 @@ struct PluginRuntimeSurfaceTests {
         #expect(output.surfaces["main"]?.width == .points(300))
         #expect(output.surfaces["osd"]?.margins.bottom == 80 && output.surfaces["osd"]?.clickThrough == true)
         let texts = output.trees.mapValues { trees in trees.mapValues { node -> String in
-            if case let .text(text) = node.content {
+            if case let .text(text)? = node?.content {
                 text
             } else {
                 ""

@@ -41,7 +41,7 @@ extension Skill {
 
     | Kind | Runs as |
     | --- | --- |
-    | `bar-widget` | A view in the built-in bar. `shell.json` places it in `bar.left`, `bar.center`, or `bar.right`. |
+    | `bar-widget` | A view in the built-in bar. `shell.json` places it in `bar.left`, `bar.center`, or `bar.right`. When `render` returns `null`, the widget and its gap take no space in the bar until it returns a node again. |
     | `bar` | A whole bar that replaces the built-in one. |
     | `panel` | A window that `gary summon <id>`, `gary toggle <id>`, or `host.show()` shows. |
     | `overlay` | A panel that covers the whole display above other windows. |

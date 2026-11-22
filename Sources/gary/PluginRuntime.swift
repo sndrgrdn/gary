@@ -240,11 +240,14 @@ final class PluginRuntime: Subscriber {
         }
     }
 
-    private func render(_ display: DisplayInfo, _ surface: String, with functions: PluginFunctions) throws -> Node {
+    private func render(_ display: DisplayInfo, _ surface: String, with functions: PluginFunctions) throws -> Node? {
         let value = try invoke(functions.render, [stateText(for: display, surface: surface)], [.jsParse, .render, .stringify])
         let json = try timed(.swiftParse) { () throws -> JSON in
             guard value.isString, let text = value.toString() else { throw RenderError("render returned nothing") }
             return try JSON.parse(text)
+        }
+        if json == .null, kind == .barWidget {
+            return nil
         }
         return try timed(.nodeParse) { try Node.parse(json).resolvingPaths(against: bundle.directory) }
     }

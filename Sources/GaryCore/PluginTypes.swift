@@ -134,8 +134,8 @@ public enum PluginTypes {
     }
 
     private static func moduleTypes(capabilities: [String], published: String) -> String {
-        let modules = PluginKind.allCases.map { "  type \(typeName($0.rawValue)) = \($0 == .service ? "Module" : "Rendered");" }
-            .joined(separator: "\n")
+        let modules = PluginKind.allCases
+            .map { "  type \(typeName($0.rawValue)) = \($0 == .service ? "Module" : $0 == .barWidget ? "Rendered<Node | null>" : "Rendered");" }
         return """
           type ActionPayload = null | number | string;
           interface Storage {
@@ -168,10 +168,10 @@ public enum PluginTypes {
             surfaces?: { [name: string]: SurfaceExport };
           }
           type SurfaceExport = Surface | null | ((state: State) => Surface | null | undefined);
-          interface Rendered extends Module {
-            render(state: State): Node;
+          interface Rendered<Tree = Node> extends Omit<Module, "render"> {
+            render(state: State): Tree;
           }
-        \(modules)
+        \(modules.joined(separator: "\n"))
         }
 
         declare const host: Gary.Host;
