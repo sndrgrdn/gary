@@ -54,7 +54,7 @@ extension Skill {
 
     A **capability** adds functions to `host`, a state topic, or both. The manifest lists the functions it wants in `uses` and the topics in `subscribes`. `gary.d.ts` declares only what the manifest asks for. Some capabilities need a macOS permission for Gary.
 
-    The **theme** comes from Gary's built-in `theme.json`, the user's `~/.config/gary/theme.json`, and the palette in `~/.config/gary/palette.toml`. Nodes name theme styles and colors, and `state.theme` holds the resolved colors.
+    The **theme** comes from Gary's built-in `theme.json`, the user's `~/.config/gary/theme.json`, and the palette in `~/.config/gary/palette.toml`. Nodes name theme styles and colors, and `state.theme` holds the resolved colors and the `spacing` scale: `item`, `section` and `edge`, in points.
 
     **Lifecycle.** Gary loads a plugin, runs the entry file once, delivers the current value of each subscribed topic to `onTopic`, and calls `render(state)` once per display, so a surface shows current values on its first render. After each handler, timer, host callback, and topic change, Gary calls `render` again and redraws only what changed. Saving `manifest.json`, a `.ts`, `.tsx`, `.js`, or `.metal` file, or moving a folder, in the plugin folder reloads the plugin within about 40 ms. Other files, such as images, `gary.d.ts`, and `node_modules`, do not. A reload that fails keeps the running version and logs the reason. A call that runs longer than 100 ms stops the plugin. A failed bar widget, bar, or service restarts after 1 second, and a failed surface loads again when it is next shown. After 5 failures in 60 seconds, Gary disables the plugin until its files change.
     """

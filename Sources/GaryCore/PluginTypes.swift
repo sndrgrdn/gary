@@ -25,8 +25,7 @@ public enum PluginTypes {
             "material?: \(union(Material.allCases.map(\.rawValue)));", "colorScheme?: \(union(ColorScheme.allCases.map(\.rawValue)));",
             "transition?: \(union(Transition.allCases.map(\.rawValue)));",
             "fit?: \(union(ImageFit.allCases.map(\.rawValue)));", "lines?: number;", "truncate?: \(union(Truncation.allCases.map(\.rawValue)));",
-            "clip?: boolean;",
-            "shadow?: { color: Color; radius?: number; y?: number };", "border?: { color: Color; width?: number };",
+            "clip?: boolean;", "shadow?: { color: Color; radius?: number; y?: number };", "border?: { color: Color; width?: number };",
             "blend?: \(union(Blend.allCases.map(\.rawValue)));",
             "loop?: { " + Loop.Property.allCases.map { "\($0.rawValue)?: [number, number]; " }.joined() + "duration?: number; reverse?: boolean };",
             "background?: Paint;",
@@ -104,6 +103,7 @@ public enum PluginTypes {
             mode: "light" | "dark";
             colors: { [name: string]: string };
             palette: { [name: string]: string };
+            spacing: { item: number; section: number; edge: number };
           }
           interface Topics {
         \(fields)

@@ -93,7 +93,10 @@ public struct Theme: Equatable, Sendable {
         func hexes(_ colors: [String: RGBA]) -> JSON {
             .object(colors.mapValues { .string($0.hex) })
         }
-        return .object(["mode": .string(mode.rawValue), "colors": hexes(colors), "palette": hexes(palette.colors)])
+        return .object([
+            "mode": .string(mode.rawValue), "colors": hexes(colors), "palette": hexes(palette.colors),
+            "spacing": .object(["item": .number(spacing.item), "section": .number(spacing.section), "edge": .number(spacing.edge)]),
+        ])
     }
 
     public static func parse(_ base: JSON, palette: Palette, override: JSON? = nil) throws -> Theme {

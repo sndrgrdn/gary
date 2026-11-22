@@ -155,7 +155,7 @@ struct ThemeTests {
         #expect(theme.style("panel").background == nil)
     }
 
-    @Test func `plugins get the mode the resolved colours and the raw palette`() throws {
+    @Test func `plugins get the mode the resolved colours the raw palette and the spacing`() throws {
         let json = try theme(palette: "background = \"#fafafa\"\nforeground = \"#333333\"\naccent = \"#3060c0\"\nicon_mark = \"#8839ef\"").json
         #expect(json["mode"] == .string("light"))
         #expect(json["colors"]?["selected"] == .string("#3060c040"))
@@ -166,6 +166,7 @@ struct ThemeTests {
             "accent": .string("#3060c0"),
             "icon_mark": .string("#8839ef"),
         ]))
+        #expect(json["spacing"] == .object(["item": .number(8), "section": .number(14), "edge": .number(16)]))
     }
 
     @Test func `the bundled theme resolves every style`() throws {
