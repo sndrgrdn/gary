@@ -8,3 +8,4 @@ Resources/plugins/*/gary.d.ts
 Resources/plugins/*/manifest.schema.json
 node_modules/
 tools/anti-slop-swift/.build/
+__pycache__/
