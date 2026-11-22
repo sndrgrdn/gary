@@ -97,15 +97,15 @@ TypeScript 5.0 `const` type parameters infer literal tuples such as `["clock", "
 
 ## 3. Comparison
 
-| System | Metadata lives in | Capabilities typed by | Module shape | State and reactivity |
-| --- | --- | --- | --- | --- |
-| Gary today | `manifest.json` | `gary plugin types` from the manifest | `module.exports = {...} satisfies Gary.X`, one file per kind | Module `let`, full re-render after every event |
-| Cloudflare | `wrangler.jsonc` | `wrangler types` from config, plus imported code types for RPC | `export default {...} satisfies ExportedHandler<Env>`, or classes | Isolate reuse; DO fields and `ctx.storage` |
-| Vercel | File path, `export const config` (static), `vercel.ts` (executed) | `VercelConfig` from a package | Named `GET`/`POST` exports or default `{ fetch }` | None (request-scoped) |
-| Raycast | `package.json` commands | `raycast-env.d.ts` from the manifest | `export default function Command()` returning JSX, one file per command | React hooks; loaded on demand, then unloaded |
-| Quickshell | `//@ pragma` lines, no manifest | QML types | Declarative QML object tree | Fine-grained property bindings |
-| Übersicht | Named exports in code | None | Named exports in one `.jsx` | `updateState` reducer |
-| VS Code | `package.json` contributes | `@types/vscode` | `export function activate(context)` | Imperative, through disposables |
+| System     | Metadata lives in                                                 | Capabilities typed by                                          | Module shape                                                            | State and reactivity                           |
+| ---------- | ----------------------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------- |
+| Gary today | `manifest.json`                                                   | `gary plugin types` from the manifest                          | `module.exports = {...} satisfies Gary.X`, one file per kind            | Module `let`, full re-render after every event |
+| Cloudflare | `wrangler.jsonc`                                                  | `wrangler types` from config, plus imported code types for RPC | `export default {...} satisfies ExportedHandler<Env>`, or classes       | Isolate reuse; DO fields and `ctx.storage`     |
+| Vercel     | File path, `export const config` (static), `vercel.ts` (executed) | `VercelConfig` from a package                                  | Named `GET`/`POST` exports or default `{ fetch }`                       | None (request-scoped)                          |
+| Raycast    | `package.json` commands                                           | `raycast-env.d.ts` from the manifest                           | `export default function Command()` returning JSX, one file per command | React hooks; loaded on demand, then unloaded   |
+| Quickshell | `//@ pragma` lines, no manifest                                   | QML types                                                      | Declarative QML object tree                                             | Fine-grained property bindings                 |
+| Übersicht  | Named exports in code                                             | None                                                           | Named exports in one `.jsx`                                             | `updateState` reducer                          |
+| VS Code    | `package.json` contributes                                        | `@types/vscode`                                                | `export function activate(context)`                                     | Imperative, through disposables                |
 
 Patterns that recur:
 
@@ -136,8 +136,20 @@ export default {
     type: "row",
     gap: 8,
     children: [
-      { type: "image", key: "icon", path: `icons/${weather?.icon ?? "cloud"}.png`, width: 19, height: 18, y: -1 },
-      { type: "text", key: "temperature", text: weather?.temperature ?? "--°C", color: weather ? "foreground" : "dark_foreground" },
+      {
+        type: "image",
+        key: "icon",
+        path: `icons/${weather?.icon ?? "cloud"}.png`,
+        width: 19,
+        height: 18,
+        y: -1,
+      },
+      {
+        type: "text",
+        key: "temperature",
+        text: weather?.temperature ?? "--°C",
+        color: weather ? "foreground" : "dark_foreground",
+      },
     ],
   }),
 } satisfies Gary.BarWidget;
@@ -218,7 +230,13 @@ export default function Weather() {
   );
   return (
     <row gap={8}>
-      <image key="icon" path={`icons/${weather.data?.icon ?? "cloud"}.png`} width={19} height={18} y={-1} />
+      <image
+        key="icon"
+        path={`icons/${weather.data?.icon ?? "cloud"}.png`}
+        width={19}
+        height={18}
+        y={-1}
+      />
       <text key="temperature" color={weather.data ? "foreground" : "dark_foreground"}>
         {weather.data?.temperature ?? "--°C"}
       </text>
@@ -244,13 +262,13 @@ Hooks need a runtime: slot storage per component instance, effects, and re-rende
 
 ### 4.4 Summary
 
-| | A: ESM default | B: `Gary.widget` | C: JSX and hooks |
-| --- | --- | --- | --- |
-| Loader change | Add `imports` transform, read `.default` | A, plus predefined identity helpers, plus a literal extractor for B2 | A, plus `jsx` transform, node factory, hook runtime, closure actions |
-| Static validation | Manifest, as today | B1: manifest. B2: literal extraction. B3: requires running code | As A or B |
-| `state` from `subscribes` | Codegen, as today | Inferred from the call, no codegen | Codegen or inferred, per hook |
-| Per-kind files | Unchanged | Unchanged; one file possible but misleading | Unchanged |
-| Migration | Codemod | Codemod plus splitting `onTopic` | Rewrite |
+|                           | A: ESM default                           | B: `Gary.widget`                                                     | C: JSX and hooks                                                     |
+| ------------------------- | ---------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Loader change             | Add `imports` transform, read `.default` | A, plus predefined identity helpers, plus a literal extractor for B2 | A, plus `jsx` transform, node factory, hook runtime, closure actions |
+| Static validation         | Manifest, as today                       | B1: manifest. B2: literal extraction. B3: requires running code      | As A or B                                                            |
+| `state` from `subscribes` | Codegen, as today                        | Inferred from the call, no codegen                                   | Codegen or inferred, per hook                                        |
+| Per-kind files            | Unchanged                                | Unchanged; one file possible but misleading                          | Unchanged                                                            |
+| Migration                 | Codemod                                  | Codemod plus splitting `onTopic`                                     | Rewrite                                                              |
 
 My recommendation is A now, then B with B2 as the next step. A takes a few lines in `TypeScript.swift` and `PluginScripts.swift` and gives authors standard ESM. B2 removes the `gary plugin types` round trip for `state` and keeps the install review static. Treat C as a separate project, revisited only if authors ask for declarative data hooks; a `Gary.poll`/`Gary.fetchEvery` helper inside shape B may cover most of that need.
 
@@ -266,14 +284,14 @@ My recommendation is A now, then B with B2 as the next step. A takes a few lines
 
 ## Sources inspected locally
 
-| Repository | Revision | Local path |
-| --- | --- | --- |
-| sndrgrdn/gary | `df07f2d` (clean tree) | `/Users/sander/Developer/gary` |
-| sndrgrdn/gary-plugins | `008a8da` | `/Users/sander/Developer/gary-plugins` |
-| vercel/vercel | `155eacfa16840e68ae54bc50ee72fc8e16733857` | `~/.cache/checkouts/github.com/vercel/vercel` |
-| quickshell-mirror/quickshell | `9b0f339b19057f4731bf3b48293307d7ef241671` | `~/.cache/checkouts/github.com/quickshell-mirror/quickshell` |
-| felixhageloh/uebersicht | `859a7d70525949b8bdeec19d69a4766678ca3527` | `~/.cache/checkouts/github.com/felixhageloh/uebersicht` |
-| alangpierce/sucrase | `280ee202e73b18e396069782bd41e1eaaccbf620` (package.json 3.35.1) | `~/.cache/checkouts/github.com/alangpierce/sucrase` |
+| Repository                   | Revision                                                         | Local path                                                   |
+| ---------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------ |
+| sndrgrdn/gary                | `df07f2d` (clean tree)                                           | `/Users/sander/Developer/gary`                               |
+| sndrgrdn/gary-plugins        | `008a8da`                                                        | `/Users/sander/Developer/gary-plugins`                       |
+| vercel/vercel                | `155eacfa16840e68ae54bc50ee72fc8e16733857`                       | `~/.cache/checkouts/github.com/vercel/vercel`                |
+| quickshell-mirror/quickshell | `9b0f339b19057f4731bf3b48293307d7ef241671`                       | `~/.cache/checkouts/github.com/quickshell-mirror/quickshell` |
+| felixhageloh/uebersicht      | `859a7d70525949b8bdeec19d69a4766678ca3527`                       | `~/.cache/checkouts/github.com/felixhageloh/uebersicht`      |
+| alangpierce/sucrase          | `280ee202e73b18e396069782bd41e1eaaccbf620` (package.json 3.35.1) | `~/.cache/checkouts/github.com/alangpierce/sucrase`          |
 
 These were fetched as single files rather than cloned:
 

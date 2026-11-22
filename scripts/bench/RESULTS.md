@@ -280,20 +280,20 @@ Run on 2026-11-22 with the screen on and unlocked, release builds, 5 runs per si
 
     APPS="tmp/apps/base/Gary.app tmp/apps/head/Gary.app" RUNS=5 CASES="s2-busy-500 s2-busy-1000 s3-first-1000 s4-static s4-loops s4-shader s6-launch-1000-bare" scripts/bench/ab.sh
 
-| Case | Metric | 780446a | 2917722 |
-|---|---|---|---|
-| s2-busy-500 | Gary CPU | 50.7% (50.6 to 54.0) | 40.3% (40.0 to 40.8) |
-| s2-busy-500 | instructions | 9882 M/s | 4186 M/s |
-| s2-busy-500 | energy | 3548 mW | 782 mW (781 to 1332) |
-| s2-busy-1000 | Gary CPU | 101.9% (101.6 to 108.6) | 49.8% (49.7 to 50.2) |
-| s2-busy-1000 | instructions | 19563 M/s | 8173 M/s |
-| s2-busy-1000 | energy | 7213 mW | 3355 mW |
-| s3-first-1000 | cold summon to first commit | 236.5 ms (233.0 to 237.6) | 225.8 ms (223.7 to 234.8) |
-| s6-launch-1000-bare | Gary CPU | 100.6% | 50.0% |
-| s4-static | Gary CPU, WindowServer CPU | 0.1%, 10.9% | 0.1%, 10.9% |
-| s4-shader | Gary CPU, WindowServer CPU | 10.6%, 45.9% | 10.6%, 46.2% |
-| s4-loops | Gary instructions | 286 M/s | 248 M/s |
-| s4-loops | WindowServer CPU | 48.7% (48.7 to 55.5) | 58.8% (55.8 to 59.8) |
+| Case                | Metric                      | 780446a                   | 2917722                   |
+| ------------------- | --------------------------- | ------------------------- | ------------------------- |
+| s2-busy-500         | Gary CPU                    | 50.7% (50.6 to 54.0)      | 40.3% (40.0 to 40.8)      |
+| s2-busy-500         | instructions                | 9882 M/s                  | 4186 M/s                  |
+| s2-busy-500         | energy                      | 3548 mW                   | 782 mW (781 to 1332)      |
+| s2-busy-1000        | Gary CPU                    | 101.9% (101.6 to 108.6)   | 49.8% (49.7 to 50.2)      |
+| s2-busy-1000        | instructions                | 19563 M/s                 | 8173 M/s                  |
+| s2-busy-1000        | energy                      | 7213 mW                   | 3355 mW                   |
+| s3-first-1000       | cold summon to first commit | 236.5 ms (233.0 to 237.6) | 225.8 ms (223.7 to 234.8) |
+| s6-launch-1000-bare | Gary CPU                    | 100.6%                    | 50.0%                     |
+| s4-static           | Gary CPU, WindowServer CPU  | 0.1%, 10.9%               | 0.1%, 10.9%               |
+| s4-shader           | Gary CPU, WindowServer CPU  | 10.6%, 45.9%              | 10.6%, 46.2%              |
+| s4-loops            | Gary instructions           | 286 M/s                   | 248 M/s                   |
+| s4-loops            | WindowServer CPU            | 48.7% (48.7 to 55.5)      | 58.8% (55.8 to 59.8)      |
 
 - At 1000 nodes the old build kept one core at 100% and still drew 30 frames a second, so the main thread was saturated. The new build halves it.
 - S3 moved by 4%, close to the run-to-run range.
