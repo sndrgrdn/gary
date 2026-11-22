@@ -20,9 +20,14 @@ final class GestureView: NSView {
         didSet {
             if tooltip != oldValue {
                 tooltipPanel?.refresh(self)
+                if pointerInside {
+                    hover()
+                }
             }
         }
     }
+
+    private var pointerInside = false
 
     static func gesture(of event: NSEvent) -> Node.Gesture? {
         switch event.type {
@@ -58,13 +63,19 @@ final class GestureView: NSView {
     }
 
     override func mouseEntered(with _: NSEvent) {
-        if tooltip != nil {
-            tooltipPanel?.hover(self)
-        }
+        pointerInside = true
+        hover()
     }
 
     override func mouseExited(with _: NSEvent) {
+        pointerInside = false
         tooltipPanel?.hide(for: self)
+    }
+
+    private func hover() {
+        if tooltip != nil {
+            tooltipPanel?.hover(self)
+        }
     }
 
     override func rightMouseDown(with _: NSEvent) {

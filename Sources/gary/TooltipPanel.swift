@@ -25,6 +25,7 @@ final class TooltipPanel {
     }
 
     func hover(_ owner: GestureView) {
+        guard owner !== self.owner else { return }
         hide()
         self.owner = owner
         timer = Timer.scheduledTimer(withTimeInterval: Self.delay, repeats: false) { [weak self] _ in self?.show() }
