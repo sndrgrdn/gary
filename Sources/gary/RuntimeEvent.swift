@@ -21,7 +21,7 @@ enum SurfaceRequest: String {
 }
 
 enum RuntimeEvent {
-    case loaded(RuntimeOutput, surfaces: [String], Trace)
+    case loaded(RuntimeOutput, Trace)
     case output(RuntimeOutput, Trace)
     case surface(SurfaceRequest, String, origin: CGRect?)
     case call(kind: PluginKind?, method: String, arguments: [String], reply: (Response) -> Void)

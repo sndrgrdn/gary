@@ -20,7 +20,6 @@ final class PluginRuntime: Subscriber {
     private var scene: Scene
     private var output = RuntimeOutput()
     private(set) var origin: CGRect?
-    private var surfaceNames: [String]?
     private var timings = Timings()
 
     var id: PluginID {
@@ -59,10 +58,11 @@ final class PluginRuntime: Subscriber {
                 for (topic, text) in texts.sorted(by: { $0.key.description < $1.key.description }) {
                     try announce(topic, text, to: functions)
                 }
-                let names = kind.isSurface ? try surfaces(functions).keys.sorted() : []
-                surfaceNames = names
+                if kind.isSurface {
+                    try bundle.manifest.checkSurfaces(of: kind, exported: surfaces(functions).keys)
+                }
                 output = try renderOutput(functions)
-                deliver(self, .loaded(output, surfaces: names, traced(trace)))
+                deliver(self, .loaded(output, traced(trace)))
             } catch {
                 teardown()
                 deliver(self, .failed("\(error)"))
@@ -200,19 +200,6 @@ final class PluginRuntime: Subscriber {
         let text = try invoke(functions.surfaces, [stateText(for: nil)], [.jsParse, .render, .stringify])
         let json = try timed(.swiftParse) { try JSON.parse(text.toString() ?? "{}") }
         return try timed(.nodeParse) { try SurfaceSpec.parseAll(json, kind: kind) }
-    }
-
-    func surfaceName(_ value: JSValue) throws -> String {
-        if value.isUndefined {
-            return SurfaceAddress.main
-        }
-        guard value.isString, let name = value.toString(), SurfaceAddress.isName(name) else {
-            throw RenderError("\(value.toString() ?? "this") is not a surface name; use lowercase letters, digits and hyphens")
-        }
-        if let surfaceNames, bundle.manifest.kinds.filter(\.isSurface) == [kind], !surfaceNames.contains(name) {
-            throw RenderError("no surface \(name); this module declares \(surfaceNames.joined(separator: ", "))")
-        }
-        return name
     }
 
     private func fail(_ reason: String) {

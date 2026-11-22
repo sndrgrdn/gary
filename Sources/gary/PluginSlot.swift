@@ -23,7 +23,6 @@ final class PluginSlot {
     var candidate: PluginRuntime?
     var shown: [String: ShownSurface] = [:]
     var surfaces: [String: SurfaceSpec] = [:]
-    var names: [String]?
     var waiters: [(Response) -> Void] = []
 
     init(key: SlotKey, bundle: PluginBundle) {

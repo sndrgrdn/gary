@@ -78,6 +78,12 @@ public enum ManifestError: Error, Equatable, CustomStringConvertible {
     case unknownService(String)
     case invalidHotkey(String)
     case duplicateHotkey(String)
+    case kindNotListed(field: String, kind: String)
+    case surfacesOutsideSurfaceKind(PluginKind)
+    case invalidSurfaceName(String)
+    case noSurfaces(PluginKind)
+    case duplicateSurface(String)
+    case surfacesDiffer(PluginKind, exported: [String], listed: [String])
 
     public var description: String {
         switch self {
@@ -97,6 +103,14 @@ public enum ManifestError: Error, Equatable, CustomStringConvertible {
         case let .unknownService(service): "unknown host service \(service)"
         case let .invalidHotkey(keys): "hotkey \"\(keys)\" must be modifiers and a key, such as ctrl+alt+space"
         case let .duplicateHotkey(id): "hotkey id \(id) is listed twice"
+        case let .kindNotListed(field, kind): "\(field).\(kind) names a kind that kinds does not list"
+        case let .surfacesOutsideSurfaceKind(kind): "surfaces.\(kind.rawValue): only a panel, overlay, or menu has surfaces"
+        case let .invalidSurfaceName(name): "surface name \"\(name)\" must be lowercase letters, digits, and hyphens"
+        case let .noSurfaces(kind): "surfaces.\(kind.rawValue) lists no surface"
+        case let .duplicateSurface(name): "surface \(name) belongs to two kinds; give each panel, overlay, and menu its own names in surfaces"
+        case let .surfacesDiffer(kind, exported, listed):
+            "the module exports surfaces \(exported.joined(separator: ", ")), but manifest.json gives the \(kind.rawValue) "
+                + "\(listed.joined(separator: ", ")); list its surface names in surfaces.\(kind.rawValue)"
         }
     }
 }
@@ -113,7 +127,22 @@ public struct PluginManifest: Equatable, Sendable {
     public let subscribes: [Topic]
     public let uses: [String]
     public let hotkeys: [Hotkey]
+    public var surfaces: [PluginKind: [String]] = [:]
     public var bar: BarSection = .right
+
+    public var surfaceNames: [String] {
+        surfaces.values.joined().sorted()
+    }
+
+    public func surfaceKind(_ name: String) -> PluginKind? {
+        surfaces.first { $0.value.contains(name) }?.key
+    }
+
+    public func checkSurfaces(of kind: PluginKind, exported names: some Sequence<String>) throws {
+        let exported = names.sorted()
+        let listed = (surfaces[kind] ?? []).sorted()
+        guard exported == listed else { throw ManifestError.surfacesDiffer(kind, exported: exported, listed: listed) }
+    }
 
     public var barPlacement: BarSection? {
         kinds.contains(.barWidget) ? bar : nil
@@ -147,11 +176,30 @@ public struct PluginManifest: Equatable, Sendable {
         }
         let hotkeys = try parseHotkeys(fields.optional("hotkeys", \.array, default: []))
         let bar = try fields.optional("bar", { $0.string.flatMap(BarSection.init(rawValue:)) }, default: .right)
+        let surfaces = try parseSurfaces(fields.perKind("surfaces", kinds: kinds), kinds: kinds)
 
         return PluginManifest(
             id: id, name: name, version: version, kinds: kinds, entryPoints: entryPoints,
-            keepLoaded: keepLoaded, subscribes: subscribes, uses: uses, hotkeys: hotkeys, bar: bar,
+            keepLoaded: keepLoaded, subscribes: subscribes, uses: uses, hotkeys: hotkeys, surfaces: surfaces, bar: bar,
         )
+    }
+
+    private static func parseSurfaces(_ listed: [PluginKind: [String]], kinds: [PluginKind]) throws -> [PluginKind: [String]] {
+        if let kind = listed.keys.first(where: { !$0.isSurface }) {
+            throw ManifestError.surfacesOutsideSurfaceKind(kind)
+        }
+        var owners: [String: PluginKind] = [:]
+        var surfaces: [PluginKind: [String]] = [:]
+        for kind in kinds where kind.isSurface {
+            let names = listed[kind] ?? [SurfaceAddress.main]
+            guard !names.isEmpty else { throw ManifestError.noSurfaces(kind) }
+            for name in names {
+                guard SurfaceAddress.isName(name) else { throw ManifestError.invalidSurfaceName(name) }
+                guard owners.updateValue(kind, forKey: name) == nil else { throw ManifestError.duplicateSurface(name) }
+            }
+            surfaces[kind] = names
+        }
+        return surfaces
     }
 
     private static func parseID(_ raw: String, origin: PluginOrigin) throws -> PluginID {
@@ -228,5 +276,17 @@ private struct ManifestFields {
 
     func optionalStrings(_ name: String) throws -> [String] {
         json[name] == nil ? [] : try strings(name)
+    }
+
+    func perKind(_ name: String, kinds: [PluginKind]) throws -> [PluginKind: [String]] {
+        var lists: [PluginKind: [String]] = [:]
+        for (key, value) in try optional(name, \.object, default: [:]) {
+            guard let kind = PluginKind(rawValue: key), kinds.contains(kind) else { throw ManifestError.kindNotListed(field: name, kind: key) }
+            guard let items = value.array, case let strings = items.compactMap(\.string), strings.count == items.count else {
+                throw ManifestError.wrongType("\(name).\(key)")
+            }
+            lists[kind] = strings
+        }
+        return lists
     }
 }

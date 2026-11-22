@@ -202,6 +202,12 @@ public enum PluginTypes {
                     "additionalProperties": type("string", ["pattern": .string(#"\.(\#(scripts))$"#)]),
                 ]),
                 "keepLoaded": type("boolean"),
+                "surfaces": type("object", [
+                    "propertyNames": .object(["enum": strings(PluginKind.allCases.filter(\.isSurface).map(\.rawValue))]),
+                    "additionalProperties": type("array", [
+                        "minItems": .number(1), "uniqueItems": .bool(true), "items": type("string", ["pattern": .string("^[a-z0-9-]+$")]),
+                    ]),
+                ]),
                 "bar": .object(["enum": strings(BarSection.allCases.map(\.rawValue))]),
                 "subscribes": type("array", [
                     "items": .object(["anyOf": .array([.object(["enum": strings(capabilities.topics.sorted())]), id])]),

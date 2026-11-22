@@ -60,11 +60,12 @@ struct Harness {
         subscribes: [String] = [],
         uses: [String] = [],
         files: [String: String] = [:],
+        manifest fields: [String: JSON] = [:],
         engine: PluginEngine = engine,
     ) throws {
         let directory = FileManager.default.temporaryDirectory.appending(path: "gary-runtime-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let manifest = JSON.object([
+        let manifest = JSON.object(fields.merging([
             "schemaVersion": .number(1),
             "id": .string(id),
             "name": .string("Runtime"),
@@ -73,7 +74,7 @@ struct Harness {
             "entryPoints": .object([kind.rawValue: .string("main.js")]),
             "subscribes": .array(subscribes.map(JSON.string)),
             "uses": .array(uses.map(JSON.string)),
-        ])
+        ]) { field, _ in field })
         try Data(manifest.text.utf8).write(to: directory.appending(path: "manifest.json"))
         var files = files
         files["main.js"] = source
@@ -107,7 +108,7 @@ struct Harness {
 
     static func text(of event: RuntimeEvent) throws -> String {
         switch event {
-        case let .loaded(output, _, _), let .output(output, _):
+        case let .loaded(output, _), let .output(output, _):
             guard let node = output.trees[SurfaceAddress.main]?[display.id], case let .text(text) = node.content else {
                 throw RenderError("no text in \(output)")
             }
@@ -153,7 +154,7 @@ struct PluginRuntimeTests {
 
     @Test func `a hidden scene loads with no output`() async throws {
         let harness = try Harness(widget(), shown: [])
-        guard case let .loaded(output, _, _) = try await harness.events.next() else { throw RenderError("expected loaded") }
+        guard case let .loaded(output, _) = try await harness.events.next() else { throw RenderError("expected loaded") }
         #expect(output == RuntimeOutput())
         harness.runtime.stop()
     }

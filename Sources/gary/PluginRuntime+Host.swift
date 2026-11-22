@@ -47,4 +47,19 @@ extension PluginRuntime {
         return context.evaluateScript(PluginScripts.host)?
             .call(withArguments: [logBlock, read, write, publishBlock] + surfaceBlocks + [callBlock, "\(id)", kinds])
     }
+
+    func surfaceName(_ value: JSValue) throws -> String {
+        if value.isUndefined {
+            return SurfaceAddress.main
+        }
+        guard value.isString, let name = value.toString(), SurfaceAddress.isName(name) else {
+            throw RenderError("\(value.toString() ?? "this") is not a surface name; use lowercase letters, digits and hyphens")
+        }
+        guard bundle.manifest.surfaceKind(name) != nil else {
+            let names = bundle.manifest.surfaceNames
+            throw RenderError("no surface \(name); " +
+                (names.isEmpty ? "this plugin has no panel, overlay, or menu" : "this plugin declares \(names.joined(separator: ", "))"))
+        }
+        return name
+    }
 }

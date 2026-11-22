@@ -62,7 +62,6 @@ extension Shell {
             if let slot = slots[key] {
                 guard slot.bundle != bundle else { continue }
                 slot.bundle = bundle
-                slot.names = nil
                 reload(slot, trace)
             } else {
                 let slot = PluginSlot(key: key, bundle: bundle)
@@ -127,8 +126,8 @@ extension Shell {
             return
         }
         switch event {
-        case let .loaded(output, surfaces, trace):
-            loaded(slot, runtime, output, surfaces, trace)
+        case let .loaded(output, trace):
+            loaded(slot, runtime, output, trace)
         case let .output(output, trace):
             guard slot.runtime === runtime else { return }
             present(slot, output, trace)
@@ -144,25 +143,11 @@ extension Shell {
         }
     }
 
-    private func loaded(_ slot: PluginSlot, _ runtime: PluginRuntime, _ output: RuntimeOutput, _ surfaces: [String], _ trace: Trace) {
+    private func loaded(_ slot: PluginSlot, _ runtime: PluginRuntime, _ output: RuntimeOutput, _ trace: Trace) {
         slot.candidate = nil
         slot.runtime?.stop()
         slot.phase = .running(runtime)
-        slot.names = surfaces
         log("plugin \(slot.key): loaded \(slot.bundle.manifest.version)")
-        let unknown = slot.shown.keys.filter { !surfaces.contains($0) }.sorted()
-        if !unknown.isEmpty {
-            for name in unknown {
-                slot.shown[name] = nil
-            }
-            let reason = "\(slot.key.id) has no surface \(unknown.joined(separator: ", ")); it declares \(surfaces.joined(separator: ", "))"
-            log("plugin \(slot.key): \(reason)")
-            slot.answerWaiters(.failure(reason))
-            if !slot.visible, !slot.bundle.manifest.keepLoaded {
-                stop(slot)
-                return
-            }
-        }
         present(slot, output, trace)
         if runtime.initialScene != scene(for: slot) {
             runtime.setScene(scene(for: slot), trace)

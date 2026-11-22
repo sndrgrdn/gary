@@ -141,6 +141,28 @@ struct PluginManifestTests {
         #expect(throws: ManifestError.unknownTopic("clock")) { try manifest(["subscribes": ["clock"]], capabilities: registry) }
     }
 
+    @Test func `each panel overlay and menu has the surfaces the manifest lists or main`() throws {
+        let parsed = try manifest([
+            "kinds": ["bar-widget", "panel", "overlay"],
+            "entryPoints": ["bar-widget": "w.js", "panel": "p.js", "overlay": "o.js"],
+            "surfaces": ["overlay": ["osd", "toast"]],
+        ])
+        #expect(parsed.surfaces == [.panel: ["main"], .overlay: ["osd", "toast"]])
+        #expect(parsed.surfaceKind("toast") == .overlay && parsed.surfaceKind("main") == .panel && parsed.surfaceKind("other") == nil)
+        #expect(parsed.surfaceNames == ["main", "osd", "toast"])
+    }
+
+    @Test func `rejects surfaces that two kinds share or that no surface kind owns`() {
+        let two: [String: JSON] = ["kinds": ["panel", "menu"], "entryPoints": ["panel": "p.js", "menu": "m.js"]]
+        rejects(two, with: .duplicateSurface("main"))
+        rejects(two.merging(["surfaces": ["menu": ["main"], "panel": ["main"]]]) { $1 }, with: .duplicateSurface("main"))
+        rejects(["surfaces": ["bar-widget": ["main"]]], with: .surfacesOutsideSurfaceKind(.barWidget))
+        rejects(["surfaces": ["panel": ["main"]]], with: .kindNotListed(field: "surfaces", kind: "panel"))
+        rejects(["kinds": ["panel"], "entryPoints": ["panel": "p.js"], "surfaces": ["panel": []]], with: .noSurfaces(.panel))
+        rejects(["kinds": ["panel"], "entryPoints": ["panel": "p.js"], "surfaces": ["panel": ["OSD"]]], with: .invalidSurfaceName("OSD"))
+        rejects(["kinds": ["panel"], "entryPoints": ["panel": "p.js"], "surfaces": ["panel": "main"]], with: .wrongType("surfaces.panel"))
+    }
+
     @Test func `parses hotkeys into modifiers and key codes`() throws {
         let parsed = try manifest(["hotkeys": [
             ["id": "open", "keys": "ctrl+alt+space"],
