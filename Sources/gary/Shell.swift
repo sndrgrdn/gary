@@ -38,7 +38,7 @@ final class Shell {
     private var observers: [NSObjectProtocol] = []
 
     init() throws {
-        capabilities = try Capability.names()
+        capabilities = Capability.names()
         theme = try Theme.parse(JSON.parse(Data(contentsOf: Paths.defaultTheme)), palette: Palette(nil, system: systemMode))
         tooltipPanel = TooltipPanel(theme: theme)
         resolution = config.resolve(catalog)

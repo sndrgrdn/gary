@@ -38,8 +38,8 @@ struct Capability {
         .wifi,
     ]
 
-    static func names() throws -> CapabilityNames {
-        try CapabilityNames(all.map { CapabilityDeclaration($0.name, installs: $0.install != nil, publishes: $0.topic != nil) })
+    static func names() -> CapabilityNames {
+        CapabilityNames(all.map { CapabilityDeclaration($0.name, installs: $0.install != nil, publishes: $0.topic != nil) })
     }
 
     static var topics: [Topic: TopicSource] {

@@ -74,7 +74,7 @@ struct Doctor {
         checkPermissions(runtime)
 
         section("Plugins")
-        guard let catalog = checkPlugins(runtime) else { return }
+        let catalog = checkPlugins(runtime)
 
         section("Config")
         checkConfig(catalog)
@@ -134,13 +134,10 @@ struct Doctor {
         }
     }
 
-    private mutating func checkPlugins(_ runtime: DoctorRuntime?) -> PluginCatalog? {
-        guard let capabilities = try? Capability.names() else { fail("the capability registry is invalid")
-            return nil
-        }
+    private mutating func checkPlugins(_ runtime: DoctorRuntime?) -> PluginCatalog {
         let packages = (try? ShellConfig.parse(JSON.parse(Data(contentsOf: Paths.shellConfig))))?.packages ?? []
         let catalog = PluginCatalog.scan(
-            builtin: Paths.builtinPlugins, user: Paths.userPlugins, packages: packages.map(PackageStore.directory), capabilities: capabilities,
+            builtin: Paths.builtinPlugins, user: Paths.userPlugins, packages: packages.map(PackageStore.directory), capabilities: Capability.names(),
         )
         for source in packages where !PackageStore.isInstalled(source) {
             fail("package \(source.declaration) is not installed; run gary plugin update")

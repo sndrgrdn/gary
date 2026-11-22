@@ -2,8 +2,8 @@ import Foundation
 @testable import GaryCore
 import Testing
 
-func makeTestCapabilities() throws -> CapabilityNames {
-    try CapabilityNames([
+func makeTestCapabilities() -> CapabilityNames {
+    CapabilityNames([
         CapabilityDeclaration("audio", installs: true, publishes: true),
         CapabilityDeclaration("battery", installs: false, publishes: true),
         CapabilityDeclaration("clock", installs: false, publishes: true),
@@ -79,7 +79,7 @@ struct PluginManifestTests {
     }
 
     @Test func `rejects missing and mistyped fields`() throws {
-        let capabilities = try makeTestCapabilities()
+        let capabilities = makeTestCapabilities()
         #expect(throws: ManifestError.missingField("name")) {
             try PluginManifest.parse(
                 Data(#"{"schemaVersion":1,"id":"a.b","version":"1","kinds":["panel"],"entryPoints":{"panel":"p.js"}}"#.utf8),
@@ -128,7 +128,7 @@ struct PluginManifestTests {
     }
 
     @Test func `uses names capabilities with an API and subscribes names capabilities with A topic`() throws {
-        let registry = try CapabilityNames([
+        let registry = CapabilityNames([
             CapabilityDeclaration("wifi", installs: true, publishes: true),
             CapabilityDeclaration("volume", installs: true, publishes: false),
             CapabilityDeclaration("battery", installs: false, publishes: true),
@@ -186,8 +186,8 @@ struct PluginCatalogTests {
         return directory
     }
 
-    private func scan(packages: [String] = []) throws -> PluginCatalog {
-        try PluginCatalog.scan(
+    private func scan(packages: [String] = []) -> PluginCatalog {
+        PluginCatalog.scan(
             builtin: root.appendingPathComponent("builtin"),
             user: root.appendingPathComponent("user"),
             packages: packages.map { root.appendingPathComponent($0) },
@@ -198,7 +198,7 @@ struct PluginCatalogTests {
     @Test func `finds builtin and user plugins`() throws {
         try plugin("clock", id: "gary.clock", in: "builtin")
         try plugin("media", id: "acme.media", entry: "src/widget.js")
-        let catalog = try scan()
+        let catalog = scan()
         #expect(catalog.sortedIDs.map(\.rawValue) == ["acme.media", "gary.clock"])
         #expect(catalog.problems.isEmpty)
         let mediaID = try #require(PluginID("acme.media"))
@@ -213,13 +213,13 @@ struct PluginCatalogTests {
             at: root.appendingPathComponent("user"),
             withDestinationURL: root.appendingPathComponent("elsewhere"),
         )
-        #expect(try scan().sortedIDs.map(\.rawValue) == ["acme.media"])
+        #expect(scan().sortedIDs.map(\.rawValue) == ["acme.media"])
     }
 
     @Test func `reports A user plugin that claims A builtin ID`() throws {
         try plugin("clock", id: "gary.clock", in: "builtin")
         try plugin("fake-clock", id: "gary.clock")
-        let catalog = try scan()
+        let catalog = scan()
         #expect(try catalog.plugins[#require(PluginID("gary.clock"))]?.origin == .builtin)
         #expect(catalog.problems.map(\.directory.lastPathComponent) == ["fake-clock"])
     }
@@ -227,7 +227,7 @@ struct PluginCatalogTests {
     @Test func `keeps the first of two user plugins with one ID`() throws {
         try plugin("a", id: "acme.media")
         try plugin("b", id: "acme.media")
-        let catalog = try scan()
+        let catalog = scan()
         #expect(try catalog.plugins[#require(PluginID("acme.media"))]?.directory.lastPathComponent == "a")
         #expect(catalog.problems.count == 1)
     }
@@ -239,7 +239,7 @@ struct PluginCatalogTests {
         try FileManager.default.createDirectory(at: root.appendingPathComponent("packages/multi/docs"), withIntermediateDirectories: true)
         try plugin(".hidden", id: "acme.hidden", in: "packages/multi")
         #expect(PluginCatalog.pluginDirectories(inPackage: root.appendingPathComponent("packages/multi")).map(\.lastPathComponent) == ["a", "b"])
-        let catalog = try scan(packages: ["packages/single", "packages/multi"])
+        let catalog = scan(packages: ["packages/single", "packages/multi"])
         #expect(catalog.sortedIDs.map(\.rawValue) == ["acme.a", "acme.b", "acme.single"])
         #expect(catalog.problems.isEmpty)
     }
@@ -248,7 +248,7 @@ struct PluginCatalogTests {
         try plugin("media", id: "acme.media")
         try plugin("media", id: "acme.media", in: "packages/one")
         try plugin("media", id: "acme.media", in: "packages/two")
-        let catalog = try scan(packages: ["packages/one/media", "packages/two"])
+        let catalog = scan(packages: ["packages/one/media", "packages/two"])
         #expect(try catalog.plugins[#require(PluginID("acme.media"))]?.directory.path.contains("/user/") == true)
         #expect(catalog.problems.map { $0.directory.deletingLastPathComponent().lastPathComponent } == ["one", "two"])
     }
@@ -261,7 +261,7 @@ struct PluginCatalogTests {
         let nested = try plugin("nested", id: "acme.nested", entry: "lib/widget.js", writeEntry: false)
         try FileManager.default.createSymbolicLink(at: nested.appendingPathComponent("lib"), withDestinationURL: root)
 
-        let catalog = try scan()
+        let catalog = scan()
         #expect(catalog.plugins.isEmpty)
         #expect(catalog.problems.map(\.reason).sorted() == ["lib/widget.js is a symlink", "widget.js is a symlink"])
     }
@@ -271,7 +271,7 @@ struct PluginCatalogTests {
         let bad = root.appendingPathComponent("user/bad")
         try FileManager.default.createDirectory(at: bad, withIntermediateDirectories: true)
         try "{".write(to: bad.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
-        let catalog = try scan()
+        let catalog = scan()
         #expect(catalog.plugins.isEmpty)
         #expect(catalog.problems.map(\.reason).sorted() == ["manifest is not a JSON object", "widget.js does not exist"])
     }
@@ -279,7 +279,7 @@ struct PluginCatalogTests {
     @Test func `entry point is checked again at load`() throws {
         let directory = try plugin("media", id: "acme.media")
         let mediaID = try #require(PluginID("acme.media"))
-        let bundle = try #require(try scan().plugins[mediaID])
+        let bundle = try #require(scan().plugins[mediaID])
         try FileManager.default.removeItem(at: directory.appendingPathComponent("widget.js"))
         try FileManager.default.createSymbolicLink(at: directory.appendingPathComponent("widget.js"), withDestinationURL: root)
         #expect(throws: PluginFileError.symlink("widget.js")) { try bundle.entryPoint(.barWidget) }

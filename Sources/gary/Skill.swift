@@ -16,12 +16,12 @@ struct BundledExample {
 
     static func all() -> [BundledExample] {
         let directories = (try? FileManager.default.contentsOfDirectory(at: Paths.examples, includingPropertiesForKeys: nil)) ?? []
-        let capabilities = try? Capability.names()
+        let capabilities = Capability.names()
         return directories.filter(\.hasDirectoryPath).sorted { $0.lastPathComponent < $1.lastPathComponent }.map { directory in
             let readme = (try? String(contentsOf: directory.appending(path: "README.md"), encoding: .utf8)) ?? ""
             let paragraph = readme.components(separatedBy: "\n\n").dropFirst().first?.replacingOccurrences(of: "\n", with: " ")
                 .trimmingCharacters(in: .whitespaces) ?? ""
-            let manifest = capabilities.flatMap { try? PluginBundle.load(directory, origin: .user, capabilities: $0).manifest }
+            let manifest = try? PluginBundle.load(directory, origin: .user, capabilities: capabilities).manifest
             return BundledExample(name: directory.lastPathComponent, summary: paragraph, manifest: manifest)
         }
     }

@@ -83,8 +83,8 @@ private func shellConfig() throws -> ShellConfig {
         .parse(JSON.parse(Data(contentsOf: Paths.shellConfig))) : .defaults
 }
 
-private func installed(_ packages: [PackageSource]) throws -> PluginCatalog {
-    try PluginCatalog.scan(
+private func installed(_ packages: [PackageSource]) -> PluginCatalog {
+    PluginCatalog.scan(
         builtin: Paths.builtinPlugins, user: Paths.userPlugins, packages: packages.map(PackageStore.directory), capabilities: Capability.names(),
     )
 }
@@ -169,7 +169,7 @@ private func install(_ argument: String) throws {
     defer { staged.map(PackageStore.discard) }
     let directory = staged ?? PackageStore.directory(source)
     let bundles = try packagePlugins(directory, of: source)
-    try review(bundles, existing: installed(config.packages.filter { $0.identity != source.identity }))
+    review(bundles, existing: installed(config.packages.filter { $0.identity != source.identity }))
     let revision = PackageStore.revision(source, at: directory)
     if let staged {
         try PackageStore.commit(staged, as: source)
@@ -183,7 +183,7 @@ private func install(_ argument: String) throws {
 }
 
 private func packagePlugins(_ directory: URL, of source: PackageSource) throws -> [PluginBundle] {
-    let capabilities = try Capability.names()
+    let capabilities = Capability.names()
     var bundles: [PluginBundle] = []
     for plugin in PluginCatalog.pluginDirectories(inPackage: directory) {
         do {
@@ -253,7 +253,7 @@ private func update(_ raw: String?) throws {
 private func remove(_ raw: String) throws {
     let config = try shellConfig()
     if let id = PluginID(raw) {
-        let bundle = try installed(config.packages).plugins[id]
+        let bundle = installed(config.packages).plugins[id]
         guard bundle?.origin != .builtin else { throw CommandError("\(id) is built into Gary; use gary plugin disable \(id)") }
         if let source = bundle.flatMap({ package(holding: $0.directory, in: config.packages) }) {
             guard PluginCatalog.pluginDirectories(inPackage: PackageStore.directory(source)).count == 1 else {
@@ -285,7 +285,7 @@ private func package(holding directory: URL, in packages: [PackageSource]) -> Pa
 
 private func removePackage(_ source: PackageSource) throws {
     let config = try shellConfig()
-    let ids = try installed(config.packages).plugins.values
+    let ids = installed(config.packages).plugins.values
         .filter { package(holding: $0.directory, in: config.packages)?.identity == source.identity }
         .map(\.manifest.id).sorted()
     try editShellConfig([.undeclare(source.identity)] + ids.map { .remove($0) })
@@ -317,7 +317,7 @@ private func editShellConfig(_ changes: [ShellConfig.Change]) throws {
 
 private func list() throws {
     let config = try shellConfig()
-    let catalog = try installed(config.packages)
+    let catalog = installed(config.packages)
     let enabled = config.resolve(catalog).enabled
     func origin(_ bundle: PluginBundle) -> (source: String, tracking: String) {
         guard bundle.origin == .user else { return ("builtin", "-") }
@@ -345,7 +345,7 @@ private func list() throws {
 }
 
 private func writeTypes(_ directory: URL) throws -> String {
-    let capabilities = try Capability.names()
+    let capabilities = Capability.names()
     var selected = Capability.all
     var topics: [PluginID] = []
     var scope = "every capability"

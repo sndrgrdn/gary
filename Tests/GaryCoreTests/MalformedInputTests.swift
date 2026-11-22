@@ -8,8 +8,8 @@ private func loadBaseTheme() throws -> JSON {
     try JSON.parse(Data(contentsOf: resources.appending(path: "theme.json")))
 }
 
-private func makeCapabilities() throws -> CapabilityNames {
-    try CapabilityNames([
+private func makeCapabilities() -> CapabilityNames {
+    CapabilityNames([
         CapabilityDeclaration("exec", installs: true, publishes: false),
         CapabilityDeclaration("battery", installs: false, publishes: true),
         CapabilityDeclaration("clock", installs: false, publishes: true),
@@ -117,8 +117,8 @@ private func mutatedTexts(_ sample: String, count: Int, seed: UInt64) -> [String
 }
 
 struct MalformedInputTests {
-    @Test func `malformed shell configs are rejected or resolved without crashing`() throws {
-        let capabilities = try makeCapabilities()
+    @Test func `malformed shell configs are rejected or resolved without crashing`() {
+        let capabilities = makeCapabilities()
         var catalog = PluginCatalog()
         for text in mutatedTexts(manifestSample, count: 50, seed: 7) {
             if let manifest = try? PluginManifest.parse(Data(text.utf8), origin: .user, capabilities: capabilities) {
@@ -158,8 +158,8 @@ struct MalformedInputTests {
         }
     }
 
-    @Test func `malformed manifests nodes surfaces and requests are rejected without crashing`() throws {
-        let capabilities = try makeCapabilities()
+    @Test func `malformed manifests nodes surfaces and requests are rejected without crashing`() {
+        let capabilities = makeCapabilities()
         for text in mutatedTexts(manifestSample, count: 3000, seed: 5) {
             for origin in [PluginOrigin.user, .builtin] {
                 _ = try? PluginManifest.parse(Data(text.utf8), origin: origin, capabilities: capabilities)

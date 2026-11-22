@@ -62,7 +62,7 @@ struct PluginTypesTests {
     }
 
     @Test func `the manifest schema lists the registered capabilities and kinds`() throws {
-        let schema = try PluginTypes.manifestSchema(makeTestCapabilities())
+        let schema = PluginTypes.manifestSchema(makeTestCapabilities())
         let properties = try #require(schema["properties"])
         #expect(properties["uses"]?["items"]?["enum"] == .array(["audio", "exec", "files", "mediakeys", "network"].map(JSON.string)))
         #expect(properties["subscribes"]?["items"]?["anyOf"]?.array?.first?["enum"] == .array(["audio", "battery", "clock"].map(JSON.string)))
@@ -73,7 +73,7 @@ struct PluginTypesTests {
 
 struct PluginScaffoldTests {
     @Test func `every scaffold passes the load time checks`() throws {
-        let capabilities = try makeTestCapabilities()
+        let capabilities = makeTestCapabilities()
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("gary-scaffold-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
         for kinds in PluginKind.allCases.map({ [$0] }) + [[.service, .barWidget], [.panel, .service]] {
@@ -99,7 +99,7 @@ struct ExamplePluginTests {
         let examples = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../examples").standardizedFileURL
         let directories = try FileManager.default.contentsOfDirectory(at: examples, includingPropertiesForKeys: nil).filter(\.hasDirectoryPath)
         #expect(directories.count >= 3)
-        let capabilities = try makeTestCapabilities()
+        let capabilities = makeTestCapabilities()
         for directory in directories {
             #expect(throws: Never.self, "\(directory.lastPathComponent)") { try PluginBundle.load(
                 directory,
