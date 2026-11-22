@@ -104,18 +104,21 @@ struct RowLayout: Layout {
         func widths(_ width: CGFloat?) -> [CGFloat] {
             subviews.map { $0.sizeThatFits(ProposedViewSize(width: width, height: proposal.height)).width }
         }
-        let ideal = widths(nil)
-        var given = ideal
-        if let width = proposal.width {
-            let target = width - gaps(subviews)
-            let total = ideal.reduce(0, +)
-            if target > total {
-                given = level(zip(ideal, widths(.infinity)), to: target)
-            } else if target < total {
-                given = level(zip(widths(0), ideal), to: target)
-            }
+        func measured(_ given: [CGFloat]) -> [CGSize] {
+            zip(subviews, given).map { $0.sizeThatFits(ProposedViewSize(width: $1, height: proposal.height)) }
         }
-        return zip(subviews, given).map { $0.sizeThatFits(ProposedViewSize(width: $1, height: proposal.height)) }
+        let ideal = widths(nil)
+        guard let width = proposal.width else { return measured(ideal) }
+        let target = width - gaps(subviews)
+        let total = ideal.reduce(0, +)
+        let most = widths(.infinity)
+        let sizes = measured(target > total ? level(zip(ideal, most), to: target) : target < total ? level(zip(widths(0), ideal), to: target) : ideal)
+        let unused = target - sizes.map(\.width).reduce(0, +)
+        let spacers = most.count(where: { !$0.isFinite })
+        guard unused > 0, spacers > 0 else { return sizes }
+        return zip(sizes, most).map { size, most in
+            most.isFinite ? size : CGSize(width: size.width + unused / CGFloat(spacers), height: size.height)
+        }
     }
 
     private func level(_ ranges: Zip2Sequence<[CGFloat], [CGFloat]>, to target: CGFloat) -> [CGFloat] {

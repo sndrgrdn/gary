@@ -51,6 +51,16 @@ struct NodeLayoutTests {
         #expect(pixels.suffix(30).allSatisfy { $0.blueComponent > 0.9 && $0.redComponent < 0.1 })
     }
 
+    @Test func `a row gives the width its wrapped text leaves unused to its spacers`() throws {
+        let row = RowLayout(spacing: 0) {
+            Text("a long line of text that cannot fit")
+            HStack(spacing: 0) { Spacer(minLength: 0) }
+            Color(.sRGB, red: 0, green: 0, blue: 1).frame(width: 10)
+        }
+        let pixels = try columns(row.frame(width: 100))
+        #expect(pixels.suffix(10).allSatisfy { $0.blueComponent > 0.9 && $0.redComponent < 0.1 })
+    }
+
     @Test func `text wraps in a surface but stays on one line in the bar or within its lines`() throws {
         let text = #"{"type":"text","text":"a long line of text that cannot fit"}"#
         let line = try size(text).height
