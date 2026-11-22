@@ -39,15 +39,33 @@ struct NodeDrawingTests {
         (#"{"type":"shape","paths":[1]}"#, "root", "paths[0] must be an object"),
         (#"{"type":"shape","paths":[{"d":3}]}"#, "root", "paths[0].d must be an SVG path string"),
         (#"{"type":"shape","paths":[{"d":"M0 0 Q1"}]}"#, "root.paths[0].d", "expected a number at the end"),
-        (#"{"type":"shape","paths":[{"d":"M0 0","trim":[0.8,0.2]}]}"#, "root", "paths[0].trim must be [from, to] with 0 <= from <= to <= 1"),
-        (#"{"type":"shape","paths":[{"d":"M0 0","trim":[0,2]}]}"#, "root", "paths[0].trim must be [from, to] with 0 <= from <= to <= 1"),
-        (#"{"type":"shape","paths":[{"d":"M0 0","dash":[-1]}]}"#, "root", "paths[0].dash must be an array of non-negative numbers"),
+        (#"{"type":"shape","paths":[{"d":"M0 0","trim":[0]}]}"#, "root", "paths[0].trim must be [from, to]"),
+        (#"{"type":"shape","paths":[{"d":"M0 0","trim":[0,"1"]}]}"#, "root", "paths[0].trim must be [from, to]"),
+        (#"{"type":"shape","paths":[{"d":"M0 0","dash":["4"]}]}"#, "root", "paths[0].dash must be an array of numbers"),
         (#"{"type":"shape","paths":[{"d":"M0 0","cap":"flat"}]}"#, "root", #"paths[0].cap must be one of "butt", "round", "square""#),
         (#"{"type":"shape","paths":[{"d":"M0 0","fill":"mix("}]}"#, "root", "paths[0].fill must be \(Paint.syntax)"),
-        (#"{"type":"shape","paths":[{"d":"M0 0","lineWidth":-1}]}"#, "root", "paths[0].lineWidth must be a non-negative number"),
+        (#"{"type":"shape","paths":[{"d":"M0 0","lineWidth":"thin"}]}"#, "root", "paths[0].lineWidth must be a number"),
     ])
     func `a malformed shape fails with the field that is wrong`(_ text: String, _ path: String, _ reason: String) {
         #expect(throws: NodeError(path: path, reason: reason)) { try parse(text) }
+    }
+
+    @Test(arguments: [
+        (#""trim":[-0.2,1.3]"#, 0.0...1.0),
+        (#""trim":[0,1.02]"#, 0.0...1.0),
+        (#""trim":[0.8,0.2]"#, 0.8...0.8),
+    ])
+    func `a trim outside 0 to 1 clamps to its nearest end and a reversed one draws nothing`(_ field: String, _ trim: ClosedRange<Double>) throws {
+        let node = try parse(#"{"type":"shape","paths":[{"d":"M0 0",\#(field)}]}"#)
+        guard case let .shape(shape) = node.content else { throw NodeError(path: "root", reason: "not a shape") }
+        #expect(shape.paths.map(\.trim) == [trim])
+    }
+
+    @Test func `a negative line width and dash clamp to zero`() throws {
+        let node = try parse(#"{"type":"shape","paths":[{"d":"M0 0","lineWidth":-1,"dash":[-2,3]}]}"#)
+        guard case let .shape(shape) = node.content else { throw NodeError(path: "root", reason: "not a shape") }
+        #expect(shape.paths.map(\.lineWidth) == [0])
+        #expect(shape.paths.map(\.dash) == [[0, 3]])
     }
 
     @Test func `a chart reads its series and range and its domain comes from the data otherwise`() throws {
@@ -89,10 +107,12 @@ struct NodeDrawingTests {
         let node = try parse(#"{"type":"grid","columns":7,"children":[{"type":"text","text":"1"},{"type":"text","text":"2"}]}"#)
         #expect(node.content == .grid([Node(.text("1")), Node(.text("2"))], columns: 7))
         #expect(node.with(children: [Node(.spacer)]).content == .grid([Node(.spacer)], columns: 7))
-        for bad in [#""columns":0"#, #""columns":1.5"#, #""columns":"7""#, ""] {
+        for bad in [#""columns":1.5"#, #""columns":"7""#, ""] {
             let text = #"{"type":"grid","children":[]"# + (bad.isEmpty ? "" : ",\(bad)") + "}"
-            #expect(throws: NodeError(path: "root", reason: "columns must be a whole number from 1 to 100"), "\(bad)") { try parse(text) }
+            #expect(throws: NodeError(path: "root", reason: "columns must be a whole number"), "\(bad)") { try parse(text) }
         }
+        #expect(try parse(#"{"type":"grid","columns":0}"#).content == .grid([], columns: 1))
+        #expect(try parse(#"{"type":"grid","columns":5000}"#).content == .grid([], columns: Node.maxNodes))
     }
 
     @Test func `a shader reads its file function arguments and animation`() throws {

@@ -293,7 +293,7 @@ extension Skill {
     } satisfies Gary.BarWidget;
     ```
 
-    `gary.d.ts` types each tag with the fields of its node and `tsconfig.json` sets `"jsx": "react"` with `Gary.h` as the factory, which `gary plugin new` and `gary plugin types` write for you. Every node takes `key`, `style`, \(Node.Gesture.allCases.map { "`\($0.rawValue)`" }.joined(separator: ", ")), `tooltip`, and the style properties \(StyleProps.names.map { "`\($0)`" }.joined(separator: ", ")). Numbers are points, except `opacity` from 0 to 1. A property on the node overrides the same property in its `style`.
+    `gary.d.ts` types each tag with the fields of its node and `tsconfig.json` sets `"jsx": "react"` with `Gary.h` as the factory, which `gary plugin new` and `gary plugin types` write for you. Every node takes `key`, `style`, \(Node.Gesture.allCases.map { "`\($0.rawValue)`" }.joined(separator: ", ")), `tooltip`, and the style properties \(StyleProps.names.map { "`\($0)`" }.joined(separator: ", ")). Numbers are points, except `opacity` from 0 to 1. A number outside its range, such as a negative `width` or an `opacity` above 1, counts as the nearest end of the range. A property on the node overrides the same property in its `style`.
 
     | `type` | Own fields | `onAction` payload |
     | --- | --- | --- |

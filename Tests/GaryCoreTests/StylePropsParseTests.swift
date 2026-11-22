@@ -21,9 +21,25 @@ struct StylePropsParseTests {
             == StyleProps(opacity: 1, background: "accent", color: "mix(fg, bg, 0.5)", font: "title", clip: false))
     }
 
-    @Test func `rejects an opacity above one a font that is not a name and a colour that does not parse`() {
+    @Test func `clamps numbers outside their range to its nearest end`() throws {
+        #expect(
+            try parse(
+                #"{"opacity": 1.5, "width": -4, "scale": -1, "duration": -0.1, "padding": [-2, 6], "shadow": {"color": "accent", "radius": -1}}"#,
+            )
+                == StyleProps(
+                    width: 0,
+                    padding: Insets(top: 0, right: 6, bottom: 0, left: 6),
+                    opacity: 1,
+                    scale: 0,
+                    duration: 0,
+                    shadow: Shadow(color: "accent", radius: 0),
+                ),
+        )
+        #expect(try parse(#"{"loop": {"opacity": [-1, 2]}}"#).loop == Loop([.opacity: Loop.Span(0, 1)]))
+    }
+
+    @Test func `rejects a font that is not a name a colour that does not parse and a malformed padding`() {
         let cases: [(String, Failure)] = [
-            (#"{"opacity": 1.5}"#, Failure(field: "opacity", reason: "must be between 0 and 1")),
             (#"{"font": 12}"#, Failure(field: "font", reason: "must name a theme font")),
             (#"{"color": "mix(a"}"#, Failure(field: "color", reason: "must be \(ColorExpr.syntax)")),
             (#"{"padding": [1, 2, 3]}"#, Failure(field: "padding", reason: "must be \(Insets.syntax)")),
@@ -51,9 +67,9 @@ struct DrawingStylePropsTests {
             == Loop([.opacity: Loop.Span(0.2, 1), .x: Loop.Span(-4, 4)], duration: 0.5, reverse: true))
     }
 
-    @Test func `rejects a negative blur an unknown blend and a malformed loop`() {
+    @Test func `rejects a blur that is not a number an unknown blend and a malformed loop`() {
         let cases: [(String, Failure)] = [
-            (#"{"blur": -1}"#, Failure(field: "blur", reason: "must be a non-negative number")),
+            (#"{"blur": "soft"}"#, Failure(field: "blur", reason: "must be a number")),
             (#"{"rotation": "90"}"#, Failure(field: "rotation", reason: "must be a number")),
             (#"{"blend": "lighten"}"#, Failure(
                 field: "blend",
@@ -62,7 +78,7 @@ struct DrawingStylePropsTests {
             )),
             (#"{"loop": 1}"#, Failure(field: "loop", reason: "must be \(Loop.syntax)")),
             (#"{"loop": {"scale": [1]}}"#, Failure(field: "loop.scale", reason: "must be [from, to]")),
-            (#"{"loop": {"opacity": [0, 2]}}"#, Failure(field: "loop.opacity", reason: "must be [from, to] between 0 and 1")),
+            (#"{"loop": {"opacity": [0]}}"#, Failure(field: "loop.opacity", reason: "must be [from, to]")),
             (#"{"loop": {"duration": 0}}"#, Failure(field: "loop.duration", reason: "must be a positive number")),
             (#"{"loop": {"reverse": 1}}"#, Failure(field: "loop.reverse", reason: "must be true or false")),
         ]

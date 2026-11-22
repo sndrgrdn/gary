@@ -57,7 +57,7 @@ struct NodeTests {
         #expect(try props(#""padding":[1,2,3,4]"#).padding == Insets(top: 1, right: 2, bottom: 3, left: 4))
         #expect(try props(#""y":-1.5,"align":"center","minWidth":51"#) == StyleProps(minWidth: 51, align: .center, y: -1.5))
         let reason = "padding must be \(Insets.syntax)"
-        for bad in [#""padding":[1,2,3]"#, #""padding":[1,-2]"#, #""padding":"4""#] {
+        for bad in [#""padding":[1,2,3]"#, #""padding":[1,"2"]"#, #""padding":"4""#] {
             #expect(throws: NodeError(path: "root", reason: reason), "\(bad)") { try props(bad) }
         }
         #expect(try props(#""animation":"spring","material":"glass""#) == StyleProps(animation: .spring, material: .glass))
@@ -115,17 +115,16 @@ struct NodeTests {
         let cases: [(String, String)] = [
             (#""x":"1""#, "x must be a number"),
             (#""zIndex":true"#, "zIndex must be a number"),
-            (#""scale":-1"#, "scale must be a non-negative number"),
-            (#""duration":-0.1"#, "duration must be a non-negative number"),
+            (#""scale":"big""#, "scale must be a number"),
             (#""clip":1"#, "clip must be true or false"),
             (#""transition":"slide""#, "transition must be one of \"opacity\", \"scale\", \"none\""),
             (#""fit":"cover""#, "fit must be one of \"fit\", \"fill\""),
             (#""border":"accent""#, "border must be an object with color and width"),
             (#""border":{"width":1}"#, "border.color must be \(ColorExpr.syntax)"),
-            (#""shadow":{"color":"accent","radius":-1}"#, "shadow.radius must be a non-negative number"),
+            (#""shadow":{"color":"accent","radius":"soft"}"#, "shadow.radius must be a number"),
             (#""shadow":{"color":"accent","y":"down"}"#, "shadow.y must be a number"),
             (#""hovered":"dim""#, "hovered must be an object of style properties"),
-            (#""pressed":{"scale":"small"}"#, "pressed.scale must be a non-negative number"),
+            (#""pressed":{"scale":"small"}"#, "pressed.scale must be a number"),
         ]
         for (fields, reason) in cases {
             #expect(throws: NodeError(path: "root", reason: reason), "\(fields)") { try parse(#"{"type":"stack",\#(fields)}"#) }
@@ -181,8 +180,7 @@ struct NodeTests {
             (#"{"type":"knob"}"#, NodeError(path: "root", reason: "unknown type \"knob\"")),
             (#"{"type":"slider"}"#, NodeError(path: "root", reason: "value must be a number from 0 to 1")),
             (#"{"type":"image"}"#, NodeError(path: "root", reason: "path is required")),
-            (#"{"type":"spacer","width":-1}"#, NodeError(path: "root", reason: "width must be a non-negative number")),
-            (#"{"type":"spacer","opacity":2}"#, NodeError(path: "root", reason: "opacity must be between 0 and 1")),
+            (#"{"type":"spacer","width":"wide"}"#, NodeError(path: "root", reason: "width must be a number")),
             (##"{"type":"spacer","color":"#12"}"##, NodeError(path: "root", reason: "color must be \(ColorExpr.syntax)")),
             (#"{"type":"text"}"#, NodeError(path: "root", reason: "text is required")),
             (#"{"type":"icon","text":"x"}"#, NodeError(path: "root", reason: "symbol is required")),

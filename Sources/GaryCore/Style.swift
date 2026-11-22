@@ -18,12 +18,12 @@ public struct Insets: Equatable, Sendable {
         self.init(top: all, right: all, bottom: all, left: all)
     }
 
-    public static let syntax = "a non-negative number, [vertical, horizontal], or [top, right, bottom, left]"
+    public static let syntax = "a number, [vertical, horizontal], or [top, right, bottom, left]"
 
     static func parse(_ value: JSON) -> Insets? {
         let sides = value.array ?? [value]
-        let numbers = sides.compactMap(\.number)
-        guard numbers.count == sides.count, numbers.allSatisfy({ $0.isFinite && $0 >= 0 }) else { return nil }
+        let numbers = sides.compactMap(\.number).filter(\.isFinite).map { max(0, $0) }
+        guard numbers.count == sides.count else { return nil }
         switch numbers.count {
         case 1: return Insets(numbers[0])
         case 2: return Insets(top: numbers[0], right: numbers[1], bottom: numbers[0], left: numbers[1])
@@ -204,10 +204,7 @@ public struct StyleProps: Equatable, Sendable {
         var props = StyleProps()
         for (name, path) in numbers {
             let value = try number(fields[name], name, fail: fail)
-            if name == "opacity", let value, value > 1 {
-                throw fail(name, "must be between 0 and 1")
-            }
-            props[keyPath: path] = value
+            props[keyPath: path] = name == "opacity" ? value.map { min(1, $0) } : value
         }
         for (name, path) in signed {
             props[keyPath: path] = try number(fields[name], name, signed: true, fail: fail)
@@ -251,10 +248,8 @@ public struct StyleProps: Equatable, Sendable {
         for property in Loop.Property.allCases {
             guard let value = present(fields[property.rawValue]) else { continue }
             let ends = value.array?.compactMap(\.number).filter(\.isFinite) ?? []
-            guard ends.count == 2, value.array?.count == 2, property != .opacity || ends.allSatisfy((0...1).contains) else {
-                throw fail("loop.\(property.rawValue)", property == .opacity ? "must be [from, to] between 0 and 1" : "must be [from, to]")
-            }
-            spans[property] = Loop.Span(ends[0], ends[1])
+            guard ends.count == 2, value.array?.count == 2 else { throw fail("loop.\(property.rawValue)", "must be [from, to]") }
+            spans[property] = property == .opacity ? Loop.Span(min(1, max(0, ends[0])), min(1, max(0, ends[1]))) : Loop.Span(ends[0], ends[1])
         }
         let duration = try number(fields["duration"], "loop.duration", fail: fail) ?? 1
         guard duration > 0 else { throw fail("loop.duration", "must be a positive number") }
@@ -281,10 +276,8 @@ public struct StyleProps: Equatable, Sendable {
 
     static func number(_ value: JSON?, _ name: String, signed: Bool = false, fail: (String, String) -> Error) throws -> Double? {
         guard let value = present(value) else { return nil }
-        guard let number = value.number, number.isFinite, signed || number >= 0 else {
-            throw fail(name, signed ? "must be a number" : "must be a non-negative number")
-        }
-        return number
+        guard let number = value.number, number.isFinite else { throw fail(name, "must be a number") }
+        return signed ? number : max(0, number)
     }
 
     static func choice<Value: RawRepresentable & CaseIterable>(

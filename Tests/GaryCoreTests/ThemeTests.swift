@@ -227,7 +227,7 @@ struct ThemeTests {
             (#"{"fonts": {"body": {"weight": "extra"}}}"#, ThemeError(path: "fonts.body.weight", reason: "unknown weight extra")),
             (#"{"bar": {"height": -1}}"#, ThemeError(path: "bar.height", reason: "must be a non-negative number")),
             (#"{"spacing": 8}"#, ThemeError(path: "spacing", reason: "must be an object")),
-            (#"{"styles": {"panel": {"radius": -2}}}"#, ThemeError(path: "styles.panel.radius", reason: "must be a non-negative number")),
+            (#"{"styles": {"panel": {"radius": "round"}}}"#, ThemeError(path: "styles.panel.radius", reason: "must be a number")),
             (#"{"motion": {"fade": "slow"}}"#, ThemeError(path: "motion.fade", reason: "must be a non-negative number")),
         ]
         for (override, error) in cases {

@@ -128,9 +128,9 @@ extension NodeReader {
     private func shapePath(_ json: JSON, _ name: String) throws -> ShapePath {
         guard let fields = json.object else { throw fail("\(name) must be an object") }
         guard let data = fields["d"]?.string else { throw fail("\(name).d must be an SVG path string") }
-        let dash = try numbers(fields["dash"], "\(name).dash", "an array of non-negative numbers") { $0 >= 0 }
-        let trim = try numbers(fields["trim"], "\(name).trim", "[from, to] with 0 <= from <= to <= 1") { (0...1).contains($0) }
-        guard trim.isEmpty || trim.count == 2 && trim[0] <= trim[1] else { throw fail("\(name).trim must be [from, to] with 0 <= from <= to <= 1") }
+        let dash = try numbers(fields["dash"], "\(name).dash", "an array of numbers").map { max(0, $0) }
+        let trim = try numbers(fields["trim"], "\(name).trim", "[from, to]").map { min(1, max(0, $0)) }
+        guard trim.isEmpty || trim.count == 2 else { throw fail("\(name).trim must be [from, to]") }
         return try ShapePath(
             SVGPath(data, path: "\(path).\(name).d"),
             fill: paint(fields["fill"], "\(name).fill"),
@@ -139,7 +139,7 @@ extension NodeReader {
             cap: choice(fields["cap"], "\(name).cap") ?? .butt,
             join: choice(fields["join"], "\(name).join") ?? .miter,
             dash: dash,
-            trim: trim.isEmpty ? 0...1 : trim[0]...trim[1],
+            trim: trim.isEmpty ? 0...1 : trim[0]...max(trim[0], trim[1]),
         )
     }
 
@@ -148,7 +148,7 @@ extension NodeReader {
             let name = "series[\(index)]"
             guard let fields = item.object else { throw fail("\(name) must be an object") }
             guard fields["values"]?.array != nil else { throw fail("\(name).values must be an array of numbers") }
-            let values = try numbers(fields["values"], "\(name).values", "an array of numbers") { _ in true }
+            let values = try numbers(fields["values"], "\(name).values", "an array of numbers")
             return try ChartSeries(
                 values,
                 mark: choice(fields["mark"], "\(name).mark") ?? .line,
@@ -165,10 +165,8 @@ extension NodeReader {
     }
 
     func columns() throws -> Int {
-        guard let columns = fields["columns"]?.number, columns.rounded() == columns, (1...100).contains(columns) else {
-            throw fail("columns must be a whole number from 1 to 100")
-        }
-        return Int(columns)
+        guard let columns = fields["columns"]?.number, columns.rounded() == columns else { throw fail("columns must be a whole number") }
+        return Int(min(max(columns, 1), Double(Node.maxNodes)))
     }
 
     func shader() throws -> Node.Shader {
@@ -176,7 +174,7 @@ extension NodeReader {
         let identifier = function.utf8.first.map { !(48...57).contains($0) } == true
             && function.utf8.allSatisfy { $0 == 95 || (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0) }
         guard identifier else { throw fail("function must name a Metal function") }
-        let args = try numbers(fields["args"], "args", "an array of numbers") { _ in true }
+        let args = try numbers(fields["args"], "args", "an array of numbers")
         guard args.count <= Node.Shader.maxArgs else { throw fail("args holds at most \(Node.Shader.maxArgs) numbers") }
         return try Node.Shader(path: required("path"), function: function, args: args, animated: flag(fields["animated"], "animated") ?? false)
     }
@@ -186,10 +184,10 @@ extension NodeReader {
         return items
     }
 
-    private func numbers(_ value: JSON?, _ name: String, _ syntax: String, _ valid: (Double) -> Bool) throws -> [Double] {
+    private func numbers(_ value: JSON?, _ name: String, _ syntax: String) throws -> [Double] {
         guard let value, value != .null else { return [] }
         let items = value.array ?? []
-        let numbers = items.compactMap(\.number).filter { $0.isFinite && valid($0) }
+        let numbers = items.compactMap(\.number).filter(\.isFinite)
         guard value.array != nil, numbers.count == items.count else { throw fail("\(name) must be \(syntax)") }
         return numbers
     }
