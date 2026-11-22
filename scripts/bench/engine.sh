@@ -3,8 +3,8 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 read -r -a sides <<< "${REVS:?set REVS to the commits to compare, base first}"
-RUNS="${RUNS:-5}"
-SECONDS_PER_RUN="${SECONDS_PER_RUN:-60}"
+RUNS="${RUNS:-3}"
+SECONDS_PER_RUN="${SECONDS_PER_RUN:-15}"
 OUT="${OUT:-tmp/bench/engine-$(date +%Y%m%d-%H%M%S).jsonl}"
 toolchain="$(dirname "$(xcrun --find swift)")/.."
 mkdir -p tmp/bench

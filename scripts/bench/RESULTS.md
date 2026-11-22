@@ -355,3 +355,15 @@ Three 60 s runs at be2bf7f, one with tracing and GC logging (`JSC_logGC=true`), 
 - The widget waits at be2bf7f in these runs were p95 2.9 and 10.2 ms, max 10.5 and 16 ms.
 - A busy-panel frame holds the lock 0.32 to 0.89 ms at p50: `render` 0.13 to 0.41, `JSON.stringify` 0.11 to 0.28, `JSON.parse` of the state 0.06 to 0.13, the timer handler 0.01 to 0.02. Swift parses the JSON and the nodes after the lock is released, 7.1 ms at p50 in the traced run.
 - Garbage collection is a small share: the busiest log had 71 full collections in about 70 s, 1.3 ms at p50 and 3.7 ms at most.
+
+## Engine layouts with ten Effect plugins
+
+Sander's plugins, the busy 1000-node panel and 10 generated Effect plugins (6 bar widgets ticking each second, 4 services). 3 alternating runs of 15 s per layout, 0 false kills. Median (range). Measured on branch `engine-pool` (cd74e62, 18457d3), which adds a pool layout to `PluginEngines`.
+
+| Layout               | Widget wait p50     | p95              | max              | Plugin memory | Per added Effect plugin | 10 Effect plugins load |
+| -------------------- | ------------------- | ---------------- | ---------------- | ------------- | ----------------------- | ---------------------- |
+| Engine per plugin    | 0.07 ms (0.06–0.07) | 0.47 (0.43–0.47) | 1.55 (1.11–1.78) | 135.0 MB      | 7.3 MB                  | 263 ms                 |
+| Two engines, by kind | 0.07 (0.05–0.07)    | 0.45 (0.43–0.58) | 2.72 (2.52–2.74) | 40.2 MB       | under 0.1 MB            | 70 ms                  |
+| Pool of 4            | 0.06 (0.05–0.07)    | 0.51 (0.38–0.53) | 1.12 (1.08–1.92) | 55.1 MB       | 0.6 MB                  | 86 ms                  |
+
+Two engines ship. p50 and p95 differ by less than the spread. The two-engine max is about 1 ms higher because the six widgets load together and tick in step on the one bar engine; real widgets load apart and queue less.
