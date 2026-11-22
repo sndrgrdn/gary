@@ -20,7 +20,7 @@ extension Capability {
         example: """
         const history: string[] = [];
 
-        module.exports = {
+        export default {
           onTopic(topic) {
             if (topic !== "clipboard") return;
             host.clipboard.read().then((contents) => {

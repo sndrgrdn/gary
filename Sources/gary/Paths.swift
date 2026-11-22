@@ -10,6 +10,7 @@ enum Paths {
     static let builtinPlugins = resources.appending(path: "plugins")
     static let examples = resources.appending(path: "examples")
     static let defaultTheme = resources.appending(path: "theme.json")
+    static let sucrase = resources.appending(path: "sucrase.js")
     static let storage = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appending(path: "Gary/storage")
     static let packages = storage.deletingLastPathComponent().appending(path: "packages")
     static let systemRestore = storage.deletingLastPathComponent().appending(path: "restore.json")

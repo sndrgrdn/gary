@@ -39,6 +39,8 @@ final class Listener: Subscriber, @unchecked Sendable {
     }
 }
 
+let transpiler = Transpiler(sucrase: URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../../Resources/vendor/sucrase.js"))
+
 let display = DisplayInfo(id: "main", index: 0, frame: CGRect(x: 0, y: 0, width: 1000, height: 800), band: 32)
 
 struct Harness {
@@ -52,6 +54,7 @@ struct Harness {
         kind: PluginKind = .barWidget,
         shown: [String] = [SurfaceAddress.main],
         subscribes: [String] = [],
+        files: [String: String] = [:],
     ) throws {
         let directory = FileManager.default.temporaryDirectory.appending(path: "gary-runtime-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -65,7 +68,13 @@ struct Harness {
             "subscribes": .array(subscribes.map(JSON.string)),
         ])
         try Data(manifest.text.utf8).write(to: directory.appending(path: "manifest.json"))
-        try Data(source.utf8).write(to: directory.appending(path: "main.js"))
+        var files = files
+        files["main.js"] = source
+        for (path, text) in files {
+            let url = directory.appending(path: path)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(text.utf8).write(to: url)
+        }
         let bundle = try PluginBundle.load(directory, origin: .user, capabilities: Capability.names())
         let events = Events()
         let hub = StateHub(sources: [:])
@@ -77,6 +86,7 @@ struct Harness {
             theme: .object(["name": .string("dark")]),
             hub: hub,
             deliver: { _, event in events.append(event) },
+            transpiler: transpiler,
         )
         self.events = events
         self.hub = hub
@@ -107,12 +117,13 @@ struct Harness {
     }
 }
 
-func widget(_ body: String) -> String {
+func widget(_ members: String = "", setup: String = "") -> String {
     """
     var count = 0;
-    \(body)
-    module.exports.render = module.exports.render || function (state) {
-      return { type: "text", text: String(count) };
+    \(setup)
+    export default {
+      render: function (state) { return { type: "text", text: String(count) }; },
+      \(members)
     };
     """
 }
@@ -120,8 +131,10 @@ func widget(_ body: String) -> String {
 struct PluginRuntimeTests {
     @Test func `renders each display with the state settings theme and display`() async throws {
         let harness = try Harness("""
-        module.exports.render = function (state) {
-          return { type: "text", text: [state.settings.greeting, state.theme.name, state.display.id].join(" ") };
+        export default {
+          render: function (state) {
+            return { type: "text", text: [state.settings.greeting, state.theme.name, state.display.id].join(" ") };
+          },
         };
         """)
         #expect(try await harness.text() == "hi dark main")
@@ -131,25 +144,25 @@ struct PluginRuntimeTests {
     }
 
     @Test func `a hidden scene loads with no output`() async throws {
-        let harness = try Harness(widget(""), shown: [])
+        let harness = try Harness(widget(), shown: [])
         guard case let .loaded(output, _, _) = try await harness.events.next() else { throw RenderError("expected loaded") }
         #expect(output == RuntimeOutput())
         harness.runtime.stop()
     }
 
     @Test func `a service loads without a render function`() async throws {
-        let harness = try Harness("module.exports.methods = {};", kind: .service, shown: [])
+        let harness = try Harness("export default { methods: {} };", kind: .service, shown: [])
         guard case .loaded = try await harness.events.next() else { throw RenderError("expected loaded") }
         harness.runtime.stop()
     }
 
     @Test func `a missing render function fails the load`() async throws {
-        let harness = try Harness("", shown: [])
-        #expect(try await harness.failure() == "Error: module.exports.render is not a function")
+        let harness = try Harness("export default {};", shown: [])
+        #expect(try await harness.failure() == "Error: the default export has no render function")
     }
 
     @Test func `actions run the handler with the payload and rerender`() async throws {
-        let harness = try Harness(widget("module.exports.onAction = function (name, payload, state) { count += payload.by; };"))
+        let harness = try Harness(widget("onAction: function (name, payload, state) { count += payload.by; },"))
         #expect(try await harness.text() == "0")
         harness.runtime.perform("add", .object(["by": .number(2)]))
         #expect(try await harness.text() == "2")
@@ -157,7 +170,7 @@ struct PluginRuntimeTests {
     }
 
     @Test func `an unhandled key reaches the fallback and a handled one does not`() async throws {
-        let harness = try Harness(widget("module.exports.onKey = function (key) { count += 1; return key === \"up\"; };"))
+        let harness = try Harness(widget("onKey: function (key) { count += 1; return key === \"up\"; },"))
         #expect(try await harness.text() == "0")
         let unhandled = Events()
         harness.runtime.key("up") { unhandled.append(.failed("up")) }
@@ -172,7 +185,7 @@ struct PluginRuntimeTests {
     }
 
     @Test func `timers fire once or repeat until cleared`() async throws {
-        let harness = try Harness(widget("""
+        let harness = try Harness(widget(setup: """
         setTimeout(function (by) { count += by; }, 5, 10);
         var interval = setInterval(function () { count += 1; if (count === 12) clearInterval(interval); }, 10);
         var cancelled = setTimeout(function () { count += 100; }, 5);
@@ -191,15 +204,14 @@ struct PluginRuntimeTests {
 
     @Test func `host call resolves with the parsed reply and rejects with the error message`() async throws {
         let harness = try Harness(widget("""
-        var shown = "start";
-        module.exports.render = function () { return { type: "text", text: shown }; };
-        module.exports.onAction = function (name) {
+        render: function () { return { type: "text", text: shown }; },
+        onAction: function (name) {
           host.call(name, 1, "two").then(
             function (value) { shown = "ok " + JSON.stringify(value); },
             function (error) { shown = (error instanceof Error) + " " + error.message; }
           );
-        };
-        """))
+        },
+        """, setup: "var shown = \"start\";"))
         #expect(try await harness.text() == "start")
         harness.runtime.perform("good", .null)
         guard case let .call(method, arguments, reply) = try await harness.events.next() else { throw RenderError("expected a call") }
@@ -220,12 +232,12 @@ struct PluginRuntimeTests {
 
     @Test func `methods reply with their JSON result or their error`() async throws {
         let harness = try Harness(widget("""
-        module.exports.methods = {
+        methods: {
           sum: function (a, b) { return Number(a) + Number(b); },
           none: function () {},
           later: function (a) { return Promise.resolve({ echo: a }); },
           broken: function () { return Promise.reject(new Error("broke")); }
-        };
+        },
         """))
         #expect(try await harness.text() == "0")
         let replies = Events()
@@ -248,10 +260,10 @@ struct PluginRuntimeTests {
 
     @Test func `publish shares JSON on the plugin topic and surface requests reach the shell`() async throws {
         let harness = try Harness(widget("""
-        module.exports.onAction = function (name) {
+        onAction: function (name) {
           if (name === "publish") host.publish({ n: 1 });
           else host[name]();
-        };
+        },
         """))
         #expect(try await harness.text() == "0")
         let listener = Listener()
@@ -268,11 +280,11 @@ struct PluginRuntimeTests {
 
     @Test func `a surface request carries the clicked node's frame only while onAction runs for that click`() async throws {
         let harness = try Harness(widget("""
-        module.exports.onAction = function (name) {
+        onAction: function (name) {
           if (name === "now") host.show();
           if (name === "later") setTimeout(function () { host.toggle(); }, 1);
-        };
-        module.exports.onHotkey = function () { host.show(); };
+        },
+        onHotkey: function () { host.show(); },
         """))
         #expect(try await harness.text() == "0")
         let origin = CGRect(x: 10, y: 700, width: 40, height: 24)
@@ -293,10 +305,10 @@ struct PluginRuntimeTests {
 
     @Test func `a node scroll reaches onScroll with the node's action and frame`() async throws {
         let harness = try Harness(widget("""
-        module.exports.onScroll = function (event) {
+        onScroll: function (event) {
           count = event.action === undefined ? event.y : event.action + " " + event.y;
           if (event.action) host.show();
-        };
+        },
         """))
         #expect(try await harness.text() == "0")
         let origin = CGRect(x: 10, y: 700, width: 40, height: 24)
@@ -311,10 +323,9 @@ struct PluginRuntimeTests {
 
     @Test func `subscribed topics reach onTopic and the state`() async throws {
         let harness = try Harness(widget("""
-        var seen = [];
-        module.exports.onTopic = function (topic, value, state) { seen.push(topic + "=" + JSON.stringify(state[topic])); };
-        module.exports.render = function () { return { type: "text", text: seen.join(",") }; };
-        """), subscribes: ["test.other"])
+        onTopic: function (topic, value, state) { seen.push(topic + "=" + JSON.stringify(state[topic])); },
+        render: function () { return { type: "text", text: seen.join(",") }; },
+        """, setup: "var seen = [];"), subscribes: ["test.other"])
         #expect(try await harness.text().isEmpty)
         try harness.hub.publish(.plugin(#require(PluginID("test.other"))), .number(7), Trace("test"))
         #expect(try await harness.text() == "test.other=7")
@@ -324,18 +335,18 @@ struct PluginRuntimeTests {
     }
 
     @Test func `a throwing render fails with the exception`() async throws {
-        let harness = try Harness("module.exports.render = function () { throw new Error(\"boom\"); };")
+        let harness = try Harness("export default { render: function () { throw new Error(\"boom\"); } };")
         #expect(try await harness.failure() == "Error: boom")
     }
 
     @Test func `a script that runs past the time limit is stopped`() async throws {
-        let harness = try Harness("module.exports.render = function () { for (;;) {} };")
+        let harness = try Harness("export default { render: function () { for (;;) {} } };")
         #expect(try await harness.failure() == "stopped after running longer than 100 ms")
     }
 
     @Test(.enabled(if: ShaderProgram.device != nil, "this Mac has no Metal device"))
     func `a shader file keeps only its latest program and none after its plugin stops`() async throws {
-        let harness = try Harness(widget(""), id: "test.shaders")
+        let harness = try Harness(widget(), id: "test.shaders")
         _ = try await harness.text()
         let file = FileManager.default.temporaryDirectory.appending(path: "gary-shader-\(UUID().uuidString).metal")
         try Data("half4 fill(float2 position, float2 size, float time, constant float *args, uint count) { return half4(1); }".utf8).write(to: file)

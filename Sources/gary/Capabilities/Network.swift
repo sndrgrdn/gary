@@ -20,7 +20,7 @@ extension Capability {
     refresh();
     setInterval(refresh, 15 * 60_000);
 
-    module.exports = {
+    export default {
       render() {
         return { type: "text", text: temperature };
       },

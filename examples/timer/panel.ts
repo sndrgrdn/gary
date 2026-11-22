@@ -55,7 +55,7 @@ function button(action: string, label: string): Gary.Node {
   };
 }
 
-module.exports = {
+export default {
   surface: { anchors: { top: true, right: true }, margins: { top: 8, right: 16 } },
 
   render() {

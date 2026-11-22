@@ -88,7 +88,7 @@ struct PluginScaffoldTests {
             #expect(bundle.manifest.name == "Hello World")
             #expect(bundle.manifest.kinds == kinds)
             for kind in kinds {
-                #expect(try bundle.entryPoint(kind).lastPathComponent == PluginScaffold.entryFile(kind))
+                #expect(try bundle.entryPoint(kind) == PluginScaffold.entryFile(kind))
             }
         }
     }

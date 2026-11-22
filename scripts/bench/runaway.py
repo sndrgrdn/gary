@@ -7,8 +7,8 @@ plugins = os.path.join(config, "plugins")
 shell = os.path.join(config, "shell.json")
 created_plugins = not os.path.exists(plugins)
 cases = {
-    "runaway.load": "module.exports = { render() { while (true) {} } };\n",
-    "runaway.later": "var renders = 0;\nmodule.exports = { render(state) { if (renders++ > 0) { while (true) {} } "
+    "runaway.load": "export default { render() { while (true) {} } };\n",
+    "runaway.later": "var renders = 0;\nexport default { render(state) { if (renders++ > 0) { while (true) {} } "
                      "return { type: \"text\", text: \"loops on the next tick\", style: \"bad\" }; } };\n",
 }
 layout = {"bar": {"left": [], "center": list(cases), "right": ["gary.battery", "gary.clock"]}}

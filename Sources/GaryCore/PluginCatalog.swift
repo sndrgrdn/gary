@@ -18,9 +18,10 @@ public struct PluginBundle: Equatable, Sendable {
         return bundle
     }
 
-    public func entryPoint(_ kind: PluginKind) throws -> URL {
+    public func entryPoint(_ kind: PluginKind) throws -> String {
         guard let relative = manifest.entryPoints[kind] else { throw ManifestError.missingEntryPoint(kind) }
-        return try resolveInside(directory, relative)
+        _ = try resolveInside(directory, relative)
+        return relative
     }
 }
 

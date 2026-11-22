@@ -15,7 +15,7 @@ function parseDisk(value: Gary.Json | undefined): Disk | undefined {
     : undefined;
 }
 
-module.exports = {
+export default {
   render(state) {
     const disk = parseDisk(state["example.disk"]);
 

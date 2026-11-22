@@ -20,7 +20,7 @@ refresh();
 
 setInterval(refresh, 5 * 60_000);
 
-module.exports = {
+export default {
   methods: {
     refresh() {
       refresh();

@@ -7,7 +7,7 @@ function week(date: Date) {
   return Math.ceil(((day.getTime() - Date.UTC(day.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
 }
 
-module.exports = {
+export default {
   surface: { anchors: { top: true, right: true }, margins: { top: 8, right: 16 } },
 
   render(state) {

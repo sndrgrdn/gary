@@ -23,7 +23,7 @@ extension Capability {
         }
         """,
         example: """
-        module.exports = {
+        export default {
           render(state) {
             const notifications = state.notifications;
             if (!notifications?.available) return { type: "text", text: notifications?.reason ?? "…", style: "dim" };

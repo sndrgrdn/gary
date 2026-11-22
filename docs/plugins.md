@@ -1,6 +1,6 @@
 # Writing Gary plugins
 
-A plugin is a folder with a `manifest.json` and one entry file per kind. Gary runs each entry file in its own JavaScriptCore context. It calls `render(state)` and draws the node tree that `render` returns. Entry files are TypeScript (`.ts`) or JavaScript (`.js`).
+A plugin is a folder with a `manifest.json` and one entry file per kind. Gary runs each entry file in its own JavaScriptCore context. It calls `render(state)` and draws the node tree that `render` returns. Entry files are ES modules in TypeScript (`.ts` or `.tsx`) or JavaScript (`.js`).
 
 Gary.app bundles the plugins in [`examples/`](../examples) in `Contents/Resources/examples`. Gary does not load them. Copy one under your own id to start:
 
@@ -45,10 +45,10 @@ Gary logs `host.log` lines and load failures. The app writes them to `~/Library/
 
 ## Write TypeScript
 
-Gary strips types with a bundled copy of [sucrase](https://github.com/alangpierce/sucrase) and keeps line numbers, so errors point at the `.ts` line. Gary does not type-check. Run `tsc` for that.
+Gary compiles TypeScript and modules with a bundled copy of [sucrase](https://github.com/alangpierce/sucrase) and keeps line numbers, so errors point at the `.ts` line. Gary does not type-check. Run `tsc` for that.
 
-- Assign `module.exports`. Gary runs each file as a plain script, so `import` and `export` are syntax errors.
-- Add `satisfies Gary.BarWidget`, `Gary.Panel`, `Gary.Service`, or the type for your kind. TypeScript then types `state` and checks the tree you return.
+- Write `export default { ... } satisfies Gary.BarWidget`, or `Gary.Panel`, `Gary.Service`, or the type for your kind. TypeScript then types `state` and checks the tree you return.
+- Split a plugin into files with relative imports, such as `import { parse } from "./parse"`. Gary finds `.ts`, `.tsx`, and `.js` files and `index` files in folders inside the plugin folder. Any other import, such as an npm package, fails the load with an error that names it.
 - After you change `uses` or `subscribes`, run `gary plugin types <folder>`. `gary.d.ts` declares only the `host` functions and `state` fields that your manifest asks for.
 
 ## Lay out nodes
@@ -147,4 +147,4 @@ Some capabilities need a macOS permission, such as Accessibility for `tray` or F
 
 ## Reference
 
-Run `gary skill show` for the full reference: concepts, every manifest field, `shell.json`, module exports, `state`, `host`, nodes, `surface`, the theme, each capability's functions, topics, types, and macOS permissions, and every command. The text comes from the installed Gary, so it matches that version, and it is the guide that `gary skill setup` points coding agents to.
+Run `gary skill show` for the full reference: concepts, every manifest field, `shell.json`, the default export, `state`, `host`, nodes, `surface`, the theme, each capability's functions, topics, types, and macOS permissions, and every command. The text comes from the installed Gary, so it matches that version, and it is the guide that `gary skill setup` points coding agents to.

@@ -5,7 +5,7 @@ import Testing
 
 struct PluginRuntimeSurfaceTests {
     @Test func `surfaces resolve their spec from the module`() async throws {
-        let harness = try Harness(widget("module.exports.surface = function (state) { return { width: 300, height: 200 }; };"), kind: .panel)
+        let harness = try Harness(widget("surface: function (state) { return { width: 300, height: 200 }; },"), kind: .panel)
         guard case let .loaded(output, surfaces, _) = try await harness.events.next() else { throw RenderError("expected loaded") }
         #expect(surfaces == [SurfaceAddress.main])
         #expect(output.surfaces[SurfaceAddress.main]?.width == .points(300))
@@ -15,12 +15,14 @@ struct PluginRuntimeSurfaceTests {
 
     @Test func `each shown surface renders its own trees with its name in the state`() async throws {
         let harness = try Harness("""
-        module.exports.surfaces = {
-          main: { width: 300, height: 200 },
-          osd: function (state) { return { anchors: { bottom: true }, margins: state.settings.greeting === "hi" ? 80 : 0, clickThrough: true }; },
-          idle: null,
+        export default {
+          surfaces: {
+            main: { width: 300, height: 200 },
+            osd: function (state) { return { anchors: { bottom: true }, margins: state.settings.greeting === "hi" ? 80 : 0, clickThrough: true }; },
+            idle: null,
+          },
+          render: function (state) { return { type: "text", text: state.surface + " on " + state.display.id }; },
         };
-        module.exports.render = function (state) { return { type: "text", text: state.surface + " on " + state.display.id }; };
         """, kind: .panel, shown: ["main", "osd"])
         guard case let .loaded(output, surfaces, _) = try await harness.events.next() else { throw RenderError("expected loaded") }
         #expect(surfaces == ["idle", "main", "osd"])
@@ -39,16 +41,16 @@ struct PluginRuntimeSurfaceTests {
     }
 
     @Test func `a module that exports surface and surfaces fails to load`() async throws {
-        let harness = try Harness(widget("module.exports.surface = {}; module.exports.surfaces = { osd: {} };"), kind: .panel)
+        let harness = try Harness(widget("surface: {}, surfaces: { osd: {} },"), kind: .panel)
         #expect(try await harness.failure() == "surfaces: cannot be exported with surface; put that surface in surfaces as main")
     }
 
     @Test func `host surface requests name a surface and throw for a name the module does not declare`() async throws {
         let harness = try Harness(widget("""
-        module.exports.surfaces = { main: {}, osd: {} };
-        module.exports.onAction = function (name) {
+        surfaces: { main: {}, osd: {} },
+        onAction: function (name) {
           try { if (name === "default") host.show(); else host.toggle(name); } catch (e) { count = e.message; }
-        };
+        },
         """), kind: .panel)
         #expect(try await harness.text() == "0")
         func next() async throws -> (SurfaceRequest, String) {

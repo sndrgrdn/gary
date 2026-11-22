@@ -48,7 +48,7 @@ extension Skill {
     | `menu` | A focusable panel that takes keys and hides when the user clicks outside it or presses escape. Each menu surface hides on its own. |
     | `service` | A script with no view. It publishes values for other plugins and answers `gary call`. |
 
-    A **surface** is a window of a panel, overlay, or menu. The module's `surface` export places it. To show several windows at once, such as a settings panel and an on-screen display, export `surfaces` instead: an object that maps each surface name to what `surface` takes. A name is lowercase letters, digits, and hyphens. A module with only `surface` has one surface named `main`, and a module that exports both fails to load. Each surface is shown, placed, focused, and hidden on its own, and `render` draws each one with its name in `state.surface`. Gary loads a kind when it shows its first surface and stops it when its last surface hides, unless the manifest sets `keepLoaded`. `host.show(name)`, `host.hide(name)`, and `host.toggle(name)` act on the plugin's surface with that name, or `main` without one, from any of its kinds, so a bar widget opens its own plugin's panel with `host.toggle()`. When two kinds of a plugin declare the same name, the first kind in `kinds` takes it.
+    A **surface** is a window of a panel, overlay, or menu. The `surface` field of the default export places it. To show several windows at once, such as a settings panel and an on-screen display, give `surfaces` instead: an object that maps each surface name to what `surface` takes. A name is lowercase letters, digits, and hyphens. A module with only `surface` has one surface named `main`, and a module that gives both fails to load. Each surface is shown, placed, focused, and hidden on its own, and `render` draws each one with its name in `state.surface`. Gary loads a kind when it shows its first surface and stops it when its last surface hides, unless the manifest sets `keepLoaded`. `host.show(name)`, `host.hide(name)`, and `host.toggle(name)` act on the plugin's surface with that name, or `main` without one, from any of its kinds, so a bar widget opens its own plugin's panel with `host.toggle()`. When two kinds of a plugin declare the same name, the first kind in `kinds` takes it.
 
     A **topic** is a value that Gary keeps in the plugin's `state`. A capability topic, such as `clock` or `battery`, runs only while a plugin subscribes to it. A plugin topic is the last value that another plugin passed to `host.publish`, under that plugin's id. The manifest lists topics in `subscribes`.
 
@@ -78,7 +78,7 @@ extension Skill {
     	gary plugin types ~/.config/gary/plugins/you.weather
     	```
 
-    4. Edit the entry files. Keep `module.exports = { ... } satisfies Gary.BarWidget`, or the type of your kind, so TypeScript checks `state` and the node tree.
+    4. Edit the entry files. Keep `export default { ... } satisfies Gary.BarWidget`, or the type of your kind, so TypeScript checks `state` and the node tree.
     5. Type-check, then run the checks Gary runs when it loads plugins:
 
     	```sh
@@ -92,8 +92,9 @@ extension Skill {
 
     ### Write entry files
 
-    - Assign `module.exports`. Gary runs each entry file as a plain script, so `import`, `export`, and `require` fail. Put all code for a kind in its entry file.
-    - Gary strips TypeScript types with a bundled copy of sucrase and keeps line numbers. It does not type-check, so run `tsc`.
+    - Each entry file is an ES module whose default export is an object with the fields in the Default export section.
+    - Import other files of the plugin by relative path, such as `import { parse } from "./parse"`. Gary finds `parse.ts`, `parse.tsx`, `parse.js`, or an `index` file in a `parse` folder, and refuses a path that leaves the plugin folder. Any other import, such as an npm package, fails the load with an error that names it. Each kind loads its own copy of an imported file, once.
+    - Gary compiles TypeScript and modules with a bundled copy of sucrase and keeps line numbers. It erases type-only imports. It does not type-check, so run `tsc`.
     - There is no DOM, no `console`, and no Node.js API. Use `host.log` for logging, and `host.exec`, `host.readFile`, and `fetch` through their capabilities.
     - Keep module-level variables for state that survives renders. A reload starts the module again from the top, and `host.storage` keeps values across reloads and restarts.
     - Keep `render` pure and fast. Do slow work in timers or capability promises, store the result in a variable, and let the next render show it.
@@ -132,7 +133,7 @@ extension Skill {
     | `id` | string | Required. The plugin id, such as `you.weather`. |
     | `name`, `version` | string | Required. |
     | `kinds` | array | Required. One or more of \(PluginKind.allCases.map { "`\($0.rawValue)`" }.joined(separator: ", ")). |
-    | `entryPoints` | object | Required. One relative `.ts` or `.js` path per kind, such as `{ "panel": "panel.ts" }`. Symlinks are refused. |
+    | `entryPoints` | object | Required. One relative `.ts`, `.tsx`, or `.js` path per kind, such as `{ "panel": "panel.ts" }`. Symlinks are refused. |
     | `subscribes` | array | Topics that appear in `state` and `onTopic`: capability topics, or other plugins' ids. |
     | `uses` | array | Capabilities that add functions to `host`. |
     | `keepLoaded` | boolean | Keep a panel, overlay, or menu running while it is hidden. |
@@ -166,9 +167,9 @@ extension Skill {
     | `settings` | `{ "<id>": { ... } }`. Each plugin reads its object as `state.settings`. |
     | `packages` | Plugin packages that Gary installs and loads: `npm:<name>[@version\\|@tag]`, `git:<host>/<owner>/<repo>[@ref]`, a git URL, or an absolute or `~/` path to a folder that loads in place. `gary plugin install` and `gary plugin remove` edit it. |
 
-    ## Module exports
+    ## Default export
 
-    | Export | Gary calls it |
+    | Field | Gary calls it |
     | --- | --- |
     | `render(state)` | After every change, once per display. It returns a node. A service needs no `render`. |
     | `onAction(action, payload, state)` | When the user clicks a node with `action`, right-clicks or middle-clicks a node with `rightAction` or `middleAction`, moves a slider, or types in an input. |
@@ -199,7 +200,7 @@ extension Skill {
     Give one plugin both kinds, and toggle the panel from the widget in `widget.ts`:
 
     ```ts
-    module.exports = {
+    export default {
       render(state) {
         return { type: "text", text: state.nowplaying?.track?.title ?? "Nothing playing", action: "open" };
       },

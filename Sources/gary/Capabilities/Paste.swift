@@ -10,7 +10,7 @@ extension Capability {
     """, example: """
     const snippets = ["Thanks!", "Looks good to me."];
 
-    module.exports = {
+    export default {
       render() {
         return { type: "column", children: snippets.map((text) => ({ type: "text", key: text, text, action: text })) };
       },

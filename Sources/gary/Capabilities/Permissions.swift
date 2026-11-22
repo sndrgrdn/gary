@@ -28,7 +28,7 @@ extension Capability {
         }
         """,
         example: """
-        module.exports = {
+        export default {
           render(state) {
             const missing = (state.permissions ?? []).filter((each) => each.plugins.length > 0 && each.status !== "granted");
             return {

@@ -9,7 +9,7 @@ extension Capability {
       interface Battery { present: boolean; percent: number | null; charging: boolean; source: "ac" | "battery" }
     }
     """, example: """
-    module.exports = {
+    export default {
       render(state) {
         const battery = state.battery;
         if (!battery?.present) return { type: "icon", symbol: "powerplug" };

@@ -8,7 +8,7 @@ function parseCount(value: Gary.Json | undefined): number {
   return Number.isFinite(count) ? count : 0;
 }
 
-module.exports = {
+export default {
   surface: { attach: true, margins: { top: 6 }, anchors: { top: true, right: true } },
 
   render(state) {

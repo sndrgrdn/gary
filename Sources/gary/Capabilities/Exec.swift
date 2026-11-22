@@ -25,7 +25,7 @@ extension Capability {
         refresh();
         setInterval(refresh, 60_000);
 
-        module.exports = {
+        export default {
           render() {
             return { type: "text", text: uptime };
           },

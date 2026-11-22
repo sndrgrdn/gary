@@ -33,7 +33,7 @@ extension Capability {
         }
         """,
         example: """
-        module.exports = {
+        export default {
           render(state) {
             const wifi = state.wifi;
             if (!wifi?.power) return { type: "icon", symbol: "wifi.slash", style: "dim", action: "on" };

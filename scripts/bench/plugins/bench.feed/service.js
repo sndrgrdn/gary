@@ -10,7 +10,7 @@ let items = [];
 let published = 0;
 let timer = null;
 
-module.exports = {
+export default {
   methods: {
     start(bytes) {
       items = Array.from(

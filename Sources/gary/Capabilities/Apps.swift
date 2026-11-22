@@ -19,7 +19,7 @@ extension Capability {
         }
         """,
         example: """
-        module.exports = {
+        export default {
           render(state) {
             return { type: "text", text: state.apps?.frontmost?.name ?? "", action: "terminal" };
           },

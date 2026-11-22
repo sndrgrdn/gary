@@ -13,7 +13,7 @@ extension Capability {
     host.mediakeys.intercept(["volume-up", "volume-down"]);
     let hideTimer = 0;
 
-    module.exports = {
+    export default {
       onMediaKey(event, state) {
         const volume = state.audio?.output?.volume ?? 0;
         host.audio.setVolume(Math.min(1, Math.max(0, volume + (event.key === "volume-up" ? 0.0625 : -0.0625))));

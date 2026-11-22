@@ -15,28 +15,43 @@ struct PluginFunctions {
 }
 
 enum PluginScripts {
+    static let modules = """
+    (function (factories, links, entry) {
+      var loaded = {};
+      function load(path) {
+        if (Object.prototype.hasOwnProperty.call(loaded, path)) return loaded[path];
+        var exports = loaded[path] = {};
+        factories[path](exports, function (specifier) {
+          if (!Object.prototype.hasOwnProperty.call(links[path], specifier)) throw new Error("cannot import \\"" + specifier + "\\" from " + path);
+          return load(links[path][specifier]);
+        });
+        return exports;
+      }
+      return load(entry).default;
+    })
+    """
+
     static let functions = """
-    (function (headless) {
-      var m = module;
-      var e = function () { return m.exports; };
-      if (!headless && typeof e().render !== "function") throw new Error("module.exports.render is not a function");
+    (function (x, headless) {
+      if (x === null || typeof x !== "object") throw new Error("the entry file has no default export");
+      if (!headless && typeof x.render !== "function") throw new Error("the default export has no render function");
       return [
         function (state, mark) {
           var s = JSON.parse(state);
           if (mark) mark();
-          var n = e().render(s);
+          var n = x.render(s);
           if (mark) mark();
           return JSON.stringify(n);
         },
         function (name, args, state, mark) {
-          var f = e()[name];
+          var f = x[name];
           if (typeof f !== "function") return null;
           var a = JSON.parse(args).concat([JSON.parse(state)]);
           if (mark) mark();
-          return f.apply(e(), a) === true;
+          return f.apply(x, a) === true;
         },
         function (method, args, done, mark) {
-          var f = e().methods && e().methods[method];
+          var f = x.methods && x.methods[method];
           if (typeof f !== "function") throw new Error("no method " + method);
           var a = JSON.parse(args);
           if (mark) mark();
@@ -46,7 +61,7 @@ enum PluginScripts {
           r.then(function (v) { done(true, text(v)); }, function (x) { done(false, x instanceof Error ? x.message : String(x)); });
         },
         function (state, mark) {
-          var x = e(), s = JSON.parse(state), out = {};
+          var s = JSON.parse(state), out = {};
           if (mark) mark();
           var resolve = function (v) {
             if (typeof v === "function") v = v(s);

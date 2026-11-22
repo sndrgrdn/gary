@@ -5,7 +5,7 @@ setInterval(() => {
   ticks += 1;
 }, 1000);
 
-module.exports = {
+export default {
   render() {
     renders += 1;
 

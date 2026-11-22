@@ -2,7 +2,7 @@ let frames = 0;
 let renders = 0;
 let timer = null;
 
-module.exports = {
+export default {
   render(state) {
     const { hz = 30 } = state.settings;
     renders += 1;

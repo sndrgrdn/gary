@@ -23,7 +23,7 @@ extension Capability {
     """, example: """
     host.dock.hide().then(() => host.dock.reserve("bottom", 56)).then((dock) => host.log(`reserved ${dock.reserved?.size} points`));
 
-    module.exports = {
+    export default {
       surface: { screen: "main", anchors: { bottom: true, left: true, right: true }, height: 56, layer: "top", exclusionMode: "ignore" },
       render() {
         return { type: "row", children: [{ type: "icon", key: "finder", symbol: "folder", action: "com.apple.finder" }] };

@@ -17,8 +17,8 @@ layout = {"bar": {"left": [], "center": ["bench.reload"], "right": ["gary.batter
 
 def source(token):
     if extension == "ts":
-        return 'const text: string = "%s";\nmodule.exports = { render(): Gary.Node { return { type: "text", text, style: "active" }; } };\n' % token
-    return 'const text = "%s";\nmodule.exports = { render() { return { type: "text", text, style: "active" }; } };\n' % token
+        return 'const text: string = "%s";\nexport default { render(): Gary.Node { return { type: "text", text, style: "active" }; } };\n' % token
+    return 'const text = "%s";\nexport default { render() { return { type: "text", text, style: "active" }; } };\n' % token
 
 
 def write_in_place(path, text):

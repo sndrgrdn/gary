@@ -17,7 +17,7 @@ extension Capability {
       if (!menubar.hidden) host.log("this macOS cannot hide the menu bar");
     });
 
-    module.exports = {
+    export default {
       render(state) {
         return { type: "row", children: [{ type: "spacer", key: "gap" }, { type: "text", key: "width", text: String(state.display?.width) }] };
       },

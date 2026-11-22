@@ -152,6 +152,13 @@ private func validate(_ path: String) throws {
         throw CommandError("\(directory.path): \(error)")
     }
     let manifest = bundle.manifest
+    for kind in manifest.kinds {
+        do {
+            _ = try Transpiler.shared.modules(of: bundle, from: bundle.entryPoint(kind))
+        } catch {
+            throw CommandError("\(directory.path): \(error)")
+        }
+    }
     print("ok \(manifest.id) \(manifest.version) \(manifest.kinds.map(\.rawValue).joined(separator: ","))")
 }
 

@@ -15,6 +15,7 @@ final class PluginRuntime: Subscriber {
     let hub: StateHub
     let deliver: (PluginRuntime, RuntimeEvent) -> Void
     let queue: DispatchQueue
+    private let transpiler: Transpiler
     private let watchdog = Watchdog()
     private var functions: PluginFunctions?
     private var exception: String?
@@ -41,6 +42,7 @@ final class PluginRuntime: Subscriber {
         theme: JSON,
         hub: StateHub,
         deliver: @escaping (PluginRuntime, RuntimeEvent) -> Void,
+        transpiler: Transpiler = .shared,
     ) {
         self.bundle = bundle
         self.kind = kind
@@ -49,6 +51,7 @@ final class PluginRuntime: Subscriber {
         state = StateText(settings: settings, theme: theme)
         self.hub = hub
         self.deliver = deliver
+        self.transpiler = transpiler
         queue = DispatchQueue(label: "gary.plugin.\(bundle.manifest.id)", qos: .userInitiated)
     }
 
@@ -281,11 +284,8 @@ final class PluginRuntime: Subscriber {
 
 private extension PluginRuntime {
     func evaluate() throws -> PluginFunctions {
-        let url = try bundle.entryPoint(kind)
-        var source = try String(contentsOf: url, encoding: .utf8)
-        if url.pathExtension == "ts" {
-            source = try TypeScript.shared.strip(source, file: url.lastPathComponent)
-        }
+        let entry = try bundle.entryPoint(kind)
+        let modules = try transpiler.modules(of: bundle, from: entry)
         guard let context = JSContext() else { throw RenderError("no JavaScript context") }
         context.name = "\(id)"
         context.exceptionHandler = { [weak self] _, value in self?.exception = value?.toString() ?? "unknown exception" }
@@ -303,9 +303,15 @@ private extension PluginRuntime {
         }
         context.setObject(host, forKeyedSubscript: "host" as NSString)
         try installTimers(in: context)
-        context.evaluateScript("var module = { exports: {} }; var exports = module.exports;")
-        try check { context.evaluateScript(source, withSourceURL: url) }
-        let wrappers = try check { context.evaluateScript(PluginScripts.functions)?.call(withArguments: [kind == .service]) }
+        var factories: [String: JSValue] = [:]
+        for module in modules {
+            factories[module.path] = try check {
+                context.evaluateScript("(function (exports, require) {\(module.code)\n})", withSourceURL: module.url)
+            }
+        }
+        let links = Dictionary(uniqueKeysWithValues: modules.map { ($0.path, $0.links) })
+        let exported = try check { context.evaluateScript(PluginScripts.modules)?.call(withArguments: [factories, links, entry]) }
+        let wrappers = try check { context.evaluateScript(PluginScripts.functions)?.call(withArguments: [exported, kind == .service]) }
         let functions = PluginFunctions(wrappers)
         self.functions = functions
         return functions

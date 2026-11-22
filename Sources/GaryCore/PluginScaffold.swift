@@ -44,6 +44,7 @@ public enum PluginScaffold {
         "noEmit": true,
         "target": "es2023",
         "lib": ["es2023"],
+        "module": "preserve",
         "types": [],
         "moduleDetection": "force",
         "isolatedModules": true
@@ -66,7 +67,7 @@ public enum PluginScaffold {
 
         ## Develop
 
-        Gary reloads the plugin each time you save an entry file. Type-check it with `npx -p typescript tsc -p .`.
+        Gary reloads the plugin each time you save a file in its folder. Type-check it with `npx -p typescript tsc -p .`.
         After you change `uses` or `subscribes` in `manifest.json`, run `gary plugin types .` to refresh `\(PluginTypes.declarationsFile)`.
 
         """
@@ -94,7 +95,7 @@ public enum PluginScaffold {
         """
         let clicks = 0;
 
-        module.exports = {
+        export default {
           render() {
             return { type: "text", text: "\(name) " + clicks, style: "active", action: "click" };
           },
@@ -108,7 +109,7 @@ public enum PluginScaffold {
 
     private static func barSource(name: String) -> String {
         """
-        module.exports = {
+        export default {
           render(state) {
             return {
               type: "row",
@@ -129,7 +130,7 @@ public enum PluginScaffold {
         """
         let count = 0;
 
-        module.exports = {
+        export default {
           surface: { anchors: { top: true, right: true }, margins: { top: 8, right: 16 } },
 
           render() {
@@ -161,7 +162,7 @@ public enum PluginScaffold {
 
     private static func overlaySource(name: String) -> String {
         """
-        module.exports = {
+        export default {
           render() {
             return {
               type: "column",
@@ -187,7 +188,7 @@ public enum PluginScaffold {
     const choices = ["One", "Two", "Three"];
     let selected = 0;
 
-    module.exports = {
+    export default {
       render() {
         return {
           type: "column",
@@ -229,7 +230,7 @@ public enum PluginScaffold {
     }, 60_000);
     host.publish({ ticks });
 
-    module.exports = {
+    export default {
       methods: {
         ticks: () => String(ticks),
       },

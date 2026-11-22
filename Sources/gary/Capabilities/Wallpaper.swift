@@ -12,7 +12,7 @@ extension Capability {
       }
     }
     """, example: """
-    module.exports = {
+    export default {
       methods: {
         set(path) {
           host.wallpaper.set(path).then((wallpapers) => host.log(wallpapers.map((each) => `${each.name}: ${each.path}`).join(", ")));

@@ -16,7 +16,7 @@ extension Capability {
       }
     }
     """, example: """
-    module.exports = {
+    export default {
       render(state) {
         const focus = state.focus;
         if (!focus?.available) return { type: "icon", symbol: "moon", style: "dim" };

@@ -51,14 +51,17 @@ enum Crossing {
         let folder = URL(fileURLWithPath: CommandLine.arguments[1])
         guard let context = JSContext() else { fail("no JavaScript context") }
         context.exceptionHandler = { _, value in fail(value?.toString() ?? "exception") }
-        context.evaluateScript("var module = { exports: {} }; var host = { publish: function () {} };")
+        context.evaluateScript("var host = { publish: function () {} };")
         context.evaluateScript("var setInterval = function () { return 1; }; var clearInterval = function () {};")
         guard let panel = try? String(contentsOf: folder.appending(path: "bench.busy/panel.js"), encoding: .utf8),
               let feed = try? String(contentsOf: folder.appending(path: "bench.feed/service.js"), encoding: .utf8) else { fail("no bench plugins") }
-        context.evaluateScript("(function () { \(panel) ; globalThis.panel = module.exports; module = { exports: {} }; })()")
+        func script(_ source: String) -> String {
+            source.replacingOccurrences(of: "export default", with: "var exported =")
+        }
+        context.evaluateScript("(function () { \(script(panel)) ; globalThis.panel = exported; })()")
         context
             .evaluateScript(
-                "(function () { \(feed) ; globalThis.feed = module.exports; globalThis.feedState = function () { return { items, published }; }; })()",
+                "(function () { \(script(feed)) ; globalThis.feed = exported; globalThis.feedState = function () { return { items, published }; }; })()",
             )
         guard let tree = context.evaluateScript("panel.render({ settings: { nodes: \(nodes), hz: 0 } })"),
               let stringify = context.evaluateScript("(function (v) { return JSON.stringify(v); })"),

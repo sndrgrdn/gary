@@ -28,7 +28,7 @@ extension Capability {
         }
         """,
         example: """
-        module.exports = {
+        export default {
           render(state) {
             const output = state.audio?.output;
             if (output?.volume == null) return { type: "text", text: "No output" };

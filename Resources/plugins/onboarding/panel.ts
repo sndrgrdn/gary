@@ -186,7 +186,7 @@ function allowNext(all: Status[]) {
 
 let waitingFor: Gary.PermissionName | undefined;
 
-module.exports = {
+export default {
   surface: { width: 520, layer: "normal" },
 
   onTopic(topic, _value, state) {

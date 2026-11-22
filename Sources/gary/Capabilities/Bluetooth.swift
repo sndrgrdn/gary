@@ -29,7 +29,7 @@ extension Capability {
         }
         """,
         example: """
-        module.exports = {
+        export default {
           render(state) {
             if (state.bluetooth?.permission === "notDetermined") return { type: "button", action: "allow", children: [{ type: "text", text: "Allow Bluetooth" }] };
             return {

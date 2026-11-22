@@ -8,7 +8,7 @@ const symbol = (percent, charging) => {
   return `battery.${level}percent`;
 };
 
-module.exports = {
+export default {
   render(state) {
     const battery = state.battery;
 

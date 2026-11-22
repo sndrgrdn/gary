@@ -11,7 +11,7 @@ refresh();
 
 setInterval(refresh, 30_000);
 
-module.exports = {
+export default {
   render() {
     return {
       type: "row",

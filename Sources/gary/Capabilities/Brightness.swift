@@ -17,7 +17,7 @@ extension Capability {
         }
         """,
         example: """
-        module.exports = {
+        export default {
           render(state) {
             return {
               type: "column",

@@ -116,7 +116,7 @@ struct PluginManifestTests {
     }
 
     @Test func `entry points stay inside the plugin as scripts`() {
-        for path in ["../escape.js", "lib/../../escape.js", "/etc/x.js", "~/x.js", "widget.tsx", "widget.d", "./widget.js", "lib//w.js"] {
+        for path in ["../escape.js", "lib/../../escape.js", "/etc/x.js", "~/x.js", "widget.jsx", "widget.d", "./widget.js", "lib//w.js"] {
             rejects(["entryPoints": ["bar-widget": .string(path)]], with: .unsafeEntryPoint(path))
         }
     }
@@ -181,7 +181,7 @@ struct PluginCatalogTests {
         if writeEntry {
             let file = directory.appendingPathComponent(entry)
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try "module.exports = {}".write(to: file, atomically: true, encoding: .utf8)
+            try "export default {}".write(to: file, atomically: true, encoding: .utf8)
         }
         return directory
     }
@@ -203,8 +203,7 @@ struct PluginCatalogTests {
         #expect(catalog.problems.isEmpty)
         let mediaID = try #require(PluginID("acme.media"))
         let bundle = try #require(catalog.plugins[mediaID])
-        let entry = try bundle.entryPoint(.barWidget)
-        #expect(entry.path.hasSuffix("media/src/widget.js"))
+        #expect(try bundle.entryPoint(.barWidget) == "src/widget.js")
     }
 
     @Test func `follows A user plugin folder that is A symlink`() throws {

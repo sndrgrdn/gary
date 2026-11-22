@@ -151,8 +151,6 @@ public enum PluginTypes {
         }
 
         declare const host: Gary.Host;
-        declare var module: { exports: Gary.Module };
-        declare var exports: Gary.Module;
         declare function setTimeout(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;
         declare function setInterval(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;
         declare function clearTimeout(id?: number): void;
@@ -165,6 +163,7 @@ public enum PluginTypes {
         let kinds = strings(PluginKind.allCases.map(\.rawValue))
         let id = JSON.object(["$ref": .string("#/$defs/id")])
         let string = type("string")
+        let scripts = ScriptLanguage.allCases.map(\.rawValue).joined(separator: "|")
         return .object([
             "$schema": .string("https://json-schema.org/draft/2020-12/schema"),
             "title": .string("Gary plugin manifest"),
@@ -182,7 +181,7 @@ public enum PluginTypes {
                 "kinds": type("array", ["minItems": .number(1), "uniqueItems": .bool(true), "items": .object(["enum": kinds])]),
                 "entryPoints": type("object", [
                     "propertyNames": .object(["enum": kinds]),
-                    "additionalProperties": type("string", ["pattern": .string(#"^(?![/~])(?!.*(^|/)\.{0,2}(/|$))[^\u0000]*\.(js|ts)$"#)]),
+                    "additionalProperties": type("string", ["pattern": .string(#"^(?![/~])(?!.*(^|/)\.{0,2}(/|$))[^\u0000]*\.(\#(scripts))$"#)]),
                 ]),
                 "keepLoaded": type("boolean"),
                 "bar": .object(["enum": strings(BarSection.allCases.map(\.rawValue))]),

@@ -9,7 +9,7 @@ function publish() {
 
 publish();
 
-module.exports = {
+export default {
   render() {
     return {
       type: "row",

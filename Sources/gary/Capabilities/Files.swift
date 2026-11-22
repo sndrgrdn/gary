@@ -27,7 +27,7 @@ extension Capability {
           text = contents ?? "";
         });
 
-        module.exports = {
+        export default {
           render() {
             return { type: "input", value: text, placeholder, submit: "save" };
           },

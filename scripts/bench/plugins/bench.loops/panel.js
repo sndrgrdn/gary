@@ -9,7 +9,7 @@ function dots(mode) {
   });
 }
 
-module.exports = {
+export default {
   surface: { width: 600, height: 240 },
 
   render(state) {

@@ -87,7 +87,7 @@ function settings(state: Gary.State): Gary.Node {
   };
 }
 
-module.exports = {
+export default {
   surfaces: {
     main: { anchors: { top: true, right: true }, margins: { top: 8, right: 16 } },
     osd: {

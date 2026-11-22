@@ -35,7 +35,7 @@ struct SkillTests {
     @Test func `shows an example entry file for every capability`() throws {
         let guide = try guide
         for capability in Capability.all {
-            #expect(capability.example.contains("module.exports = {") && capability.example.contains("} satisfies Gary."), "\(capability.name)")
+            #expect(capability.example.contains("export default {") && capability.example.contains("} satisfies Gary."), "\(capability.name)")
             #expect(guide.contains("```ts\n\(capability.example.trimmingCharacters(in: .newlines))\n```"), "\(capability.name)")
         }
     }

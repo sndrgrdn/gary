@@ -31,7 +31,7 @@ function tree(nodes) {
   return { type: "column", gap: 2, padding: 8, children };
 }
 
-module.exports = {
+export default {
   surface: { width: 1200, height: 900 },
 
   render(state) {

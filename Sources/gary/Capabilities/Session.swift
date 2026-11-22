@@ -17,7 +17,7 @@ extension Capability {
         example: """
         let refreshed = "never";
 
-        module.exports = {
+        export default {
           onTopic(topic, _value, state) {
             if (topic === "session" && state.session?.locked === false) refreshed = new Date().toTimeString().slice(0, 5);
           },

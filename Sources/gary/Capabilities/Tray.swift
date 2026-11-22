@@ -38,7 +38,7 @@ extension Capability {
     refresh();
     setInterval(refresh, 5_000);
 
-    module.exports = {
+    export default {
       render() {
         return {
           type: "row",

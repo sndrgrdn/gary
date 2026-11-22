@@ -30,7 +30,7 @@ extension Capability {
       }
     }
     """, example: """
-    module.exports = {
+    export default {
       render(state) {
         const track = state.nowplaying?.track;
         if (!track) return { type: "text", text: "" };

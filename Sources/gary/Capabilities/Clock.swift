@@ -8,7 +8,7 @@ extension Capability {
       interface Clock { epoch: number }
     }
     """, example: """
-    module.exports = {
+    export default {
       render(state) {
         const now = new Date(state.clock?.epoch ?? Date.now());
         return { type: "text", text: `${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`, style: "bright" };
