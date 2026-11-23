@@ -30,6 +30,7 @@
 - `gary doctor` checks the theme in the Mac's current appearance instead of always in dark mode, and names the mode it checked.
 - `host.watchFile` calls back for a file created after the watch starts, and again when a file is deleted and created anew, instead of giving up after 5 seconds.
 - `host.spawn`, `host.hotkeys`, `host.hyperkey`, and `host.watchFile` name the API in their errors, such as `host.hyperkey: …`, like the other host functions.
+- `host.spawn` cuts a line longer than 1 MB to its first 1 MB, so a command that never prints a newline no longer grows Gary's memory without bound, and long output no longer slows down.
 
 ## 0.4.0
 
