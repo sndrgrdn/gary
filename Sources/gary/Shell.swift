@@ -2,12 +2,6 @@ import AppKit
 import GaryCore
 import GarySocket
 
-struct MountKey: Hashable {
-    let slot: SlotKey
-    let surface: String
-    let display: String
-}
-
 final class Shell {
     let hub = StateHub(sources: Capability.topics)
     let engines = PluginEngines()
@@ -18,17 +12,12 @@ final class Shell {
         make: { self.makeRuntime($0, $1, $2) },
         scene: { self.scene($0, $1) },
     )
-    var displays: [DisplayInfo] = []
-    var bars = PerDisplay<BarWindow>()
-    var windows: [MountKey: SurfaceWindow] = [:]
-    var barsAside: [String: Bool] = [:]
-    var asideTimer: Timer?
-    var mounts: [MountKey: TreeHostingView] = [:]
-    let tooltipPanel: TooltipPanel
-    var clickMonitors: [Any] = []
+    private(set) lazy var screens = Screens(theme: theme, setup: setup, slots: slots) { [weak self] key, trace in
+        _ = self?.hide(key.surface, in: key.slot, trace)
+    }
+
     private(set) var hotkeys: HotkeyCenter?
     var mediaKeys: MediaKeyTap?
-    var previousApp: NSRunningApplication?
     private var server: LineServer?
     private var watcher: FileWatcher?
     private var installingPackages: Set<PackageIdentity> = []
@@ -37,7 +26,6 @@ final class Shell {
 
     init() throws {
         theme = try CurrentTheme(files: ConfigFiles(), system: Palette.Mode(NSApp.effectiveAppearance))
-        tooltipPanel = TooltipPanel(theme: theme.value)
         ToastStack.shared.theme = theme.value
     }
 

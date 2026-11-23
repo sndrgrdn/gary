@@ -110,11 +110,6 @@ extension Shell {
         slots.surfaceSlot(address).flatMap { $0.shown[address.surface] == nil ? nil : $0.key }
     }
 
-    func pointerDisplay() -> String? {
-        let pointer = NSEvent.mouseLocation
-        return displays.first { NSMouseInRect(pointer, $0.frame, false) }?.id
-    }
-
     func toggle(_ address: SurfaceAddress, _ trace: Trace, origin: CGRect? = nil, _ reply: ((Response) -> Void)? = nil) {
         if shownSlot(address) != nil {
             let response = hide(address, trace)
@@ -130,7 +125,7 @@ extension Shell {
                     .isEmpty ? "no enabled surface \(address.plugin)" : "\(address.plugin) has no surface \(address.surface)"))
             return
         }
-        perform(slots.show(address.surface, in: slot.key, ShownSurface(focused: pointerDisplay(), origin: origin), reply), trace)
+        perform(slots.show(address.surface, in: slot.key, ShownSurface(focused: screens.pointerDisplay(), origin: origin), reply), trace)
     }
 
     func hide(_ address: SurfaceAddress, _ trace: Trace) -> Response {

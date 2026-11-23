@@ -1,42 +1,112 @@
 import AppKit
 import GaryCore
 
-extension Shell {
-    func present(_ slot: SlotKey, _ output: RuntimeOutput, _ trace: Trace) {
-        var timings = trace.timings
-        let changes = measure(.apply, &timings) {
-            let shown = slots[slot]?.shown ?? [:]
-            var changes: [MountKey: Bool] = [:]
-            for (surface, trees) in output.trees where !slot.kind.isSurface || shown[surface] != nil {
-                for (display, tree) in trees {
-                    let key = MountKey(slot: slot, surface: surface, display: display)
-                    changes[key] = mount(key, tree)
+struct MountKey: Hashable {
+    let slot: SlotKey
+    let surface: String
+    let display: String
+}
+
+final class Screens {
+    private(set) var displays: [DisplayInfo] = []
+    private(set) var bars = PerDisplay<BarWindow>()
+    private(set) var windows: [MountKey: SurfaceWindow] = [:]
+    private(set) var mounts: [MountKey: TreeHostingView] = [:]
+    private var barsAside: [String: Bool] = [:]
+    private var asideTimer: Timer?
+    private var clickMonitors: [Any] = []
+    private var previousApp: NSRunningApplication?
+    let tooltipPanel: TooltipPanel
+    let theme: CurrentTheme
+    let setup: PluginSetup
+    let slots: PluginSlots<PluginRuntime>
+    let hide: (MountKey, Trace) -> Void
+
+    init(theme: CurrentTheme, setup: PluginSetup, slots: PluginSlots<PluginRuntime>, hide: @escaping (MountKey, Trace) -> Void) {
+        self.theme = theme
+        self.setup = setup
+        self.slots = slots
+        self.hide = hide
+        tooltipPanel = TooltipPanel(theme: theme.value)
+    }
+
+    func refresh(builtinBar: Bool) -> DisplayChange? {
+        let theme = theme.value
+        let next = NSScreen.screens.enumerated().map { $1.display(index: $0, theme: theme) }
+        let change = DisplayChange(from: displays, to: next)
+        displays = next
+        let appearance = appearance
+        let level = SurfaceLevels.bar
+        let barChange = bars.sync(builtinBar ? next : [], open: { [weak self] display in
+            let bar = BarWindow(display: display, level: level)
+            watchTopEdge(of: bar.content) { [weak self, weak bar] in
+                if let bar {
+                    self?.pointerReachedTop(bar.display.id)
                 }
             }
-            for key in mounts.keys where key.slot == slot && output.trees[key.surface]?.keys.contains(key.display) != true {
-                unmount(key)
-            }
-            return changes
+            bar.panel.appearance = appearance
+            bar.layout(theme: theme)
+            return bar
+        }, update: { bar, display in
+            bar.display = display
+            bar.layout(theme: theme)
+        }, close: { $0.close() })
+        guard !change.isEmpty || !barChange.isEmpty else { return nil }
+        for key in mounts.keys where change.removed.contains(key.display) || (key.slot.kind == .barWidget && bars[key.display] == nil) {
+            unmount(key)
         }
-        timings.merge(commitFrame())
-        guard tracing else { return }
-        let end = now()
-        for (key, changed) in changes {
-            log(String(
-                format: "commit plugin=%@ surface=%@ display=%@ cause=%@ since_ms=%.3f changed=%d %@ tree=%@",
-                key.slot.id.rawValue,
-                key.surface,
-                key.display,
-                trace.cause,
-                (end - trace.start) * 1000,
-                changed ? 1 : 0,
-                timings.fields,
-                output.trees[key.surface]?[key.display]??.summary ?? "",
-            ))
+        return change
+    }
+
+    func pointerReachedTop(_ id: String) {
+        guard setup.config.revealMenuBar, !SystemState.saved.menuBarHidden, barsAside[id] == nil,
+              let display = displays.first(where: { $0.id == id }) else { return }
+        barsAside[id] = NativeMenuBar.revealed(on: display.frame)
+        applyBarLevel(id)
+        log("bar on \(id.prefix(8)) hides so the macOS menu bar can reveal")
+        guard asideTimer == nil else { return }
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.returnBarsAside() } }
+        RunLoop.main.add(timer, forMode: .common)
+        asideTimer = timer
+    }
+
+    private func returnBarsAside() {
+        let pointer = NSEvent.mouseLocation
+        for (id, menuBarWasShown) in barsAside {
+            if let display = displays.first(where: { $0.id == id }), setup.config.revealMenuBar, !SystemState.saved.menuBarHidden {
+                let band = NSRect(x: display.frame.minX, y: display.frame.maxY - display.band, width: display.frame.width, height: display.band)
+                if NSMouseInRect(pointer, band, false) || (!menuBarWasShown && NativeMenuBar.revealed(on: display.frame)) {
+                    continue
+                }
+            }
+            barsAside[id] = nil
+            applyBarLevel(id)
+            log("bar on \(id.prefix(8)) returns over the macOS menu bar")
+        }
+        if barsAside.isEmpty {
+            asideTimer?.invalidate()
+            asideTimer = nil
         }
     }
 
-    private func mount(_ key: MountKey, _ tree: Node?) -> Bool {
+    func barLevel(_ display: String) -> Int {
+        barsAside[display] == nil ? SurfaceLevels.bar : SurfaceLevels.barAside
+    }
+
+    private func applyBarLevel(_ display: String) {
+        let aside = barsAside[display] != nil
+        let panels = [bars[display]?.panel].compactMap(\.self) + windows.filter { $0.key.slot.kind == .bar && $0.key.display == display }
+            .map(\.value.panel)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = theme.value.motion.fade
+            for panel in panels {
+                panel.level = NSWindow.Level(rawValue: barLevel(display))
+                panel.animator().alphaValue = aside ? 0 : 1
+            }
+        }
+    }
+
+    func mount(_ key: MountKey, _ tree: Node?) -> Bool {
         let slotKey = key.slot
         let onAction: ActionHandler = { [weak self] event in self?.perform(event, slotKey) }
         let changed: Bool
@@ -56,10 +126,6 @@ extension Shell {
         }
         place(key)
         return changed
-    }
-
-    func theme(for kind: PluginKind) -> Theme {
-        kind == .bar || kind == .barWidget ? theme.value.inBar : theme.value
     }
 
     func place(_ key: MountKey) {
@@ -90,32 +156,7 @@ extension Shell {
         }
     }
 
-    private func placeInBar(_ key: MountKey) {
-        guard let bar = bars[key.display] else { return }
-        for (section, ids) in setup.resolution.bar where ids.contains(key.slot.id) {
-            bar.setSection(
-                section,
-                ids.compactMap { mounts[MountKey(slot: SlotKey(id: $0, kind: .barWidget), surface: key.surface, display: key.display)] },
-            )
-        }
-    }
-
-    private func open(_ window: SurfaceWindow, _ key: MountKey, focusable: Bool) {
-        if key.slot.kind == .bar {
-            watchTopEdge(of: window.card) { [weak self] in self?.pointerReachedTop(key.display) }
-        }
-        window.show(fade: fade(key.slot))
-        if key.slot.kind.isSurface {
-            let slotKey = key.slot
-            window.panel.onScroll = { [weak self] event in self?.slots[slotKey]?.runtime?.scroll(event) }
-        }
-        if key.slot.kind.isSurface, focusable {
-            focus(window, key)
-        }
-        watchClicks()
-    }
-
-    private func focus(_ window: SurfaceWindow, _ mount: MountKey) {
+    func focus(_ window: SurfaceWindow, _ mount: MountKey) {
         let front = NSWorkspace.shared.frontmostApplication
         if front?.processIdentifier != getpid() {
             previousApp = front
@@ -129,21 +170,6 @@ extension Shell {
             }
         }
         window.focus()
-    }
-
-    private func hide(_ mount: MountKey, _ trace: Trace) {
-        _ = hide(mount.surface, in: mount.slot, trace)
-    }
-
-    private func keyPressed(_ key: String, _ mount: MountKey) {
-        if tracing {
-            log("key plugin=\(mount.slot) surface=\(mount.surface) key=\(key)")
-        }
-        slots[mount.slot]?.runtime?.key(key) { [weak self] in
-            if mount.slot.kind.hides(onUnhandled: key) {
-                self?.hide(mount, Trace("escape"))
-            }
-        }
     }
 
     func unmount(_ key: MountKey) {
@@ -178,11 +204,7 @@ extension Shell {
         }
     }
 
-    private func fade(_ slot: SlotKey) -> Double {
-        slot.kind.isSurface ? theme.value.motion.fade : 0
-    }
-
-    private func watchClicks() {
+    func watchClicks() {
         let open = windows.keys.contains { $0.slot.kind == .menu }
         guard open == clickMonitors.isEmpty else { return }
         if !open {
@@ -201,23 +223,6 @@ extension Shell {
             },
         ].compactMap(\.self)
     }
-
-    private func clicked(at point: NSPoint) {
-        let menus = windows.keys.filter { $0.slot.kind == .menu }
-        for menu in menus where !windows.contains(where: { $0.key.slot == menu.slot && $0.key.surface == menu.surface && $0.value.contains(point) }) {
-            hide(menu, Trace("click-outside"))
-        }
-    }
-
-    func unmount(_ slot: SlotKey, surface: String? = nil) {
-        for key in mounts.keys where key.slot == slot && (surface == nil || key.surface == surface) {
-            unmount(key)
-        }
-        if slot.kind == .barWidget {
-            arrangeBars()
-        }
-        watchClicks()
-    }
 }
 
 extension TreeHostingView {
@@ -227,20 +232,5 @@ extension TreeHostingView {
         guard let root, root != tree.root else { return changed }
         tree.root = root
         return true
-    }
-}
-
-extension Node {
-    var summary: String {
-        switch content {
-        case let .row(children), let .column(children), let .stack(children), let .scroll(children, _), let .button(children, _),
-             let .grid(children, _):
-            children.map(\.summary).filter { !$0.isEmpty }.joined(separator: " ")
-        case let .text(value), let .icon(value), let .image(value): value.replacingOccurrences(of: " ", with: "_") + ":" + (style ?? "default")
-        case let .slider(value, _), let .progress(value): "\(kind.rawValue)=\(value.value)"
-        case let .input(input): "input=\(input.value)"
-        case .spacer: ""
-        case .shape, .chart, .shader: kind.rawValue
-        }
     }
 }

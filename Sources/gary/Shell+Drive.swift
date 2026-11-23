@@ -44,7 +44,7 @@ extension Shell {
                 hotkeyPressed(binding)
                 continue
             }
-            let focused = windows.first { $0.key.slot.id == id && (kind == nil || $0.key.slot.kind == kind) && $0.value.panel.isKeyWindow }
+            let focused = screens.windows.first { $0.key.slot.id == id && (kind == nil || $0.key.slot.kind == kind) && $0.value.panel.isKeyWindow }
             guard let panel = focused?.value.panel, let event = NSEvent.keyDown(named: key, windowNumber: panel.windowNumber) else {
                 return .failure("\(kind.map { "\(id)/\($0.rawValue)" } ?? id.rawValue) has no focused surface to take \"\(key)\"")
             }
@@ -71,7 +71,7 @@ extension Shell {
             }
         }
         guard key.kind.isSurface else { return .failure("\(key) takes a scroll only over a node with scrollAction") }
-        guard mounts.keys.contains(where: { $0.slot == key }) else { return .failure("\(key) is not shown") }
+        guard screens.mounts.keys.contains(where: { $0.slot == key }) else { return .failure("\(key) is not shown") }
         for event in events {
             runtime.scroll(event)
         }
@@ -132,8 +132,8 @@ extension Shell {
     }
 
     private func mounted(_ key: SlotKey) -> [TreeHostingView] {
-        let pointer = pointerDisplay()
-        return mounts.filter { $0.key.slot == key && !$0.value.isHidden }.sorted { $0.key.display == pointer && $1.key.display != pointer }
+        let pointer = screens.pointerDisplay()
+        return screens.mounts.filter { $0.key.slot == key && !$0.value.isHidden }.sorted { $0.key.display == pointer && $1.key.display != pointer }
             .map(\.value)
     }
 

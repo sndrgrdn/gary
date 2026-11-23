@@ -14,25 +14,14 @@ extension Shell {
         do {
             guard try change() else { return .ok("theme unchanged") }
             let applied = theme.value
-            tooltipPanel.theme = applied
             ToastStack.shared.theme = applied
             for warning in applied.warnings {
                 log("theme \(warning)")
             }
-            for panel in panels {
-                panel.appearance = appearance
+            if let change = screens.restyle(builtinBar: usesBuiltinBar) {
+                displaysChanged(change, trace)
             }
-            refreshDisplays(trace)
-            for bar in bars.surfaces.values {
-                bar.layout(theme: applied)
-            }
-            for (key, view) in mounts {
-                view.tree.theme = theme(for: key.slot.kind)
-            }
-            for key in mounts.keys {
-                place(key)
-            }
-            commitFrame()
+            screens.commitFrame()
             let json = applied.json
             for slot in slots.values {
                 slot.candidate?.setTheme(json, trace)

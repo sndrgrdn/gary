@@ -26,12 +26,31 @@ extension Shell {
         }
     }
 
+    func refreshDisplays(_ trace: Trace) {
+        if let change = screens.refresh(builtinBar: usesBuiltinBar) {
+            displaysChanged(change, trace)
+        }
+    }
+
+    func displaysChanged(_ change: DisplayChange, _ trace: Trace) {
+        for slot in slots.values {
+            slot.runtime?.setScene(scene(slot.key.kind, slot.shown), trace)
+        }
+        log(
+            "screens added=\(change.added.count) removed=\(change.removed.count) changed=\(change.changed.count) bars=\(screens.bars.surfaces.count): "
+                + screens.displays
+                .map {
+                    "\($0.id.prefix(8)) \(Int($0.frame.width))x\(Int($0.frame.height))@\(Int($0.frame.minX)),\(Int($0.frame.minY)) notch=\($0.notch != nil)"
+                }.joined(separator: "; "),
+        )
+    }
+
     func sync(_ trace: Trace, reloading: Set<SlotKey> = []) {
         refreshDisplays(trace)
         perform(slots.sync(setup.wanted(builtinBar: usesBuiltinBar), reloading: reloading), trace)
         claimMediaKeys()
-        arrangeBars()
-        commitFrame()
+        screens.arrangeBars()
+        screens.commitFrame()
     }
 
     private func claimMediaKeys() {
@@ -45,8 +64,9 @@ extension Shell {
     }
 
     func scene(_ kind: PluginKind, _ shown: [String: ShownSurface]) -> Scene {
-        switch kind {
-        case .barWidget: Scene(displays: displays.filter { bars[$0.id] != nil }, shown: [SurfaceAddress.main: ShownSurface()])
+        let displays = screens.displays
+        return switch kind {
+        case .barWidget: Scene(displays: displays.filter { screens.bars[$0.id] != nil }, shown: [SurfaceAddress.main: ShownSurface()])
         case .bar: Scene(displays: displays, shown: [SurfaceAddress.main: ShownSurface()])
         case .service: Scene()
         case .panel, .overlay, .menu: Scene(displays: displays, shown: shown)
@@ -69,7 +89,7 @@ extension Shell {
             case let .stop(runtime): runtime.stop()
             case let .setScene(runtime, scene): runtime.setScene(scene, trace)
             case let .present(key, output): present(key, output, trace)
-            case let .unmount(key, surface): unmount(key, surface: surface)
+            case let .unmount(key, surface): screens.unmount(key, surface: surface)
             case let .answer(waiters, response): waiters.forEach { $0(response) }
             case let .later(delay, cause, transition):
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.perform(transition(), Trace(cause)) }
@@ -95,7 +115,7 @@ extension Shell {
             call(target.plugin ?? key.id, target.kind, method, arguments, reply)
         case let .failed(reason):
             perform(slots.failed(runtime, at: key, reason), Trace("bar-fallback"))
-            commitFrame()
+            screens.commitFrame()
         }
     }
 
@@ -113,14 +133,39 @@ extension Shell {
         }
     }
 
-    func perform(_ event: ActionEvent, _ key: SlotKey) {
-        if tracing {
-            log("action plugin=\(key) action=\(event.name) payload=\(event.payload.text) origin=\(event.origin.map { "\($0)" } ?? "none")")
+    private func present(_ slot: SlotKey, _ output: RuntimeOutput, _ trace: Trace) {
+        var timings = trace.timings
+        let changes = measure(.apply, &timings) { screens.present(slot, output) }
+        timings.merge(screens.commitFrame())
+        guard tracing else { return }
+        let end = now()
+        for (key, changed) in changes {
+            log(String(
+                format: "commit plugin=%@ surface=%@ display=%@ cause=%@ since_ms=%.3f changed=%d %@ tree=%@",
+                key.slot.id.rawValue,
+                key.surface,
+                key.display,
+                trace.cause,
+                (end - trace.start) * 1000,
+                changed ? 1 : 0,
+                timings.fields,
+                output.trees[key.surface]?[key.display]??.summary ?? "",
+            ))
         }
-        if event.gesture == .scroll {
-            slots[key]?.runtime?.scroll(event.payload, action: event.name, origin: event.origin)
-        } else {
-            slots[key]?.runtime?.perform(event.name, event.payload, origin: event.origin)
+    }
+}
+
+extension Node {
+    var summary: String {
+        switch content {
+        case let .row(children), let .column(children), let .stack(children), let .scroll(children, _), let .button(children, _),
+             let .grid(children, _):
+            children.map(\.summary).filter { !$0.isEmpty }.joined(separator: " ")
+        case let .text(value), let .icon(value), let .image(value): value.replacingOccurrences(of: " ", with: "_") + ":" + (style ?? "default")
+        case let .slider(value, _), let .progress(value): "\(kind.rawValue)=\(value.value)"
+        case let .input(input): "input=\(input.value)"
+        case .spacer: ""
+        case .shape, .chart, .shader: kind.rawValue
         }
     }
 }
