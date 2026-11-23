@@ -353,4 +353,37 @@ struct PluginSlotsTests {
         try lifecycle.sync([service: bundle("test.service", .service, version: "2"), panel: bundle("test.panel", .panel, version: "2")])
         #expect(lifecycle.made.count == 2)
     }
+
+    @Test func `a panel that a call or hotkey loads with nothing shown stops a minute after the last one`() throws {
+        let lifecycle = Lifecycle()
+        let panel = try key("test.panel", .panel)
+        try lifecycle.sync([panel: bundle("test.panel", .panel)])
+        _ = lifecycle.use(panel)
+        let runtime = try lifecycle.newest
+        lifecycle.loaded(runtime, panel, shows: [])
+        lifecycle.advance(by: 30)
+        _ = lifecycle.use(panel)
+        lifecycle.advance(by: 59)
+        #expect(!runtime.stopped)
+        lifecycle.advance(by: 1)
+        #expect(runtime.stopped)
+        #expect(lifecycle.state(panel) == "stopped")
+    }
+
+    @Test func `a panel that a call loads keeps running while it is shown or keepLoaded`() throws {
+        let lifecycle = Lifecycle()
+        let panel = try key("test.panel", .panel)
+        let kept = try key("test.kept", .panel)
+        try lifecycle.sync([panel: bundle("test.panel", .panel), kept: bundle("test.kept", .panel, keepLoaded: true)])
+        _ = lifecycle.use(panel)
+        let shown = try lifecycle.newest
+        lifecycle.loaded(shown, panel, shows: [])
+        _ = lifecycle.show(in: panel)
+        _ = lifecycle.use(kept)
+        let loaded = try lifecycle.newest
+        lifecycle.loaded(loaded, kept, shows: [])
+        lifecycle.advance(by: 120)
+        #expect(!shown.stopped)
+        #expect(!loaded.stopped)
+    }
 }
