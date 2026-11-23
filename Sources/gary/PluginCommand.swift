@@ -8,7 +8,7 @@ let pluginUsage: [CommandUsage] = [
         Scaffold a TypeScript plugin with one or more kinds, or copy a bundled example under a new id, and enable it. \
         It goes into ~/.config/gary/plugins/<id>, or into <folder>, which must not exist yet and which Gary then loads in place as a local package.
         """,
-        "gary plugin new you.weather --from load",
+        "gary plugin new you.weather --from weather",
     ),
     CommandUsage("plugin validate <path>", "Check a plugin folder with the checks Gary runs when it loads plugins.", nil),
     CommandUsage(
