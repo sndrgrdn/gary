@@ -6,6 +6,7 @@ import JavaScriptCore
 final class Transpiler {
     static let shared = Transpiler(sucrase: Paths.sucrase, cache: Paths.transpiled)
     static let idle: TimeInterval = 30
+    private static let options = #"{ disableESTransforms: true, production: true, jsxPragma: "Gary.h", jsxFragmentPragma: "Gary.Fragment" }"#
 
     private let sucrase: URL
     private let cache: URL
@@ -17,7 +18,7 @@ final class Transpiler {
     init(sucrase: URL, cache: URL) {
         self.sucrase = sucrase
         self.cache = cache
-        version = Data(SHA256.hash(data: (try? Data(contentsOf: sucrase)) ?? Data()))
+        version = Data(SHA256.hash(data: ((try? Data(contentsOf: sucrase)) ?? Data()) + Data(Self.options.utf8)))
     }
 
     func modules(of bundle: PluginBundle, from entry: String) throws -> [PluginModule] {
@@ -81,9 +82,7 @@ final class Transpiler {
         try context.evaluateScript(String(contentsOf: sucrase, encoding: .utf8), withSourceURL: sucrase)
         guard context.exception == nil, let transform = context.evaluateScript("""
         (function (source, transforms) {
-          return Sucrase.transform(source, {
-            transforms: transforms, disableESTransforms: true, production: true, jsxPragma: "Gary.h", jsxFragmentPragma: "Gary.Fragment"
-          }).code;
+          return Sucrase.transform(source, Object.assign({ transforms: transforms }, \(Self.options))).code;
         })
         """), transform.isObject else { throw RenderError("cannot load the transpiler from \(sucrase.path)") }
         return (context, transform)
