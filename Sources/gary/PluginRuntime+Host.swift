@@ -6,12 +6,10 @@ extension PluginRuntime {
     func makeHost(in context: JSContext) -> JSValue? {
         let id = id
         let logBlock: @convention(block) (String) -> Void = { message in log("plugin \(id): \(message)") }
-        let storageURL = Paths.storage.appending(path: "\(id).json")
-        let read: @convention(block) () -> String? = { try? String(contentsOf: storageURL, encoding: .utf8) }
-        let write: @convention(block) (String) -> Void = { text in
+        let read: @convention(block) (String) -> String? = { key in PluginStorage.get(id, key)?.text }
+        let write: @convention(block) (String, JSValue) -> Void = { key, text in
             do {
-                try FileManager.default.createDirectory(at: Paths.storage, withIntermediateDirectories: true)
-                try Data(text.utf8).write(to: storageURL, options: .atomic)
+                try PluginStorage.set(id, key, text.isUndefined ? nil : JSON.parse(text.toString()))
             } catch {
                 log("plugin \(id): storage not saved: \(error)")
             }

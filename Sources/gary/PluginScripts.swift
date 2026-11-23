@@ -151,20 +151,14 @@ nonisolated enum PluginScripts {
 
     static let host = """
     (function (log, read, write, publish, show, hide, toggle, call, id, kinds) {
-      var data = null;
-      function load() {
-        if (data !== null) return;
-        var text = read();
-        try { data = text ? JSON.parse(text) : {}; } catch (e) { data = {}; }
-      }
       return {
         log: log,
         storage: {
-          get: function (key) { load(); return data[key]; },
+          get: function (key) { var text = read(String(key)); return text ? JSON.parse(text) : undefined; },
           set: function (key, value) {
-            load();
-            if (value === undefined) delete data[key]; else data[key] = JSON.parse(JSON.stringify(value));
-            write(JSON.stringify(data));
+            var text = JSON.stringify(value);
+            if (value !== undefined && text === undefined) throw new TypeError("host.storage.set: " + key + " is not a JSON value");
+            write(String(key), text);
           }
         },
         publish: publish,
