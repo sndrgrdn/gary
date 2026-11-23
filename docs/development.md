@@ -73,4 +73,6 @@ CI also builds with warnings as errors: `swift build -Xswiftc -warnings-as-error
 just release 0.4.0
 ```
 
-`scripts/release.sh` needs a clean working tree, the GitHub CLI, and a clone of [sndrgrdn/homebrew-tap](https://github.com/sndrgrdn/homebrew-tap) next to this repository, or at `$TAP`. It bundles and signs Gary, zips it with a SHA-256 checksum, tags and pushes the version, creates the GitHub release, and updates and pushes the Homebrew cask.
+Add each user-visible change to the `## Unreleased` section of `CHANGELOG.md` when it lands. Write for the people who use Gary or write plugins: what they can now do, what changed for them, and what they must change, under `### Upgrading` first. Leave out internal work such as refactors, tests, CI, and tooling.
+
+`scripts/release.sh` needs a clean `main` that matches `origin/main`, the GitHub CLI, and a clone of [sndrgrdn/homebrew-tap](https://github.com/sndrgrdn/homebrew-tap) next to this repository, or at `$TAP`. It renames `## Unreleased` to `## 0.4.0` under a new empty `## Unreleased`, then commits and pushes `Release 0.4.0`. Then it bundles and signs Gary, zips it with a SHA-256 checksum, and tags and pushes the version. It creates the GitHub release with the `## 0.4.0` section as its notes, and updates and pushes the Homebrew cask. If a step fails, run the same command again. It reuses the `Release 0.4.0` commit.
