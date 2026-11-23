@@ -204,6 +204,9 @@ final class BarWindow {
     }
 
     func setSection(_ section: BarSection, _ views: [NSView]) {
+        for view in views {
+            view.setContentCompressionResistancePriority(section == .notchLeft ? .defaultLow : .defaultHigh, for: .horizontal)
+        }
         stack(section).arrange(views)
     }
 
