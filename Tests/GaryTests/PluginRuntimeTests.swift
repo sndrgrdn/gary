@@ -273,6 +273,22 @@ struct PluginRuntimeTests {
         harness.runtime.stop()
     }
 
+    @Test func `a method call still pending when the runtime stops fails as stopped`() async throws {
+        let harness = try Harness(widget("methods: { wait: function () { return new Promise(function () {}); } },"))
+        #expect(try await harness.text() == "0")
+        let replies = Events()
+        harness.runtime.call("wait", []) { response in
+            switch response {
+            case let .ok(text): replies.append(.failed("ok \(text)"))
+            case let .failure(text): replies.append(.failed("failure \(text)"))
+            }
+        }
+        harness.runtime.stop()
+        await harness.settled()
+        guard case let .failed(text) = replies.poll() else { throw RenderError("the call got no reply when the runtime stopped") }
+        #expect(text == "failure test.runtime stopped before wait replied")
+    }
+
     @Test func `publish shares JSON on the plugin topic and surface requests reach the shell`() async throws {
         let harness = try Harness(widget("""
         onAction: function (name) {
