@@ -296,11 +296,11 @@ private extension View {
         }
     }
 
-    @ViewBuilder func appearance(_ scheme: GaryCore.ColorScheme?) -> some View {
-        if let scheme {
-            environment(\.colorScheme, scheme == .dark ? .dark : .light)
-        } else {
-            self
+    func appearance(_ scheme: GaryCore.ColorScheme?) -> some View {
+        transformEnvironment(\.colorScheme) { inherited in
+            if let scheme {
+                inherited = scheme == .dark ? .dark : .light
+            }
         }
     }
 
