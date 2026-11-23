@@ -43,6 +43,22 @@ For another kind, pass `--kind`, for example `--kind panel` or `--kind service,b
 
 Gary logs `host.log` lines and load failures. The app writes them to `~/Library/Logs/gary.log`. Run `gary app` in a terminal to see them live.
 
+## Test a plugin
+
+The `gary` command drives a plugin the way a user would, without Accessibility for your terminal, and shows what it draws:
+
+| Command                                        | Does                                                                             |
+| ---------------------------------------------- | -------------------------------------------------------------------------------- |
+| `gary summon you.hello`, `gary hide you.hello` | Shows or hides a panel, overlay, or menu.                                        |
+| `gary action you.hello/panel <action>`         | Clicks the node with that `action`.                                              |
+| `gary click you.hello/panel <x> <y>`           | Clicks a point of the surface, such as empty space.                              |
+| `gary key you.hello/menu s a f enter`          | Types and presses keys, or a hotkey the plugin holds.                            |
+| `gary hover you.hello/menu <hoverAction>`      | Moves the pointer onto the node with that `hoverAction`.                         |
+| `gary scroll you.hello/panel 3`                | Scrolls over the surface.                                                        |
+| `gary tree you.hello/panel`                    | Prints every shown node with its frame and colors.                               |
+| `gary capture you.hello/panel /tmp/hello.png`  | Saves the surface as a PNG, without Screen Recording.                            |
+| `gary call you.hello <method>`                 | Runs a function from the plugin's `methods`, such as one that returns its state. |
+
 ## Write TypeScript
 
 Gary compiles TypeScript and modules with a bundled copy of [sucrase](https://github.com/alangpierce/sucrase) and keeps line numbers, so errors point at the `.ts` line. Gary does not type-check. Run `tsc` for that.
@@ -151,7 +167,7 @@ Four node types draw more than text and images. The [`gallery`](../examples/gall
 | `grid`   | Its `children` in rows of `columns` cells, such as a month calendar.                                                                |
 | `shader` | A Metal function from a `.metal` file in the plugin folder, drawn into the node's frame and animated when `animated` is `true`.     |
 
-Run `gary skill show` for every field.
+Run `gary skill show drawing` for every field.
 
 ## Share and install plugins
 
@@ -185,4 +201,4 @@ Some capabilities need a macOS permission, such as Accessibility for `tray` or F
 
 ## Reference
 
-Run `gary skill show` for the full reference: concepts, every manifest field, `shell.json`, the default export, `state`, `host`, nodes, `surface`, the theme, each capability's functions, topics, types, and macOS permissions, and every command. The text comes from the installed Gary, so it matches that version, and it is the guide that `gary skill setup` points coding agents to.
+Run `gary skill show` for the guide that `gary skill setup` points coding agents to. `gary skill show <topic>` prints the full reference for one topic: `manifest` for every manifest field and `shell.json`, `plugin` for the default export, `state`, and `host`, `effect`, `nodes` for nodes and `surface`, `drawing`, `theme`, `types`, `capabilities` or one capability by name, such as `hotkeys`, `permissions`, and `commands`. `gary skill show all` prints everything. The text comes from the installed Gary, so it matches that version.
