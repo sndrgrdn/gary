@@ -46,6 +46,7 @@ struct DoctorRuntime {
     var pid: Int32
     var enabled: [PluginManifest]
     var pluginStates: [(plugin: String, problem: String?)]
+    var themePayload: JSON?
 }
 
 struct Doctor {
