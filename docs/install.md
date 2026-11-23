@@ -1,6 +1,6 @@
 # Install Gary
 
-Gary needs macOS 27.2 or later on Apple silicon. Install it with the install script, with Homebrew, or from source. Each method puts the `gary` command on your `PATH`.
+Gary needs macOS 26 or later on Apple silicon. Install it with the install script, with Homebrew, or from source. Each method puts the `gary` command on your `PATH`.
 
 ## Install with the script
 

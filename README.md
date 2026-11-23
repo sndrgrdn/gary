@@ -16,7 +16,7 @@ curl -fsSL https://raw.githubusercontent.com/sndrgrdn/gary/main/scripts/install.
 
 Gary draws a bar along the top of each display, plus panels, overlays, menus, and background services. Every pixel of it comes from a plugin: one you wrote, one you installed, or one you asked an agent for five minutes ago. The screenshots show [sndrgrdn/gary-plugins](https://github.com/sndrgrdn/gary-plugins), an Omarchy-style desktop built on Gary.
 
-Gary needs macOS 27.2 or later on Apple silicon.
+Gary needs macOS 26 or later on Apple silicon.
 
 ## Hand it to your agent
 
@@ -25,7 +25,7 @@ Paste this into Claude Code, Codex, pi, or another coding agent. It installs Gar
 ```text
 Set up Gary, the macOS shell from https://github.com/sndrgrdn/gary, on this Mac.
 
-1. Check that this Mac runs macOS 27.2 or later on Apple silicon with `sw_vers -productVersion` and `uname -m`. If it does not, stop and tell me.
+1. Check that this Mac runs macOS 26 or later on Apple silicon with `sw_vers -productVersion` and `uname -m`. If it does not, stop and tell me.
 2. If `gary --version` fails, install Gary. Ask me whether I prefer Homebrew. With Homebrew, run `brew install --cask sndrgrdn/tap/gary`, then `gary login on` and `open -a Gary`. Otherwise run `curl -fsSL https://raw.githubusercontent.com/sndrgrdn/gary/main/scripts/install.sh | sh`.
 3. Run `gary ping` and check that it prints `pong`.
 4. Run `gary skill setup`, then run `gary skill show`. Follow the guide it prints for every step after this one.

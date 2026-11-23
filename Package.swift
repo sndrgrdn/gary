@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "gary",
-    platforms: [.macOS("27.2")],
+    platforms: [.macOS(.v26)],
     products: [
         .executable(name: "gary", targets: ["gary"]),
         .library(name: "MediaRemoteAdapter", type: .dynamic, targets: ["MediaRemoteAdapter"]),

@@ -6,7 +6,7 @@ Gary is a Swift package. The app and the `gary` command are one binary: `gary ap
 
 You need:
 
-- macOS 27.2 or later on Apple silicon.
+- macOS 26 or later on Apple silicon.
 - Xcode with Swift 6.2.
 - Node.js and npm, for the TypeScript tooling. Run `npm ci` once.
 - A code-signing certificate in your keychain, for `just install` and `just bundle`. macOS ties permission grants to it.

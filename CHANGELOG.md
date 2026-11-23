@@ -4,6 +4,7 @@
 
 ### Fixes
 
+- Gary runs on macOS 26 and later, down from 27.2.
 - `host.apps.installed()` lists Finder and the apps in `/System/Library/CoreServices/Applications`, such as Keychain Access and Archive Utility.
 
 ## 0.4.0
