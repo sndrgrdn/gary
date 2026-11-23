@@ -40,7 +40,7 @@ struct PluginEffectTests {
         harness.runtime.perform("start", .null)
         try await count(harness, reaches: 3)
         harness.runtime.stop()
-        #expect(harness.runtime.queue.sync { !harness.runtime.isRunning })
+        #expect(!harness.isRunning)
         #expect(listener.values.compactMap(\.string).sorted() == ["action", "effect"])
     }
 

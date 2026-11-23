@@ -50,9 +50,11 @@ nonisolated extension Capability {
                     return
                 }
                 let watch = FileWatch(path: path, callback: callback)
-                plugin.onStop {
-                    watch.source?.cancel()
-                    watch.pending?.cancel()
+                plugin.assumeIsolated { runtime in
+                    runtime.onStop {
+                        watch.source?.cancel()
+                        watch.pending?.cancel()
+                    }
                 }
                 watch.arm(in: plugin, attempts: 10)
             }
@@ -109,7 +111,7 @@ private final nonisolated class FileWatch: @unchecked Sendable {
         guard descriptor >= 0 else {
             if attempts > 0 {
                 plugin.queue.asyncAfter(deadline: .now() + 0.5) { [weak self, weak plugin] in
-                    guard let self, let plugin, plugin.isRunning else { return }
+                    guard let self, let plugin, plugin.assumeIsolated({ $0.isRunning }) else { return }
                     arm(in: plugin, attempts: attempts - 1)
                 }
             }
@@ -130,7 +132,7 @@ private final nonisolated class FileWatch: @unchecked Sendable {
             let work = DispatchWorkItem { [weak self, weak plugin] in
                 guard let self, let plugin else { return }
                 let text = try? String(contentsOfFile: path, encoding: .utf8)
-                plugin.callBack(callback, [text ?? NSNull()], Trace("file"))
+                plugin.assumeIsolated { $0.callBack(callback, [text ?? NSNull()], Trace("file")) }
             }
             pending = work
             plugin.queue.asyncAfter(deadline: .now() + 0.02, execute: work)

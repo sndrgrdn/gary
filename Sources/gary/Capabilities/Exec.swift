@@ -58,23 +58,7 @@ nonisolated extension Capability {
                 guard !argv.isEmpty else { throw call.fail("argv must not be empty") }
                 return .pending { finish in runs.start(argv, finish) }
             }
-            let start: @convention(block) (String, JSValue, JSValue) -> Int = { [weak plugin] text, deliver, finish in
-                guard let plugin else { return 0 }
-                let call = HostCall(api: nil, method: "spawn", arguments: [(try? JSON.parse(text)) ?? .null])
-                do {
-                    let argv = try call.strings(0, "argv")
-                    guard !argv.isEmpty else { throw call.fail("argv must not be empty") }
-                    return spawns.start(
-                        argv,
-                        lines: { [weak plugin] lines in plugin?.callBack(deliver, [lines], Trace("spawn")) },
-                        exit: { [weak plugin] status, stderr in plugin?.callBack(finish, [["status": status, "stderr": stderr]], Trace("spawn")) },
-                    )
-                } catch {
-                    let context = JSContext.current()
-                    context?.exception = context?.newError("\(error)")
-                    return 0
-                }
-            }
+            let start = spawner(spawns, for: plugin)
             let stop: @convention(block) (Int) -> Void = { id in spawns.stop(id) }
             host.context.evaluateScript(spawnScript).call(withArguments: [host, start, stop])
         },
@@ -155,6 +139,28 @@ final nonisolated class ExecRuns: @unchecked Sendable {
             stdout: String(decoding: run.stdout.readDataToEndOfFile(), as: UTF8.self),
             stderr: String(decoding: run.stderr.readDataToEndOfFile(), as: UTF8.self),
         )))
+    }
+}
+
+private nonisolated func spawner(_ spawns: SpawnRuns, for plugin: PluginRuntime) -> @convention(block) (String, JSValue, JSValue) -> Int {
+    { [weak plugin] text, deliver, finish in
+        guard let plugin else { return 0 }
+        let call = HostCall(api: nil, method: "spawn", arguments: [(try? JSON.parse(text)) ?? .null])
+        do {
+            let argv = try call.strings(0, "argv")
+            guard !argv.isEmpty else { throw call.fail("argv must not be empty") }
+            return spawns.start(
+                argv,
+                lines: { [weak plugin] lines in plugin?.assumeIsolated { $0.callBack(deliver, [lines], Trace("spawn")) } },
+                exit: { [weak plugin] status, stderr in
+                    plugin?.assumeIsolated { $0.callBack(finish, [["status": status, "stderr": stderr]], Trace("spawn")) }
+                },
+            )
+        } catch {
+            let context = JSContext.current()
+            context?.exception = context?.newError("\(error)")
+            return 0
+        }
     }
 }
 

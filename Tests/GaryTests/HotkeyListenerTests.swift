@@ -31,7 +31,7 @@ struct HotkeyListenerTests {
         let harness = try listening("test.release")
         #expect(try await harness.text() == "0")
         harness.runtime.stop()
-        #expect(harness.runtime.queue.sync { !harness.runtime.isRunning })
+        #expect(!harness.isRunning)
         #expect(bindings(of: "test.release").isEmpty)
         #expect(try !press("hyper+shift+m", of: "test.release"))
     }
@@ -43,7 +43,7 @@ struct HotkeyListenerTests {
         #expect(try await harness.text() == "0")
         #expect(bindings(of: "test.stop") == ["hyper+m=ctrl+alt+cmd+m"])
         harness.runtime.perform("stop", .null)
-        #expect(harness.runtime.queue.sync { harness.runtime.isRunning })
+        #expect(harness.isRunning)
         #expect(bindings(of: "test.stop").isEmpty)
         harness.runtime.stop()
     }
@@ -57,7 +57,7 @@ struct HotkeyListenerTests {
         #expect(try await new.text() == "hyper+shift+m")
         #expect(old.events.isEmpty)
         old.runtime.stop()
-        #expect(old.runtime.queue.sync { !old.runtime.isRunning })
+        #expect(!old.isRunning)
         #expect(bindings(of: "test.reload") == ["ctrl+alt+space=ctrl+alt+space", "hyper+shift+m=ctrl+alt+shift+cmd+m"])
         new.runtime.stop()
     }
@@ -97,7 +97,7 @@ struct HotkeyListenerTests {
         #expect(try press("hyper+return", of: "test.stream"))
         #expect(try await harness.text() == "hyper+return")
         harness.runtime.stop()
-        #expect(harness.runtime.queue.sync { !harness.runtime.isRunning })
+        #expect(!harness.isRunning)
         #expect(bindings(of: "test.stream").isEmpty)
     }
 

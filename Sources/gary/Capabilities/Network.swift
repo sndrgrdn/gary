@@ -45,12 +45,12 @@ nonisolated extension Capability {
 
 private nonisolated func load(_ url: URL, _ resolve: JSValue, _ reject: JSValue, into plugin: PluginRuntime) {
     fetchSession.dataTask(with: URLRequest(url: url, timeoutInterval: 15)) { [weak plugin] data, response, error in
-        plugin?.queue.async { [weak plugin] in
+        plugin?.onQueue { runtime in
             if let error {
-                plugin?.callBack(reject, [resolve.context.newError("fetch failed: \(error.localizedDescription)")], Trace("fetch"))
+                runtime.callBack(reject, [resolve.context.newError("fetch failed: \(error.localizedDescription)")], Trace("fetch"))
             } else {
                 let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                plugin?.callBack(resolve, [["status": status, "text": String(decoding: data ?? Data(), as: UTF8.self)]], Trace("fetch"))
+                runtime.callBack(resolve, [["status": status, "text": String(decoding: data ?? Data(), as: UTF8.self)]], Trace("fetch"))
             }
         }
     }.resume()

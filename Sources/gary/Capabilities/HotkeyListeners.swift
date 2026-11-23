@@ -43,7 +43,7 @@ nonisolated extension Capability {
                     }
                     return holds.add(HotkeyListeners.shared.add(owner: plugin.id, keys: keys) { [weak plugin] name in
                         guard let plugin else { return }
-                        plugin.queue.async { plugin.callBack(onPress, [name], Trace("hotkey")) }
+                        plugin.onQueue { $0.callBack(onPress, [name], Trace("hotkey")) }
                     })
                 } catch {
                     let context = JSContext.current()

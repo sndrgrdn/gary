@@ -91,7 +91,7 @@ struct PluginEngineTests {
             let last = try Harness(widget(), id: "test.last", engine: engine)
             #expect(try await last.text() == "0")
             last.runtime.stop()
-            #expect(last.runtime.queue.sync { !last.runtime.isRunning })
+            #expect(!last.isRunning)
         }
         runaway.runtime.perform("spin", .null)
         #expect(try await runaway.failure() == stopped)

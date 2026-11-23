@@ -11,7 +11,7 @@ nonisolated struct Capability {
     let example: String
     var permissions: [Permission] = []
     var manifestEntry: String?
-    var install: (@Sendable (JSValue, PluginRuntime) -> Void)?
+    var install: (@Sendable (JSValue, isolated PluginRuntime) -> Void)?
     var topic: CapabilityTopic?
 
     static let all: [Capability] = [
@@ -182,7 +182,7 @@ nonisolated extension JSContext {
     }
 }
 
-nonisolated extension PluginRuntime {
+extension PluginRuntime {
     func installAPI(_ host: JSValue, _ api: String?, _ methods: [String], _ handle: @escaping (HostCall) throws -> HostResult) {
         let context: JSContext = host.context
         var target = host
@@ -219,7 +219,7 @@ nonisolated extension PluginRuntime {
         """).call(withArguments: [target, bridge, methods])
     }
 
-    private func promise(
+    private nonisolated func promise(
         in context: JSContext,
         call: HostCall,
         _ start: @escaping (@escaping @Sendable (Result<JSON, Error>) -> Void) -> Void,
@@ -227,11 +227,10 @@ nonisolated extension PluginRuntime {
         JSValue(newPromiseIn: context) { [weak self] resolve, reject in
             guard let self, let resolve, let reject else { return }
             start { [weak self] result in
-                guard let self else { return }
-                queue.async {
+                self?.onQueue { runtime in
                     switch result {
-                    case let .success(value): self.callBack(resolve, [value.text], Trace(call.name))
-                    case let .failure(error): self.callBack(reject, [context.newError(message(error, call))], Trace(call.name))
+                    case let .success(value): runtime.callBack(resolve, [value.text], Trace(call.name))
+                    case let .failure(error): runtime.callBack(reject, [context.newError(message(error, call))], Trace(call.name))
                     }
                 }
             }

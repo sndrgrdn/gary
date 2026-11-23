@@ -2,12 +2,12 @@ import Foundation
 import GaryCore
 @preconcurrency import JavaScriptCore
 
-final nonisolated class PluginRuntime: Subscriber, @unchecked Sendable {
+actor PluginRuntime: Subscriber {
     let bundle: PluginBundle
     let kind: PluginKind
     let hub: StateHub
     let deliver: @Sendable (PluginRuntime, RuntimeEvent) -> Void
-    let queue: DispatchQueue
+    nonisolated let queue: DispatchSerialQueue
     private let engine: PluginEngine
     private let transpiler: Transpiler
     private var functions: PluginFunctions?
@@ -21,10 +21,6 @@ final nonisolated class PluginRuntime: Subscriber, @unchecked Sendable {
     private var output = RuntimeOutput()
     private(set) var origin: CGRect?
     private var timings = Timings()
-
-    var id: PluginID {
-        bundle.manifest.id
-    }
 
     init(
         bundle: PluginBundle,
@@ -46,61 +42,85 @@ final nonisolated class PluginRuntime: Subscriber, @unchecked Sendable {
         self.deliver = deliver
         self.engine = engine
         self.transpiler = transpiler
-        queue = DispatchQueue(label: "gary.plugin.\(bundle.manifest.id)", qos: .userInitiated, target: engine.queue)
+        queue = DispatchSerialQueue(label: "gary.plugin.\(bundle.manifest.id)", qos: .userInitiated, target: engine.queue)
+    }
+}
+
+nonisolated extension PluginRuntime {
+    var id: PluginID {
+        bundle.manifest.id
+    }
+
+    var unownedExecutor: UnownedSerialExecutor {
+        queue.asUnownedSerialExecutor()
+    }
+
+    func onQueue(_ work: @escaping @Sendable (isolated PluginRuntime) -> Void) {
+        queue.async { self.assumeIsolated(work) }
     }
 
     func load(_ trace: Trace) {
-        queue.async { [self] in
-            let topics = hub.subscribe(self, to: bundle.manifest.subscriptions[kind] ?? [])
-            let texts = Dictionary(uniqueKeysWithValues: topics.map { topic, value in (topic, timed(.encode) { state.set(topic, value) }) })
-            do {
-                let functions = try timed(.evaluate) { try evaluate() }
-                for (topic, text) in texts.sorted(by: { $0.key.description < $1.key.description }) {
-                    try announce(topic, text, to: functions)
-                }
-                if kind.isSurface {
-                    try bundle.manifest.checkSurfaces(of: kind, exported: surfaces(functions).keys)
-                }
-                output = try renderOutput(functions)
-                deliver(self, .loaded(output, traced(trace)))
-                if !kind.isSurface {
-                    engine.dropCodeWhenQuiet()
-                }
-            } catch {
-                teardown()
-                deliver(self, .failed("\(error)"))
-            }
-        }
+        onQueue { $0.start(trace) }
     }
 
     func stop() {
-        queue.async { [self] in teardown() }
+        onQueue { $0.teardown() }
     }
 
     func setScene(_ scene: Scene, _ trace: Trace) {
-        queue.async { [self] in
-            self.scene = scene
-            renderAll(trace, always: true)
+        onQueue { runtime in
+            runtime.scene = scene
+            runtime.renderAll(trace, always: true)
         }
     }
 
     func setTheme(_ theme: JSON, _ trace: Trace) {
-        queue.async { [self] in
-            state.setTheme(theme)
-            renderAll(trace)
+        onQueue { runtime in
+            runtime.state.setTheme(theme)
+            runtime.renderAll(trace)
         }
     }
 
     func receive(_ topic: Topic, _ value: JSON, _ trace: Trace) {
-        queue.async { [self] in
-            let text = timed(.encode) { state.set(topic, value) }
-            guard let functions else { return }
-            do {
+        onQueue { $0.update(topic, value, trace) }
+    }
+
+    func call(_ method: String, _ arguments: [String], reply: @escaping @Sendable (Response) -> Void) {
+        onQueue { $0.answer(method, arguments, reply: reply) }
+    }
+}
+
+extension PluginRuntime {
+    private func start(_ trace: Trace) {
+        let topics = hub.subscribe(self, to: bundle.manifest.subscriptions[kind] ?? [])
+        let texts = Dictionary(uniqueKeysWithValues: topics.map { topic, value in (topic, timed(.encode) { state.set(topic, value) }) })
+        do {
+            let functions = try timed(.evaluate) { try evaluate() }
+            for (topic, text) in texts.sorted(by: { $0.key.description < $1.key.description }) {
                 try announce(topic, text, to: functions)
-                renderAll(trace)
-            } catch {
-                fail("\(error)")
             }
+            if kind.isSurface {
+                try bundle.manifest.checkSurfaces(of: kind, exported: surfaces(functions).keys)
+            }
+            output = try renderOutput(functions)
+            deliver(self, .loaded(output, traced(trace)))
+            if !kind.isSurface {
+                engine.dropCodeWhenQuiet()
+            }
+        } catch {
+            teardown()
+            deliver(self, .failed("\(error)"))
+        }
+    }
+
+    private func update(_ topic: Topic, _ value: JSON, _ trace: Trace) {
+        let text = timed(.encode) { state.set(topic, value) }
+        guard let functions else { return }
+        do {
+            try announce(topic, text, to: functions)
+            renderAll(trace)
+        } catch {
+            fail("\(error)")
         }
     }
 
@@ -109,63 +129,40 @@ final nonisolated class PluginRuntime: Subscriber, @unchecked Sendable {
         try invoke(functions.dispatch, ["onTopic", arguments, stateText(for: nil)], [.jsParse, .handler])
     }
 
-    func perform(_ action: String, _ payload: JSON, origin: CGRect? = nil) {
-        dispatch("onAction", [.string(action), payload], Trace("action"), origin: origin)
-    }
-
-    func key(_ key: String, unhandled: @escaping @MainActor @Sendable () -> Void) {
-        dispatch("onKey", [.string(key)], Trace("key"), unhandled: unhandled)
-    }
-
-    func scroll(_ event: JSON, action: String? = nil, origin: CGRect? = nil) {
-        var fields = event.object ?? [:]
-        fields["action"] = action.map(JSON.string)
-        dispatch("onScroll", [.object(fields)], Trace("scroll"), origin: origin)
-    }
-
-    func hotkey(_ id: String) {
-        dispatch("onHotkey", [.string(id)], Trace("hotkey"))
-    }
-
-    func mediaKey(_ event: JSON) {
-        dispatch("onMediaKey", [event], Trace("mediakey"))
-    }
-
-    private func dispatch(
+    func handle(
         _ handler: String,
         _ arguments: [JSON],
         _ trace: Trace,
-        origin: CGRect? = nil,
-        unhandled: (@MainActor @Sendable () -> Void)? = nil,
+        origin: CGRect?,
+        unhandled: (@MainActor @Sendable () -> Void)?,
     ) {
-        queue.async { [self] in
-            guard let functions else { return }
-            self.origin = origin
-            defer { self.origin = nil }
-            do {
-                let handled = try invoke(functions.dispatch, [handler, encode(JSON.array(arguments)), stateText(for: nil)], [.jsParse, .handler])
-                if !handled.isNull {
-                    renderAll(trace)
-                }
-                if !handled.toBool(), let unhandled {
-                    DispatchQueue.main.async(execute: unhandled)
-                }
-            } catch {
-                fail("\(error)")
+        guard let functions else { return }
+        self.origin = origin
+        defer { self.origin = nil }
+        do {
+            let handled = try invoke(functions.dispatch, [handler, encode(JSON.array(arguments)), stateText(for: nil)], [.jsParse, .handler])
+            if !handled.isNull {
+                renderAll(trace)
             }
+            if !handled.toBool(), let unhandled {
+                DispatchQueue.main.async(execute: unhandled)
+            }
+        } catch {
+            fail("\(error)")
         }
     }
 
-    func call(_ method: String, _ arguments: [String], reply: @escaping @Sendable (Response) -> Void) {
-        queue.async { [self] in
-            guard let functions else { return reply(.failure("\(id) is not running")) }
-            let done: @convention(block) (Bool, String) -> Void = { ok, text in reply(ok ? .ok(text) : .failure(text)) }
-            do {
-                try invoke(functions.call, [method, encode(JSON.array(arguments.map(JSON.string))), done], [.jsParse, .handler])
-                renderAll(Trace("call"))
-            } catch {
-                reply(.failure("\(error)"))
-            }
+    private func answer(_ method: String, _ arguments: [String], reply: @escaping @Sendable (Response) -> Void) {
+        guard let functions else {
+            reply(.failure("\(id) is not running"))
+            return
+        }
+        let done: @convention(block) (Bool, String) -> Void = { ok, text in reply(ok ? .ok(text) : .failure(text)) }
+        do {
+            try invoke(functions.call, [method, encode(JSON.array(arguments.map(JSON.string))), done], [.jsParse, .handler])
+            renderAll(Trace("call"))
+        } catch {
+            reply(.failure("\(error)"))
         }
     }
 
@@ -277,13 +274,16 @@ final nonisolated class PluginRuntime: Subscriber, @unchecked Sendable {
     }
 }
 
-private nonisolated extension PluginRuntime {
+private extension PluginRuntime {
     func evaluate() throws -> PluginFunctions {
         let entry = try bundle.entryPoint(kind)
         let modules = try transpiler.modules(of: bundle, from: entry)
         guard let context = engine.makeContext() else { throw RenderError("no JavaScript context") }
         context.name = "\(id)"
-        context.exceptionHandler = { [weak self] _, value in self?.exception = value?.toString() ?? "unknown exception" }
+        context.exceptionHandler = { [weak self] _, value in
+            let message = value?.toString() ?? "unknown exception"
+            self?.assumeIsolated { $0.exception = message }
+        }
         let host = try check(in: context) { makeHost(in: context) }
         let declared = bundle.manifest.capabilities
         try check(in: context) {
@@ -334,9 +334,11 @@ private nonisolated extension PluginRuntime {
 
     func installTimers(in context: JSContext) throws {
         let add: @convention(block) (JSValue, Double, Bool) -> Int = { [weak self] callback, milliseconds, repeats in
-            self?.addTimer(callback, milliseconds: milliseconds, repeats: repeats) ?? 0
+            self?.assumeIsolated { $0.addTimer(callback, milliseconds: milliseconds, repeats: repeats) } ?? 0
         }
-        let clear: @convention(block) (Int) -> Void = { [weak self] id in self?.timers.removeValue(forKey: id)?.cancel() }
+        let clear: @convention(block) (Int) -> Void = { [weak self] id in
+            self?.assumeIsolated { $0.timers.removeValue(forKey: id)?.cancel() }
+        }
         try check(in: context) { context.evaluateScript(PluginScripts.timers)?.call(withArguments: [add, clear]) }
     }
 
@@ -351,11 +353,13 @@ private nonisolated extension PluginRuntime {
             leeway: .milliseconds(max(1, min(100, Int(interval * 100)))),
         )
         timer.setEventHandler { [weak self] in
-            guard let self, isRunning else { return }
-            if !repeats {
-                timers.removeValue(forKey: id)?.cancel()
+            self?.assumeIsolated { runtime in
+                guard runtime.isRunning else { return }
+                if !repeats {
+                    runtime.timers.removeValue(forKey: id)?.cancel()
+                }
+                runtime.callBack(callback, [], Trace("timer"))
             }
-            callBack(callback, [], Trace("timer"))
         }
         timers[id] = timer
         timer.resume()

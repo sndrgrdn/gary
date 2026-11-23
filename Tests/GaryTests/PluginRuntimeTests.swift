@@ -105,6 +105,10 @@ struct Harness {
         runtime.load(Trace("test"))
     }
 
+    var isRunning: Bool {
+        runtime.queue.sync { runtime.assumeIsolated { $0.isRunning } }
+    }
+
     func text() async throws -> String {
         try await Self.text(of: events.next())
     }
@@ -381,7 +385,7 @@ struct PluginRuntimeTests {
         #expect(try await compile(modified: saved) !== first)
         let latest = try await compile(modified: saved)
         harness.runtime.stop()
-        #expect(harness.runtime.queue.sync { !harness.runtime.isRunning })
+        #expect(!harness.isRunning)
         #expect(try await compile(modified: saved) !== latest)
     }
 }
