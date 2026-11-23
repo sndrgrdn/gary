@@ -165,6 +165,7 @@ struct NodeView: View {
                 pressing: node.pressed != nil ? animated(pressing, fade) : nil,
             )
             .probed(path, look)
+            .modifier(VisualEffects(look, node))
             .transaction(value: look.animation == nil ? nil : node) { transaction in
                 guard let animation = look.animation else { return }
                 transaction.animation = reduceMotion ? nil : SwiftUI.Animation(animation, duration: look.duration)
@@ -280,7 +281,6 @@ private extension View {
             }
             .interactive(box.action, hovering: hovering, pressing: pressing) { _ in anchor.view?.send(.click, .null) }
             .dropShadow(look.shadow, look.shadowColor)
-            .modifier(VisualEffects(look, node))
     }
 
     func minWidth(_ minWidth: Double?, alignment: Alignment) -> some View {
