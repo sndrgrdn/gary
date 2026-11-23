@@ -52,8 +52,7 @@ typecheck: build
     npx tsc -p Sources/gary-effect
 
 dead-code:
-    swift build --build-system native --jobs 4 --scratch-path .build/periphery
-    periphery scan --skip-build --quiet --strict --index-store-path .build/periphery/arm64-apple-macosx/debug/index/store --retain-public --retain-assign-only-properties --retain-objc-annotated --relative-results
+    outskirts scan --quiet --strict --retain-public --retain-assign-only-properties --retain-objc-annotated --relative-results
 
 anti-slop:
     #!/usr/bin/env bash

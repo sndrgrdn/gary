@@ -1,0 +1,10 @@
+[tools]
+just = "1.59.0"
+swiftformat = "0.64.7"
+swiftlint = "0.65.1"
+shellcheck = "0.11.0"
+"github:tiny-earth-moon/outskirts" = "3.27.0"
+
+[settings]
+lockfile = true
+lockfile_platforms = ["macos-arm64"]

@@ -15,7 +15,10 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: lts/*
-      - run: brew install just swiftformat swiftlint periphery
+      - uses: jdx/mise-action@v5
+        with:
+          version: 2026.11.8
+          install_args: --locked
       - run: swift --version
       - run: npm ci
       - run: just lint

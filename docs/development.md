@@ -8,10 +8,9 @@ You need:
 
 - macOS 27.2 or later on Apple silicon.
 - Xcode with Swift 6.2.
-- [`just`](https://github.com/casey/just).
 - Node.js and npm, for the TypeScript tooling. Run `npm ci` once.
 - A code-signing certificate in your keychain, for `just install` and `just bundle`. macOS ties permission grants to it.
-- For `just lint` and `just dead-code`: `brew install swiftformat swiftlint periphery`.
+- [mise](https://mise.jdx.dev), which installs the versions of `just`, SwiftFormat, SwiftLint, ShellCheck, and outskirts that `mise.toml` pins. Run `mise install` once.
 
 ## Build and run
 
@@ -29,13 +28,13 @@ Set `IDENTITY` to the name of your certificate for `just bundle` and `just insta
 
 CI runs these checks on every push and pull request:
 
-| Command          | Checks                                                                      |
-| ---------------- | --------------------------------------------------------------------------- |
-| `just lint`      | SwiftFormat, SwiftLint, oxlint, and oxfmt. `just format` fixes what it can. |
-| `just test`      | The Swift Testing suites in `Tests/`.                                       |
-| `just typecheck` | Every example, every built-in plugin, and `gary:effect` with `tsc`.         |
-| `just dead-code` | Unused Swift code, with Periphery.                                          |
-| `just anti-slop` | The repository's own Swift style rules, from `tools/anti-slop-swift`.       |
+| Command          | Checks                                                                                  |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| `just lint`      | SwiftFormat, SwiftLint, ShellCheck, oxlint, and oxfmt. `just format` fixes what it can. |
+| `just test`      | The Swift Testing suites in `Tests/`.                                                   |
+| `just typecheck` | Every example, every built-in plugin, and `gary:effect` with `tsc`.                     |
+| `just dead-code` | Unused Swift code, with outskirts, the maintained fork of Periphery.                    |
+| `just anti-slop` | The repository's own Swift style rules, from `tools/anti-slop-swift`.                   |
 
 CI also builds with warnings as errors: `swift build -Xswiftc -warnings-as-errors`.
 
