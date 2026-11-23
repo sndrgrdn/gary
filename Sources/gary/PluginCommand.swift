@@ -78,17 +78,6 @@ private func pluginID(_ raw: String) throws -> PluginID {
     return id
 }
 
-func shellConfig() throws -> ShellConfig {
-    try FileManager.default.fileExists(atPath: Paths.shellConfig.path) ? ShellConfig
-        .parse(JSON.parse(Data(contentsOf: Paths.shellConfig))) : .defaults
-}
-
-private func installed(_ packages: [PackageSource]) -> PluginCatalog {
-    PluginCatalog.scan(
-        builtin: Paths.builtinPlugins, user: Paths.userPlugins, packages: packages.map(PackageStore.directory), capabilities: Capability.names(),
-    )
-}
-
 private var workingDirectory: URL {
     URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 }
@@ -164,7 +153,7 @@ private func validate(_ path: String) throws {
 
 private func install(_ argument: String) throws {
     let source = try PackageSource.parse(argument, base: workingDirectory)
-    let config = try shellConfig()
+    let config = try ConfigFiles().config() ?? .defaults
     let staged: URL?
     if case let .local(directory) = source {
         guard FileManager.default.fileExists(atPath: directory.path) else { throw CommandError("\(directory.path) does not exist") }
@@ -176,7 +165,7 @@ private func install(_ argument: String) throws {
     defer { staged.map(PackageStore.discard) }
     let directory = staged ?? PackageStore.directory(source)
     let bundles = try packagePlugins(directory, of: source)
-    review(bundles, existing: installed(config.packages.filter { $0.identity != source.identity }))
+    review(bundles, existing: ConfigFiles().catalog(config.packages.filter { $0.identity != source.identity }))
     let revision = PackageStore.revision(source, at: directory)
     if let staged {
         try PackageStore.commit(staged, as: source)
@@ -230,7 +219,7 @@ private func printCapabilities(_ names: [String]) {
 }
 
 private func update(_ raw: String?) throws {
-    let config = try shellConfig()
+    let config = try ConfigFiles().config() ?? .defaults
     var sources = config.packages
     if let raw {
         let identity = try PackageSource.parse(raw, base: workingDirectory).identity
@@ -258,9 +247,9 @@ private func update(_ raw: String?) throws {
 }
 
 private func remove(_ raw: String) throws {
-    let config = try shellConfig()
+    let config = try ConfigFiles().config() ?? .defaults
     if let id = PluginID(raw) {
-        let bundle = installed(config.packages).plugins[id]
+        let bundle = ConfigFiles().catalog(config.packages).plugins[id]
         guard bundle?.origin != .builtin else { throw CommandError("\(id) is built into Gary; use gary plugin disable \(id)") }
         if let source = bundle.flatMap({ package(holding: $0.directory, in: config.packages) }) {
             guard PluginCatalog.pluginDirectories(inPackage: PackageStore.directory(source)).count == 1 else {
@@ -291,8 +280,8 @@ private func package(holding directory: URL, in packages: [PackageSource]) -> Pa
 }
 
 private func removePackage(_ source: PackageSource) throws {
-    let config = try shellConfig()
-    let ids = installed(config.packages).plugins.values
+    let config = try ConfigFiles().config() ?? .defaults
+    let ids = ConfigFiles().catalog(config.packages).plugins.values
         .filter { package(holding: $0.directory, in: config.packages)?.identity == source.identity }
         .map(\.manifest.id).sorted()
     try editShellConfig([.undeclare(source.identity)] + ids.map { .remove($0) })
@@ -301,14 +290,16 @@ private func removePackage(_ source: PackageSource) throws {
 }
 
 private func enable(_ id: PluginID) throws {
-    guard let bundle = try installed(shellConfig().packages).plugins[id] else { throw CommandError("no installed plugin \(id)") }
+    let config = try ConfigFiles().config() ?? .defaults
+    guard let bundle = ConfigFiles().catalog(config.packages).plugins[id] else { throw CommandError("no installed plugin \(id)") }
     let section = bundle.manifest.barPlacement
     try editShellConfig([.enable(id, bar: section)])
     print("enabled \(id)\(section.map { " in bar.\($0.rawValue)" } ?? "") in \(Paths.shellConfig.path)")
 }
 
 private func disable(_ id: PluginID) throws {
-    guard try installed(shellConfig().packages).plugins[id] != nil else { throw CommandError("no installed plugin \(id)") }
+    let config = try ConfigFiles().config() ?? .defaults
+    guard ConfigFiles().catalog(config.packages).plugins[id] != nil else { throw CommandError("no installed plugin \(id)") }
     try editShellConfig([.disable(id)])
     print("disabled \(id) in \(Paths.shellConfig.path)")
 }
@@ -323,8 +314,8 @@ private func editShellConfig(_ changes: [ShellConfig.Change]) throws {
 }
 
 private func list() throws {
-    let config = try shellConfig()
-    let catalog = installed(config.packages)
+    let config = try ConfigFiles().config() ?? .defaults
+    let catalog = ConfigFiles().catalog(config.packages)
     let enabled = config.resolve(catalog).enabled
     func origin(_ bundle: PluginBundle) -> (source: String, tracking: String) {
         guard bundle.origin == .user else { return ("builtin", "-") }

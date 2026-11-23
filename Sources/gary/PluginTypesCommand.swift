@@ -20,7 +20,7 @@ func writeTypes(_ directory: URL) throws -> String {
     let publishers = PluginCatalog.scan(
         builtin: nil,
         user: directory.deletingLastPathComponent(),
-        packages: [Paths.userPlugins] + ((try? shellConfig())?.packages ?? []).map(PackageStore.directory),
+        packages: [Paths.userPlugins] + ((try? ConfigFiles().config())?.packages ?? []).map(PackageStore.directory),
         capabilities: capabilities,
     )
     func topicType(_ publisher: URL?) -> String {

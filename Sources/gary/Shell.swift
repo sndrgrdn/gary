@@ -11,7 +11,7 @@ struct MountKey: Hashable {
 final class Shell {
     let hub = StateHub(sources: Capability.topics)
     let engines = PluginEngines()
-    private let capabilities: CapabilityNames
+    let files = ConfigFiles()
     var theme: Theme
     var themePayload: JSON?
     var paletteFile: PaletteFile?
@@ -40,7 +40,6 @@ final class Shell {
     private var observers: [NSObjectProtocol] = []
 
     init() throws {
-        capabilities = Capability.names()
         theme = try Theme.parse(JSON.parse(Data(contentsOf: Paths.defaultTheme)), palette: Palette(nil, system: systemMode))
         tooltipPanel = TooltipPanel(theme: theme)
         ToastStack.shared.theme = theme
@@ -168,9 +167,7 @@ final class Shell {
     }
 
     func scan() {
-        catalog = PluginCatalog.scan(
-            builtin: Paths.builtinPlugins, user: Paths.userPlugins, packages: config.packages.map(PackageStore.directory), capabilities: capabilities,
-        )
+        catalog = files.catalog(config.packages)
         for problem in catalog.problems {
             log("plugin \(problem.directory.path): \(problem.reason)")
         }

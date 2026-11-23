@@ -88,13 +88,14 @@ struct Doctor {
         checkPermissions(runtime)
 
         section("Plugins")
-        let catalog = checkPlugins(runtime)
+        let config = Result { try files.config() }
+        let catalog = checkPlugins(runtime, packages: (try? config.get())?.packages ?? [])
 
         section("Other bars")
         checkOtherBars()
 
         section("Config")
-        checkConfig(catalog)
+        checkConfig(config, catalog)
         checkTheme()
 
         lines.append("\n\(problems == 0 ? "no problems" : "\(problems) problem\(problems == 1 ? "" : "s")")")
@@ -144,11 +145,8 @@ struct Doctor {
         }
     }
 
-    private mutating func checkPlugins(_ runtime: DoctorRuntime?) -> PluginCatalog {
-        let packages = (try? ShellConfig.parse(JSON.parse(Data(contentsOf: files.shellConfig))))?.packages ?? []
-        let catalog = PluginCatalog.scan(
-            builtin: files.builtinPlugins, user: files.userPlugins, packages: packages.map(PackageStore.directory), capabilities: Capability.names(),
-        )
+    private mutating func checkPlugins(_ runtime: DoctorRuntime?, packages: [PackageSource]) -> PluginCatalog {
+        let catalog = files.catalog(packages)
         for source in packages where !PackageStore.isInstalled(source) {
             fail("package \(source.declaration) is not installed; run gary plugin update")
         }
@@ -174,12 +172,12 @@ struct Doctor {
         }
     }
 
-    private mutating func checkConfig(_ catalog: PluginCatalog) {
-        guard FileManager.default.fileExists(atPath: files.shellConfig.path) else { info("no shell.json; using defaults")
-            return
-        }
+    private mutating func checkConfig(_ config: Result<ShellConfig?, any Error>, _ catalog: PluginCatalog) {
         do {
-            let config = try ShellConfig.parse(JSON.parse(Data(contentsOf: files.shellConfig)))
+            guard let config = try config.get() else {
+                info("no shell.json; using defaults")
+                return
+            }
             let warnings = config.warnings.map(\.description) + config.resolve(catalog).warnings.map { "shell.json: \($0)" }
             if warnings.isEmpty {
                 ok("shell.json")
@@ -193,12 +191,11 @@ struct Doctor {
     }
 
     private mutating func checkPalette() -> PaletteFile? {
-        guard FileManager.default.fileExists(atPath: files.palette.path) else {
-            info("no palette.toml; following the system appearance")
-            return nil
-        }
         do {
-            let file = try PaletteFile.parse(String(contentsOf: files.palette, encoding: .utf8))
+            guard let file = try files.paletteFile() else {
+                info("no palette.toml; following the system appearance")
+                return nil
+            }
             if file.ignored.isEmpty {
                 ok("palette.toml")
             }
@@ -215,10 +212,9 @@ struct Doctor {
     private mutating func checkTheme() {
         let file = checkPalette()
         do {
-            let override = FileManager.default.fileExists(atPath: files.userTheme.path) ? try JSON.parse(Data(contentsOf: files.userTheme)) : nil
-            let theme = try Theme.parse(JSON.parse(Data(contentsOf: files.defaultTheme)), palette: Palette(file, system: .dark), override: override)
+            let theme = try files.theme(palette: file, system: system)
             if theme.warnings.isEmpty {
-                ok("\(override == nil ? "built-in theme" : "theme.json") in \(theme.mode.rawValue) mode")
+                ok("\(FileManager.default.fileExists(atPath: files.userTheme.path) ? "theme.json" : "built-in theme") in \(theme.mode.rawValue) mode")
             }
             for warning in theme.warnings {
                 fail("theme: \(warning)")

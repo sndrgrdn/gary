@@ -3,16 +3,11 @@ import GaryCore
 
 extension Shell {
     func loadPalette() {
-        guard FileManager.default.fileExists(atPath: Paths.palette.path) else {
-            paletteFile = nil
-            return
-        }
         do {
-            let file = try PaletteFile.parse(String(contentsOf: Paths.palette, encoding: .utf8))
-            for problem in file.ignored {
+            paletteFile = try files.paletteFile()
+            for problem in paletteFile?.ignored ?? [] {
                 log("palette.toml \(problem); ignored")
             }
-            paletteFile = file
         } catch {
             log("palette.toml: \(error); using the built-in palette")
             paletteFile = nil
@@ -30,13 +25,7 @@ extension Shell {
     func reloadTheme(_ trace: Trace) -> Response {
         let started = now()
         do {
-            var override = themePayload ?? .object([:])
-            if FileManager.default.fileExists(atPath: Paths.userTheme.path) {
-                override = try override.merging(JSON.parse(Data(contentsOf: Paths.userTheme)))
-            }
-            let next = try Theme.parse(
-                JSON.parse(Data(contentsOf: Paths.defaultTheme)), palette: Palette(paletteFile, system: systemMode), override: override,
-            )
+            let next = try files.theme(palette: paletteFile, system: systemMode, override: themePayload)
             guard next != theme else { return .ok("theme unchanged") }
             theme = next
             tooltipPanel.theme = theme
@@ -81,12 +70,12 @@ extension Shell {
 
     @discardableResult
     func loadConfig() -> Response {
-        guard FileManager.default.fileExists(atPath: Paths.shellConfig.path) else {
-            config = .defaults
-            return .ok("no shell.json; using defaults")
-        }
         do {
-            config = try ShellConfig.parse(JSON.parse(Data(contentsOf: Paths.shellConfig)))
+            guard let loaded = try files.config() else {
+                config = .defaults
+                return .ok("no shell.json; using defaults")
+            }
+            config = loaded
             for warning in config.warnings {
                 log("\(warning); skipped")
             }
