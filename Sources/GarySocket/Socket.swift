@@ -1,4 +1,5 @@
 import Foundation
+import GaryCore
 
 public enum SocketError: Error, Equatable, CustomStringConvertible {
     case unreachable(String)
@@ -22,28 +23,6 @@ public enum SocketError: Error, Equatable, CustomStringConvertible {
 
 public let maxMessageBytes = 1 << 20
 public let maxClients = 128
-
-public struct LineBuffer {
-    private var pending: [UInt8]
-
-    public init() {
-        pending = []
-    }
-
-    public mutating func append(_ bytes: some Sequence<UInt8>) throws -> [String] {
-        var unscanned = pending.count
-        pending.append(contentsOf: bytes)
-        var lines: [String] = []
-        while let newline = pending[unscanned...].firstIndex(of: 10) {
-            guard let line = String(bytes: pending[..<newline], encoding: .utf8) else { throw SocketError.invalidUTF8 }
-            lines.append(line)
-            pending.removeSubrange(...newline)
-            unscanned = 0
-        }
-        guard pending.count <= maxMessageBytes else { throw SocketError.tooLarge }
-        return lines
-    }
-}
 
 public final class LineServer {
     private let source: DispatchSourceRead
@@ -109,14 +88,14 @@ private final class ClientCount: @unchecked Sendable {
 private func serve(_ client: Int32, _ handle: (String) -> String) {
     defer { close(client) }
     setTimeouts(client, seconds: 5)
-    var buffer = LineBuffer()
+    var buffer = LineBuffer(limit: maxMessageBytes, invalidUTF8: .reject)
     var chunk = [UInt8](repeating: 0, count: 4096)
     while true {
         let count = recv(client, &chunk, chunk.count, 0)
         if count < 0, errno == EINTR {
             continue
         }
-        guard count > 0, let lines = try? buffer.append(chunk[..<count]) else { return }
+        guard count > 0, let lines = try? buffer.append(chunk[..<count]).map(message) else { return }
         for line in lines where !line.isEmpty {
             guard (try? writeAll(client, handle(line) + "\n")) != nil else { return }
         }
@@ -128,7 +107,7 @@ public func requestLine(_ line: String, path: String, timeout: TimeInterval) thr
     defer { close(fd) }
     setTimeouts(fd, seconds: timeout)
     try writeAll(fd, line + "\n")
-    var buffer = LineBuffer()
+    var buffer = LineBuffer(limit: maxMessageBytes, invalidUTF8: .reject)
     var chunk = [UInt8](repeating: 0, count: 4096)
     while true {
         let count = recv(fd, &chunk, chunk.count, 0)
@@ -139,9 +118,17 @@ public func requestLine(_ line: String, path: String, timeout: TimeInterval) thr
             throw errno == EAGAIN ? SocketError.timedOut : SocketError.system(errno)
         }
         guard count > 0 else { throw SocketError.closed }
-        if let reply = try buffer.append(chunk[..<count]).first {
-            return reply
+        if let reply = buffer.append(chunk[..<count]).first {
+            return try message(reply)
         }
+    }
+}
+
+private func message(_ line: LineBuffer.Line) throws -> String {
+    switch line {
+    case let .text(text): text
+    case .tooLong: throw SocketError.tooLarge
+    case .invalidUTF8: throw SocketError.invalidUTF8
     }
 }
 

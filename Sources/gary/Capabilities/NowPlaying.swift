@@ -106,11 +106,12 @@ private nonisolated struct Adapter {
 }
 
 private final nonisolated class NowPlayingTopic: TopicFeed, @unchecked Sendable {
+    private static let emptyBuffer = LineBuffer(limit: 32 << 20, invalidUTF8: .reject)
     private let publish: @Sendable (JSON, Trace) -> Void
     private let queue = DispatchQueue(label: "gary.nowplaying")
     private var stream: (process: Process, output: Pipe)?
     private var state = NowPlaying()
-    private var buffer = Data()
+    private var buffer = NowPlayingTopic.emptyBuffer
     private var failures = 0
     private var stopped = false
     private var artworkPath: (digest: String, path: String)?
@@ -173,7 +174,7 @@ private final nonisolated class NowPlayingTopic: TopicFeed, @unchecked Sendable 
     private func ended(status: Int32, reason: String, ranFor seconds: TimeInterval) {
         guard !stopped else { return }
         stream = nil
-        buffer = Data()
+        buffer = Self.emptyBuffer
         state = NowPlaying()
         failures = seconds > 30 ? 1 : failures + 1
         let delay = min(60, pow(2, Double(failures)))
@@ -186,12 +187,15 @@ private final nonisolated class NowPlayingTopic: TopicFeed, @unchecked Sendable 
     }
 
     private func received(_ data: Data) {
-        buffer.append(data)
         var changed = false
-        while let newline = buffer.firstIndex(of: 0x0A) {
-            let line = String(bytes: buffer[buffer.startIndex..<newline], encoding: .utf8)
-            buffer.removeSubrange(buffer.startIndex...newline)
-            guard let line else {
+        for output in buffer.append(data) {
+            let line: String
+            switch output {
+            case let .text(text): line = text
+            case .tooLong:
+                log("nowplaying: adapter printed a line longer than 32 MB")
+                continue
+            case .invalidUTF8:
                 log("nowplaying: adapter printed a line that is not UTF-8")
                 continue
             }

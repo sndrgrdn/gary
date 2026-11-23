@@ -11,8 +11,8 @@ nonisolated extension Capability {
         `host.exec` runs a one-shot command and resolves with its exit status and output when it exits, even if it left a child \
         running in the background. Gary stops an `exec` command that runs longer than 60 seconds and rejects the promise. \
         `host.spawn` runs a long-running command with no time limit and calls `onLine` with each line it writes to stdout, \
-        without the newline. `stop()` stops it. `exited` resolves when it exits, with its status and the last 4 KB of its stderr, \
-        or with status -1 when it could not start or was stopped before it started.
+        without the newline, and cuts a line longer than 1 MB to its first 1 MB. `stop()` stops it. `exited` resolves when it exits, \
+        with its status and the last 4 KB of its stderr, or with status -1 when it could not start or was stopped before it started.
         """,
         types: """
         declare namespace Gary {
@@ -149,7 +149,7 @@ final nonisolated class SpawnRuns: @unchecked Sendable {
         let exit: (Int, String) -> Void
         var stdout: PipeReader?
         var stderr: PipeReader?
-        var buffer = LineBuffer()
+        var buffer = LineBuffer(limit: 1 << 20, invalidUTF8: .replace)
         var errors = Data()
 
         init(_ process: Process, lines: @escaping ([String]) -> Void, exit: @escaping (Int, String) -> Void) {
@@ -159,7 +159,7 @@ final nonisolated class SpawnRuns: @unchecked Sendable {
         }
 
         func read(_ data: Data) {
-            let complete = buffer.append(data)
+            let complete = buffer.append(data).compactMap(text)
             if !complete.isEmpty {
                 lines(complete)
             }
@@ -223,9 +223,8 @@ final nonisolated class SpawnRuns: @unchecked Sendable {
         run.stdout?.drain()
         run.stderr?.drain()
         run.close()
-        let rest = run.buffer.flush()
-        if !rest.isEmpty {
-            run.lines(rest)
+        if let rest = run.buffer.flush().flatMap(text) {
+            run.lines([rest])
         }
         run.exit(Int(run.process.terminationStatus), String(decoding: run.errors, as: UTF8.self))
     }
@@ -267,23 +266,6 @@ private final nonisolated class PipeReader {
     }
 }
 
-private nonisolated struct LineBuffer {
-    private var pending = Data()
-
-    mutating func append(_ data: Data) -> [String] {
-        pending.append(data)
-        guard let last = pending.lastIndex(of: UInt8(ascii: "\n")) else { return [] }
-        let complete = pending[..<last]
-        pending = Data(pending[(last + 1)...])
-        return complete.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: false).map { String(decoding: $0, as: UTF8.self) }
-    }
-
-    mutating func flush() -> [String] {
-        defer { pending = Data() }
-        return pending.isEmpty ? [] : [String(decoding: pending, as: UTF8.self)]
-    }
-}
-
 final nonisolated class LiveCommands: @unchecked Sendable {
     static let shared = LiveCommands()
     private let lock = NSLock()
@@ -320,6 +302,13 @@ private nonisolated func command(_ argv: [String]) -> Process {
     process.environment = environment
     process.standardInput = FileHandle.nullDevice
     return process
+}
+
+private nonisolated func text(_ line: LineBuffer.Line) -> String? {
+    switch line {
+    case let .text(text), let .tooLong(text): text
+    case .invalidUTF8: nil
+    }
 }
 
 private nonisolated func result(status: Int, stdout: String, stderr: String) -> JSON {

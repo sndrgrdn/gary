@@ -1,28 +1,7 @@
 import Foundation
+import GaryCore
 @testable import GarySocket
 import Testing
-
-struct LineBufferTests {
-    @Test func `splits lines and holds the remainder`() throws {
-        var buffer = LineBuffer()
-        #expect(try buffer.append(Array("a\nbc".utf8)) == ["a"])
-        #expect(try buffer.append(Array("d\n\ne\n".utf8)) == ["bcd", "", "e"])
-    }
-
-    @Test func `joins A character split across reads`() throws {
-        var buffer = LineBuffer()
-        let bytes = Array("é\n".utf8)
-        #expect(try buffer.append(bytes[..<1]).isEmpty)
-        #expect(try buffer.append(bytes[1...]) == ["é"])
-    }
-
-    @Test func `rejects invalid UTF 8 and oversized lines`() {
-        var invalid = LineBuffer()
-        #expect(throws: SocketError.invalidUTF8) { try invalid.append([0xFF, 10]) }
-        var huge = LineBuffer()
-        #expect(throws: SocketError.tooLarge) { try huge.append([UInt8](repeating: 65, count: maxMessageBytes + 1)) }
-    }
-}
 
 struct LineServerTests {
     private let path = FileManager.default.temporaryDirectory.appendingPathComponent("g-\(UUID().uuidString.prefix(8)).sock").path
@@ -35,15 +14,15 @@ struct LineServerTests {
         let fd = try connectSocket(path)
         defer { close(fd) }
         try writeAll(fd, "one\ntwo\n")
-        var buffer = LineBuffer()
-        var lines: [String] = []
+        var buffer = LineBuffer(limit: maxMessageBytes, invalidUTF8: .reject)
+        var lines: [LineBuffer.Line] = []
         var chunk = [UInt8](repeating: 0, count: 256)
         while lines.count < 2 {
             let count = recv(fd, &chunk, chunk.count, 0)
             try #require(count > 0)
-            lines += try buffer.append(chunk[..<count])
+            lines += buffer.append(chunk[..<count])
         }
-        #expect(lines == ["echo:one", "echo:two"])
+        #expect(lines == [.text("echo:one"), .text("echo:two")])
     }
 
     @Test func `only the owner can open the socket`() throws {
@@ -124,6 +103,12 @@ struct LineServerTests {
             close(fd)
         }
         #expect(try ask("ping", path) == "echo:ping")
+    }
+
+    @Test func `a reply longer than the message limit fails the request`() throws {
+        let server = try LineServer(path: path) { _ in String(repeating: "a", count: maxMessageBytes + 1) }
+        defer { server.stop() }
+        #expect(throws: SocketError.tooLarge) { try ask("x", path) }
     }
 
     @Test func `many concurrent clients all get their own reply`() throws {

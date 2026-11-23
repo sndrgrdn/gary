@@ -39,11 +39,12 @@ let package = Package(
         // Unix socket server and client for Gary's NDJSON IPC lines. Unit tested.
         .target(
             name: "GarySocket",
+            dependencies: ["GaryCore"],
             swiftSettings: [.swiftLanguageMode(.v6)],
         ),
         .testTarget(
             name: "GarySocketTests",
-            dependencies: ["GarySocket"],
+            dependencies: ["GaryCore", "GarySocket"],
             swiftSettings: [.swiftLanguageMode(.v6)],
         ),
         // The app and CLI.
