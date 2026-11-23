@@ -31,7 +31,6 @@ final class Shell {
     var previousApp: NSRunningApplication?
     private var server: LineServer?
     private var watcher: FileWatcher?
-    private var watchedRoots: [URL] = []
     private var installingPackages: Set<PackageIdentity> = []
     private var signals: [DispatchSourceSignal] = []
     private var observers: [NSObjectProtocol] = []
@@ -134,8 +133,7 @@ final class Shell {
 
     func watch() {
         let roots = [Paths.config] + pluginRoots
-        guard roots != watchedRoots else { return }
-        watchedRoots = roots
+        guard roots != watcher?.roots else { return }
         watcher?.stop()
         watcher = FileWatcher(roots: roots) { [weak self] paths, trace in self?.filesChanged(paths, trace) }
     }

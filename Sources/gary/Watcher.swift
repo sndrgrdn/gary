@@ -2,6 +2,7 @@ import CoreServices
 import Foundation
 
 final nonisolated class FileWatcher: @unchecked Sendable {
+    let roots: [URL]
     private let queue = DispatchQueue(label: "gary.watch")
     private let quiet: TimeInterval
     private let onChange: @MainActor @Sendable (Set<String>, Trace) -> Void
@@ -11,6 +12,7 @@ final nonisolated class FileWatcher: @unchecked Sendable {
     private var flush: DispatchWorkItem?
 
     init(roots: [URL], quiet: TimeInterval = 0.02, onChange: @escaping @MainActor @Sendable (Set<String>, Trace) -> Void) {
+        self.roots = roots
         self.quiet = quiet
         self.onChange = onChange
         var context = FSEventStreamContext(
