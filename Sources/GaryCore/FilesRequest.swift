@@ -17,9 +17,10 @@ public enum FilesRequest: Equatable, Sendable {
         case "writeFile": return try .write(path: path, text: call.string(1, "text"))
         case "mkdir": return .makeDirectory(path: path)
         case "list": return .list(path: path)
-        default:
+        case "remove":
             guard path != "/", path != home, path != folder else { throw call.fail("refusing to remove \(path)") }
             return .remove(path: path)
+        default: throw call.unknownMethod
         }
     }
 }
