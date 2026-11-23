@@ -72,12 +72,11 @@ private nonisolated func perform(_ request: AppsRequest) throws -> JSON {
     switch request {
     case .installed:
         return .array(installedApps(in: [
-            ("/Applications", subfolders: 1),
-            ("/System/Applications", subfolders: 1),
-            ("/System/Library/CoreServices/Applications", subfolders: 1),
-            ("/System/Library/CoreServices/Finder.app", subfolders: 0),
-            (home + "/Applications", subfolders: 2),
-            (home + "/Library/Application Support/Steam/steamapps/common", subfolders: 1),
+            "/Applications",
+            "/System/Applications",
+            "/System/Library/CoreServices/Applications",
+            "/System/Library/CoreServices/Finder.app",
+            home + "/Applications",
         ]))
     case let .launch(target):
         return try launch(target)
@@ -91,7 +90,7 @@ private nonisolated func perform(_ request: AppsRequest) throws -> JSON {
     }
 }
 
-nonisolated func installedApps(in roots: [(path: String, subfolders: Int)]) -> [JSON] {
+nonisolated func installedApps(in roots: [String]) -> [JSON] {
     let files = FileManager.default
     func bundles(at path: String, depth: Int) -> [String] {
         if path.hasSuffix(".app") {
@@ -103,7 +102,7 @@ nonisolated func installedApps(in roots: [(path: String, subfolders: Int)]) -> [
     }
     var seen: Set<String> = []
     var apps: [(name: String, json: JSON)] = []
-    for path in roots.flatMap({ bundles(at: $0.path, depth: $0.subfolders + 1) }) {
+    for path in roots.flatMap({ bundles(at: $0, depth: 2) }) {
         let info = CFBundleCopyInfoDictionaryInDirectory(URL(fileURLWithPath: path) as CFURL) as NSDictionary?
         let id = info?[kCFBundleIdentifierKey as String] as? String
         if let id, !seen.insert(id.lowercased()).inserted {

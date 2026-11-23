@@ -4,7 +4,7 @@ import GaryCore
 import Testing
 
 struct AppsTests {
-    @Test func `installed apps come from folders to their subfolder depth and from named bundles, with ids from binary and XML plists`() throws {
+    @Test func `installed apps come from the folders, one level of subfolders, and named app bundles, with ids from binary and XML plists`() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: "gary-apps-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
         func app(_ path: String, id: String?, format: PropertyListSerialization.PropertyListFormat = .binary) throws {
@@ -20,27 +20,24 @@ struct AppsTests {
         try app("Applications/Bare.app", id: nil)
         try app("Home/OrbStack.app", id: "dev.kdrag0n.MacVirt")
         try app("Home/WhatsApp.app", id: "net.whatsapp.WhatsApp")
-        try app("Home/CrossOver/Steam/Steam.app", id: "com.codeweavers.CrossOverHelper.steam")
-        try app("Home/CrossOver/Steam/Deeper/Hidden.app", id: "com.example.deeper")
         try app("CoreServices/Finder.app", id: "com.apple.finder")
         try app("CoreServices/Agent.app", id: "com.apple.agent")
         try Data().write(to: root.appending(path: "Applications/notes.txt"))
 
         let apps = installedApps(in: [
-            (root.appending(path: "Applications").path, subfolders: 1),
-            (root.appending(path: "Home").path, subfolders: 2),
-            (root.appending(path: "Missing").path, subfolders: 1),
-            (root.appending(path: "CoreServices/Finder.app").path, subfolders: 0),
-            (root.appending(path: "CoreServices/Missing.app").path, subfolders: 0),
+            root.appending(path: "Applications").path,
+            root.appending(path: "Home").path,
+            root.appending(path: "Missing").path,
+            root.appending(path: "CoreServices/Finder.app").path,
+            root.appending(path: "CoreServices/Missing.app").path,
         ])
 
-        #expect(apps.map { $0["name"]?.string } == ["Bare", "Console", "Finder", "OrbStack", "Steam", "WhatsApp"])
+        #expect(apps.map { $0["name"]?.string } == ["Bare", "Console", "Finder", "OrbStack", "WhatsApp"])
         #expect(apps.map { $0["app"] } == [
             .null,
             .string("com.apple.Console"),
             .string("com.apple.finder"),
             .string("dev.kdrag0n.MacVirt"),
-            .string("com.codeweavers.CrossOverHelper.steam"),
             .string("net.whatsapp.WhatsApp"),
         ])
         #expect(apps[3]["path"] == .string(root.appending(path: "Applications/OrbStack.app").path))

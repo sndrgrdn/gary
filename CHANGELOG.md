@@ -4,7 +4,7 @@
 
 ### Fixes
 
-- `host.apps.installed()` lists Finder and the apps in `/System/Library/CoreServices/Applications`, such as Keychain Access and Archive Utility. It also lists Steam games, from CrossOver bottles in `~/Applications/CrossOver` and from Steam's own game folder.
+- `host.apps.installed()` lists Finder and the apps in `/System/Library/CoreServices/Applications`, such as Keychain Access and Archive Utility.
 
 ## 0.4.0
 
