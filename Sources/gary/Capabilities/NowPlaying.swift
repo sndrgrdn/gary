@@ -123,7 +123,6 @@ private final nonisolated class NowPlayingTopic: TopicFeed, @unchecked Sendable 
     deinit {
         stopped = true
         stream?.output.fileHandleForReading.readabilityHandler = nil
-        stream?.process.terminationHandler = nil
         stream?.process.terminate()
     }
 
@@ -151,18 +150,19 @@ private final nonisolated class NowPlayingTopic: TopicFeed, @unchecked Sendable 
             }
         }
         let started = Date()
-        process.terminationHandler = { [weak self] process in
+        let exited: @Sendable () -> Void = { [weak self, weak process] in
             output.fileHandleForReading.readabilityHandler = nil
             let errorOutput = errors.fileHandleForReading.availableData
             let reason = String(bytes: errorOutput, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let status = process?.terminationStatus ?? -1
             self?.queue.async { [weak self] in self?.ended(
-                status: process.terminationStatus,
+                status: status,
                 reason: reason,
                 ranFor: Date().timeIntervalSince(started),
             ) }
         }
         do {
-            try process.run()
+            try LiveCommands.shared.run(process, exited: exited)
             stream = (process, output)
             publish(snapshot(), Trace("nowplaying-start"))
         } catch {

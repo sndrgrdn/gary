@@ -316,7 +316,7 @@ private nonisolated struct LineBuffer {
     }
 }
 
-private final nonisolated class LiveCommands: @unchecked Sendable {
+final nonisolated class LiveCommands: @unchecked Sendable {
     static let shared = LiveCommands()
     private let lock = NSLock()
     private var running: Set<pid_t> = []
