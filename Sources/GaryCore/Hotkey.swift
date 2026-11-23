@@ -32,7 +32,7 @@ public struct KeyCombo: Hashable, Sendable, CustomStringConvertible {
             "return": 36, "enter": 36, "tab": 48, "space": 49, "delete": 51, "escape": 53, "esc": 53,
             "left": 123, "right": 124, "down": 125, "up": 126,
         ]
-        let functionKeys: [UInt32] = [122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111]
+        let functionKeys: [UInt32] = [122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111, 105, 107, 113, 106, 64, 79, 80, 90]
         for (index, code) in functionKeys.enumerated() {
             codes["f\(index + 1)"] = code
         }
