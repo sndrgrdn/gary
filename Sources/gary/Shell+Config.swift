@@ -9,10 +9,10 @@ extension Shell {
     }
 
     @discardableResult
-    func changeTheme(_ trace: Trace, _ change: () throws -> Bool) -> Response {
+    func changeTheme(_ trace: Trace, _ update: () throws -> Bool) -> Response {
         let started = now()
         do {
-            guard try change() else { return .ok("theme unchanged") }
+            guard try update() else { return .ok("theme unchanged") }
             let applied = theme.value
             ToastStack.shared.theme = applied
             for warning in applied.warnings {

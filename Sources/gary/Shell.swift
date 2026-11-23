@@ -6,7 +6,6 @@ final class Shell {
     let hub = StateHub(sources: Capability.topics)
     let engines = PluginEngines()
     let theme: CurrentTheme
-    private var appearanceObservation: NSKeyValueObservation?
     let setup = PluginSetup(files: ConfigFiles())
     private(set) lazy var slots = PluginSlots<PluginRuntime>(
         make: { self.makeRuntime($0, $1, $2) },
@@ -23,6 +22,7 @@ final class Shell {
     private var installingPackages: Set<PackageIdentity> = []
     private var signals: [DispatchSourceSignal] = []
     private var observers: [NSObjectProtocol] = []
+    private var appearanceObservation: NSKeyValueObservation?
 
     init() throws {
         theme = try CurrentTheme(files: ConfigFiles(), system: Palette.Mode(NSApp.effectiveAppearance))
