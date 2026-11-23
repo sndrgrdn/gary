@@ -103,16 +103,13 @@ extension Shell {
     }
 
     private func press(_ keys: [String], on id: PluginID, _ kind: PluginKind?) -> Response {
-        let hotkeys = enabledManifests.first { $0.id == id }?.hotkeys ?? []
-        let hotkey = { (key: String) in
-            KeyCombo.parse(key).flatMap { combo in hotkeys.first { $0.keys.keyCode == combo.keyCode && $0.keys.modifiers == combo.modifiers } }
-        }
+        let hotkey = { (key: String) in KeyCombo.parse(key).flatMap { self.hotkeys?.registered(by: id, as: $0) } }
         if let unknown = keys.first(where: { hotkey($0) == nil && NSEvent.keyDown(named: $0, windowNumber: 0) == nil }) {
             return .failure("\"\(unknown)\" is neither a key name that onKey gets nor a hotkey of \(id)")
         }
         for key in keys {
-            if let hotkey = hotkey(key) {
-                hotkeyPressed(HotkeyBinding(owner: id, hotkey: hotkey))
+            if let binding = hotkey(key) {
+                hotkeyPressed(binding)
                 continue
             }
             let focused = windows.first { $0.key.slot.id == id && (kind == nil || $0.key.slot.kind == kind) && $0.value.panel.isKeyWindow }

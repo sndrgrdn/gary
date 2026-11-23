@@ -36,6 +36,10 @@ final class HotkeyCenter {
         }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &handler)
     }
 
+    func registered(by owner: PluginID, as combo: KeyCombo) -> HotkeyBinding? {
+        registered.keys.first { $0.owner == owner && $0.hotkey.keys == combo }
+    }
+
     func update(_ wanted: [HotkeyBinding]) {
         let keep = Set(wanted)
         for (binding, entry) in registered where !keep.contains(binding) {

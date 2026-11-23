@@ -29,7 +29,7 @@ final class Shell {
     var mounts: [MountKey: TreeHostingView] = [:]
     let tooltipPanel: TooltipPanel
     var clickMonitors: [Any] = []
-    private var hotkeys: HotkeyCenter?
+    private(set) var hotkeys: HotkeyCenter?
     var mediaKeys: MediaKeyTap?
     var previousApp: NSRunningApplication?
     private var server: LineServer?

@@ -82,7 +82,8 @@ public enum Request: Equatable, Sendable {
         CommandUsage(
             "key <plugin>[/<kind>] <key>...",
             """
-            Press keys in order, each named as onKey names it, as the user would. A key that is one of the plugin's hotkeys runs onHotkey. \
+            Press keys in order, each named as onKey names it, as the user would. A key that the plugin holds as a hotkey, from its manifest \
+            or host.hotkeys, presses that hotkey. \
             Any other key goes to the plugin's focused surface, where an input takes typed characters and onKey gets the rest.
             """,
             "gary key you.launcher s a f enter",
