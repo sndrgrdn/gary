@@ -121,7 +121,7 @@ final class PluginSlots<Runtime: SlotRuntime> {
         slots[key].map { $0.candidate === runtime || $0.runtime === runtime } ?? false
     }
 
-    func sync(_ wanted: [SlotKey: PluginBundle]) -> [Effect] {
+    func sync(_ wanted: [SlotKey: PluginBundle], reloading: Set<SlotKey> = []) -> [Effect] {
         var effects: [Effect] = []
         for key in slots.keys where wanted[key] == nil {
             effects += update(key) { stop(&$0) }
@@ -129,7 +129,7 @@ final class PluginSlots<Runtime: SlotRuntime> {
         }
         for (key, bundle) in wanted {
             if let slot = slots[key] {
-                guard slot.wanted != bundle else { continue }
+                guard slot.wanted != bundle || reloading.contains(key) else { continue }
                 effects += update(key) { slot in
                     slot.wanted = bundle
                     return reload(&slot)

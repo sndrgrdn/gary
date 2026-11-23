@@ -99,10 +99,7 @@ extension Shell {
         }
         guard rescans || config != previous else { return response }
         resolve()
-        for slot in slots.values where config.settings[slot.key.id] != previous.settings[slot.key.id] {
-            perform(slots.reload(slot.key), trace)
-        }
-        sync(trace)
+        sync(trace, reloading: Set(slots.values.map(\.key).filter { config.settings[$0.id] != previous.settings[$0.id] }))
         offerOnboarding(trace)
         return response
     }

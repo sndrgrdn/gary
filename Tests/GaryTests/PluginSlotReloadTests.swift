@@ -129,4 +129,16 @@ struct PluginSlotReloadTests {
         lifecycle.loaded(second, service, shows: [])
         #expect(lifecycle.slots[service]?.bundle.manifest.version == "2")
     }
+
+    @Test func `a sync that reloads a slot for new settings loads it once, whether or not its bundle changed`() throws {
+        let lifecycle = Lifecycle()
+        let service = try key("test.service", .service)
+        try lifecycle.sync([service: bundle("test.service", .service)])
+        try lifecycle.loaded(lifecycle.newest, service, shows: [])
+        try lifecycle.perform(lifecycle.slots.sync([service: bundle("test.service", .service)], reloading: [service]))
+        #expect(lifecycle.made.count == 2)
+        try lifecycle.perform(lifecycle.slots.sync([service: bundle("test.service", .service, version: "2")], reloading: [service]))
+        #expect(lifecycle.made.count == 3)
+        #expect(try lifecycle.newest.bundle.manifest.version == "2")
+    }
 }

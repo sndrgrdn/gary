@@ -26,7 +26,7 @@ extension Shell {
         }
     }
 
-    func sync(_ trace: Trace) {
+    func sync(_ trace: Trace, reloading: Set<SlotKey> = []) {
         refreshDisplays(trace)
         var wanted: [SlotKey: PluginBundle] = [:]
         if usesBuiltinBar {
@@ -42,7 +42,7 @@ extension Shell {
                 wanted[SlotKey(id: bundle.manifest.id, kind: kind)] = bundle
             }
         }
-        perform(slots.sync(wanted), trace)
+        perform(slots.sync(wanted, reloading: reloading), trace)
         claimMediaKeys()
         arrangeBars()
         commitFrame()
