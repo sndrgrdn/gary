@@ -62,7 +62,7 @@ final class TooltipPanel {
         }
         let origin = screen.display(index: 0, theme: theme).attachment(window.convertToScreen(owner.convert(owner.bounds, to: nil)))
         view.rootView = NodeView(node: Node(.text(text), style: "tooltip"), theme: theme)
-        panel.appearance = NSAppearance(named: theme.mode == .dark ? .darkAqua : .aqua)
+        panel.appearance = NSAppearance(theme.mode)
         view.layoutSubtreeIfNeeded()
         let bounds = screen.frame.insetBy(dx: theme.spacing.edge, dy: theme.spacing.edge)
         panel.setFrame(SurfaceSpec.attached(view.intrinsicContentSize, to: origin, gap: theme.spacing.item, within: bounds), display: true)

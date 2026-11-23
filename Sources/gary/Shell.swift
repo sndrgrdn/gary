@@ -79,6 +79,10 @@ final class Shell {
                 let plugin = note.object as? PluginID
                 MainActor.assumeIsolated { self?.restart(reopening: plugin) }
             },
+            center.addObserver(forName: .showAppDragTile, object: nil, queue: .main) { [weak self] note in
+                guard let permission = note.object as? Permission else { return }
+                MainActor.assumeIsolated { self?.showAppDragTile(until: permission) }
+            },
             center.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
                 MainActor.assumeIsolated { SystemState.restore(SystemState.saved) }
             },
@@ -101,6 +105,10 @@ final class Shell {
         server?.stop()
         unlink(socketPath)
         exit(status)
+    }
+
+    private func showAppDragTile(until permission: Permission) {
+        AppDragTile.show(until: permission, theme: theme)
     }
 
     private func restart(reopening id: PluginID?) {

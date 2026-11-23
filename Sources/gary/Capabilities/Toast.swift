@@ -153,7 +153,7 @@ private final class ToastCard: NSView {
         ])
         panel.contentView = self
         panel.hasShadow = true
-        panel.appearance = NSAppearance(named: theme.mode == .dark ? .darkAqua : .aqua)
+        panel.appearance = NSAppearance(theme.mode)
     }
 
     @available(*, unavailable)

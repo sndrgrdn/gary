@@ -69,7 +69,7 @@ extension Shell {
     }
 
     var appearance: NSAppearance? {
-        NSAppearance(named: theme.mode == .dark ? .darkAqua : .aqua)
+        NSAppearance(theme.mode)
     }
 
     @discardableResult

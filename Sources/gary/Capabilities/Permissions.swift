@@ -66,6 +66,7 @@ nonisolated extension Capability {
 
 nonisolated extension Notification.Name {
     static let restartGary = Notification.Name("GaryRestart")
+    static let showAppDragTile = Notification.Name("GaryShowAppDragTile")
 }
 
 private final class PermissionsTopic: TopicFeed {
@@ -327,7 +328,7 @@ nonisolated extension Permission {
             return "macOS shows its \(name) prompt for Gary. Choose Allow."
         case .fullDiskAccess:
             NSWorkspace.shared.open(settingsPane)
-            AppDragTile.show(until: .fullDiskAccess)
+            NotificationCenter.default.post(name: .showAppDragTile, object: Permission.fullDiskAccess)
             return "macOS has no prompt for Full Disk Access. Opened \(pane) and showed Gary's icon to drag into its list. Turn Gary on there, then restart Gary."
         }
     }

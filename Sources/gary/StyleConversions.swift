@@ -106,6 +106,21 @@ func nsFont(_ token: FontToken) -> NSFont {
     return font
 }
 
+extension NSAppearance {
+    convenience init?(_ mode: Palette.Mode) {
+        switch mode {
+        case .light: self.init(named: .aqua)
+        case .dark: self.init(named: .darkAqua)
+        }
+    }
+}
+
+extension Palette.Mode {
+    init(_ appearance: NSAppearance) {
+        self = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
+    }
+}
+
 extension SwiftUI.Animation {
     init?(_ animation: GaryCore.Animation, duration: Double?) {
         switch animation {

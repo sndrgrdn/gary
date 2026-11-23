@@ -39,7 +39,6 @@ extension Shell {
             )
             guard next != theme else { return .ok("theme unchanged") }
             theme = next
-            AppDragTile.theme = theme
             tooltipPanel.theme = theme
             ToastStack.shared.theme = theme
             for warning in theme.warnings {
@@ -182,10 +181,4 @@ private func realPath(_ url: URL) -> String {
     guard let resolved = realpath(url.path, nil) else { return url.path }
     defer { free(resolved) }
     return String(cString: resolved)
-}
-
-extension Palette.Mode {
-    init(_ appearance: NSAppearance) {
-        self = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
-    }
 }

@@ -2,7 +2,6 @@ import AppKit
 import GaryCore
 
 final class AppDragTile {
-    static var theme: Theme?
     private static var current: AppDragTile?
 
     private let panel = makeSurfacePanel(level: Int(CGWindowLevelForKey(.floatingWindow)) + 1)
@@ -12,41 +11,40 @@ final class AppDragTile {
     private var settingsSeen = false
     private let opened = Date()
 
-    static func show(until permission: Permission) {
+    static func show(until permission: Permission, theme: Theme) {
         current?.close()
-        current = AppDragTile(permission: permission)
+        current = AppDragTile(permission: permission, theme: theme)
     }
 
-    private init(permission: Permission) {
+    private init(permission: Permission, theme: Theme) {
         self.permission = permission
-        let theme = Self.theme
-        let look = theme?.style("surface")
+        let look = theme.style("surface")
         let card = NSView()
         card.wantsLayer = true
-        let background: RGBA? = if case let .color(color)? = look?.background {
+        let background: RGBA? = if case let .color(color)? = look.background {
             color
         } else {
             nil
         }
         card.layer?.backgroundColor = (background.map { NSColor($0) } ?? .windowBackgroundColor).cgColor
-        card.layer?.cornerRadius = look?.radius ?? 12
-        card.layer?.borderWidth = look?.border?.width ?? 1
-        card.layer?.borderColor = (look?.borderColor ?? theme?.color("border")).map { NSColor($0).cgColor }
+        card.layer?.cornerRadius = look.radius ?? 12
+        card.layer?.borderWidth = look.border?.width ?? 1
+        card.layer?.borderColor = (look.borderColor ?? theme.color("border")).map { NSColor($0).cgColor }
 
         let icon = DraggableAppIcon()
         let label = NSTextField(wrappingLabelWithString: "Drag Gary into the \(permission.name) list in System Settings.")
         label.font = .systemFont(ofSize: 13)
-        label.textColor = theme.map { NSColor($0.resolve(nil).color) } ?? .labelColor
+        label.textColor = NSColor(theme.resolve(nil).color)
         label.preferredMaxLayoutWidth = 190
         let close = NSButton(title: "", target: nil, action: nil)
         close.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close")
         close.imagePosition = .imageOnly
         close.isBordered = false
-        close.contentTintColor = theme?.color("dim").map { NSColor($0) } ?? .secondaryLabelColor
+        close.contentTintColor = theme.color("dim").map { NSColor($0) } ?? .secondaryLabelColor
         let row = NSStackView(views: [icon, label, close])
         row.alignment = .centerY
-        let inset = theme?.spacing.section ?? 16
-        row.spacing = theme?.spacing.item ?? 8
+        let inset = theme.spacing.section
+        row.spacing = theme.spacing.item
         row.edgeInsets = NSEdgeInsets(top: inset, left: inset, bottom: inset, right: inset)
         row.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(row)
@@ -57,7 +55,7 @@ final class AppDragTile {
         ])
         panel.contentView = card
         panel.hasShadow = true
-        panel.appearance = NSAppearance(named: theme?.mode == .light ? .aqua : .darkAqua)
+        panel.appearance = NSAppearance(theme.mode)
         panel.setContentSize(card.fittingSize)
         close.target = self
         close.action = #selector(closeClicked)
