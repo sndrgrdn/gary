@@ -7,6 +7,7 @@ final class PluginEngine: @unchecked Sendable {
     static let timeLimit = 0.1
     static let quiet: TimeInterval = 10
 
+    let queue = DispatchQueue(label: "gary.engine", qos: .userInitiated)
     private let machine: JSVirtualMachine = .init()
     private let effectScript: URL
     private var effectLibrary: JSValue?

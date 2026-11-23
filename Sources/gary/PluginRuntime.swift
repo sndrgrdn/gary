@@ -46,7 +46,7 @@ final class PluginRuntime: Subscriber {
         self.deliver = deliver
         self.engine = engine
         self.transpiler = transpiler
-        queue = DispatchQueue(label: "gary.plugin.\(bundle.manifest.id)", qos: .userInitiated)
+        queue = DispatchQueue(label: "gary.plugin.\(bundle.manifest.id)", qos: .userInitiated, target: engine.queue)
     }
 
     func load(_ trace: Trace) {
