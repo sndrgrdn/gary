@@ -2,6 +2,7 @@ import AppKit
 import GaryCore
 
 func runApp() -> Int32 {
+    unsetenv(spaceEfficientMallocKey)
     setvbuf(stdout, nil, _IOLBF, 0)
     setvbuf(stderr, nil, _IOLBF, 0)
     guard holdLock(appLockPath) else {
