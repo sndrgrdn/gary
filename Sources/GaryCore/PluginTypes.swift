@@ -16,7 +16,7 @@ public enum PluginTypes {
         declare namespace Gary {
           type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
           type Kind = \(union(PluginKind.allCases.map(\.rawValue)));
-          type Key = \(union(Set(KeyName.named.values).sorted())) | (string & {});
+          type Key = \(union(KeyName.names)) | (string & {});
           type ScrollEvent = {
             x: number;
             y: number;
@@ -196,7 +196,7 @@ public enum PluginTypes {
                     "required": strings(["id", "keys"]),
                     "properties": .object([
                         "id": type("string", ["minLength": .number(1)]),
-                        "keys": type("string", ["pattern": .string(#"^(([A-Za-z]+\+)+[^+]+|[Ff]([1-9]|1[0-2]))$"#)]),
+                        "keys": type("string", ["pattern": .string(KeyCombo.pattern)]),
                     ]),
                 ])]),
             ]),

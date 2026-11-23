@@ -67,7 +67,7 @@ public enum HyperKey {
         public init?(named name: String) {
             if let trigger = ([Self.capsLock] + Self.sides).first(where: { $0.name == name }) {
                 self = trigger
-            } else if let code = KeyCombo.keyCodes[name.lowercased()] {
+            } else if let code = KeyName.code(name.lowercased()) {
                 self.init(name: name, code: Int64(code), kind: .key)
             } else {
                 return nil
@@ -95,7 +95,7 @@ public enum HyperKey {
         public init?(named name: String) {
             if name == Trigger.capsLock.name {
                 self = .capsLock
-            } else if let code = KeyCombo.keyCodes[name.lowercased()] {
+            } else if let code = KeyName.code(name.lowercased()) {
                 self = .key(Int64(code))
             } else {
                 return nil

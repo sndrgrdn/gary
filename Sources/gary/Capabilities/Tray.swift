@@ -151,17 +151,6 @@ private nonisolated func scan() throws -> [TrayItem] {
     return TrayItem.merge(elements)
 }
 
-private nonisolated struct ModifierKey {
-    let modifier: KeyCombo.Modifiers
-    let code: CGKeyCode
-    let flag: CGEventFlags
-}
-
-private nonisolated let modifierKeys = [
-    ModifierKey(modifier: .command, code: 55, flag: .maskCommand), ModifierKey(modifier: .shift, code: 56, flag: .maskShift),
-    ModifierKey(modifier: .option, code: 58, flag: .maskAlternate), ModifierKey(modifier: .control, code: 59, flag: .maskControl),
-]
-
 private nonisolated func click(_ frame: CGRect, _ how: TrayClick) throws -> Bool {
     guard CGPreflightPostEventAccess() else { throw HostFailure(missingGrant(.accessibility, "tray.press")) }
     let point = CGPoint(x: frame.midX, y: frame.midY)
@@ -175,17 +164,17 @@ private nonisolated func click(_ frame: CGRect, _ how: TrayClick) throws -> Bool
         post(.mouseMoved, at: edge)
         usleep(700_000)
     }
-    let held = modifierKeys.filter { how.modifiers.contains($0.modifier) }
+    let held = how.modifiers.held
     var flags: CGEventFlags = []
     for key in held {
-        flags.insert(key.flag)
+        flags.insert(key.eventFlag)
         post(key: key.code, down: true, flags: flags)
     }
     let right = how.button == .right
     post(right ? .rightMouseDown : .leftMouseDown, at: point, button: right ? .right : .left, flags: flags)
     post(right ? .rightMouseUp : .leftMouseUp, at: point, button: right ? .right : .left, flags: flags)
     for key in held.reversed() {
-        flags.remove(key.flag)
+        flags.remove(key.eventFlag)
         post(key: key.code, down: false, flags: flags)
     }
     if let pointer {

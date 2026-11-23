@@ -58,7 +58,7 @@ final class HotkeyCenter {
             nextNumber += 1
             let status = RegisterEventHotKey(
                 binding.hotkey.keys.keyCode,
-                carbonModifiers(binding.hotkey.keys.modifiers),
+                UInt32(binding.hotkey.keys.modifiers.held.reduce(0) { $0 | $1.carbonFlag }),
                 EventHotKeyID(signature: OSType(0x4761_7279), id: number),
                 GetEventDispatcherTarget(),
                 0,
@@ -74,22 +74,5 @@ final class HotkeyCenter {
             taken[binding.hotkey.keys] = binding
             log("hotkey \(binding.hotkey.keys) registered for \(binding.owner)/\(binding.hotkey.id)")
         }
-    }
-
-    private func carbonModifiers(_ modifiers: KeyCombo.Modifiers) -> UInt32 {
-        var flags = 0
-        if modifiers.contains(.command) {
-            flags |= cmdKey
-        }
-        if modifiers.contains(.control) {
-            flags |= controlKey
-        }
-        if modifiers.contains(.option) {
-            flags |= optionKey
-        }
-        if modifiers.contains(.shift) {
-            flags |= shiftKey
-        }
-        return UInt32(flags)
     }
 }

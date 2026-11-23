@@ -2,8 +2,8 @@
 import Testing
 
 struct KeyNameTests {
-    private func name(_ code: UInt16, _ characters: String? = nil, _ ignoring: String? = nil, _ modifiers: KeyName.Modifiers = []) -> String? {
-        KeyName.name(keyCode: code, characters: characters, ignoringModifiers: ignoring ?? characters, modifiers: modifiers)
+    private func name(_ code: UInt16, _ characters: String? = nil, _ ignoring: String? = nil, _ modifiers: KeyModifiers = []) -> String? {
+        KeyStroke(keyCode: code, characters: characters, ignoringModifiers: ignoring ?? characters, modifiers: modifiers).name
     }
 
     @Test func `names special keys and keeps the old names`() {

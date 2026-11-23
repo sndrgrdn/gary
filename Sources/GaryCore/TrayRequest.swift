@@ -6,14 +6,12 @@ public enum TrayButton: String, CaseIterable, Sendable {
 
 public struct TrayClick: Equatable, Sendable {
     public var button: TrayButton
-    public var modifiers: KeyCombo.Modifiers
+    public var modifiers: KeyModifiers
 
-    public init(button: TrayButton = .left, modifiers: KeyCombo.Modifiers = []) {
+    public init(button: TrayButton = .left, modifiers: KeyModifiers = []) {
         self.button = button
         self.modifiers = modifiers
     }
-
-    static let modifierNames: [String: KeyCombo.Modifiers] = ["cmd": .command, "ctrl": .control, "alt": .option, "shift": .shift]
 }
 
 public enum TrayRequest: Equatable, Sendable {
@@ -33,9 +31,9 @@ public enum TrayRequest: Equatable, Sendable {
         }
         if let raw = options["modifiers"] {
             let names = raw.array ?? [.null]
-            let modifiers = names.compactMap { $0.string.flatMap { TrayClick.modifierNames[$0] } }
+            let modifiers = names.compactMap { name in KeyModifiers.names.first { $0.name == name.string }?.modifier }
             guard modifiers.count == names.count else { throw call.fail("modifiers must be an array of \"cmd\", \"ctrl\", \"alt\" and \"shift\"") }
-            click.modifiers = KeyCombo.Modifiers(modifiers)
+            click.modifiers = KeyModifiers(modifiers)
         }
         return .press(id: id, click)
     }
