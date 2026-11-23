@@ -33,14 +33,14 @@ final class CurrentTheme {
     }
 
     func reload() throws -> Bool {
-        let next = try files.theme(palette: palette, system: system, override: payload)
-        guard next != value else { return false }
-        value = next
-        return true
+        try apply(payload)
     }
 
     func apply(_ payload: JSON?) throws -> Bool {
+        let next = try files.theme(palette: palette, system: system, override: payload)
         self.payload = payload
-        return try reload()
+        guard next != value else { return false }
+        value = next
+        return true
     }
 }
