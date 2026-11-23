@@ -155,16 +155,8 @@ struct NodeView: View {
             hover = style ?? "hover"
         }
         let look = theme.resolve(node.style, props, hover: hover)
-        let tracksHover = node.hovered != nil || node.kind == .button
-        let fade: SwiftUI.Animation? = reduceMotion || node.kind == .button ? nil : .easeOut(duration: 0.15)
-        return content(look)
-            .box(
-                look,
-                node,
-                anchor.wrappedValue,
-                hovering: tracksHover ? animated(hovering, fade) : nil,
-                pressing: node.pressed != nil ? animated(pressing, fade) : nil,
-            )
+        let box = NodeBox(look, node)
+        return boxed(content(look, box), box, look)
             .probed(path, look)
             .modifier(VisualEffects(look, node))
             .transaction(value: look.animation == nil ? nil : node) { transaction in
@@ -176,11 +168,45 @@ struct NodeView: View {
             .layoutPriority(node.kind == .spacer ? -1 : 0)
     }
 
+    private func boxed(_ content: some View, _ box: NodeBox, _ look: ResolvedStyle) -> some View {
+        let tracksHover = node.hovered != nil || node.kind == .button
+        let fade: SwiftUI.Animation? = reduceMotion || node.kind == .button ? nil : .easeOut(duration: 0.15)
+        let gestures = anchor.wrappedValue
+        let shape = RoundedRectangle(cornerRadius: look.radius ?? 0, style: .continuous)
+        return content.padding(EdgeInsets(box.padding))
+            .frame(width: box.width.map { CGFloat($0) }, height: box.height.map { CGFloat($0) }, alignment: box.alignment)
+            .minWidth(look.minWidth, alignment: box.alignment)
+            .background {
+                if let background = box.background {
+                    shape.fill(AnyShapeStyle(background))
+                }
+            }
+            .material(look.material, radius: look.radius ?? 0)
+            .appearance(look.colorScheme)
+            .clipShape(BoxClip(radius: look.radius ?? 0, clips: box.clip))
+            .overlay {
+                if let border = look.border, let color = look.borderColor {
+                    shape.strokeBorder(Color(color), lineWidth: border.width)
+                }
+            }
+            .overlay {
+                if !node.actions.isEmpty || node.tooltip != nil {
+                    GestureCatcher(actions: node.actions, scrolls: node.scrolls, tooltip: node.tooltip, anchor: gestures)
+                }
+            }
+            .interactive(
+                box.action,
+                hovering: tracksHover ? animated(hovering, fade) : nil,
+                pressing: node.pressed != nil ? animated(pressing, fade) : nil,
+            ) { _ in gestures.view?.send(.click, .null) }
+            .dropShadow(look.shadow, look.shadowColor, always: node.hovered != nil || node.pressed != nil || node.kind == .button)
+    }
+
     private func animated(_ state: State<Bool>, _ animation: SwiftUI.Animation?) -> Binding<Bool> {
         Binding(get: { state.wrappedValue }, set: { next in withAnimation(animation) { state.wrappedValue = next } })
     }
 
-    @ViewBuilder private func content(_ look: ResolvedStyle) -> some View {
+    @ViewBuilder private func content(_ look: ResolvedStyle, _ box: NodeBox) -> some View {
         let gap = look.gap ?? theme.spacing.item
         switch node.content {
         case .row:
@@ -199,7 +225,7 @@ struct NodeView: View {
             ImageNode(
                 path: path,
                 fit: look.fit ?? .fit,
-                size: CGSize(width: look.width ?? look.height ?? 16, height: look.height ?? look.width ?? 16),
+                size: CGSize(width: box.width ?? 0, height: box.height ?? 0),
                 tint: node.props.color == nil ? nil : Color(look.color),
                 arrival: reduceMotion ? nil : look.animation.flatMap { SwiftUI.Animation($0, duration: look.duration) },
                 transition: AnyTransition(look.transition ?? .opacity),
@@ -207,13 +233,13 @@ struct NodeView: View {
         case let .slider(fraction, release):
             SliderNode(
                 fraction: fraction,
-                width: look.width ?? 120,
+                width: box.width ?? 0,
                 action: node.actions[.click],
                 release: release,
                 tint: node.props.color == nil ? nil : Color(look.color),
             )
         case let .progress(fraction):
-            Advancing(fraction: fraction, width: look.width ?? 120) { value in ProgressBar(value: value, look: look) }
+            Advancing(fraction: fraction, width: box.width ?? 0) { value in ProgressBar(value: value, look: look) }
         case let .input(input):
             InputNode(input: input, font: nsFont(look.font), color: Color(look.color))
         case .spacer:
@@ -256,34 +282,6 @@ private struct Children: View {
 }
 
 private extension View {
-    func box(_ look: ResolvedStyle, _ node: Node, _ anchor: GestureAnchor, hovering: Binding<Bool>?, pressing: Binding<Bool>?) -> some View {
-        let box = NodeBox(look, node)
-        let shape = RoundedRectangle(cornerRadius: look.radius ?? 0, style: .continuous)
-        return padding(EdgeInsets(box.padding))
-            .frame(width: box.width.map { CGFloat($0) }, height: box.height.map { CGFloat($0) }, alignment: box.alignment)
-            .minWidth(look.minWidth, alignment: box.alignment)
-            .background {
-                if let background = box.background {
-                    shape.fill(AnyShapeStyle(background))
-                }
-            }
-            .material(look.material, radius: look.radius ?? 0)
-            .appearance(look.colorScheme)
-            .clipShape(BoxClip(radius: look.radius ?? 0, clips: box.clip))
-            .overlay {
-                if let border = look.border, let color = look.borderColor {
-                    shape.strokeBorder(Color(color), lineWidth: border.width)
-                }
-            }
-            .overlay {
-                if !node.actions.isEmpty || node.tooltip != nil {
-                    GestureCatcher(actions: node.actions, scrolls: node.scrolls, tooltip: node.tooltip, anchor: anchor)
-                }
-            }
-            .interactive(box.action, hovering: hovering, pressing: pressing) { _ in anchor.view?.send(.click, .null) }
-            .dropShadow(look.shadow, look.shadowColor, always: node.hovered != nil || node.pressed != nil || node.kind == .button)
-    }
-
     func minWidth(_ minWidth: Double?, alignment: Alignment) -> some View {
         MinWidth(minWidth: minWidth, alignment: alignment) { self }
     }
