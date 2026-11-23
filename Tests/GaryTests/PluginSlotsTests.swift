@@ -386,4 +386,37 @@ struct PluginSlotsTests {
         #expect(!shown.stopped)
         #expect(!loaded.stopped)
     }
+
+    @Test func `a reload that fails leaves the running version's manifest in charge of hiding and surface addresses`() throws {
+        let lifecycle = Lifecycle()
+        let panel = try key("test.panel", .panel)
+        try lifecycle.sync([panel: bundle("test.panel", .panel)])
+        _ = lifecycle.show(in: panel)
+        let first = try lifecycle.newest
+        lifecycle.loaded(first, panel)
+        try lifecycle.sync([panel: bundle("test.panel", .panel, version: "2", keepLoaded: true, surfaces: ["main", "osd"])])
+        let candidate = try lifecycle.newest
+        #expect(lifecycle.slots[panel]?.bundle.manifest.version == "1")
+        lifecycle.failed(candidate, panel)
+        #expect(lifecycle.slots[panel]?.bundle.manifest.version == "1")
+        #expect(try lifecycle.slots.surfaceSlot(#require(SurfaceAddress("test.panel:osd"))) == nil)
+        lifecycle.hide(in: panel)
+        #expect(first.stopped)
+    }
+
+    @Test func `a reload's manifest takes over when it loads, and a rejected one waits for new files instead of the next sync`() throws {
+        let lifecycle = Lifecycle()
+        let service = try key("test.service", .service)
+        try lifecycle.sync([service: bundle("test.service", .service)])
+        try lifecycle.loaded(lifecycle.newest, service, shows: [])
+        try lifecycle.sync([service: bundle("test.service", .service, version: "2")])
+        try lifecycle.failed(lifecycle.newest, service)
+        try lifecycle.sync([service: bundle("test.service", .service, version: "2")])
+        #expect(lifecycle.made.count == 2)
+        lifecycle.perform(lifecycle.slots.reload(service))
+        let second = try lifecycle.newest
+        #expect(second.bundle.manifest.version == "2")
+        lifecycle.loaded(second, service, shows: [])
+        #expect(lifecycle.slots[service]?.bundle.manifest.version == "2")
+    }
 }
