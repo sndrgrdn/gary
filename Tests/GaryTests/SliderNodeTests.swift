@@ -17,35 +17,18 @@ struct SliderNodeTests {
         )
     }
 
-    @Test func `a drag sends the slider's action as it moves and its release action once with the final value`() throws {
-        var sent: [ActionEvent] = []
-        let node = try Node.parse(JSON.parse(#"{"type":"slider","value":0,"action":"seek","release":"seek-end","width":200}"#))
-        let view = TreeHostingView(
-            tree: MountedTree(root: node, theme: theme),
-            onAction: { sent.append($0) },
-            onDismiss: { Issue.record("unexpected dismiss") },
-        )
-        let window = NSWindow(contentRect: CGRect(x: 100, y: 100, width: 200, height: 40), styleMask: .borderless, backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        window.contentView = view
-        window.orderFrontRegardless()
-        view.layoutSubtreeIfNeeded()
-        func event(_ type: NSEvent.EventType, _ x: CGFloat) -> NSEvent? {
-            NSEvent.mouseEvent(
-                with: type, location: CGPoint(x: x, y: 20), modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
-                windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1,
-            )
-        }
-        for (type, x) in [(NSEvent.EventType.leftMouseDown, 40.0), (.leftMouseDragged, 80), (.leftMouseDragged, 120), (.leftMouseUp, 120)] {
-            try window.sendEvent(#require(event(type, x)))
-            drainMainRunLoop()
-        }
-        window.close()
-        let names = sent.map(\.name)
-        #expect(names.last == "seek-end")
-        #expect(names.count(where: { $0 == "seek-end" }) == 1)
-        #expect(names.dropLast().allSatisfy { $0 == "seek" } && names.count > 2)
-        #expect(sent.last?.payload == sent.dropLast().last?.payload)
+    @Test func `a drag holds the dragged value against updates and releases it once with its own rate`() {
+        var drag = SliderDrag()
+        #expect(drag.edit(true, shown: 0.2, rate: 0.5, at: 0) == nil)
+        #expect(drag.held == Node.Fraction(0.2, at: 0))
+        drag.move(to: 0.4, at: 10)
+        drag.fractionChanged()
+        drag.move(to: 0.6, at: 20)
+        #expect(drag.held == Node.Fraction(0.6, at: 20))
+        #expect(drag.edit(false, shown: 0.3, rate: 0.5, at: 30) == 0.6)
+        #expect(drag.held == Node.Fraction(0.6, rate: 0.5, at: 30))
+        drag.fractionChanged()
+        #expect(drag.held == nil)
     }
 
     @Test func `a fraction with a rate advances from its value by the time since at and stays within 0 and 1`() {

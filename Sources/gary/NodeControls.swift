@@ -77,35 +77,51 @@ struct SliderNode: View {
     let release: String?
     let tint: Color?
     @Environment(\.nodeAction) private var perform
-    private let held = State<Node.Fraction?>(initialValue: nil)
-    private let dragging = State(initialValue: false)
+    private let drag = State(initialValue: SliderDrag())
 
     var body: some View {
-        Advancing(fraction: held.wrappedValue ?? fraction, width: width) { value in
+        Advancing(fraction: drag.wrappedValue.held ?? fraction, width: width) { value in
             Slider(value: Binding(get: { value }, set: { next in
-                held.wrappedValue = Node.Fraction(next, at: Date().milliseconds)
+                drag.wrappedValue.move(to: next, at: Date().milliseconds)
                 send(action, next)
             }), in: 0...1) { editing in
-                let current = dragging.wrappedValue ? held.wrappedValue?.value ?? value : value
-                dragging.wrappedValue = editing
-                held.wrappedValue = Node.Fraction(current, rate: editing ? 0 : fraction.rate, at: Date().milliseconds)
-                if !editing {
-                    send(release, current)
+                if let released = drag.wrappedValue.edit(editing, shown: value, rate: fraction.rate, at: Date().milliseconds) {
+                    send(release, released)
                 }
             }
         }
         .tint(tint)
         .focusEffectDisabled()
         .onChange(of: fraction) {
-            if !dragging.wrappedValue {
-                held.wrappedValue = nil
-            }
+            drag.wrappedValue.fractionChanged()
         }
     }
 
     private func send(_ name: String?, _ value: Double) {
         if let name {
             perform?(ActionEvent(name: name, payload: .number(value), origin: nil))
+        }
+    }
+}
+
+struct SliderDrag {
+    private(set) var held: Node.Fraction?
+    private var dragging = false
+
+    mutating func move(to value: Double, at time: Double) {
+        held = Node.Fraction(value, at: time)
+    }
+
+    mutating func edit(_ editing: Bool, shown value: Double, rate: Double, at time: Double) -> Double? {
+        let current = dragging ? held?.value ?? value : value
+        dragging = editing
+        held = Node.Fraction(current, rate: editing ? 0 : rate, at: time)
+        return editing ? nil : current
+    }
+
+    mutating func fractionChanged() {
+        if !dragging {
+            held = nil
         }
     }
 }
