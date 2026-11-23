@@ -10,6 +10,7 @@ struct SlotKey: Hashable, CustomStringConvertible {
 }
 
 protocol SlotRuntime: AnyObject {
+    var bundle: PluginBundle { get }
     var initialScene: Scene { get }
 }
 
@@ -22,7 +23,7 @@ struct PluginSlot<Runtime: SlotRuntime> {
     }
 
     let key: SlotKey
-    var bundle: PluginBundle
+    var wanted: PluginBundle
     var phase = Phase.stopped
     var failures = RestartBudget(limit: 5, window: 60)
     var candidate: Runtime?
@@ -33,6 +34,10 @@ struct PluginSlot<Runtime: SlotRuntime> {
 
     var visible: Bool {
         !shown.isEmpty
+    }
+
+    var bundle: PluginBundle {
+        runtime?.bundle ?? wanted
     }
 
     var isLive: Bool {
@@ -124,13 +129,13 @@ final class PluginSlots<Runtime: SlotRuntime> {
         }
         for (key, bundle) in wanted {
             if let slot = slots[key] {
-                guard slot.bundle != bundle else { continue }
+                guard slot.wanted != bundle else { continue }
                 effects += update(key) { slot in
-                    slot.bundle = bundle
+                    slot.wanted = bundle
                     return reload(&slot)
                 }
             } else {
-                slots[key] = PluginSlot(key: key, bundle: bundle)
+                slots[key] = PluginSlot(key: key, wanted: bundle)
                 if !key.kind.isSurface {
                     effects += update(key) { load(&$0) }
                 }
@@ -289,7 +294,7 @@ final class PluginSlots<Runtime: SlotRuntime> {
 
     private func load(_ slot: inout PluginSlot<Runtime>) -> [Effect] {
         let effects = slot.candidate.map { [Effect.stop($0)] } ?? []
-        let runtime = make(slot.key, slot.bundle, scene(of: slot))
+        let runtime = make(slot.key, slot.wanted, scene(of: slot))
         slot.candidate = runtime
         return effects + [.start(runtime)]
     }

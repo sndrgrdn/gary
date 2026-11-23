@@ -100,6 +100,7 @@ extension Shell {
         switch event {
         case let .loaded(output, trace):
             perform(slots.loaded(runtime, at: key, output), trace)
+            claimMediaKeys()
         case let .output(output, trace):
             perform(slots.output(runtime, at: key, output), trace)
         case let .surface(request, address, origin):

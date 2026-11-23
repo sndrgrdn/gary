@@ -174,8 +174,9 @@ extension Shell {
                 guard let slot = slots[SlotKey(id: id, kind: kind)]
                 else { return "\(kind.rawValue):\(kind == .barWidget ? "not-in-bar" : "inactive")" }
                 switch slot.phase {
-                case .running where (manifest.surfaces[kind]?.count ?? 0) > 1:
-                    return "\(kind.rawValue):" + (manifest.surfaces[kind] ?? []).map { "\($0)=\(slot.shown[$0] != nil ? "shown" : "hidden")" }
+                case .running where (slot.bundle.manifest.surfaces[kind]?.count ?? 0) > 1:
+                    return "\(kind.rawValue):" + (slot.bundle.manifest.surfaces[kind] ?? [])
+                        .map { "\($0)=\(slot.shown[$0] != nil ? "shown" : "hidden")" }
                         .joined(separator: ",")
                 case .running: return "\(kind.rawValue):\(kind.isSurface ? (slot.visible ? "shown" : "paused") : "running")"
                 case .stopped: return "\(kind.rawValue):\(kind.isSurface ? "hidden" : "stopped")"
