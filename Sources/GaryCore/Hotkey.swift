@@ -17,8 +17,8 @@ public struct KeyCombo: Hashable, Sendable, CustomStringConvertible {
         let chord = alternation(KeyModifiers.aliases.filter { !$0.value.isDisjoint(with: .hyper) }.keys)
         let key = alternation(KeyName.names + KeyName.hotkeyCodes.keys)
         let function = alternation(KeyName.functionKeys)
-        let plus = #"\s*\+\s*"#
-        return #"^\s*(?:\#(modifier)\#(plus))*(?:\#(chord)\#(plus)(?:\#(modifier)\#(plus))*\#(key)|\#(function))\s*$"#
+        let plus = #"[ \t]*\+[ \t]*"#
+        return #"^[ \t]*(?:\#(modifier)\#(plus))*(?:\#(chord)\#(plus)(?:\#(modifier)\#(plus))*\#(key)|\#(function))[ \t]*$"#
     }
 
     private static func alternation(_ names: some Sequence<String>) -> String {
