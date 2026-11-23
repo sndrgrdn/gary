@@ -35,7 +35,8 @@ extension PluginRuntime {
             -> Void = { [weak self] plugin, kind, method, args, resolve, reject in
                 self?.assumeIsolated { runtime in
                     guard let target = CallTarget(plugin: plugin, kind: kind) else {
-                        runtime.callBack(reject, ["\(plugin) is not a plugin id"], Trace("host.call"))
+                        let context = JSContext.current()
+                        context?.exception = JSValue(newErrorFromMessage: "host.call: \(plugin) is not a plugin id", in: context)
                         return
                     }
                     runtime.callPlugin(target, method, args, resolve, reject)
