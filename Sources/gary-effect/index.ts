@@ -2,6 +2,7 @@ import "./text-encoder";
 import "./text-decoder";
 import { clockOf } from "./clock";
 import { type Listen, pressesOf } from "./hotkeys";
+import { type Hold, heldOf } from "./hyperkey";
 import { type Spawn, linesOf } from "./spawn";
 import {
   Cache,
@@ -44,14 +45,17 @@ type Lifted = (...args: Json[]) => Effect.Effect<Json | undefined, HostError>;
 
 type LineStream = (argv: readonly string[]) => Stream.Stream<string, HostError>;
 
+type Held = (options?: Json) => Effect.Effect<void, HostError, Scope.Scope>;
+
 interface LiftedHost {
-  [name: string]: Lifted | LiftedHost | LineStream;
+  [name: string]: Lifted | LiftedHost | LineStream | Held;
 }
 
 interface Env {
   readonly host: Host;
   readonly spawn: Spawn | undefined;
   readonly hotkeys: Listen | undefined;
+  readonly hyperkey: Hold<Json> | undefined;
   readonly fetch: HostFunction | undefined;
   readonly setTimeout: (callback: () => void, ms: number) => number;
   readonly clearTimeout: (id: number) => void;
@@ -103,6 +107,10 @@ function hostOf(env: Env): LiftedHost {
 
   if (env.hotkeys !== undefined) {
     lifted.hotkeys = pressesOf(env.hotkeys, hostError);
+  }
+
+  if (env.hyperkey !== undefined) {
+    lifted.hyperkey = heldOf(env.hyperkey, hostError);
   }
 
   return lifted;

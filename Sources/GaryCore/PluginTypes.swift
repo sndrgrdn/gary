@@ -253,7 +253,7 @@ public extension PluginTypes {
     }
 
     declare module "\(PluginBundle.effectModule)" {
-      import type { Effect as E, Stream as S } from "effect";
+      import type { Effect as E, Scope as Sc, Stream as S } from "effect";
       export {
         Cache, Cause, Context, Data, Deferred, Duration, Effect, Exit, Fiber, Layer, Option, PubSub, Queue, Ref, Schedule, Schema, Scope,
         Semaphore, Stream, SubscriptionRef, pipe,
@@ -268,6 +268,7 @@ public extension PluginTypes {
       interface Scoped {
         spawn(argv: string[]): S.Stream<string, HostError>;
         hotkeys(keys: string[]): S.Stream<string, HostError>;
+        hyperkey(options?: { shift?: boolean }): E.Effect<void, HostError, Sc.Scope>;
       }
       export const host: { readonly [K in keyof Gary.Host]: K extends keyof Scoped ? Scoped[K] : Lift<Gary.Host[K]> };
       export const fetch: typeof globalThis extends { fetch: infer F } ? Lift<F> : never;

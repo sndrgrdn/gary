@@ -1,4 +1,5 @@
 import AppKit
+import GaryCore
 import GaryPrivate
 
 enum SkyLight {
@@ -89,13 +90,14 @@ struct SavedSystemState: Codable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case menuBarHidden, dock
+        case menuBarHidden, dock, capsLock
         case dockVisibility = "autohide"
     }
 
     var menuBarHidden = false
     var dock: Dock?
     var dockVisibility: DockVisibility?
+    var capsLock: [String: [HyperKey.Mapping]]?
 }
 
 enum SystemState {
@@ -132,10 +134,13 @@ enum SystemState {
         if let visibility = state.dockVisibility, CoreDock.visibility != visibility {
             CoreDock.setVisibility(visibility)
         }
+        if let capsLock = state.capsLock {
+            Keyboards.giveBack(capsLock)
+        }
         try? FileManager.default.removeItem(at: Paths.systemRestore)
         saved = SavedSystemState()
         log(
-            "restored the system state Gary had changed: menubar hidden=\(state.menuBarHidden) dock=\(state.dock?.own.rect.debugDescription ?? "-") autohide=\(state.dockVisibility.map { String($0.rawValue) } ?? "-")",
+            "restored the system state Gary had changed: menubar hidden=\(state.menuBarHidden) dock=\(state.dock?.own.rect.debugDescription ?? "-") autohide=\(state.dockVisibility.map { String($0.rawValue) } ?? "-") capslock=\(state.capsLock != nil)",
         )
     }
 

@@ -29,6 +29,7 @@ struct Capability {
         .files,
         .focus,
         .hotkeys,
+        .hyperkey,
         .mediakeys,
         .menubar,
         .network,
