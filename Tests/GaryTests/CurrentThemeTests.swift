@@ -50,6 +50,16 @@ import Testing
         #expect(theme.value == before)
     }
 
+    @Test func `a payload that fails is dropped, so the theme still follows the Mac's appearance and gary doctor does not check it`() throws {
+        let theme = try loaded(.light)
+        #expect(throws: ThemeError.self) { try theme.apply(JSON.parse(##"{"colors": {"accent": 42}}"##)) }
+        #expect(theme.payload == nil)
+
+        #expect(theme.follow(.dark))
+        #expect(try theme.reload())
+        #expect(theme.value.mode == .dark)
+    }
+
     @Test func `a theme.json that fails keeps the theme Gary shows until the file is fixed`() throws {
         let theme = try loaded(.dark)
         let before = theme.value
