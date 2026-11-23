@@ -13,6 +13,7 @@
 
 - `gary report` prints a bug report in Markdown, with the versions, `gary doctor`, `gary listPlugins`, the end of the log, and recent crash reports.
 - `gary doctor` flags SketchyBar, StableBar, Übersicht, Zebar, and Barik when they run, since they draw their own bar over Gary's.
+- `fetch` takes an optional second argument with a `method`, `headers`, and a `body`, so a plugin can call an API that needs an `Authorization` header or a POST.
 - `onKey` and `gary key` name the function keys `f1` to `f20`, and hotkeys take the `onKey` names `backspace`, `home`, `end`, `pageup`, and `pagedown`.
 
 ### Fixes

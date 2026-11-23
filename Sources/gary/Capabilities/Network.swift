@@ -1,4 +1,5 @@
 import Foundation
+import GaryCore
 @preconcurrency import JavaScriptCore
 
 private nonisolated let fetchSession = URLSession(configuration: .ephemeral)
@@ -6,9 +7,10 @@ private nonisolated let fetchSession = URLSession(configuration: .ephemeral)
 nonisolated extension Capability {
     static let network = Capability(name: "network", summary: "A global fetch for http and https URLs.", types: """
     declare namespace Gary {
+      type FetchOptions = { method?: string; headers?: { [name: string]: string }; body?: string }
       type FetchResponse = { status: number; text: string }
     }
-    declare function fetch(url: string): Promise<Gary.FetchResponse>;
+    declare function fetch(url: string, options?: Gary.FetchOptions): Promise<Gary.FetchResponse>;
     """, example: """
     let temperature = "…";
 
@@ -26,25 +28,38 @@ nonisolated extension Capability {
       },
     } satisfies Gary.BarWidget;
     """, install: { host, plugin in
-        let fetch: @convention(block) (String) -> JSValue? = { [weak plugin] address in
+        let fetch: @convention(block) (String) -> JSValue? = { [weak plugin] text in
             guard let context = JSContext.current() else { return nil }
             return JSValue(newPromiseIn: context) { resolve, reject in
                 guard let resolve, let reject else { return }
-                guard let url = URL(string: address), ["http", "https"].contains(url.scheme?.lowercased()) else {
-                    reject.call(withArguments: [context.newError("fetch takes an http or https URL")])
-                    return
-                }
-                if let plugin {
-                    load(url, resolve, reject, into: plugin)
+                do {
+                    let request = try FetchRequest.parse((try? JSON.parse(text))?.array ?? [])
+                    if let plugin {
+                        load(request, resolve, reject, into: plugin)
+                    }
+                } catch {
+                    reject.call(withArguments: [context.newError(String(describing: error))])
                 }
             }
         }
-        host.context.setObject(fetch, forKeyedSubscript: "fetch" as NSString)
+        host.context.evaluateScript("""
+        (function (bridge) {
+          globalThis.fetch = function () {
+            return bridge(JSON.stringify(Array.prototype.slice.call(arguments)));
+          };
+        })
+        """).call(withArguments: [fetch])
     })
 }
 
-private nonisolated func load(_ url: URL, _ resolve: JSValue, _ reject: JSValue, into plugin: PluginRuntime) {
-    fetchSession.dataTask(with: URLRequest(url: url, timeoutInterval: 15)) { [weak plugin] data, response, error in
+private nonisolated func load(_ request: FetchRequest, _ resolve: JSValue, _ reject: JSValue, into plugin: PluginRuntime) {
+    var urlRequest = URLRequest(url: request.url, timeoutInterval: 15)
+    urlRequest.httpMethod = request.method
+    for (name, value) in request.headers {
+        urlRequest.setValue(value, forHTTPHeaderField: name)
+    }
+    urlRequest.httpBody = request.body.map { Data($0.utf8) }
+    fetchSession.dataTask(with: urlRequest) { [weak plugin] data, response, error in
         plugin?.onQueue { runtime in
             if let error {
                 runtime.callBack(reject, [resolve.context.newError("fetch failed: \(error.localizedDescription)")], Trace("fetch"))
