@@ -2,7 +2,7 @@ import Foundation
 import GaryCore
 import Vision
 
-extension Capability {
+nonisolated extension Capability {
     static let vision = Capability(
         name: "vision",
         summary: """
@@ -46,14 +46,14 @@ extension Capability {
     )
 }
 
-private func readText(_ source: ImageSource) async throws -> String {
+private nonisolated func readText(_ source: ImageSource) async throws -> String {
     var request = RecognizeTextRequest()
     request.automaticallyDetectsLanguage = true
     let observations = try await perform(request, on: source)
     return observations.compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
 }
 
-private func readCodes(_ source: ImageSource) async throws -> [JSON] {
+private nonisolated func readCodes(_ source: ImageSource) async throws -> [JSON] {
     let request = DetectBarcodesRequest()
     let observations = try await perform(request, on: source)
     return observations.map { code in
@@ -61,14 +61,14 @@ private func readCodes(_ source: ImageSource) async throws -> [JSON] {
     }
 }
 
-private func perform<Request: ImageProcessingRequest>(_ request: Request, on source: ImageSource) async throws -> Request.Result {
+private nonisolated func perform<Request: ImageProcessingRequest>(_ request: Request, on source: ImageSource) async throws -> Request.Result {
     switch source {
     case let .file(path): try await request.perform(on: imageURL(path))
     case let .screen(area): try await request.perform(on: captureImage(area))
     }
 }
 
-private func imageURL(_ path: String) throws -> URL {
+private nonisolated func imageURL(_ path: String) throws -> URL {
     guard FileManager.default.isReadableFile(atPath: path) else { throw HostFailure("\(path) is not a readable image") }
     return URL(fileURLWithPath: path)
 }

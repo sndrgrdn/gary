@@ -2,9 +2,9 @@ import AppKit
 import Carbon.HIToolbox
 import GaryCore
 import IOKit.hidsystem
-import JavaScriptCore
+@preconcurrency import JavaScriptCore
 
-extension Capability {
+nonisolated extension Capability {
     static let hyperkey = Capability(
         name: "hyperkey",
         summary: """
@@ -50,7 +50,7 @@ extension Capability {
     )
 }
 
-private func options(_ call: HostCall) throws -> HyperKey.Options {
+private nonisolated func options(_ call: HostCall) throws -> HyperKey.Options {
     let options = call.arguments.first ?? .null
     guard options == .null || options.object != nil else { throw call.fail("options must be an object such as { key: \"capsLock\", shift: true }") }
     let key = options["key"] ?? .null
@@ -66,7 +66,7 @@ private func options(_ call: HostCall) throws -> HyperKey.Options {
     return HyperKey.Options(trigger: trigger, shift: shift.bool ?? false, tap: tapped)
 }
 
-private let hyperkeyScript = """
+private nonisolated let hyperkeyScript = """
 (function (host, hold, stop) {
   host.hyperkey = function (options) {
     var id = hold(JSON.stringify(options === undefined ? null : options));
@@ -75,7 +75,7 @@ private let hyperkeyScript = """
 })
 """
 
-final class HyperKeyTap {
+final nonisolated class HyperKeyTap: @unchecked Sendable {
     static let shared = HyperKeyTap()
     private static let ownTag: Int64 = 0x4859_5052
     private let lock = NSLock()
@@ -86,21 +86,7 @@ final class HyperKeyTap {
     private var source: CFRunLoopSource?
     private let mapping = DispatchQueue(label: "gary.hyperkey.mapping", qos: .userInteractive)
     private var replaced: [String: [HyperKey.Mapping]]?
-    private lazy var runLoop: CFRunLoop = {
-        let ready = DispatchSemaphore(value: 0)
-        var loop: CFRunLoop?
-        let thread = Thread {
-            loop = CFRunLoopGetCurrent()
-            RunLoop.current.add(NSMachPort(), forMode: .default)
-            ready.signal()
-            RunLoop.current.run()
-        }
-        thread.name = "gary.hyperkey"
-        thread.qualityOfService = .userInteractive
-        thread.start()
-        ready.wait()
-        return loop ?? CFRunLoopGetMain()
-    }()
+    private nonisolated(unsafe) static let runLoop = runLoopThread("gary.hyperkey")
 
     func hold(_ options: HyperKey.Options) throws -> Int {
         try lock.withLock {
@@ -159,8 +145,8 @@ final class HyperKeyTap {
         }
         gate.options = options
         let source = CFMachPortCreateRunLoopSource(nil, created, 0)
-        CFRunLoopAddSource(runLoop, source, .commonModes)
-        CFRunLoopWakeUp(runLoop)
+        CFRunLoopAddSource(Self.runLoop, source, .commonModes)
+        CFRunLoopWakeUp(Self.runLoop)
         (tap, self.source) = (created, source)
         log("hyperkey: \(options.trigger.name) is Hyper")
     }
@@ -170,7 +156,7 @@ final class HyperKeyTap {
         letGo()
         CGEvent.tapEnable(tap: tap, enable: false)
         if let source {
-            CFRunLoopRemoveSource(runLoop, source, .commonModes)
+            CFRunLoopRemoveSource(Self.runLoop, source, .commonModes)
         }
         CFMachPortInvalidate(tap)
         (self.tap, source) = (nil, nil)
@@ -212,7 +198,7 @@ final class HyperKeyTap {
                 }
             }
         case let .key(code):
-            CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue) {
+            CFRunLoopPerformBlock(Self.runLoop, CFRunLoopMode.commonModes.rawValue) {
                 for down in [true, false] {
                     let event = CGEvent(keyboardEventSource: CGEventSource(stateID: .hidSystemState), virtualKey: CGKeyCode(code), keyDown: down)
                     event?.flags = CGEventFlags(rawValue: flags)
@@ -220,7 +206,7 @@ final class HyperKeyTap {
                     event?.post(tap: .cgSessionEventTap)
                 }
             }
-            CFRunLoopWakeUp(runLoop)
+            CFRunLoopWakeUp(Self.runLoop)
         }
     }
 
@@ -278,9 +264,9 @@ final class HyperKeyTap {
     }
 }
 
-enum Keyboards {
-    private static let client = IOHIDEventSystemClientCreateSimpleClient(kCFAllocatorDefault)
-    private static let property = "UserKeyMapping" as CFString
+nonisolated enum Keyboards {
+    private nonisolated(unsafe) static let client = IOHIDEventSystemClientCreateSimpleClient(kCFAllocatorDefault)
+    private static let property = "UserKeyMapping"
     private static let source = "HIDKeyboardModifierMappingSrc"
     private static let destination = "HIDKeyboardModifierMappingDst"
 
@@ -321,7 +307,7 @@ enum Keyboards {
     }
 
     private static func mappings(of keyboard: IOHIDServiceClient) throws -> [HyperKey.Mapping] {
-        guard let value = IOHIDServiceClientCopyProperty(keyboard, property) else { return [] }
+        guard let value = IOHIDServiceClientCopyProperty(keyboard, property as CFString) else { return [] }
         guard let entries = value as? [[String: NSNumber]]
         else { throw HostFailure("the UserKeyMapping of \(name(of: keyboard)) is not a list of mappings") }
         return try entries.map { entry in
@@ -334,7 +320,7 @@ enum Keyboards {
 
     private static func write(_ mappings: [HyperKey.Mapping], to keyboard: IOHIDServiceClient) throws {
         let value = mappings.map { [source: NSNumber(value: $0.source), destination: NSNumber(value: $0.destination)] }
-        guard IOHIDServiceClientSetProperty(keyboard, property, value as CFArray) else {
+        guard IOHIDServiceClientSetProperty(keyboard, property as CFString, value as CFArray) else {
             throw HostFailure("the key mapping of \(name(of: keyboard)) could not be written")
         }
     }

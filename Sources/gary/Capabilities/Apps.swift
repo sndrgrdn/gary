@@ -1,7 +1,8 @@
 import AppKit
 import GaryCore
+import os
 
-extension Capability {
+nonisolated extension Capability {
     static let apps = Capability(
         name: "apps",
         summary: """
@@ -56,7 +57,7 @@ extension Capability {
     )
 }
 
-private func json(_ app: NSRunningApplication) -> JSON {
+private nonisolated func json(_ app: NSRunningApplication) -> JSON {
     .object([
         "app": app.bundleIdentifier.map(JSON.string) ?? .null,
         "name": .string(app.localizedName ?? ""),
@@ -67,7 +68,7 @@ private func json(_ app: NSRunningApplication) -> JSON {
     ])
 }
 
-private func perform(_ request: AppsRequest) throws -> JSON {
+private nonisolated func perform(_ request: AppsRequest) throws -> JSON {
     switch request {
     case .installed:
         return .array(installedApps(in: ["/Applications", "/System/Applications", home + "/Applications"]))
@@ -83,7 +84,7 @@ private func perform(_ request: AppsRequest) throws -> JSON {
     }
 }
 
-func installedApps(in folders: [String]) -> [JSON] {
+nonisolated func installedApps(in folders: [String]) -> [JSON] {
     let files = FileManager.default
     func bundles(in folder: String, depth: Int) -> [String] {
         let paths = ((try? files.contentsOfDirectory(atPath: folder)) ?? []).filter { !$0.hasPrefix(".") }.map { folder + "/" + $0 }
@@ -111,7 +112,7 @@ func installedApps(in folders: [String]) -> [JSON] {
     return apps.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }.map(\.json)
 }
 
-private func running(_ target: AppTarget) -> [NSRunningApplication] {
+private nonisolated func running(_ target: AppTarget) -> [NSRunningApplication] {
     NSWorkspace.shared.runningApplications.filter { app in
         switch target {
         case let .bundle(id): app.bundleIdentifier?.caseInsensitiveCompare(id) == .orderedSame
@@ -120,7 +121,7 @@ private func running(_ target: AppTarget) -> [NSRunningApplication] {
     }
 }
 
-private func launch(_ target: AppTarget) throws -> JSON {
+private nonisolated func launch(_ target: AppTarget) throws -> JSON {
     let url: URL
     switch target {
     case let .bundle(id):
@@ -131,24 +132,25 @@ private func launch(_ target: AppTarget) throws -> JSON {
         url = URL(fileURLWithPath: path)
     }
     let done = DispatchSemaphore(value: 0)
-    var result: Result<NSRunningApplication, Error> = .failure(HostFailure("\(target) did not launch within 10 s"))
+    let launched = OSAllocatedUnfairLock<Result<JSON, Error>?>(initialState: nil)
     NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { app, error in
         if let app {
-            result = .success(app)
+            let opened = json(app)
+            launched.withLock { $0 = .success(opened) }
         } else if let error {
-            result = .failure(HostFailure(error.localizedDescription))
+            launched.withLock { $0 = .failure(HostFailure(error.localizedDescription)) }
         }
         done.signal()
     }
     _ = done.wait(timeout: .now() + 10)
-    return try json(result.get())
+    return try (launched.withLock { $0 } ?? .failure(HostFailure("\(target) did not launch within 10 s"))).get()
 }
 
 private final class AppsTopic: TopicFeed {
-    private let publish: (JSON, Trace) -> Void
+    private let publish: @Sendable (JSON, Trace) -> Void
     private var observations: [Observation] = []
 
-    init(_ publish: @escaping (JSON, Trace) -> Void) {
+    init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
         let names: [Notification.Name] = [
             NSWorkspace.didActivateApplicationNotification, NSWorkspace.didLaunchApplicationNotification,

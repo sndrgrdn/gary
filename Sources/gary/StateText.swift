@@ -1,6 +1,6 @@
 import GaryCore
 
-struct StateText {
+nonisolated struct StateText {
     private var topics: [String: String] = [:]
     private var shared: [String: String]
     let settings: String

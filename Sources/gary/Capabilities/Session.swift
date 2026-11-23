@@ -1,7 +1,7 @@
 import AppKit
 import GaryCore
 
-extension Capability {
+nonisolated extension Capability {
     static let session = Capability(
         name: "session",
         summary: """
@@ -30,10 +30,10 @@ extension Capability {
 }
 
 private final class SessionTopic: TopicFeed {
-    private let publish: (JSON, Trace) -> Void
+    private let publish: @Sendable (JSON, Trace) -> Void
     private var observations: [Observation] = []
 
-    init(_ publish: @escaping (JSON, Trace) -> Void) {
+    init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
         let center = DistributedNotificationCenter.default()
         observations = [

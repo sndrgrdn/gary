@@ -3,7 +3,7 @@ import GaryCore
 import GaryPrivate
 import IOKit
 
-extension Capability {
+nonisolated extension Capability {
     static let brightness = Capability(
         name: "brightness",
         summary: "Brightness of the built-in display and of external displays that support DDC. Set it.",
@@ -48,7 +48,7 @@ extension Capability {
     )
 }
 
-private enum DisplayServices {
+private nonisolated enum DisplayServices {
     typealias Get = @convention(c) (CGDirectDisplayID, UnsafeMutablePointer<Float>) -> Int32
     typealias Set = @convention(c) (CGDirectDisplayID, Float) -> Int32
     typealias Register = @convention(c) (CGDirectDisplayID, UnsafeMutableRawPointer?, CFNotificationCallback) -> Int32
@@ -88,7 +88,7 @@ private enum DisplayServices {
     }
 }
 
-private struct Display {
+nonisolated struct Display {
     let id: CGDirectDisplayID
     let uuid: String
     let builtin: Bool
@@ -108,12 +108,12 @@ private struct Display {
     }
 }
 
-private struct ExternalPanel {
+private nonisolated struct ExternalPanel: @unchecked Sendable {
     let service: CFTypeRef
     var level: (current: UInt16, maximum: UInt16)?
 }
 
-private final class Panel {
+private final nonisolated class Panel: @unchecked Sendable {
     static let shared = Panel()
     let queue = DispatchQueue(label: "gary.brightness")
     private var external: [CGDirectDisplayID: ExternalPanel] = [:]
@@ -199,11 +199,11 @@ private final class Panel {
             defer { IOObjectRelease(entry) }
             var name = [CChar](repeating: 0, count: 128)
             IORegistryEntryGetName(entry, &name)
-            switch String(cString: name) {
+            switch String(cChars: name) {
             case "AppleCLCD2", "IOMobileFramebufferShim":
                 var path = [CChar](repeating: 0, count: 1024)
                 IORegistryEntryGetPath(entry, kIOServicePlane, &path)
-                framebuffer = String(cString: path)
+                framebuffer = String(cChars: path)
             case "DCPAVServiceProxy":
                 guard let framebuffer,
                       IORegistryEntryCreateCFProperty(entry, "Location" as CFString, nil, 0)?.takeRetainedValue() as? String == "External",
@@ -220,10 +220,10 @@ private final class Panel {
 private final class BrightnessTopic: TopicFeed {
     weak static var current: BrightnessTopic?
     private static var registered: Set<CGDirectDisplayID> = []
-    private let publish: (JSON, Trace) -> Void
+    private let publish: @Sendable (JSON, Trace) -> Void
     private var observation: Observation?
 
-    init(_ publish: @escaping (JSON, Trace) -> Void) {
+    init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
         Self.current = self
         observation = Observation(.default, NSApplication.didChangeScreenParametersNotification) { [weak self] in self?.refresh(

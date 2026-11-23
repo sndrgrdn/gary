@@ -2,7 +2,7 @@ import AppKit
 import GaryCore
 import GaryPrivate
 
-enum SkyLight {
+nonisolated enum SkyLight {
     private static let connection = privateSymbol(.mainConnectionID, as: (@convention(c) () -> Int32).self)
     private static let setAlpha = privateSymbol(.setMenuBarInsetAndAlpha, as: (@convention(c) (Int32, Double, Double, Float) -> Int32).self)
     private static let getDock = privateSymbol(
@@ -44,7 +44,7 @@ enum SkyLight {
     }
 }
 
-enum CoreDock {
+nonisolated enum CoreDock {
     private static let read = privateSymbol(.dockGetAutoHide, as: (@convention(c) () -> Bool).self)
     private static let write = privateSymbol(.dockSetAutoHide, as: (@convention(c) (Bool) -> Void).self)
 
@@ -61,7 +61,7 @@ enum CoreDock {
     }
 }
 
-enum DockVisibility: RawRepresentable, Codable, Equatable {
+nonisolated enum DockVisibility: RawRepresentable, Codable, Equatable {
     case autohide
     case shown
 
@@ -77,13 +77,13 @@ enum DockVisibility: RawRepresentable, Codable, Equatable {
     }
 }
 
-struct DockRect: Codable, Equatable {
+nonisolated struct DockRect: Codable, Equatable {
     var rect: CGRect
     var reason: Int32
     var orientation: Int32
 }
 
-struct SavedSystemState: Codable, Equatable {
+nonisolated struct SavedSystemState: Codable, Equatable {
     struct Dock: Codable, Equatable {
         var own: DockRect
         var reserved: DockRect
@@ -173,7 +173,7 @@ func runRestoreAfter(_ arguments: [String]) -> Int32 {
     let exited = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: .main)
     exited.setEventHandler {
         log("restore watchdog: gary \(pid) exited")
-        SystemState.restore()
+        MainActor.assumeIsolated { SystemState.restore() }
         exit(0)
     }
     exited.resume()

@@ -1,7 +1,7 @@
 import AppKit
 import GaryCore
 
-extension Capability {
+nonisolated extension Capability {
     static let wallpaper = Capability(name: "wallpaper", summary: "The wallpaper of each display. Set it.", types: """
     declare namespace Gary {
       type Wallpaper = { display: string; name: string; path: string | null }
@@ -24,7 +24,7 @@ extension Capability {
         let folder = plugin.bundle.directory.path
         plugin.installAPI(host, "wallpaper", WallpaperRequest.methods) { call in
             let request = try WallpaperRequest.parse(call, home: home, folder: folder)
-            return .later(.main) {
+            return .main {
                 guard case let .set(path, display) = request else { return wallpapers() }
                 try setWallpaper(path, on: display)
                 return wallpapers(showing: path, on: display)

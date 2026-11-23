@@ -1,10 +1,10 @@
 import CoreBluetooth
 import GaryCore
 import GaryPrivate
-import IOBluetooth
+@preconcurrency import IOBluetooth
 import IOKit
 
-extension Capability {
+nonisolated extension Capability {
     static let bluetooth = Capability(
         name: "bluetooth",
         summary: """
@@ -80,7 +80,7 @@ extension Capability {
                         DispatchQueue.main.async { do { try BluetoothPairer.start(address, finish) } catch { finish(.failure(error)) } }
                     }
                 case .requestAccess:
-                    return .later(.main) { .string(Permission.bluetooth.request()) }
+                    return .main { .string(Permission.bluetooth.request()) }
                 }
             }
         },
@@ -88,7 +88,7 @@ extension Capability {
     )
 }
 
-private enum BluetoothPower {
+private nonisolated enum BluetoothPower {
     typealias Set = @convention(c) (Int32) -> Void
     static let set = privateSymbol(.bluetoothSetPower, as: Set.self)
 
@@ -97,7 +97,7 @@ private enum BluetoothPower {
     }
 }
 
-private func connection(_ address: String, open: Bool) throws -> JSON {
+private nonisolated func connection(_ address: String, open: Bool) throws -> JSON {
     let done = DispatchSemaphore(value: 0)
     nonisolated(unsafe) var failure: String?
     DispatchQueue.main.async {
@@ -172,15 +172,15 @@ final class BluetoothAccess: NSObject, CBCentralManagerDelegate {
     @objc optional var batteryPercentRight: UInt8 { get }
 }
 
-extension IOBluetoothDevice: BluetoothBatteryPercents {}
+nonisolated extension IOBluetoothDevice: BluetoothBatteryPercents {}
 
 final class BluetoothTopic: NSObject, TopicFeed {
     weak static var current: BluetoothTopic?
-    private let publish: (JSON, Trace) -> Void
+    private let publish: @Sendable (JSON, Trace) -> Void
     private var observations: [Observation] = []
     private var notifications: [IOBluetoothUserNotification] = []
 
-    init(_ publish: @escaping (JSON, Trace) -> Void) {
+    init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
         super.init()
         Self.current = self
@@ -203,7 +203,7 @@ final class BluetoothTopic: NSObject, TopicFeed {
         if let notification = IOBluetoothDevice.register(forConnectNotifications: self, selector: #selector(connected(_:device:))) {
             notifications.append(notification)
         }
-        let timer = Timer(timeInterval: 60, repeats: true) { [weak self] _ in self?.send(Trace("bluetooth-poll")) }
+        let timer = Timer(timeInterval: 60, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.send(Trace("bluetooth-poll")) } }
         RunLoop.main.add(timer, forMode: .common)
         observations = [
             Observation { timer.invalidate() },

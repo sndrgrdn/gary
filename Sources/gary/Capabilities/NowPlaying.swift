@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 import GaryCore
 
-extension Capability {
+nonisolated extension Capability {
     static let nowplaying = Capability(name: "nowplaying", summary: "The track that any app is playing. Play, pause, skip, and seek.", types: """
     declare namespace Gary {
       type NowPlaying = { available: boolean; reason?: string; track: Track | null }
@@ -61,7 +61,7 @@ extension Capability {
     }, topic: CapabilityTopic(type: "NowPlaying") { NowPlayingTopic($0) })
 }
 
-private struct Adapter {
+private nonisolated struct Adapter {
     static let artwork = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appending(path: "com.sndrgrdn.gary/nowplaying")
 
     let script: URL
@@ -105,8 +105,8 @@ private struct Adapter {
     }
 }
 
-private final class NowPlayingTopic: TopicFeed {
-    private let publish: (JSON, Trace) -> Void
+private final nonisolated class NowPlayingTopic: TopicFeed, @unchecked Sendable {
+    private let publish: @Sendable (JSON, Trace) -> Void
     private let queue = DispatchQueue(label: "gary.nowplaying")
     private var stream: (process: Process, output: Pipe)?
     private var state = NowPlaying()
@@ -115,7 +115,7 @@ private final class NowPlayingTopic: TopicFeed {
     private var stopped = false
     private var artworkPath: (digest: String, path: String)?
 
-    init(_ publish: @escaping (JSON, Trace) -> Void) {
+    init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
         queue.async { [weak self] in self?.start() }
     }
@@ -147,7 +147,7 @@ private final class NowPlayingTopic: TopicFeed {
             if data.isEmpty {
                 handle.readabilityHandler = nil
             } else {
-                self?.queue.async { self?.received(data) }
+                self?.queue.async { [weak self] in self?.received(data) }
             }
         }
         let started = Date()
@@ -155,7 +155,11 @@ private final class NowPlayingTopic: TopicFeed {
             output.fileHandleForReading.readabilityHandler = nil
             let errorOutput = errors.fileHandleForReading.availableData
             let reason = String(bytes: errorOutput, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            self?.queue.async { self?.ended(status: process.terminationStatus, reason: reason, ranFor: Date().timeIntervalSince(started)) }
+            self?.queue.async { [weak self] in self?.ended(
+                status: process.terminationStatus,
+                reason: reason,
+                ranFor: Date().timeIntervalSince(started),
+            ) }
         }
         do {
             try process.run()

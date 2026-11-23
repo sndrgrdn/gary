@@ -2,23 +2,29 @@ import CoreAudio
 import GaryCore
 import Synchronization
 
-let appVolumes = AppVolumes()
-let tapDevicePrefix = "com.sndrgrdn.gary.app-volume."
+nonisolated let appVolumes = AppVolumes()
+nonisolated let tapDevicePrefix = "com.sndrgrdn.gary.app-volume."
 
-private struct TapRoute: Equatable {
+private nonisolated struct TapRoute: Equatable {
     let process: AudioObjectID
     let output: AudioObjectID
     let rate: Float64
 }
 
-final class AppVolumes {
-    let queue = DispatchQueue(label: "gary.audio.apps", qos: .userInitiated)
+final nonisolated class AppVolumes: @unchecked Sendable {
+    let queue: DispatchQueue
     private var volumes: [pid_t: Double] = [:]
     private var taps: [pid_t: ProcessTap] = [:]
-    private var observer: (([pid_t: Double]) -> Void)?
-    private lazy var listeners = AudioListeners(queue) { [weak self] in self?.reconcile() }
+    private var observer: (@Sendable ([pid_t: Double]) -> Void)?
+    private let listeners: AudioListeners
 
-    func observe(_ observer: @escaping ([pid_t: Double]) -> Void) {
+    init() {
+        queue = DispatchQueue(label: "gary.audio.apps", qos: .userInitiated)
+        listeners = AudioListeners(queue)
+        listeners.changed = { [weak self] in self?.reconcile() }
+    }
+
+    func observe(_ observer: @escaping @Sendable ([pid_t: Double]) -> Void) {
         queue.async {
             self.observer = observer
             observer(self.volumes)
@@ -89,7 +95,7 @@ final class AppVolumes {
     }
 }
 
-private final class Gain {
+private final nonisolated class Gain: Sendable {
     private let bits: Atomic<UInt32>
 
     init(_ volume: Double) {
@@ -105,7 +111,7 @@ private final class Gain {
     }
 }
 
-private final class ProcessTap {
+private final nonisolated class ProcessTap {
     let route: TapRoute
     let gain: Gain
     private var tap = AudioObjectID(kAudioObjectUnknown)
@@ -162,11 +168,11 @@ private final class ProcessTap {
     }
 }
 
-private func check(_ status: OSStatus, _ what: String) throws {
+private nonisolated func check(_ status: OSStatus, _ what: String) throws {
     guard status == noErr else { throw HostFailure("cannot \(what) (\(status))") }
 }
 
-private func render(_ input: UnsafePointer<AudioBufferList>, _ output: UnsafeMutablePointer<AudioBufferList>, _ gain: Float32) {
+private nonisolated func render(_ input: UnsafePointer<AudioBufferList>, _ output: UnsafeMutablePointer<AudioBufferList>, _ gain: Float32) {
     guard let source = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input)).last,
           let samples = source.mData?.assumingMemoryBound(to: Float32.self) else { return }
     let width = Int(max(source.mNumberChannels, 1))
@@ -186,7 +192,7 @@ private func render(_ input: UnsafePointer<AudioBufferList>, _ output: UnsafeMut
     }
 }
 
-private func processObject(_ pid: pid_t) -> AudioObjectID? {
+private nonisolated func processObject(_ pid: pid_t) -> AudioObjectID? {
     var address = address(kAudioHardwarePropertyTranslatePIDToProcessObject)
     var pid = pid
     var object = AudioObjectID(kAudioObjectUnknown)

@@ -2,7 +2,7 @@ import Foundation
 import GaryCore
 import IOKit.ps
 
-extension Capability {
+nonisolated extension Capability {
     static let battery = Capability(name: "battery", summary: "Battery percentage, charging state, and power source.", types: """
     declare namespace Gary {
       type Battery = { present: boolean; percent: number | null; charging: boolean; source: "ac" | "battery" }
@@ -19,10 +19,10 @@ extension Capability {
 }
 
 private final class BatteryTopic: TopicFeed {
-    private let publish: (JSON, Trace) -> Void
+    private let publish: @Sendable (JSON, Trace) -> Void
     private var observation: Observation?
 
-    init(_ publish: @escaping (JSON, Trace) -> Void) {
+    init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
         let context = Unmanaged.passUnretained(self).toOpaque()
         let source = IOPSNotificationCreateRunLoopSource({ context in
@@ -60,7 +60,7 @@ private final class BatteryTopic: TopicFeed {
     }
 }
 
-struct InternalBattery {
+nonisolated struct InternalBattery {
     let percent: Int
     let charging: Bool
 

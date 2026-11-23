@@ -1,13 +1,13 @@
 import AppKit
-import ApplicationServices
+@preconcurrency import ApplicationServices
 import Synchronization
 
-struct SoundOutput {
+nonisolated struct SoundOutput {
     let name: String
     let selected: Bool
 }
 
-enum ControlCenter {
+nonisolated enum ControlCenter {
     static let queue = DispatchQueue(label: "gary.controlcenter", qos: .userInitiated)
     static let isOpen = Atomic(false)
 

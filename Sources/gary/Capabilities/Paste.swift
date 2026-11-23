@@ -2,7 +2,7 @@ import AppKit
 import Carbon.HIToolbox
 import GaryCore
 
-extension Capability {
+nonisolated extension Capability {
     static let paste = Capability(name: "paste", summary: "Paste the clipboard into the frontmost app.", types: """
     declare namespace Gary {
       interface Host { paste(): Promise<{ app: string | null; name: string | null }> }
@@ -25,7 +25,7 @@ extension Capability {
     })
 }
 
-private func pasteIntoFrontApp() throws -> JSON {
+private nonisolated func pasteIntoFrontApp() throws -> JSON {
     guard CGPreflightPostEventAccess() else { throw HostFailure(missingGrant(.accessibility, "paste")) }
     let deadline = Date().addingTimeInterval(1)
     while NSWorkspace.shared.frontmostApplication?.processIdentifier == getpid(), Date() < deadline {

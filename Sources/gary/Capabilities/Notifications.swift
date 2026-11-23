@@ -2,7 +2,7 @@ import AppKit
 import GaryCore
 import SQLite3
 
-extension Capability {
+nonisolated extension Capability {
     static let notifications = Capability(
         name: "notifications",
         summary: "Notifications that Notification Center delivered. Open the app that sent one.",
@@ -56,7 +56,7 @@ extension Capability {
     )
 }
 
-private enum NotificationStore {
+private nonisolated enum NotificationStore {
     static let directory = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Group Containers/group.com.apple.usernoted/db2")
 
     struct Failure: Error {
@@ -90,13 +90,14 @@ private enum NotificationStore {
     }
 }
 
-private final class NotificationsTopic: TopicFeed {
-    private let publish: (JSON, Trace) -> Void
+private final nonisolated class NotificationsTopic: TopicFeed, @unchecked Sendable {
+    private let publish: @Sendable (JSON, Trace) -> Void
     private let queue = DispatchQueue(label: "gary.notifications")
     private var names: [String: String] = [:]
     private var observation: Observation?
 
-    init(_ publish: @escaping (JSON, Trace) -> Void) {
+    @MainActor
+    init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
         let watch = PathWatch(["", "db", "db-wal"].map { NotificationStore.directory.appending(path: $0).path }, queue: queue) { [weak self] in
             self?.refresh(Trace("notifications"))

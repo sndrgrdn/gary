@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-struct WindowInfo: Equatable {
+nonisolated struct WindowInfo: Equatable {
     let id: CGWindowID
     let owner: pid_t
     let layer: Int
@@ -12,7 +12,7 @@ struct WindowInfo: Equatable {
     }
 }
 
-extension WindowInfo {
+nonisolated extension WindowInfo {
     init?(_ info: NSDictionary) {
         guard let id = info[kCGWindowNumber as String] as? CGWindowID,
               let owner = info[kCGWindowOwnerPID as String] as? pid_t,

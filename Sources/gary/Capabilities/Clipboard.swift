@@ -1,7 +1,7 @@
 import AppKit
 import GaryCore
 
-extension Capability {
+nonisolated extension Capability {
     static let clipboard = Capability(
         name: "clipboard",
         summary: """
@@ -65,14 +65,14 @@ extension Capability {
 }
 
 private final class ClipboardTopic: TopicFeed {
-    private let publish: (JSON, Trace) -> Void
+    private let publish: @Sendable (JSON, Trace) -> Void
     private var count = -1
     private var observation: Observation?
 
-    init(_ publish: @escaping (JSON, Trace) -> Void) {
+    init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
         check()
-        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.check() }
+        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.check() } }
         timer.tolerance = 0.25
         RunLoop.main.add(timer, forMode: .common)
         observation = Observation { timer.invalidate() }
@@ -90,7 +90,7 @@ private final class ClipboardTopic: TopicFeed {
     }
 }
 
-func writeClipboard(_ content: ClipboardContent, to board: NSPasteboard) throws -> JSON {
+nonisolated func writeClipboard(_ content: ClipboardContent, to board: NSPasteboard) throws -> JSON {
     switch content {
     case let .text(text, concealed):
         board.clearContents()
@@ -115,7 +115,7 @@ func writeClipboard(_ content: ClipboardContent, to board: NSPasteboard) throws 
     return .object(["count": .number(Double(board.changeCount))])
 }
 
-func readClipboard(_ board: NSPasteboard) throws -> JSON {
+nonisolated func readClipboard(_ board: NSPasteboard) throws -> JSON {
     let count = board.changeCount
     let files = (board.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []).map(\.path)
     var image: String?

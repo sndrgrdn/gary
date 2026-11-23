@@ -1,6 +1,6 @@
-import JavaScriptCore
+@preconcurrency import JavaScriptCore
 
-enum Stage: String, CaseIterable {
+nonisolated enum Stage: String, CaseIterable {
     case evaluate, encode
     case jsParse = "js_parse"
     case handler, render, stringify
@@ -9,7 +9,7 @@ enum Stage: String, CaseIterable {
     case compare, apply, layout, display, flush
 }
 
-struct Timings {
+nonisolated struct Timings {
     private var seconds: [Stage: Double] = [:]
 
     mutating func add(_ stage: Stage, _ duration: Double) {
@@ -27,14 +27,14 @@ struct Timings {
 }
 
 @discardableResult
-func measure<T>(_ stage: Stage, _ timings: inout Timings, _ body: () throws -> T) rethrows -> T {
+nonisolated func measure<T>(_ stage: Stage, _ timings: inout Timings, _ body: () throws -> T) rethrows -> T {
     guard tracing else { return try body() }
     let start = now()
     defer { timings.add(stage, now() - start) }
     return try body()
 }
 
-extension JSValue {
+nonisolated extension JSValue {
     func call(_ arguments: [Any], timing stages: [Stage], into timings: inout Timings) -> JSValue? {
         guard tracing, !stages.isEmpty else { return call(withArguments: arguments) }
         var marks = [now()]

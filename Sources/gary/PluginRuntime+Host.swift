@@ -1,8 +1,8 @@
 import Foundation
 import GaryCore
-import JavaScriptCore
+@preconcurrency import JavaScriptCore
 
-extension PluginRuntime {
+nonisolated extension PluginRuntime {
     func makeHost(in context: JSContext) -> JSValue? {
         let id = id
         let logBlock: @convention(block) (String) -> Void = { message in log("plugin \(id): \(message)") }
@@ -48,10 +48,11 @@ extension PluginRuntime {
 
     private func callPlugin(_ target: CallTarget, _ method: String, _ args: [String], _ resolve: JSValue, _ reject: JSValue) {
         deliver(self, .call(target, method: method, arguments: args) { [weak self] response in
-            self?.queue.async {
+            guard let self else { return }
+            queue.async {
                 switch response {
-                case let .ok(text): self?.callBack(resolve, [text], Trace("host.call"))
-                case let .failure(message): self?.callBack(reject, [message], Trace("host.call"))
+                case let .ok(text): self.callBack(resolve, [text], Trace("host.call"))
+                case let .failure(message): self.callBack(reject, [message], Trace("host.call"))
                 }
             }
         })

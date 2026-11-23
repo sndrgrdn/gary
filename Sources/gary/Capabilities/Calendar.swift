@@ -1,8 +1,8 @@
 import AppKit
-import EventKit
+@preconcurrency import EventKit
 import GaryCore
 
-extension Capability {
+nonisolated extension Capability {
     static let calendar = Capability(
         name: "calendar",
         summary: """
@@ -73,13 +73,12 @@ extension Capability {
     )
 }
 
-enum CalendarStore {
+nonisolated enum CalendarStore {
     static let queue = DispatchQueue(label: "gary.calendar", qos: .userInitiated)
-    private static var store: EKEventStore?
+    private nonisolated(unsafe) static var store: EKEventStore?
 
     static func request() {
-        let store = EKEventStore()
-        store.requestFullAccessToEvents { _, _ in _ = store }
+        Task { _ = try? await EKEventStore().requestFullAccessToEvents() }
     }
 
     static func read(_ request: CalendarRequest) -> JSON {
@@ -117,19 +116,19 @@ enum CalendarStore {
 }
 
 private final class CalendarTopic: TopicFeed {
-    private let publish: (JSON, Trace) -> Void
+    private let publish: @Sendable (JSON, Trace) -> Void
     private var count = 0
     private var observations: [Observation] = []
     private var accessTimer: Timer?
 
-    init(_ publish: @escaping (JSON, Trace) -> Void) {
+    init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
         observations.append(Observation(.default, .EKEventStoreChanged) { [weak self] in
             guard let self else { return }
             count += 1
             send(Trace("calendar"))
         })
-        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.send(Trace("calendar-access")) }
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.send(Trace("calendar-access")) } }
         RunLoop.main.add(timer, forMode: .common)
         accessTimer = timer
         observations.append(Observation { timer.invalidate() })

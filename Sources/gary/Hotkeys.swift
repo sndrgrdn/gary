@@ -1,7 +1,7 @@
 import Carbon
 import GaryCore
 
-struct HotkeyBinding: Hashable {
+nonisolated struct HotkeyBinding: Hashable {
     let owner: PluginID
     let hotkey: Hotkey
 }

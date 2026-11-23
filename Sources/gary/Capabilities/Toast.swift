@@ -2,7 +2,7 @@ import AppKit
 import GaryCore
 import SwiftUI
 
-extension Capability {
+nonisolated extension Capability {
     static let toast = Capability(
         name: "toast",
         summary: """
@@ -42,19 +42,19 @@ extension Capability {
     )
 }
 
-enum ToastOutcome: String {
+nonisolated enum ToastOutcome: String {
     case clicked, expired
 }
 
 final class ToastStack {
     static let shared = ToastStack()
-    static let limit = 5
+    nonisolated static let limit = 5
 
     var theme: Theme?
     private var cards: [ToastCard] = []
     private var screen: NSScreen?
 
-    func show(_ request: ToastRequest, _ finish: @escaping (ToastOutcome) -> Void) {
+    func show(_ request: ToastRequest, _ finish: @escaping @Sendable (ToastOutcome) -> Void) {
         guard let theme else {
             finish(.expired)
             return
@@ -70,8 +70,10 @@ final class ToastStack {
         }
         if let timeout = request.timeout {
             card.timer = Timer.scheduledTimer(withTimeInterval: timeout, repeats: false) { [weak self, weak card] _ in
-                if let card {
-                    self?.close(card, .expired)
+                MainActor.assumeIsolated {
+                    if let card {
+                        self?.close(card, .expired)
+                    }
                 }
             }
         }
@@ -98,7 +100,7 @@ final class ToastStack {
             context.duration = fade
             panel.animator().alphaValue = 0
         } completionHandler: {
-            panel.orderOut(nil)
+            MainActor.assumeIsolated { panel.orderOut(nil) }
         }
         arrange()
     }
@@ -133,12 +135,12 @@ final class ToastStack {
 
 private final class ToastCard: NSView {
     let panel = makeSurfacePanel(level: SurfaceLevels.level(.overlay))
-    let finish: (ToastOutcome) -> Void
+    let finish: @Sendable (ToastOutcome) -> Void
     var onClick: (() -> Void)?
     var timer: Timer?
     private let content: NSHostingView<NodeView>
 
-    init(node: Node, theme: Theme, finish: @escaping (ToastOutcome) -> Void) {
+    init(node: Node, theme: Theme, finish: @escaping @Sendable (ToastOutcome) -> Void) {
         self.finish = finish
         content = NSHostingView(rootView: NodeView(node: node, theme: theme))
         content.sizingOptions = [.intrinsicContentSize]

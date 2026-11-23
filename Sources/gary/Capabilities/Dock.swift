@@ -1,7 +1,7 @@
 import AppKit
 import GaryCore
 
-extension Capability {
+nonisolated extension Capability {
     static let dock = Capability(name: "dock", summary: "Reserve a screen edge that windows keep clear of, and hide or show the Dock.", types: """
     declare namespace Gary {
       type DockEdge = "bottom" | "left" | "right";
@@ -34,7 +34,7 @@ extension Capability {
         plugin.onStop { DispatchQueue.main.async { Dock.shared.release(owner) } }
         plugin.installAPI(host, "dock", DockRequest.methods) { call in
             let request = try DockRequest.parse(call)
-            return .later(.main) { try Dock.shared.perform(request, by: owner) }
+            return .main { try Dock.shared.perform(request, by: owner) }
         }
     })
 }
@@ -108,7 +108,7 @@ private final class Dock {
             timer?.invalidate()
             timer = nil
         } else if timer == nil {
-            let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.reserve() }
+            let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.reserve() } }
             timer.tolerance = 0.2
             RunLoop.main.add(timer, forMode: .common)
             self.timer = timer

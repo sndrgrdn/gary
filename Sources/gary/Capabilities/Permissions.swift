@@ -4,7 +4,7 @@ import CoreBluetooth
 import EventKit
 import GaryCore
 
-extension Capability {
+nonisolated extension Capability {
     static let permissions = Capability(
         name: "permissions",
         summary: """
@@ -48,12 +48,12 @@ extension Capability {
         install: { host, plugin in
             plugin.installAPI(host, "permissions", PermissionsRequest.methods) { call in
                 switch try PermissionsRequest.parse(call) {
-                case let .request(permission): return .later(.main) { .string(permission.request()) }
+                case let .request(permission): return .main { .string(permission.request()) }
                 case .restart:
                     guard isSupervised
                     else { throw HostFailure("Gary runs without its crash supervisor, as with gary app, so it cannot restart itself") }
                     let id = plugin.id
-                    return .later(.main) {
+                    return .main {
                         NotificationCenter.default.post(name: .restartGary, object: id)
                         return .string("restarting Gary")
                     }
@@ -64,22 +64,22 @@ extension Capability {
     )
 }
 
-extension Notification.Name {
+nonisolated extension Notification.Name {
     static let restartGary = Notification.Name("GaryRestart")
 }
 
 private final class PermissionsTopic: TopicFeed {
-    private let publish: (JSON, Trace) -> Void
+    private let publish: @Sendable (JSON, Trace) -> Void
     private var observation: Observation?
     private var grantedSinceStart: Set<Permission> = []
     private var probing = false
     private var checking = false
     private let checks = DispatchQueue(label: "gary.permissions", qos: .utility)
 
-    init(_ publish: @escaping (JSON, Trace) -> Void) {
+    init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
         send(Trace("permissions-start"))
-        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.send(Trace("permissions")) }
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.send(Trace("permissions")) } }
         RunLoop.main.add(timer, forMode: .common)
         observation = Observation { timer.invalidate() }
     }
@@ -95,7 +95,7 @@ private final class PermissionsTopic: TopicFeed {
                 let permission = needs[index].permission
                 needs[index].grant = permission == .location ? location : permission.grant
             }
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self, needs] in
                 self?.checking = false
                 self?.deliver(needs, trace)
             }
@@ -116,20 +116,20 @@ private final class PermissionsTopic: TopicFeed {
         probing = true
         DispatchQueue.global(qos: .utility).async { [weak self] in
             let granted = freshGrants(permissions)
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                self.probing = false
-                guard !granted.isSubset(of: self.grantedSinceStart) else { return }
-                self.grantedSinceStart.formUnion(granted)
-                self.send(Trace("permissions-granted"))
+                probing = false
+                guard !granted.isSubset(of: grantedSinceStart) else { return }
+                grantedSinceStart.formUnion(granted)
+                send(Trace("permissions-granted"))
             }
         }
     }
 }
 
-let grantProbeVerb = "grant-probe"
+nonisolated let grantProbeVerb = "grant-probe"
 
-func freshGrants(_ permissions: [Permission]) -> Set<Permission> {
+nonisolated func freshGrants(_ permissions: [Permission]) -> Set<Permission> {
     let process = Process()
     process.executableURL = Bundle.main.executableURL
     process.arguments = [grantProbeVerb] + permissions.map(\.rawValue)
@@ -142,14 +142,14 @@ func freshGrants(_ permissions: [Permission]) -> Set<Permission> {
     return Set(names.compactMap { Permission(rawValue: String($0)) })
 }
 
-func runGrantProbe(_ names: [String]) -> Int32 {
+nonisolated func runGrantProbe(_ names: [String]) -> Int32 {
     for permission in names.compactMap(Permission.init(rawValue:)) where permission.grant == .granted {
         print(permission.rawValue)
     }
     return 0
 }
 
-enum Grant: String {
+nonisolated enum Grant: String {
     case granted, notAsked, denied, notGranted, needsRestart
 
     var description: String {
@@ -163,8 +163,8 @@ enum Grant: String {
     }
 }
 
-struct PermissionNeed {
-    static var enabledPlugins: [PluginManifest] = []
+nonisolated struct PermissionNeed {
+    @MainActor static var enabledPlugins: [PluginManifest] = []
 
     let permission: Permission
     var grant: Grant?
@@ -212,7 +212,7 @@ struct PermissionNeed {
     }
 }
 
-extension Permission {
+nonisolated extension Permission {
     var needsRestart: Bool {
         self == .screenRecording || self == .fullDiskAccess
     }
@@ -235,7 +235,7 @@ extension Permission {
         case .accessibility:
             return AXIsProcessTrusted() ? .granted : .notGranted
         case .audioCapture:
-            switch AudioCaptureAccess.preflight?(AudioCaptureAccess.service, nil) {
+            switch AudioCaptureAccess.preflight?(AudioCaptureAccess.service as CFString, nil) {
             case 0: return .granted
             case 1: return .denied
             case nil: return .notGranted
@@ -279,7 +279,7 @@ extension Permission {
             }
             return .notGranted
         case .location:
-            switch LocationAccess.shared.status {
+            switch MainActor.assumeIsolated({ LocationAccess.shared.status }) {
             case "authorized": return .granted
             case "notDetermined": return .notAsked
             default: return .denied
@@ -296,6 +296,7 @@ extension Permission {
         }
     }
 
+    @MainActor
     func request() -> String {
         let pane = "System Settings > Privacy & Security > \(name)"
         let current = grant
@@ -303,7 +304,7 @@ extension Permission {
         guard current != .needsRestart else { return "Gary has \(name) once it restarts" }
         switch self {
         case .accessibility:
-            _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary)
+            _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
             return "macOS shows its Accessibility prompt for Gary. Choose Open System Settings and turn Gary on in \(pane)."
         case .screenRecording:
             _ = CGRequestScreenCaptureAccess()
@@ -316,7 +317,7 @@ extension Permission {
             }
             switch self {
             case .audioCapture: AudioCaptureAccess
-                .request?(AudioCaptureAccess.service, nil) { log("permissions: System Audio Recording \($0 ? "allowed" : "refused")") }
+                .request?(AudioCaptureAccess.service as CFString, nil) { log("permissions: System Audio Recording \($0 ? "allowed" : "refused")") }
             case .location: LocationAccess.shared.request()
             case .calendars: CalendarStore.request()
             case .notifications: NotificationPoster.request()
@@ -332,21 +333,21 @@ extension Permission {
     }
 }
 
-private enum AudioCaptureAccess {
-    static let service = "kTCCServiceAudioCapture" as CFString
+private nonisolated enum AudioCaptureAccess {
+    static let service = "kTCCServiceAudioCapture"
     static let preflight = privateSymbol(.tccAccessPreflight, as: (@convention(c) (CFString, CFDictionary?) -> Int32).self)
     static let request = privateSymbol(
         .tccAccessRequest,
-        as: (@convention(c) (CFString, CFDictionary?, @convention(block) (Bool) -> Void) -> Void).self,
+        as: (@convention(c) (CFString, CFDictionary?, @Sendable @convention(block) (Bool) -> Void) -> Void).self,
     )
 }
 
-func launchingProgram() -> String? {
+nonisolated func launchingProgram() -> String? {
     var pid = getppid()
     while pid > 1 {
         var path = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
         guard proc_pidpath(pid, &path, UInt32(path.count)) > 0 else { return "pid \(pid)" }
-        let program = String(cString: path)
+        let program = String(cChars: path)
         guard program == Bundle.main.executablePath else { return URL(fileURLWithPath: program).lastPathComponent }
         var info = kinfo_proc()
         var size = MemoryLayout<kinfo_proc>.size
@@ -357,7 +358,7 @@ func launchingProgram() -> String? {
     return nil
 }
 
-func permissionReport(enabled manifests: [PluginManifest]) -> String {
+nonisolated func permissionReport(enabled manifests: [PluginManifest]) -> String {
     var lines = ["Gary \(Bundle.main.bundleIdentifier ?? "without a bundle id") at \(Bundle.main.bundlePath), pid \(getpid())"]
     if let program = launchingProgram() {
         lines

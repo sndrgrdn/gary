@@ -1,12 +1,12 @@
 import Foundation
 import GaryCore
-import JavaScriptCore
+@preconcurrency import JavaScriptCore
 
-final class PluginRuntime: Subscriber {
+final nonisolated class PluginRuntime: Subscriber, @unchecked Sendable {
     let bundle: PluginBundle
     let kind: PluginKind
     let hub: StateHub
-    let deliver: (PluginRuntime, RuntimeEvent) -> Void
+    let deliver: @Sendable (PluginRuntime, RuntimeEvent) -> Void
     let queue: DispatchQueue
     private let engine: PluginEngine
     private let transpiler: Transpiler
@@ -33,7 +33,7 @@ final class PluginRuntime: Subscriber {
         settings: JSON,
         theme: JSON,
         hub: StateHub,
-        deliver: @escaping (PluginRuntime, RuntimeEvent) -> Void,
+        deliver: @escaping @Sendable (PluginRuntime, RuntimeEvent) -> Void,
         engine: PluginEngine,
         transpiler: Transpiler = .shared,
     ) {
@@ -113,7 +113,7 @@ final class PluginRuntime: Subscriber {
         dispatch("onAction", [.string(action), payload], Trace("action"), origin: origin)
     }
 
-    func key(_ key: String, unhandled: @escaping () -> Void) {
+    func key(_ key: String, unhandled: @escaping @MainActor @Sendable () -> Void) {
         dispatch("onKey", [.string(key)], Trace("key"), unhandled: unhandled)
     }
 
@@ -131,7 +131,13 @@ final class PluginRuntime: Subscriber {
         dispatch("onMediaKey", [event], Trace("mediakey"))
     }
 
-    private func dispatch(_ handler: String, _ arguments: [JSON], _ trace: Trace, origin: CGRect? = nil, unhandled: (() -> Void)? = nil) {
+    private func dispatch(
+        _ handler: String,
+        _ arguments: [JSON],
+        _ trace: Trace,
+        origin: CGRect? = nil,
+        unhandled: (@MainActor @Sendable () -> Void)? = nil,
+    ) {
         queue.async { [self] in
             guard let functions else { return }
             self.origin = origin
@@ -150,7 +156,7 @@ final class PluginRuntime: Subscriber {
         }
     }
 
-    func call(_ method: String, _ arguments: [String], reply: @escaping (Response) -> Void) {
+    func call(_ method: String, _ arguments: [String], reply: @escaping @Sendable (Response) -> Void) {
         queue.async { [self] in
             guard let functions else { return reply(.failure("\(id) is not running")) }
             let done: @convention(block) (Bool, String) -> Void = { ok, text in reply(ok ? .ok(text) : .failure(text)) }
@@ -271,7 +277,7 @@ final class PluginRuntime: Subscriber {
     }
 }
 
-private extension PluginRuntime {
+private nonisolated extension PluginRuntime {
     func evaluate() throws -> PluginFunctions {
         let entry = try bundle.entryPoint(kind)
         let modules = try transpiler.modules(of: bundle, from: entry)
@@ -381,7 +387,7 @@ private extension PluginRuntime {
     }
 }
 
-struct RenderError: Error, CustomStringConvertible {
+nonisolated struct RenderError: Error, CustomStringConvertible {
     let description: String
     init(_ description: String) {
         self.description = description

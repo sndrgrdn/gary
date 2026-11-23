@@ -3,7 +3,7 @@ import AudioToolbox
 import CoreAudio
 import GaryCore
 
-extension Capability {
+nonisolated extension Capability {
     static let audio = Capability(
         name: "audio",
         summary: """
@@ -72,7 +72,7 @@ extension Capability {
                         return .null
                     }
                 case .airplay:
-                    return .later(ControlCenter.queue, airplayTargets)
+                    return .later(ControlCenter.queue) { try airplayTargets() }
                 case let .selectAirPlay(name):
                     return .later(ControlCenter.queue) { try selectAirPlay(name) }
                 }
@@ -83,7 +83,7 @@ extension Capability {
     )
 }
 
-private func airplayTargets() throws -> JSON {
+private nonisolated func airplayTargets() throws -> JSON {
     let local = Set(AudioDevice.all().filter { $0.has(.output) && $0.transport != "airplay" }.map(\.name))
     return try .array(ControlCenter.soundOutputs().filter { !local.contains($0.name) }.map { .object([
         "name": .string($0.name),
@@ -91,12 +91,12 @@ private func airplayTargets() throws -> JSON {
     ]) })
 }
 
-private func selectAirPlay(_ name: String) throws -> JSON {
+private nonisolated func selectAirPlay(_ name: String) throws -> JSON {
     try ControlCenter.selectSoundOutput(name)
     return .null
 }
 
-extension AudioScope {
+nonisolated extension AudioScope {
     var scope: AudioObjectPropertyScope {
         self == .output ? kAudioDevicePropertyScopeOutput : kAudioDevicePropertyScopeInput
     }
@@ -106,20 +106,20 @@ extension AudioScope {
     }
 }
 
-private func apply(_ scope: AudioScope, _ what: String, _ write: (AudioObjectID) -> OSStatus?) throws {
+private nonisolated func apply(_ scope: AudioScope, _ what: String, _ write: (AudioObjectID) -> OSStatus?) throws {
     guard let device = defaultDevice(scope) else { throw HostFailure("there is no default \(scope.rawValue) device") }
     guard let status = write(device) else { throw HostFailure("\(AudioDevice(device)?.name ?? "the device") has no \(what) control") }
     guard status == noErr else { throw HostFailure("cannot set \(what) (\(status))") }
 }
 
-func address(
+nonisolated func address(
     _ selector: AudioObjectPropertySelector,
     _ scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal,
 ) -> AudioObjectPropertyAddress {
     AudioObjectPropertyAddress(mSelector: selector, mScope: scope, mElement: kAudioObjectPropertyElementMain)
 }
 
-func property<T: BitwiseCopyable>(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress, _ initial: T) -> T? {
+nonisolated func property<T: BitwiseCopyable>(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress, _ initial: T) -> T? {
     var address = address
     var value = initial
     var size = UInt32(MemoryLayout<T>.size)
@@ -129,7 +129,7 @@ func property<T: BitwiseCopyable>(_ object: AudioObjectID, _ address: AudioObjec
     return value
 }
 
-private func setProperty(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress, _ value: some BitwiseCopyable) -> OSStatus? {
+private nonisolated func setProperty(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress, _ value: some BitwiseCopyable) -> OSStatus? {
     var address = address
     var value = value
     var settable: DarwinBoolean = false
@@ -138,11 +138,11 @@ private func setProperty(_ object: AudioObjectID, _ address: AudioObjectProperty
     return AudioObjectSetPropertyData(object, &address, 0, nil, UInt32(MemoryLayout.size(ofValue: value)), &value)
 }
 
-func stringProperty(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress) -> String? {
+nonisolated func stringProperty(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress) -> String? {
     property(object, address, nil as Unmanaged<CFString>?)??.takeRetainedValue() as String?
 }
 
-private func objects(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress) -> [AudioObjectID] {
+private nonisolated func objects(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress) -> [AudioObjectID] {
     var address = address
     var size: UInt32 = 0
     guard AudioObjectGetPropertyDataSize(object, &address, 0, nil, &size) == noErr, size > 0 else { return [] }
@@ -151,21 +151,21 @@ private func objects(_ object: AudioObjectID, _ address: AudioObjectPropertyAddr
     return Array(list.prefix(Int(size) / MemoryLayout<AudioObjectID>.size))
 }
 
-private func processName(_ pid: pid_t) -> String {
+private nonisolated func processName(_ pid: pid_t) -> String {
     var name = [CChar](repeating: 0, count: 256)
     guard proc_name(pid, &name, UInt32(name.count)) > 0 else { return "pid \(pid)" }
-    return String(cString: name)
+    return String(cChars: name)
 }
 
-private func rounded(_ volume: some BinaryFloatingPoint) -> JSON {
+private nonisolated func rounded(_ volume: some BinaryFloatingPoint) -> JSON {
     .number((Double(volume) * 1000).rounded() / 1000)
 }
 
-func defaultDevice(_ scope: AudioScope) -> AudioObjectID? {
+nonisolated func defaultDevice(_ scope: AudioScope) -> AudioObjectID? {
     property(AudioObjectID(kAudioObjectSystemObject), address(scope.defaultSelector), AudioObjectID(0)).flatMap { $0 == 0 ? nil : $0 }
 }
 
-private let transports: [UInt32: String] = [
+private nonisolated let transports: [UInt32: String] = [
     kAudioDeviceTransportTypeBuiltIn: "builtin", kAudioDeviceTransportTypeUSB: "usb", kAudioDeviceTransportTypeBluetooth: "bluetooth",
     kAudioDeviceTransportTypeBluetoothLE: "bluetooth", kAudioDeviceTransportTypeHDMI: "hdmi", kAudioDeviceTransportTypeDisplayPort: "displayport",
     kAudioDeviceTransportTypeAirPlay: "airplay", kAudioDeviceTransportTypeVirtual: "virtual", kAudioDeviceTransportTypeAggregate: "aggregate",
@@ -173,7 +173,7 @@ private let transports: [UInt32: String] = [
     kAudioDeviceTransportTypeContinuityCaptureWireless: "continuity",
 ]
 
-struct AudioDevice {
+nonisolated struct AudioDevice {
     let id: AudioObjectID
     let uid: String
     let name: String
@@ -220,20 +220,19 @@ struct AudioDevice {
     }
 }
 
-struct Listener: Hashable {
+nonisolated struct Listener: Hashable {
     let object: AudioObjectID
     let selector: AudioObjectPropertySelector
     var scope = kAudioObjectPropertyScopeGlobal
 }
 
-final class AudioListeners {
+final nonisolated class AudioListeners {
     private let queue: DispatchQueue
-    private let changed: () -> Void
+    var changed: (@Sendable () -> Void)?
     private var blocks: [Listener: AudioObjectPropertyListenerBlock] = [:]
 
-    init(_ queue: DispatchQueue, _ changed: @escaping () -> Void) {
+    init(_ queue: DispatchQueue) {
         self.queue = queue
-        self.changed = changed
     }
 
     deinit { listen(to: []) }
@@ -246,7 +245,7 @@ final class AudioListeners {
         }
         for listener in wanted where blocks[listener] == nil {
             var address = address(listener.selector, listener.scope)
-            let block: AudioObjectPropertyListenerBlock = { [changed] _, _ in changed() }
+            let block: AudioObjectPropertyListenerBlock = { [changed] _, _ in changed?() }
             if AudioObjectAddPropertyListenerBlock(listener.object, &address, queue, block) == noErr {
                 blocks[listener] = block
             }
@@ -254,19 +253,22 @@ final class AudioListeners {
     }
 }
 
-private final class AudioTopic: TopicFeed {
-    private let publish: (JSON, Trace) -> Void
-    private let queue = DispatchQueue(label: "gary.audio")
-    private lazy var listeners = AudioListeners(queue) { [weak self] in self?.changed() }
+private final nonisolated class AudioTopic: TopicFeed, @unchecked Sendable {
+    private let publish: @Sendable (JSON, Trace) -> Void
+    private let queue: DispatchQueue
+    private let listeners: AudioListeners
     private var volumes: [pid_t: Double] = [:]
     private var scheduled = false
     private var poll: DispatchWorkItem?
 
-    init(_ publish: @escaping (JSON, Trace) -> Void) {
+    init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
+        queue = DispatchQueue(label: "gary.audio")
+        listeners = AudioListeners(queue)
+        listeners.changed = { [weak self] in self?.changed() }
         queue.async { [weak self] in self?.refresh(Trace("audio-start")) }
         appVolumes.observe { [weak self] volumes in
-            self?.queue.async {
+            self?.queue.async { [weak self] in
                 self?.volumes = volumes
                 self?.changed()
             }

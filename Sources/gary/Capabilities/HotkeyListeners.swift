@@ -1,8 +1,8 @@
 import Foundation
 import GaryCore
-import JavaScriptCore
+@preconcurrency import JavaScriptCore
 
-extension Capability {
+nonisolated extension Capability {
     static let hotkeys = Capability(
         name: "hotkeys",
         summary: """
@@ -42,7 +42,8 @@ extension Capability {
                         keys[combo] = name
                     }
                     return holds.add(HotkeyListeners.shared.add(owner: plugin.id, keys: keys) { [weak plugin] name in
-                        plugin?.queue.async { plugin?.callBack(onPress, [name], Trace("hotkey")) }
+                        guard let plugin else { return }
+                        plugin.queue.async { plugin.callBack(onPress, [name], Trace("hotkey")) }
                     })
                 } catch {
                     let context = JSContext.current()
@@ -56,7 +57,7 @@ extension Capability {
     )
 }
 
-private let hotkeysScript = """
+private nonisolated let hotkeysScript = """
 (function (host, listen, stop) {
   host.hotkeys = function (keys, onPress) {
     if (typeof onPress !== "function") throw new TypeError("host.hotkeys: onPress must be a function");
@@ -66,11 +67,11 @@ private let hotkeysScript = """
 })
 """
 
-final class HotkeyListeners {
+final nonisolated class HotkeyListeners: @unchecked Sendable {
     private struct Listener {
         let owner: PluginID
         let keys: [KeyCombo: String]
-        let press: (String) -> Void
+        let press: @Sendable (String) -> Void
     }
 
     static let shared = HotkeyListeners()
@@ -79,7 +80,7 @@ final class HotkeyListeners {
     private var nextID = 1
     var changed: (() -> Void)?
 
-    func add(owner: PluginID, keys: [KeyCombo: String], press: @escaping (String) -> Void) -> Int {
+    func add(owner: PluginID, keys: [KeyCombo: String], press: @escaping @Sendable (String) -> Void) -> Int {
         let id = lock.withLock {
             let id = nextID
             nextID += 1

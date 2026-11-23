@@ -3,9 +3,9 @@ import ApplicationServices
 import GaryCore
 import GaryPrivate
 
-private let trayQueue = DispatchQueue(label: "gary.tray", qos: .userInitiated)
+private nonisolated let trayQueue = DispatchQueue(label: "gary.tray", qos: .userInitiated)
 
-extension Capability {
+nonisolated extension Capability {
     static let tray = Capability(name: "tray", summary: """
     The status items in the menu bar, with their icons, refreshed every 2 seconds while a plugin subscribes. \
     An icon is cut to its ink, and x, y, width and height bound that ink on screen in points, or the whole item when it has no icon. \
@@ -64,12 +64,12 @@ extension Capability {
     }, topic: CapabilityTopic(type: "Tray") { TrayTopic($0) })
 }
 
-private final class TrayTopic: TopicFeed {
-    private let publish: (JSON, Trace) -> Void
+private final nonisolated class TrayTopic: TopicFeed, @unchecked Sendable {
+    private let publish: @Sendable (JSON, Trace) -> Void
     private let timer = DispatchSource.makeTimerSource(queue: trayQueue)
     private var icons: Set<String> = []
 
-    init(_ publish: @escaping (JSON, Trace) -> Void) {
+    init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
         timer.setEventHandler { [weak self] in self?.refresh() }
         timer.schedule(deadline: .now(), repeating: 2, leeway: .milliseconds(500))
@@ -105,17 +105,17 @@ private final class TrayTopic: TopicFeed {
     }
 }
 
-func attribute<Value>(_ element: AXUIElement, _ name: String, as _: Value.Type) -> Value? {
+nonisolated func attribute<Value>(_ element: AXUIElement, _ name: String, as _: Value.Type) -> Value? {
     var value: CFTypeRef?
     guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
     return value as? Value
 }
 
-func children(_ element: AXUIElement, _ name: String = kAXChildrenAttribute) -> [AXUIElement] {
+nonisolated func children(_ element: AXUIElement, _ name: String = kAXChildrenAttribute) -> [AXUIElement] {
     attribute(element, name, as: [AXUIElement].self) ?? []
 }
 
-private func frame(_ element: AXUIElement) -> CGRect {
+private nonisolated func frame(_ element: AXUIElement) -> CGRect {
     var origin = CGPoint.zero
     var size = CGSize.zero
     if let position = attribute(element, kAXPositionAttribute, as: AXValue.self) {
@@ -127,7 +127,7 @@ private func frame(_ element: AXUIElement) -> CGRect {
     return CGRect(origin: origin, size: size)
 }
 
-private func scan() throws -> [TrayItem] {
+private nonisolated func scan() throws -> [TrayItem] {
     guard let agent = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MenuBarAgent").first else {
         throw HostFailure("MenuBarAgent is not running")
     }
@@ -151,18 +151,18 @@ private func scan() throws -> [TrayItem] {
     return TrayItem.merge(elements)
 }
 
-private struct ModifierKey {
+private nonisolated struct ModifierKey {
     let modifier: KeyCombo.Modifiers
     let code: CGKeyCode
     let flag: CGEventFlags
 }
 
-private let modifierKeys = [
+private nonisolated let modifierKeys = [
     ModifierKey(modifier: .command, code: 55, flag: .maskCommand), ModifierKey(modifier: .shift, code: 56, flag: .maskShift),
     ModifierKey(modifier: .option, code: 58, flag: .maskAlternate), ModifierKey(modifier: .control, code: 59, flag: .maskControl),
 ]
 
-private func click(_ frame: CGRect, _ how: TrayClick) throws -> Bool {
+private nonisolated func click(_ frame: CGRect, _ how: TrayClick) throws -> Bool {
     guard CGPreflightPostEventAccess() else { throw HostFailure(missingGrant(.accessibility, "tray.press")) }
     let point = CGPoint(x: frame.midX, y: frame.midY)
     let before = Set(popups())
@@ -194,21 +194,21 @@ private func click(_ frame: CGRect, _ how: TrayClick) throws -> Bool {
     return wait(for: { !Set(popups()).subtracting(before).isEmpty })
 }
 
-private func post(_ type: CGEventType, at point: CGPoint, button: CGMouseButton = .left, flags: CGEventFlags = []) {
+private nonisolated func post(_ type: CGEventType, at point: CGPoint, button: CGMouseButton = .left, flags: CGEventFlags = []) {
     let event = CGEvent(mouseEventSource: CGEventSource(stateID: .hidSystemState), mouseType: type, mouseCursorPosition: point, mouseButton: button)
     event?.flags = flags
     event?.post(tap: .cghidEventTap)
     usleep(20000)
 }
 
-private func post(key: CGKeyCode, down: Bool, flags: CGEventFlags) {
+private nonisolated func post(key: CGKeyCode, down: Bool, flags: CGEventFlags) {
     let event = CGEvent(keyboardEventSource: CGEventSource(stateID: .hidSystemState), virtualKey: key, keyDown: down)
     event?.flags = flags
     event?.post(tap: .cghidEventTap)
     usleep(20000)
 }
 
-private func wait(for condition: () -> Bool) -> Bool {
+private nonisolated func wait(for condition: () -> Bool) -> Bool {
     for _ in 0..<20 {
         if condition() {
             return true
@@ -218,7 +218,7 @@ private func wait(for condition: () -> Bool) -> Bool {
     return false
 }
 
-private func passClicks(at point: CGPoint) -> () -> Void {
+private func passClicks(at point: CGPoint) -> @MainActor @Sendable () -> Void {
     let flipped = CGPoint(x: point.x, y: (NSScreen.screens.first?.frame.height ?? 0) - point.y)
     let windows = NSApp.windows.filter { $0.isVisible && !$0.ignoresMouseEvents && $0.frame.contains(flipped) }
     for window in windows {
@@ -229,7 +229,7 @@ private func passClicks(at point: CGPoint) -> () -> Void {
     } }
 }
 
-private func popups() -> [CGWindowID] {
+private nonisolated func popups() -> [CGWindowID] {
     let skipped = Set([getpid()] + NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MenuBarAgent").map(\.processIdentifier))
     return WindowInfo.list([.optionOnScreenOnly])
         .filter { !skipped.contains($0.owner) && $0.layer > Int(CGWindowLevelForKey(.mainMenuWindow)) }
@@ -237,9 +237,9 @@ private func popups() -> [CGWindowID] {
 }
 
 private typealias CreateImage = @convention(c) (CGRect, CFArray, CGWindowImageOption) -> Unmanaged<CGImage>?
-private let createImage = privateSymbol(.windowListCreateImage, as: CreateImage.self)
+private nonisolated let createImage = privateSymbol(.windowListCreateImage, as: CreateImage.self)
 
-func inkBounds(_ image: CGImage) -> CGRect? {
+nonisolated func inkBounds(_ image: CGImage) -> CGRect? {
     let width = image.width
     let height = image.height
     var pixels = [UInt8](repeating: 0, count: width * height * 4)
@@ -255,7 +255,7 @@ func inkBounds(_ image: CGImage) -> CGRect? {
     return CGRect(x: left, y: first / width, width: right - left + 1, height: last / width - first / width + 1)
 }
 
-private func capture(_ items: [TrayItem]) -> (icons: [String: TrayIcon], error: String?) {
+private nonisolated func capture(_ items: [TrayItem]) -> (icons: [String: TrayIcon], error: String?) {
     guard CGPreflightScreenCaptureAccess() else { return ([:], missingGrant(.screenRecording, "tray icons")) }
     guard let createImage else { return ([:], "SLWindowListCreateImageFromArray is missing from SkyLight on this macOS") }
     guard let agent = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MenuBarAgent").first?.processIdentifier

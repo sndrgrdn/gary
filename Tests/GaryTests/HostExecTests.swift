@@ -68,7 +68,7 @@ struct HostExecTests {
     @Test(.timeLimit(.minutes(1))) func `a command that outlives the deadline is stopped and rejects`() async throws {
         let pidFile = FileManager.default.temporaryDirectory.appending(path: "gary-exec-\(UUID().uuidString)").path
         let queue = DispatchQueue(label: "test.exec")
-        nonisolated(unsafe) let runs = ExecRuns(queue: queue, limit: 0.2)
+        let runs = ExecRuns(queue: queue, limit: 0.2)
         let outcome = await withCheckedContinuation { continuation in
             queue.async {
                 runs.start(["/bin/sh", "-c", "echo $$ > \(pidFile); exec sleep 100"]) { result in

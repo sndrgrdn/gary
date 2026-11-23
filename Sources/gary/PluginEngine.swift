@@ -1,9 +1,9 @@
 import Foundation
 import GaryCore
 import GaryPrivate
-import JavaScriptCore
+@preconcurrency import JavaScriptCore
 
-final class PluginEngine: @unchecked Sendable {
+final nonisolated class PluginEngine: @unchecked Sendable {
     static let timeLimit = 0.1
     static let quiet: TimeInterval = 10
 
@@ -116,6 +116,6 @@ final class PluginEngine: @unchecked Sendable {
     }
 }
 
-private func cpuTime() -> Duration {
+private nonisolated func cpuTime() -> Duration {
     .nanoseconds(clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID))
 }

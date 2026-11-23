@@ -1,8 +1,8 @@
 import CoreLocation
-import CoreWLAN
+@preconcurrency import CoreWLAN
 import GaryCore
 
-extension Capability {
+nonisolated extension Capability {
     static let wifi = Capability(
         name: "wifi",
         summary: """
@@ -59,7 +59,7 @@ extension Capability {
                 case .scan: .later(.global(qos: .userInitiated)) { try scan() }
                 case let .join(ssid, password): .later(.global(qos: .userInitiated)) { try join(ssid, password) }
                 case let .forget(ssid): .later(.global(qos: .userInitiated)) { try forget(ssid) }
-                case .requestLocation: .later(.main) { .string(Permission.location.request()) }
+                case .requestLocation: .main { .string(Permission.location.request()) }
                 }
             }
         },
@@ -67,27 +67,27 @@ extension Capability {
     )
 }
 
-private func wifiInterface() throws -> CWInterface {
+private nonisolated func wifiInterface() throws -> CWInterface {
     guard let interface = CWWiFiClient.shared().interface() else { throw HostFailure("this Mac has no Wi-Fi interface") }
     return interface
 }
 
-private func setPower(_ enabled: Bool) throws -> JSON {
+private nonisolated func setPower(_ enabled: Bool) throws -> JSON {
     do { try wifiInterface().setPower(enabled) } catch {
         throw HostFailure("cannot turn Wi-Fi \(enabled ? "on" : "off"): \(error.localizedDescription)")
     }
     return .null
 }
 
-func knownNetworks(_ configuration: CWConfiguration?) -> Set<String> {
+nonisolated func knownNetworks(_ configuration: CWConfiguration?) -> Set<String> {
     Set((configuration?.networkProfiles.array as? [CWNetworkProfile] ?? []).compactMap(\.ssid))
 }
 
-private final class LatestScan: @unchecked Sendable {
+private final nonisolated class LatestScan: @unchecked Sendable {
     static let shared = LatestScan()
     private let lock = NSLock()
     private var stored: JSON?
-    var onChange: (() -> Void)?
+    var onChange: (@Sendable () -> Void)?
 
     var networks: JSON? {
         lock.withLock { stored }
@@ -108,7 +108,7 @@ private final class LatestScan: @unchecked Sendable {
     }
 }
 
-private func scan() throws -> JSON {
+private nonisolated func scan() throws -> JSON {
     let interface = try wifiInterface()
     let known = knownNetworks(interface.configuration())
     let networks = try interface.scanForNetworks(withSSID: nil).sorted { $0.rssiValue > $1.rssiValue }
@@ -124,7 +124,7 @@ private func scan() throws -> JSON {
     return found
 }
 
-private func join(_ ssid: String, _ password: String?) throws -> JSON {
+private nonisolated func join(_ ssid: String, _ password: String?) throws -> JSON {
     let interface = try wifiInterface()
     let networks = try interface.scanForNetworks(withSSID: nil)
     guard let network = networks.first(where: { $0.ssid == ssid }) else {
@@ -135,7 +135,7 @@ private func join(_ ssid: String, _ password: String?) throws -> JSON {
     return .string("joined")
 }
 
-private func forget(_ ssid: String) throws -> JSON {
+private nonisolated func forget(_ ssid: String) throws -> JSON {
     let interface = try wifiInterface()
     guard let name = interface.interfaceName, knownNetworks(interface.configuration()).contains(ssid)
     else { throw HostFailure("\(ssid) is not a known network") }
@@ -198,14 +198,14 @@ final class LocationAccess: NSObject, CLLocationManagerDelegate {
 }
 
 private final class WiFiTopic: NSObject, CWEventDelegate, TopicFeed {
-    private let publish: (JSON, Trace) -> Void
+    private let publish: @Sendable (JSON, Trace) -> Void
     private let client = CWWiFiClient.shared()
 
-    init(_ publish: @escaping (JSON, Trace) -> Void) {
+    init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
         super.init()
         LocationAccess.shared.onChange = { [weak self] in self?.send(Trace("location")) }
-        LatestScan.shared.onChange = { [weak self] in self?.send(Trace("wifi-scan")) }
+        LatestScan.shared.onChange = { [weak self] in DispatchQueue.main.async { [weak self] in self?.send(Trace("wifi-scan")) } }
         client.delegate = self
         for event in [CWEventType.powerDidChange, .ssidDidChange, .bssidDidChange, .linkDidChange, .linkQualityDidChange, .modeDidChange] {
             do { try client.startMonitoringEvent(with: event) } catch { log("wifi: cannot monitor \(event.rawValue): \(error)") }
@@ -216,11 +216,15 @@ private final class WiFiTopic: NSObject, CWEventDelegate, TopicFeed {
         }
     }
 
-    deinit {
+    isolated deinit {
         try? client.stopMonitoringAllEvents()
         client.delegate = nil
         LocationAccess.shared.onChange = nil
         LatestScan.shared.onChange = nil
+    }
+
+    private nonisolated func changed() {
+        DispatchQueue.main.async { [weak self] in self?.send(Trace("wifi")) }
     }
 
     private func send(_ trace: Trace) {
@@ -252,27 +256,27 @@ private final class WiFiTopic: NSObject, CWEventDelegate, TopicFeed {
         ]), trace)
     }
 
-    func powerStateDidChangeForWiFiInterface(withName _: String) {
-        send(Trace("wifi"))
+    nonisolated func powerStateDidChangeForWiFiInterface(withName _: String) {
+        changed()
     }
 
-    func ssidDidChangeForWiFiInterface(withName _: String) {
-        send(Trace("wifi"))
+    nonisolated func ssidDidChangeForWiFiInterface(withName _: String) {
+        changed()
     }
 
-    func bssidDidChangeForWiFiInterface(withName _: String) {
-        send(Trace("wifi"))
+    nonisolated func bssidDidChangeForWiFiInterface(withName _: String) {
+        changed()
     }
 
-    func linkDidChangeForWiFiInterface(withName _: String) {
-        send(Trace("wifi"))
+    nonisolated func linkDidChangeForWiFiInterface(withName _: String) {
+        changed()
     }
 
-    func linkQualityDidChangeForWiFiInterface(withName _: String, rssi _: Int, transmitRate _: Double) {
-        send(Trace("wifi"))
+    nonisolated func linkQualityDidChangeForWiFiInterface(withName _: String, rssi _: Int, transmitRate _: Double) {
+        changed()
     }
 
-    func modeDidChangeForWiFiInterface(withName _: String) {
-        send(Trace("wifi"))
+    nonisolated func modeDidChangeForWiFiInterface(withName _: String) {
+        changed()
     }
 }

@@ -2,11 +2,11 @@ import GaryCore
 import MetalKit
 import SwiftUI
 
-struct ShaderError: LocalizedError {
+nonisolated struct ShaderError: LocalizedError {
     let errorDescription: String?
 }
 
-final class ShaderProgram {
+final nonisolated class ShaderProgram {
     static let device = MTLCreateSystemDefaultDevice()
     static let queue = device?.makeCommandQueue()
     static let pixelFormat = MTLPixelFormat.bgra8Unorm
@@ -59,7 +59,7 @@ final class ShaderProgram {
     }
 }
 
-final class ShaderCache: @unchecked Sendable {
+final nonisolated class ShaderCache: @unchecked Sendable {
     static let shared = ShaderCache()
 
     private struct Entry {

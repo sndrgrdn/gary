@@ -1,8 +1,8 @@
 import Foundation
 import GaryCore
-import JavaScriptCore
+@preconcurrency import JavaScriptCore
 
-extension Capability {
+nonisolated extension Capability {
     static let files = Capability(
         name: "files",
         summary: "Read, write, list, remove, and watch files. A path that does not start with `/` or `~` is relative to the plugin folder.",
@@ -61,7 +61,7 @@ extension Capability {
     )
 }
 
-private func perform(_ request: FilesRequest) throws -> JSON {
+private nonisolated func perform(_ request: FilesRequest) throws -> JSON {
     let files = FileManager.default
     do {
         switch request {
@@ -93,7 +93,7 @@ private func perform(_ request: FilesRequest) throws -> JSON {
     return .null
 }
 
-private final class FileWatch {
+private final nonisolated class FileWatch: @unchecked Sendable {
     let path: String
     let callback: JSValue
     var source: DispatchSourceFileSystemObject?

@@ -2,16 +2,16 @@ import CryptoKit
 import Foundation
 import GaryCore
 import GaryPrivate
-import JavaScriptCore
+@preconcurrency import JavaScriptCore
 
-struct Capability {
+nonisolated struct Capability {
     let name: String
     let summary: String
     let types: String
     let example: String
     var permissions: [Permission] = []
     var manifestEntry: String?
-    var install: ((JSValue, PluginRuntime) -> Void)?
+    var install: (@Sendable (JSValue, PluginRuntime) -> Void)?
     var topic: CapabilityTopic?
 
     static let all: [Capability] = [
@@ -58,16 +58,38 @@ struct Capability {
     }
 }
 
-struct CapabilityTopic {
+nonisolated struct CapabilityTopic {
     let type: String
     let source: TopicSource
 }
 
-func privateSymbol<T>(_ symbol: GarySymbol, as type: T.Type) -> T? {
+nonisolated func privateSymbol<T>(_ symbol: GarySymbol, as type: T.Type) -> T? {
     gary_private_resolve(symbol.rawValue).map { unsafeBitCast($0, to: type) }
 }
 
-func missingSymbols(_ symbols: [GarySymbol]) -> [String] {
+nonisolated extension String {
+    init(cChars: [CChar]) {
+        self.init(decoding: cChars.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+    }
+}
+
+nonisolated func runLoopThread(_ name: String) -> CFRunLoop {
+    let ready = DispatchSemaphore(value: 0)
+    nonisolated(unsafe) var loop: CFRunLoop?
+    let thread = Thread {
+        loop = CFRunLoopGetCurrent()
+        RunLoop.current.add(NSMachPort(), forMode: .default)
+        ready.signal()
+        RunLoop.current.run()
+    }
+    thread.name = name
+    thread.qualityOfService = .userInteractive
+    thread.start()
+    ready.wait()
+    return loop ?? CFRunLoopGetMain()
+}
+
+nonisolated func missingSymbols(_ symbols: [GarySymbol]) -> [String] {
     symbols.filter { gary_private_resolve($0.rawValue) == nil }.map { String(cString: gary_private_symbol($0.rawValue).symbol) }
 }
 
@@ -78,15 +100,15 @@ final class Observation {
         self.cancel = cancel
     }
 
-    convenience init(_ center: NotificationCenter, _ name: Notification.Name, _ handler: @escaping () -> Void) {
-        let token = center.addObserver(forName: name, object: nil, queue: .main) { _ in handler() }
+    convenience init(_ center: NotificationCenter, _ name: Notification.Name, _ handler: @escaping @MainActor @Sendable () -> Void) {
+        let token = center.addObserver(forName: name, object: nil, queue: .main) { _ in MainActor.assumeIsolated(handler) }
         self.init { center.removeObserver(token) }
     }
 
-    deinit { cancel() }
+    isolated deinit { cancel() }
 }
 
-final class Holds {
+final nonisolated class Holds {
     private var ids: Set<Int> = []
     private let release: (Int) -> Void
 
@@ -111,26 +133,27 @@ final class Holds {
     }
 }
 
-enum HostResult {
+nonisolated enum HostResult {
     case now(JSON)
-    case later(DispatchQueue, () throws -> JSON)
-    case pending((@escaping (Result<JSON, Error>) -> Void) -> Void)
+    case later(DispatchQueue, @Sendable () throws -> JSON)
+    case main(@MainActor @Sendable () throws -> JSON)
+    case pending((@escaping @Sendable (Result<JSON, Error>) -> Void) -> Void)
 }
 
-struct HostFailure: Error, CustomStringConvertible {
+nonisolated struct HostFailure: Error, CustomStringConvertible {
     let description: String
     init(_ description: String) {
         self.description = description
     }
 }
 
-let home = FileManager.default.homeDirectoryForCurrentUser.path
+nonisolated let home = FileManager.default.homeDirectoryForCurrentUser.path
 
-func missingGrant(_ permission: Permission, _ api: String) -> String {
+nonisolated func missingGrant(_ permission: Permission, _ api: String) -> String {
     "\(api) needs \(permission.name) for Gary; run gary permissions request \(permission.rawValue)"
 }
 
-private func message(_ error: Error, _ call: HostCall) -> String {
+private nonisolated func message(_ error: Error, _ call: HostCall) -> String {
     switch error {
     case let error as ArgumentError: error.description
     case let error as HostFailure: "\(call.name): \(error)"
@@ -138,11 +161,11 @@ private func message(_ error: Error, _ call: HostCall) -> String {
     }
 }
 
-func pngFolder(_ folder: String) -> URL {
+nonisolated func pngFolder(_ folder: String) -> URL {
     URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: "gary/\(folder)")
 }
 
-func savePNG(_ data: Data, in folder: String) throws -> String {
+nonisolated func savePNG(_ data: Data, in folder: String) throws -> String {
     let directory = pngFolder(folder)
     let name = SHA256.hash(data: data).prefix(12).map { String(format: "%02x", $0) }.joined()
     let url = directory.appending(path: "\(name).png")
@@ -153,13 +176,13 @@ func savePNG(_ data: Data, in folder: String) throws -> String {
     return url.path
 }
 
-extension JSContext {
+nonisolated extension JSContext {
     func newError(_ message: String) -> JSValue {
         JSValue(newErrorFromMessage: message, in: self)
     }
 }
 
-extension PluginRuntime {
+nonisolated extension PluginRuntime {
     func installAPI(_ host: JSValue, _ api: String?, _ methods: [String], _ handle: @escaping (HostCall) throws -> HostResult) {
         let context: JSContext = host.context
         var target = host
@@ -175,6 +198,8 @@ extension PluginRuntime {
                 case let .now(value): return JSValue(object: value.text, in: context)
                 case let .later(queue, work):
                     return self?.promise(in: context, call: call) { finish in queue.async { finish(Result { try work() }) } }
+                case let .main(work):
+                    return self?.promise(in: context, call: call) { finish in DispatchQueue.main.async { finish(Result { try work() }) } }
                 case let .pending(start): return self?.promise(in: context, call: call, start)
                 }
             } catch {
@@ -194,12 +219,16 @@ extension PluginRuntime {
         """).call(withArguments: [target, bridge, methods])
     }
 
-    private func promise(in context: JSContext, call: HostCall, _ start: @escaping (@escaping (Result<JSON, Error>) -> Void) -> Void) -> JSValue {
+    private func promise(
+        in context: JSContext,
+        call: HostCall,
+        _ start: @escaping (@escaping @Sendable (Result<JSON, Error>) -> Void) -> Void,
+    ) -> JSValue {
         JSValue(newPromiseIn: context) { [weak self] resolve, reject in
-            guard let resolve, let reject else { return }
-            start { result in
-                self?.queue.async {
-                    guard let self else { return }
+            guard let self, let resolve, let reject else { return }
+            start { [weak self] result in
+                guard let self else { return }
+                queue.async {
                     switch result {
                     case let .success(value): self.callBack(resolve, [value.text], Trace(call.name))
                     case let .failure(error): self.callBack(reject, [context.newError(message(error, call))], Trace(call.name))

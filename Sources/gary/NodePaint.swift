@@ -1,7 +1,7 @@
 import GaryCore
 import SwiftUI
 
-extension AnyShapeStyle {
+nonisolated extension AnyShapeStyle {
     init(_ paint: ResolvedPaint) {
         switch paint {
         case let .color(color):
@@ -23,7 +23,7 @@ extension AnyShapeStyle {
     }
 }
 
-extension BlendMode {
+nonisolated extension BlendMode {
     init(_ blend: Blend) {
         switch blend {
         case .normal: self = .normal

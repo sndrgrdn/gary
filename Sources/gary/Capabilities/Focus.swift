@@ -1,7 +1,7 @@
 import Foundation
 import GaryCore
 
-extension Capability {
+nonisolated extension Capability {
     static let focus = Capability(name: "focus", summary: """
     Whether a Focus is on, and its name and symbol. Gary cannot turn a Focus on or off, because macOS has no public API \
     for it. A plugin that uses `exec` can run a shortcut that the user made with the Set Focus action of the Shortcuts \
@@ -30,11 +30,11 @@ extension Capability {
 }
 
 private final class FocusTopic: TopicFeed {
-    static let directory = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/DoNotDisturb/DB")
-    private let publish: (JSON, Trace) -> Void
+    nonisolated static let directory = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/DoNotDisturb/DB")
+    private let publish: @Sendable (JSON, Trace) -> Void
     private var observations: [Observation] = []
 
-    init(_ publish: @escaping (JSON, Trace) -> Void) {
+    init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
         let watch = PathWatch(
             ["", "Assertions.json", "ModeConfigurations.json"].map { Self.directory.appending(path: $0).path },
@@ -43,13 +43,13 @@ private final class FocusTopic: TopicFeed {
             self?.send(Trace("focus"))
         }
         let next = Date(timeIntervalSince1970: (Date().timeIntervalSince1970 / 60).rounded(.down) * 60 + 60)
-        let timer = Timer(fire: next, interval: 60, repeats: true) { [weak self] _ in self?.send(Trace("focus-minute")) }
+        let timer = Timer(fire: next, interval: 60, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.send(Trace("focus-minute")) } }
         RunLoop.main.add(timer, forMode: .common)
         observations = [Observation { watch.stop() }, Observation { timer.invalidate() }]
         send(Trace("focus-start"))
     }
 
-    private func send(_ trace: Trace) {
+    private nonisolated func send(_ trace: Trace) {
         let state: FocusState?
         do {
             let assertions = try Data(contentsOf: Self.directory.appending(path: "Assertions.json"))

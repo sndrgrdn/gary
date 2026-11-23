@@ -2,7 +2,7 @@ import Charts
 import GaryCore
 import SwiftUI
 
-extension CGPath {
+nonisolated extension CGPath {
     static func svg(_ svg: SVGPath, scale: CGSize) -> CGPath {
         let path = CGMutablePath()
         func scaled(_ point: CGPoint) -> CGPoint {
@@ -21,7 +21,7 @@ extension CGPath {
     }
 }
 
-private struct SVGFigure: Shape {
+private nonisolated struct SVGFigure: Shape {
     let svg: SVGPath
     let viewBox: CGSize?
 

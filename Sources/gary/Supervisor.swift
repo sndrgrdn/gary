@@ -2,13 +2,13 @@ import Foundation
 import GaryCore
 import ServiceManagement
 
-let appLockPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("gary.lock")
-let supervisorLockPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("gary-supervisor.lock")
-private let supervisedKey = "GARY_SUPERVISED"
-let spaceEfficientMallocKey = "MallocSpaceEfficient"
-let isSupervised = ProcessInfo.processInfo.environment[supervisedKey] != nil
+nonisolated let appLockPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("gary.lock")
+nonisolated let supervisorLockPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("gary-supervisor.lock")
+private nonisolated let supervisedKey = "GARY_SUPERVISED"
+nonisolated let spaceEfficientMallocKey = "MallocSpaceEfficient"
+nonisolated let isSupervised = ProcessInfo.processInfo.environment[supervisedKey] != nil
 
-func holdLock(_ path: String) -> Bool {
+nonisolated func holdLock(_ path: String) -> Bool {
     let fd = open(path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
     guard fd >= 0 else { return false }
     guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
@@ -25,7 +25,7 @@ func lockIsHeld(_ path: String) -> Bool {
     return flock(fd, LOCK_EX | LOCK_NB) != 0
 }
 
-private final class Child: @unchecked Sendable {
+private final nonisolated class Child: @unchecked Sendable {
     private let lock = NSLock()
     private var process: Process?
     private var stopping = false
@@ -52,7 +52,7 @@ private final class Child: @unchecked Sendable {
     }
 }
 
-func runSupervisor() -> Int32 {
+nonisolated func runSupervisor() -> Int32 {
     setvbuf(stdout, nil, _IOLBF, 0)
     guard holdLock(supervisorLockPath) else {
         log("supervisor: another supervisor is running")
@@ -69,7 +69,7 @@ func runSupervisor() -> Int32 {
     return withExtendedLifetime(signals) { supervise(child) }
 }
 
-private func supervise(_ child: Child) -> Int32 {
+private nonisolated func supervise(_ child: Child) -> Int32 {
     var budget = RestartBudget(limit: 5, window: 60)
     while true {
         let process = Process()

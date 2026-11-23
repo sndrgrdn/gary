@@ -1,7 +1,7 @@
 import AppKit
 import GaryCore
 
-extension Capability {
+nonisolated extension Capability {
     static let mediakeys = Capability(
         name: MediaKey.capability,
         summary: "Take over the volume, brightness, and playback keys.",
@@ -34,31 +34,17 @@ extension Capability {
     )
 }
 
-final class MediaKeyTap {
+final nonisolated class MediaKeyTap: @unchecked Sendable {
     private let lock = NSLock()
     private var claims: [MediaKey: [SlotKey]] = [:]
     private var gate = MediaKey.Gate()
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var failing = false
-    private let pressed: (JSON, [SlotKey]) -> Void
-    private lazy var runLoop: CFRunLoop = {
-        let ready = DispatchSemaphore(value: 0)
-        var loop: CFRunLoop?
-        let thread = Thread {
-            loop = CFRunLoopGetCurrent()
-            RunLoop.current.add(NSMachPort(), forMode: .default)
-            ready.signal()
-            RunLoop.current.run()
-        }
-        thread.name = "gary.mediakeys"
-        thread.qualityOfService = .userInteractive
-        thread.start()
-        ready.wait()
-        return loop ?? CFRunLoopGetMain()
-    }()
+    private let pressed: @MainActor @Sendable (JSON, [SlotKey]) -> Void
+    private nonisolated(unsafe) static let runLoop = runLoopThread("gary.mediakeys")
 
-    init(pressed: @escaping (JSON, [SlotKey]) -> Void) {
+    init(pressed: @escaping @MainActor @Sendable (JSON, [SlotKey]) -> Void) {
         self.pressed = pressed
     }
 
@@ -68,7 +54,7 @@ final class MediaKeyTap {
             if claims.isEmpty, let tap {
                 CGEvent.tapEnable(tap: tap, enable: false)
                 if let source {
-                    CFRunLoopRemoveSource(runLoop, source, .commonModes)
+                    CFRunLoopRemoveSource(Self.runLoop, source, .commonModes)
                 }
                 CFMachPortInvalidate(tap)
                 (self.tap, source) = (nil, nil)
@@ -99,8 +85,8 @@ final class MediaKeyTap {
         }
         failing = false
         let source = CFMachPortCreateRunLoopSource(nil, created, 0)
-        CFRunLoopAddSource(runLoop, source, .commonModes)
-        CFRunLoopWakeUp(runLoop)
+        CFRunLoopAddSource(Self.runLoop, source, .commonModes)
+        CFRunLoopWakeUp(Self.runLoop)
         (tap, self.source) = (created, source)
         log("mediakeys: tap installed")
     }

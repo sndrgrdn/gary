@@ -1,9 +1,9 @@
 import CryptoKit
 import Foundation
 import GaryCore
-import JavaScriptCore
+@preconcurrency import JavaScriptCore
 
-final class Transpiler {
+final nonisolated class Transpiler: @unchecked Sendable {
     static let shared = Transpiler(sucrase: Paths.sucrase, cache: Paths.transpiled)
     static let idle: TimeInterval = 30
     private static let options = #"{ disableESTransforms: true, production: true, jsxPragma: "Gary.h", jsxFragmentPragma: "Gary.Fragment" }"#
@@ -91,20 +91,20 @@ final class Transpiler {
     }
 }
 
-struct PluginModule {
+nonisolated struct PluginModule {
     let path: String
     let url: URL
     let code: String
     let links: [String: String]
 }
 
-private extension SHA256.Digest {
+private nonisolated extension SHA256.Digest {
     var hex: String {
         map { String(format: "%02x", $0) }.joined()
     }
 }
 
-private extension ScriptLanguage {
+private nonisolated extension ScriptLanguage {
     var transforms: [String] {
         switch self {
         case .typescript: ["typescript", "imports"]

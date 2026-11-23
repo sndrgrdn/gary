@@ -50,14 +50,14 @@ let package = Package(
         .executableTarget(
             name: "gary",
             dependencies: ["GaryCore", "GarySocket", "GaryPrivate"],
-            swiftSettings: [.swiftLanguageMode(.v5)],
+            swiftSettings: [.swiftLanguageMode(.v6), .defaultIsolation(MainActor.self)],
             linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("JavaScriptCore"), .linkedFramework("IOKit"), .linkedFramework("Carbon")],
         ),
         // Checks of the app target against its capability registry, such as the agent guide covering every capability.
         .testTarget(
             name: "GaryTests",
             dependencies: ["gary"],
-            swiftSettings: [.swiftLanguageMode(.v5)],
+            swiftSettings: [.swiftLanguageMode(.v6)],
         ),
     ],
 )

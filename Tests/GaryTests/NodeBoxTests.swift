@@ -4,7 +4,7 @@ import GaryCore
 import SwiftUI
 import Testing
 
-struct NodeBoxTests {
+@MainActor struct NodeBoxTests {
     private static let theme = try? Theme.parse(
         JSON.parse(Data(contentsOf: URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

@@ -1,7 +1,7 @@
 import AppKit
 import GaryCore
 
-extension Capability {
+nonisolated extension Capability {
     static let colorpicker = Capability(
         name: "colorpicker",
         summary: """
@@ -38,7 +38,7 @@ extension Capability {
     )
 }
 
-func sRGBHex(_ color: NSColor) -> String {
+nonisolated func sRGBHex(_ color: NSColor) -> String {
     let srgb = color.usingColorSpace(.sRGB) ?? .black
     let clamp = { (value: CGFloat) in min(1, max(0, Double(value))) }
     return RGBA(red: clamp(srgb.redComponent), green: clamp(srgb.greenComponent), blue: clamp(srgb.blueComponent)).hex

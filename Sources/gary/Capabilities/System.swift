@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 import GaryCore
 
-extension Capability {
+nonisolated extension Capability {
     static let system = Capability(
         name: "system",
         summary: """
@@ -38,16 +38,16 @@ extension Capability {
     )
 }
 
-private let machHost = mach_host_self()
+private nonisolated let machHost = mach_host_self()
 
 private final class SystemTopic: TopicFeed {
-    private let publish: (JSON, Trace) -> Void
+    private let publish: @Sendable (JSON, Trace) -> Void
     private var ticks = CPUTicks.read()
     private var observation: Observation?
 
-    init(_ publish: @escaping (JSON, Trace) -> Void) {
+    init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
-        let timer = Timer(fire: Date() + 0.5, interval: 2, repeats: true) { [weak self] _ in self?.send() }
+        let timer = Timer(fire: Date() + 0.5, interval: 2, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.send() } }
         timer.tolerance = 0.2
         RunLoop.main.add(timer, forMode: .common)
         observation = Observation { timer.invalidate() }
@@ -69,19 +69,19 @@ private final class SystemTopic: TopicFeed {
     }
 }
 
-private let anyInput = CGEventType(rawValue: ~0) ?? .null
+private nonisolated let anyInput = CGEventType(rawValue: ~0) ?? .null
 
-private func idleSeconds() -> Double {
+private nonisolated func idleSeconds() -> Double {
     CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: anyInput).rounded(.down)
 }
 
-struct CPULoad: Equatable {
+nonisolated struct CPULoad: Equatable {
     let user: Double
     let system: Double
     let idle: Double
 }
 
-struct CPUTicks: Equatable {
+nonisolated struct CPUTicks: Equatable {
     let user: UInt32
     let system: UInt32
     let idle: UInt32
@@ -107,7 +107,7 @@ struct CPUTicks: Equatable {
     }
 }
 
-struct MemoryUse: Equatable {
+nonisolated struct MemoryUse: Equatable {
     enum Pressure: String {
         case normal, warning, critical
     }
@@ -126,7 +126,7 @@ struct MemoryUse: Equatable {
         var level: Int32 = 0
         var size = MemoryLayout<Int32>.size
         sysctlbyname("kern.memorystatus_vm_pressure_level", &level, &size, nil, 0)
-        return MemoryUse(stats, pageSize: UInt64(vm_kernel_page_size), total: ProcessInfo.processInfo.physicalMemory, pressureLevel: level)
+        return MemoryUse(stats, pageSize: UInt64(sysconf(_SC_PAGESIZE)), total: ProcessInfo.processInfo.physicalMemory, pressureLevel: level)
     }
 
     init(_ stats: vm_statistics64, pageSize: UInt64, total: UInt64, pressureLevel: Int32) {

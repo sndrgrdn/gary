@@ -2,19 +2,19 @@ import AppKit
 import GaryCore
 import SwiftUI
 
-extension Color {
+nonisolated extension Color {
     init(_ rgba: RGBA) {
         self.init(.sRGB, red: rgba.red, green: rgba.green, blue: rgba.blue, opacity: rgba.alpha)
     }
 }
 
-extension NSColor {
+nonisolated extension NSColor {
     convenience init(_ rgba: RGBA) {
         self.init(srgbRed: rgba.red, green: rgba.green, blue: rgba.blue, alpha: rgba.alpha)
     }
 }
 
-extension EdgeInsets {
+nonisolated extension EdgeInsets {
     init(_ insets: Insets) {
         self.init(top: insets.top, leading: insets.left, bottom: insets.bottom, trailing: insets.right)
     }

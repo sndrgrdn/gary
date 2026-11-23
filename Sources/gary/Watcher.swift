@@ -1,16 +1,16 @@
 import CoreServices
 import Foundation
 
-final class FileWatcher {
+final nonisolated class FileWatcher: @unchecked Sendable {
     private let queue = DispatchQueue(label: "gary.watch")
     private let quiet: TimeInterval
-    private let onChange: (Set<String>, Trace) -> Void
+    private let onChange: @MainActor @Sendable (Set<String>, Trace) -> Void
     private var stream: FSEventStreamRef?
     private var pending: Set<String> = []
     private var firstEvent: Double?
     private var flush: DispatchWorkItem?
 
-    init(roots: [URL], quiet: TimeInterval = 0.02, onChange: @escaping (Set<String>, Trace) -> Void) {
+    init(roots: [URL], quiet: TimeInterval = 0.02, onChange: @escaping @MainActor @Sendable (Set<String>, Trace) -> Void) {
         self.quiet = quiet
         self.onChange = onChange
         var context = FSEventStreamContext(
@@ -75,14 +75,14 @@ final class FileWatcher {
     }
 }
 
-final class PathWatch {
+final nonisolated class PathWatch: @unchecked Sendable {
     private let paths: [String]
     private let queue: DispatchQueue
-    private let onChange: () -> Void
+    private let onChange: @Sendable () -> Void
     private var sources: [DispatchSourceFileSystemObject] = []
     private var pending: DispatchWorkItem?
 
-    init(_ paths: [String], queue: DispatchQueue, onChange: @escaping () -> Void) {
+    init(_ paths: [String], queue: DispatchQueue, onChange: @escaping @Sendable () -> Void) {
         self.paths = paths
         self.queue = queue
         self.onChange = onChange

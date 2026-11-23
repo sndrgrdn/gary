@@ -67,20 +67,20 @@ final class Shell {
         installMissingPackages()
 
         watch()
-        appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] app, _ in
-            let mode = Palette.Mode(app.effectiveAppearance)
-            DispatchQueue.main.async { self?.systemAppearanceChanged(mode) }
+        appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
+            DispatchQueue.main.async { [weak self] in self?.systemAppearanceChanged(Palette.Mode(NSApp.effectiveAppearance)) }
         }
         let center = NotificationCenter.default
         observers = [
             center.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
-                self?.refreshDisplays(Trace("screens"))
+                MainActor.assumeIsolated { self?.refreshDisplays(Trace("screens")) }
             },
             center.addObserver(forName: .restartGary, object: nil, queue: .main) { [weak self] note in
-                self?.restart(reopening: note.object as? PluginID)
+                let plugin = note.object as? PluginID
+                MainActor.assumeIsolated { self?.restart(reopening: plugin) }
             },
             center.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
-                SystemState.restore(SystemState.saved)
+                MainActor.assumeIsolated { SystemState.restore(SystemState.saved) }
             },
         ]
         for number in [SIGTERM, SIGINT] {
@@ -144,13 +144,13 @@ final class Shell {
             log("package \(source.declaration): installing")
             DispatchQueue.global(qos: .utility).async { [weak self] in
                 let result = Result { try PackageStore.install(source) }
-                DispatchQueue.main.async {
+                DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
-                    self.installingPackages.remove(source.identity)
+                    installingPackages.remove(source.identity)
                     switch result {
                     case .success:
                         log("package \(source.declaration): installed \(PackageStore.revision(source) ?? "")")
-                        _ = self.refresh(config: false, catalog: true, Trace("package"))
+                        _ = refresh(config: false, catalog: true, Trace("package"))
                     case let .failure(error):
                         log("package \(source.declaration): not installed, Gary tries again on the next start or gary plugin update: \(error)")
                     }

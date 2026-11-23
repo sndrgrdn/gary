@@ -1,6 +1,6 @@
 import Foundation
 
-enum Paths {
+nonisolated enum Paths {
     static let config = FileManager.default.homeDirectoryForCurrentUser.appending(path: ".config/gary")
     static let userPlugins = config.appending(path: "plugins")
     static let shellConfig = config.appending(path: "shell.json")

@@ -1,15 +1,15 @@
 import Foundation
 import GaryCore
 
-protocol Subscriber: AnyObject {
+nonisolated protocol Subscriber: AnyObject, Sendable {
     func receive(_ topic: Topic, _ value: JSON, _ trace: Trace)
 }
 
-protocol TopicFeed: AnyObject {}
+nonisolated protocol TopicFeed: AnyObject {}
 
-typealias TopicSource = (@escaping (JSON, Trace) -> Void) -> any TopicFeed
+typealias TopicSource = @MainActor @Sendable (@escaping @Sendable (JSON, Trace) -> Void) -> any TopicFeed
 
-final class StateHub {
+final nonisolated class StateHub: @unchecked Sendable {
     private let sources: [Topic: TopicSource]
     private let lock = NSLock()
     private var latest: [Topic: JSON] = [:]

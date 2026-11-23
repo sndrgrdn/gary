@@ -5,7 +5,7 @@ import Testing
 
 private let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../..").standardizedFileURL
 
-struct SkillTests {
+@MainActor struct SkillTests {
     private var guide: String {
         get throws {
             try #require(Skill.reference(

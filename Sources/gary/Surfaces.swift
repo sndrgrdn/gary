@@ -325,7 +325,7 @@ final class SurfaceWindow {
             context.duration = fade
             panel.animator().alphaValue = 0
         } completionHandler: {
-            panel.close()
+            MainActor.assumeIsolated { panel.close() }
         }
     }
 

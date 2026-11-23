@@ -1,8 +1,8 @@
 import Foundation
 import GaryCore
-import JavaScriptCore
+@preconcurrency import JavaScriptCore
 
-extension Capability {
+nonisolated extension Capability {
     static let exec = Capability(
         name: "exec",
         summary: """
@@ -81,7 +81,7 @@ extension Capability {
     )
 }
 
-private let spawnScript = """
+private nonisolated let spawnScript = """
 (function (host, start, stop) {
   host.spawn = function (argv, onLine) {
     if (typeof onLine !== "function") throw new TypeError("host.spawn: onLine must be a function");
@@ -93,12 +93,12 @@ private let spawnScript = """
 })
 """
 
-final class ExecRuns {
+final nonisolated class ExecRuns: @unchecked Sendable {
     private struct Run {
         let process: Process
         let stdout: FileHandle
         let stderr: FileHandle
-        let finish: (Result<JSON, Error>) -> Void
+        let finish: @Sendable (Result<JSON, Error>) -> Void
     }
 
     private let queue: DispatchQueue
@@ -111,7 +111,7 @@ final class ExecRuns {
         self.limit = limit
     }
 
-    func start(_ argv: [String], _ finish: @escaping (Result<JSON, Error>) -> Void) {
+    func start(_ argv: [String], _ finish: @escaping @Sendable (Result<JSON, Error>) -> Void) {
         queue.async { [self] in
             if !stopped {
                 launch(argv, finish)
@@ -119,7 +119,7 @@ final class ExecRuns {
         }
     }
 
-    private func launch(_ argv: [String], _ finish: @escaping (Result<JSON, Error>) -> Void) {
+    private func launch(_ argv: [String], _ finish: @escaping @Sendable (Result<JSON, Error>) -> Void) {
         let process = command(argv)
         let id = ObjectIdentifier(process)
         do {
@@ -127,7 +127,7 @@ final class ExecRuns {
             let stderr = try scratchFile()
             process.standardOutput = stdout.writer
             process.standardError = stderr.writer
-            try LiveCommands.shared.run(process) { [weak self] in self?.queue.async { self?.exited(id) } }
+            try LiveCommands.shared.run(process) { [weak self] in self?.queue.async { [weak self] in self?.exited(id) } }
             runs[id] = Run(process: process, stdout: stdout.reader, stderr: stderr.reader, finish: finish)
         } catch {
             finish(.success(result(status: -1, stdout: "", stderr: "\(error)")))
@@ -158,8 +158,8 @@ final class ExecRuns {
     }
 }
 
-final class SpawnRuns {
-    private final class Run {
+final nonisolated class SpawnRuns: @unchecked Sendable {
+    private final class Run: @unchecked Sendable {
         let process: Process
         let lines: ([String]) -> Void
         let exit: (Int, String) -> Void
@@ -215,7 +215,7 @@ final class SpawnRuns {
         run.process.standardOutput = stdout
         run.process.standardError = stderr
         do {
-            try LiveCommands.shared.run(run.process) { [weak self] in self?.queue.async { self?.exited(id) } }
+            try LiveCommands.shared.run(run.process) { [weak self] in self?.queue.async { [weak self] in self?.exited(id) } }
         } catch {
             runs[id] = nil
             run.exit(-1, "\(error)")
@@ -257,7 +257,7 @@ final class SpawnRuns {
     }
 }
 
-private final class PipeReader {
+private final nonisolated class PipeReader {
     private let handle: FileHandle
     private let source: DispatchSourceRead
     private let receive: (Data) -> Void
@@ -293,7 +293,7 @@ private final class PipeReader {
     }
 }
 
-private struct LineBuffer {
+private nonisolated struct LineBuffer {
     private var pending = Data()
 
     mutating func append(_ data: Data) -> [String] {
@@ -310,7 +310,7 @@ private struct LineBuffer {
     }
 }
 
-private final class LiveCommands: @unchecked Sendable {
+private final nonisolated class LiveCommands: @unchecked Sendable {
     static let shared = LiveCommands()
     private let lock = NSLock()
     private var running: Set<pid_t> = []
@@ -319,7 +319,7 @@ private final class LiveCommands: @unchecked Sendable {
         atexit { LiveCommands.shared.stopAll() }
     }
 
-    func run(_ process: Process, exited: @escaping () -> Void) throws {
+    func run(_ process: Process, exited: @escaping @Sendable () -> Void) throws {
         process.terminationHandler = { [self] process in
             lock.withLock { _ = running.remove(process.processIdentifier) }
             exited()
@@ -337,7 +337,7 @@ private final class LiveCommands: @unchecked Sendable {
     }
 }
 
-private func command(_ argv: [String]) -> Process {
+private nonisolated func command(_ argv: [String]) -> Process {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
     process.arguments = ["--"] + argv
@@ -348,20 +348,21 @@ private func command(_ argv: [String]) -> Process {
     return process
 }
 
-private func result(status: Int, stdout: String, stderr: String) -> JSON {
+private nonisolated func result(status: Int, stdout: String, stderr: String) -> JSON {
     .object(["status": .number(Double(status)), "stdout": .string(stdout), "stderr": .string(stderr)])
 }
 
-private func scratchFile() throws -> (writer: FileHandle, reader: FileHandle) {
+private nonisolated func scratchFile() throws -> (writer: FileHandle, reader: FileHandle) {
     let url = FileManager.default.temporaryDirectory.appending(path: "gary-exec-\(UUID().uuidString)")
     guard FileManager.default.createFile(atPath: url.path, contents: nil) else { throw HostFailure("cannot create \(url.path)") }
     defer { try? FileManager.default.removeItem(at: url) }
     return try (FileHandle(forWritingTo: url), FileHandle(forReadingFrom: url))
 }
 
-private let searchPath = [Bundle.main.executableURL?.deletingLastPathComponent().path, loginPath].compactMap(\.self).joined(separator: ":")
+private nonisolated let searchPath = [Bundle.main.executableURL?.deletingLastPathComponent().path, loginPath].compactMap(\.self)
+    .joined(separator: ":")
 
-private let loginPath: String = {
+private nonisolated let loginPath: String = {
     let fallback = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin"
     guard let entry = getpwuid(getuid()), let shell = entry.pointee.pw_shell.map({ String(cString: $0) }) else { return fallback }
     let process = Process()

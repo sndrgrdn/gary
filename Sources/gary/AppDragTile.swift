@@ -63,7 +63,7 @@ final class AppDragTile {
         close.action = #selector(closeClicked)
         place()
         panel.orderFrontRegardless()
-        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.tick() }
+        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.tick() } }
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
     }
@@ -95,7 +95,7 @@ final class AppDragTile {
         let permission = permission
         DispatchQueue.global(qos: .utility).async { [weak self] in
             let granted = freshGrants([permission]).contains(permission)
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
                 self?.probing = false
                 if granted {
                     self?.close()

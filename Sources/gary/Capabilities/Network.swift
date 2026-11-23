@@ -1,9 +1,9 @@
 import Foundation
-import JavaScriptCore
+@preconcurrency import JavaScriptCore
 
-private let fetchSession = URLSession(configuration: .ephemeral)
+private nonisolated let fetchSession = URLSession(configuration: .ephemeral)
 
-extension Capability {
+nonisolated extension Capability {
     static let network = Capability(name: "network", summary: "A global fetch for http and https URLs.", types: """
     declare namespace Gary {
       type FetchResponse = { status: number; text: string }
@@ -43,9 +43,9 @@ extension Capability {
     })
 }
 
-private func load(_ url: URL, _ resolve: JSValue, _ reject: JSValue, into plugin: PluginRuntime) {
+private nonisolated func load(_ url: URL, _ resolve: JSValue, _ reject: JSValue, into plugin: PluginRuntime) {
     fetchSession.dataTask(with: URLRequest(url: url, timeoutInterval: 15)) { [weak plugin] data, response, error in
-        plugin?.queue.async {
+        plugin?.queue.async { [weak plugin] in
             if let error {
                 plugin?.callBack(reject, [resolve.context.newError("fetch failed: \(error.localizedDescription)")], Trace("fetch"))
             } else {

@@ -1,26 +1,26 @@
 import Foundation
 import GaryCore
 
-struct ShownSurface: Equatable {
+nonisolated struct ShownSurface: Equatable {
     var focused: String?
     var origin: CGRect?
 }
 
-struct Scene: Equatable {
+nonisolated struct Scene: Equatable {
     var displays: [DisplayInfo] = []
     var shown: [String: ShownSurface] = [:]
 }
 
-struct RuntimeOutput: Equatable {
+nonisolated struct RuntimeOutput: Equatable {
     var surfaces: [String: SurfaceSpec] = [:]
     var trees: [String: [String: Node?]] = [:]
 }
 
-enum SurfaceRequest: String {
+nonisolated enum SurfaceRequest: String {
     case show, hide, toggle
 }
 
-struct CallTarget {
+nonisolated struct CallTarget {
     let plugin: PluginID?
     let kind: PluginKind?
 
@@ -31,30 +31,31 @@ struct CallTarget {
     }
 }
 
-enum RuntimeEvent {
+nonisolated enum RuntimeEvent {
     case loaded(RuntimeOutput, Trace)
     case output(RuntimeOutput, Trace)
     case surface(SurfaceRequest, SurfaceAddress, origin: CGRect?)
-    case call(CallTarget, method: String, arguments: [String], reply: (Response) -> Void)
+    case call(CallTarget, method: String, arguments: [String], reply: @Sendable (Response) -> Void)
     case failed(String)
 }
 
-final class MainDelivery {
+final nonisolated class MainDelivery: @unchecked Sendable {
     private let lock = NSLock()
     private var newestOutput = 0
-    private let handle: (PluginRuntime, RuntimeEvent) -> Void
+    private let handle: @MainActor (PluginRuntime, RuntimeEvent) -> Void
 
-    init(_ handle: @escaping (PluginRuntime, RuntimeEvent) -> Void) {
+    init(_ handle: @escaping @MainActor (PluginRuntime, RuntimeEvent) -> Void) {
         self.handle = handle
     }
 
     func send(_ runtime: PluginRuntime, _ event: RuntimeEvent) {
-        var ticket: Int?
-        if case .output = event {
-            ticket = lock.withLock {
+        let ticket: Int? = if case .output = event {
+            lock.withLock {
                 newestOutput += 1
                 return newestOutput
             }
+        } else {
+            nil
         }
         DispatchQueue.main.async { [self] in
             if let ticket, lock.withLock({ ticket != newestOutput }) {

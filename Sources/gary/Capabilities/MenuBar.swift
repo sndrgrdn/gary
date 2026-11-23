@@ -1,7 +1,7 @@
 import AppKit
 import GaryCore
 
-extension Capability {
+nonisolated extension Capability {
     static let menubar = Capability(name: "menubar", summary: "Hide the macOS menu bar while the plugin runs.", types: """
     declare namespace Gary {
       type MenuBarState = { hidden: boolean; available: boolean }
@@ -27,7 +27,7 @@ extension Capability {
         plugin.onStop { DispatchQueue.main.async { MenuBar.shared.release(owner) } }
         plugin.installAPI(host, "menubar", MenuBarRequest.methods) { call in
             let request = try MenuBarRequest.parse(call)
-            return .later(.main) {
+            return .main {
                 switch request {
                 case .hide: try MenuBar.shared.hide(owner)
                 case .restore: MenuBar.shared.release(owner)

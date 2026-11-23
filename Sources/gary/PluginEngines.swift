@@ -1,7 +1,7 @@
 import Foundation
 import GaryCore
 
-struct PluginEngines {
+nonisolated struct PluginEngines {
     private let bar: PluginEngine
     private let rest: PluginEngine
 

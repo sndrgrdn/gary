@@ -2,7 +2,7 @@ import AppKit
 import GaryCore
 
 extension Shell {
-    private final class ReplyBox: @unchecked Sendable {
+    private final nonisolated class ReplyBox: @unchecked Sendable {
         private let lock = NSLock()
         private let semaphore = DispatchSemaphore(value: 0)
         private var response: Response?
@@ -22,7 +22,7 @@ extension Shell {
         }
     }
 
-    func serve(_ line: String) -> String {
+    nonisolated func serve(_ line: String) -> String {
         let request: Request
         do {
             request = try Request.decode(line: line)
@@ -233,19 +233,17 @@ extension Shell {
             return
         }
         var answered = false
-        let once: (Response) -> Void = { response in
-            DispatchQueue.main.async {
-                guard !answered else { return }
-                answered = true
-                reply(response)
-            }
+        let once: @MainActor @Sendable (Response) -> Void = { response in
+            guard !answered else { return }
+            answered = true
+            reply(response)
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + Request.callTimeout) {
             once(.failure("\(id) \(method) did not finish within \(Int(Request.callTimeout)) seconds"))
         }
         withRuntime(slot, Trace("call")) { runtime in
             guard let runtime else { return once(.failure("\(id) did not load")) }
-            runtime.call(method, arguments, reply: once)
+            runtime.call(method, arguments) { response in DispatchQueue.main.async { once(response) } }
         }
     }
 

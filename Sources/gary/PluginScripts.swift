@@ -1,6 +1,6 @@
-import JavaScriptCore
+@preconcurrency import JavaScriptCore
 
-struct PluginFunctions {
+nonisolated struct PluginFunctions {
     let render: JSValue
     let dispatch: JSValue
     let call: JSValue
@@ -16,7 +16,7 @@ struct PluginFunctions {
     }
 }
 
-enum PluginScripts {
+nonisolated enum PluginScripts {
     static let modules = """
     (function (factories, links, entry, library, settings) {
       var loaded = {}, effect = null;

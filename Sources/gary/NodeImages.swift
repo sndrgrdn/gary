@@ -2,7 +2,7 @@ import AppKit
 import GaryCore
 import SwiftUI
 
-private let images: NSCache<NSString, NSImage> = {
+private nonisolated(unsafe) let images: NSCache<NSString, NSImage> = {
     let cache = NSCache<NSString, NSImage>()
     cache.totalCostLimit = 256 << 20
     return cache
@@ -37,7 +37,7 @@ struct ImageNode: View {
     }
 }
 
-private final class Cancellation: @unchecked Sendable {
+private final nonisolated class Cancellation: @unchecked Sendable {
     private let lock = NSLock()
     private var cancelled = false
 
@@ -68,13 +68,13 @@ private func isSmall(_ path: String) -> Bool {
     return attributes?[.type] as? FileAttributeType == .typeRegular && (attributes?[.size] as? Int ?? .max) <= decodeAtOnceLimit
 }
 
-private func decoded(_ path: String, _ pixels: CGSize, _ fit: ImageFit, _ key: NSString) -> NSImage? {
+private nonisolated func decoded(_ path: String, _ pixels: CGSize, _ fit: ImageFit, _ key: NSString) -> NSImage? {
     guard let image = load(path, pixels, fit) else { return nil }
     images.setObject(image, forKey: key, cost: Int(image.size.width * image.size.height * 4))
     return image
 }
 
-private func load(_ path: String, _ pixels: CGSize, _ fit: ImageFit) -> NSImage? {
+private nonisolated func load(_ path: String, _ pixels: CGSize, _ fit: ImageFit) -> NSImage? {
     let expanded = (path as NSString).expandingTildeInPath
     if expanded.hasSuffix(".app") {
         return NSWorkspace.shared.icon(forFile: expanded)

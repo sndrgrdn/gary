@@ -1,8 +1,8 @@
 import Foundation
 import GaryCore
-import UserNotifications
+@preconcurrency import UserNotifications
 
-extension Capability {
+nonisolated extension Capability {
     static let notify = Capability(
         name: "notify",
         summary: """
@@ -40,7 +40,7 @@ extension Capability {
     )
 }
 
-enum NotificationPoster {
+nonisolated enum NotificationPoster {
     static var center: UNUserNotificationCenter? {
         Bundle.main.bundleURL.pathExtension == "app" ? .current() : nil
     }
@@ -60,7 +60,7 @@ enum NotificationPoster {
         center?.requestAuthorization(options: [.alert, .sound]) { granted, _ in log("notifications: \(granted ? "allowed" : "refused")") }
     }
 
-    static func post(_ request: NotifyRequest, _ finish: @escaping (Result<JSON, Error>) -> Void) {
+    static func post(_ request: NotifyRequest, _ finish: @escaping @Sendable (Result<JSON, Error>) -> Void) {
         guard let center else {
             finish(.failure(HostFailure("macOS delivers notifications only from Gary.app, not from a bare gary binary")))
             return

@@ -1,7 +1,7 @@
 import Foundation
 import GaryCore
 
-enum PackageStore {
+nonisolated enum PackageStore {
     private static let staging = Paths.packages.appending(path: ".staging")
 
     static func directory(_ source: PackageSource) -> URL {
@@ -173,7 +173,7 @@ enum PackageStore {
             request.setValue(accept, forHTTPHeaderField: "Accept")
         }
         let done = DispatchSemaphore(value: 0)
-        var result: Result<Data, Error> = .failure(PackageError("no answer from \(url.absoluteString)"))
+        nonisolated(unsafe) var result: Result<Data, Error> = .failure(PackageError("no answer from \(url.absoluteString)"))
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error {
                 result = .failure(PackageError("cannot download \(url.absoluteString): \(error.localizedDescription)"))

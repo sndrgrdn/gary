@@ -3,7 +3,7 @@ import Carbon.HIToolbox
 import GaryCore
 import IOKit.pwr_mgt
 
-extension Capability {
+nonisolated extension Capability {
     static let power = Capability(
         name: "power",
         summary: """
@@ -88,14 +88,14 @@ extension Capability {
     )
 }
 
-private func sleepNow() throws {
+private nonisolated func sleepNow() throws {
     let port = IOPMFindPowerManagement(mach_port_t(MACH_PORT_NULL))
     defer { IOServiceClose(port) }
     let status = IOPMSleepSystem(port)
     guard status == kIOReturnSuccess else { throw HostFailure("the power manager refused to sleep (\(status))") }
 }
 
-private func lockScreen() throws {
+private nonisolated func lockScreen() throws {
     guard CGPreflightPostEventAccess() else { throw HostFailure(missingGrant(.accessibility, "power.lock")) }
     let source = CGEventSource(stateID: .hidSystemState)
     for down in [true, false] {
@@ -105,14 +105,14 @@ private func lockScreen() throws {
     }
 }
 
-private let loginWindow = "com.apple.loginwindow"
+private nonisolated let loginWindow = "com.apple.loginwindow"
 
-func loginWindowConsent(ask: Bool) -> OSStatus {
+nonisolated func loginWindowConsent(ask: Bool) -> OSStatus {
     let target = NSAppleEventDescriptor(bundleIdentifier: loginWindow)
     return AEDeterminePermissionToAutomateTarget(target.aeDesc, AEEventClass(kCoreEventClass), AEEventID(kAERestart), ask)
 }
 
-private func askLoginWindow(_ event: AEEventID, _ api: String) throws -> JSON {
+private nonisolated func askLoginWindow(_ event: AEEventID, _ api: String) throws -> JSON {
     let consent = loginWindowConsent(ask: false)
     guard consent == noErr else {
         let missing = consent == OSStatus(errAEEventNotPermitted) || consent == OSStatus(errAEEventWouldRequireUserConsent)
@@ -129,7 +129,7 @@ private func askLoginWindow(_ event: AEEventID, _ api: String) throws -> JSON {
     return .null
 }
 
-private final class Awake {
+private final nonisolated class Awake {
     enum Mode: String {
         case off, system, display
 

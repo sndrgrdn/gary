@@ -28,7 +28,7 @@ struct SystemTests {
     }
 
     @MainActor @Test func `the topic publishes CPU memory and idle time half A second after it starts`() throws {
-        var value: JSON?
+        nonisolated(unsafe) var value: JSON?
         let source = try #require(Capability.system.topic).source
         let feed = source { published, _ in value = published }
         withExtendedLifetime(feed) { RunLoop.main.run(until: Date(timeIntervalSinceNow: 1)) }

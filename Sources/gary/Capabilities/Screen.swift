@@ -2,7 +2,7 @@ import AppKit
 import GaryCore
 import ScreenCaptureKit
 
-extension Capability {
+nonisolated extension Capability {
     static let screen = Capability(
         name: "screen",
         summary: """
@@ -59,8 +59,8 @@ extension Capability {
     )
 }
 
-extension HostResult {
-    static func task(_ work: @escaping () async throws -> JSON) -> HostResult {
+nonisolated extension HostResult {
+    static func task(_ work: @escaping @Sendable () async throws -> JSON) -> HostResult {
         .pending { finish in
             Task {
                 do {
@@ -73,7 +73,7 @@ extension HostResult {
     }
 }
 
-private func screenshot(_ area: ScreenArea, to path: String?, clipboard: Bool) async throws -> String {
+private nonisolated func screenshot(_ area: ScreenArea, to path: String?, clipboard: Bool) async throws -> String {
     let image = try await captureImage(area)
     guard let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else {
         throw HostFailure("the capture cannot be encoded as PNG")
@@ -90,7 +90,7 @@ private func screenshot(_ area: ScreenArea, to path: String?, clipboard: Bool) a
     return path
 }
 
-func captureImage(_ area: ScreenArea) async throws -> CGImage {
+nonisolated func captureImage(_ area: ScreenArea) async throws -> CGImage {
     guard CGPreflightScreenCaptureAccess() else { throw HostFailure(missingGrant(.screenRecording, "screen capture")) }
     if case let .region(rect) = area {
         return try await SCScreenshotManager.captureImage(in: rect)
@@ -99,7 +99,7 @@ func captureImage(_ area: ScreenArea) async throws -> CGImage {
     return try await SCScreenshotManager.captureImage(contentFilter: source.filter, configuration: source.configuration)
 }
 
-func captureSource(_ area: ScreenArea) async throws -> (filter: SCContentFilter, configuration: SCStreamConfiguration) {
+nonisolated func captureSource(_ area: ScreenArea) async throws -> (filter: SCContentFilter, configuration: SCStreamConfiguration) {
     let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
     let filter: SCContentFilter
     var rect: CGRect?
@@ -182,7 +182,7 @@ private actor ScreenRecorder {
     }
 }
 
-private final class RecordingEnd: NSObject, SCRecordingOutputDelegate {
+private final nonisolated class RecordingEnd: NSObject, SCRecordingOutputDelegate, @unchecked Sendable {
     private let lock = NSLock()
     private var result: Result<Void, Error>?
     private var waiter: CheckedContinuation<Void, Error>?
@@ -217,8 +217,7 @@ private final class RecordingEnd: NSObject, SCRecordingOutputDelegate {
     }
 }
 
-private func displayID(_ uuid: String?) -> CGDirectDisplayID? {
+private nonisolated func displayID(_ uuid: String?) -> CGDirectDisplayID? {
     guard let uuid else { return CGMainDisplayID() }
-    let screen = NSScreen.screens.first { $0.uuid == uuid }
-    return (screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+    return Display.online().first { $0.uuid == uuid }?.id
 }

@@ -27,7 +27,7 @@ final class TooltipPanel {
         guard owner !== self.owner else { return }
         hide()
         self.owner = owner
-        timer = Timer.scheduledTimer(withTimeInterval: Self.delay, repeats: false) { [weak self] _ in self?.show() }
+        timer = Timer.scheduledTimer(withTimeInterval: Self.delay, repeats: false) { [weak self] _ in MainActor.assumeIsolated { self?.show() } }
     }
 
     func refresh(_ owner: GestureView) {
