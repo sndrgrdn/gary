@@ -87,7 +87,12 @@ private final nonisolated class LatestScan: @unchecked Sendable {
     static let shared = LatestScan()
     private let lock = NSLock()
     private var stored: JSON?
-    var onChange: (@Sendable () -> Void)?
+    private var listener: (@Sendable () -> Void)?
+
+    var onChange: (@Sendable () -> Void)? {
+        get { lock.withLock { listener } }
+        set { lock.withLock { listener = newValue } }
+    }
 
     var networks: JSON? {
         lock.withLock { stored }
