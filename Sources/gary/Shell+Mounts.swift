@@ -200,7 +200,7 @@ extension Shell {
         clickMonitors = [
             NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] _ in self?.clicked(at: NSEvent.mouseLocation) },
             NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
-                self?.clicked(at: NSEvent.mouseLocation)
+                self?.clicked(at: event.window?.convertPoint(toScreen: event.locationInWindow) ?? NSEvent.mouseLocation)
                 return event
             },
         ].compactMap(\.self)

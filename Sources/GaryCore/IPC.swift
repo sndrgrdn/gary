@@ -23,6 +23,7 @@ public enum Request: Equatable, Sendable {
     case key(PluginID, kind: PluginKind?, keys: [String])
     case scroll(PluginID, kind: PluginKind, over: String?, by: ScrollDistance)
     case hover(PluginID, kind: PluginKind, action: String, entering: Bool)
+    case click(PluginID, kind: PluginKind, at: CGPoint)
 
     public static let usage: [CommandUsage] = [
         CommandUsage("ping", "Check that Gary is running.", nil),
@@ -105,6 +106,14 @@ public enum Request: Equatable, Sendable {
             """,
             "gary hover you.launcher/menu row:safari",
         ),
+        CommandUsage(
+            "click <plugin>/<kind> <x> <y>",
+            """
+            Click with the left mouse button at a point of the shown surface, in points from its top left corner, as the user would, \
+            whether a node with an action, a node without one, or empty space is there.
+            """,
+            "gary click you.launcher/menu 10 10",
+        ),
     ]
 
     public static let callTimeout: TimeInterval = 60
@@ -144,6 +153,7 @@ public enum Request: Equatable, Sendable {
         case "key": return try key(arguments)
         case "scroll": return try scroll(arguments)
         case "hover": return try hover(arguments)
+        case "click": return try click(arguments)
         default: throw RequestError(description: "unknown verb \"\(verb)\"")
         }
     }
@@ -244,6 +254,13 @@ public enum Request: Equatable, Sendable {
         return .hover(id, kind: kind, action: arguments[1], entering: arguments.count == 2)
     }
 
+    private static func click(_ arguments: [String]) throws -> Request {
+        let numbers = arguments.dropFirst().compactMap(Double.init).filter(\.isFinite)
+        guard arguments.count == 3, numbers.count == 2 else { throw RequestError(description: "click takes <plugin>/<kind>, an x and a y in points") }
+        let (id, kind) = try slotWithKind(arguments[0], for: "click")
+        return .click(id, kind: kind, at: CGPoint(x: numbers[0], y: numbers[1]))
+    }
+
     public var verb: String {
         switch self {
         case .ping: "ping"
@@ -263,6 +280,7 @@ public enum Request: Equatable, Sendable {
         case .key: "key"
         case .scroll: "scroll"
         case .hover: "hover"
+        case .click: "click"
         }
     }
 
@@ -279,6 +297,7 @@ public enum Request: Equatable, Sendable {
         case let .scroll(id, kind, over, .lines(y)): ["\(id)/\(kind.rawValue)"] + (over.map { [$0] } ?? []) + [String(y)]
         case let .scroll(id, kind, over, .points(y)): ["\(id)/\(kind.rawValue)"] + (over.map { [$0] } ?? []) + [String(y), "--precise"]
         case let .hover(id, kind, action, entering): ["\(id)/\(kind.rawValue)", action] + (entering ? [] : ["off"])
+        case let .click(id, kind, point): ["\(id)/\(kind.rawValue)", String(Double(point.x)), String(Double(point.y))]
         }
     }
 

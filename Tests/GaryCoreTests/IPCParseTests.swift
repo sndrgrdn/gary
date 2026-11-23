@@ -40,6 +40,7 @@ struct IPCParseTests {
             ),
             (Invocation("hover", ["gary.today/menu", "row:a"]), .hover(today, kind: .menu, action: "row:a", entering: true)),
             (Invocation("hover", ["gary.today/menu", "row:a", "off"]), .hover(today, kind: .menu, action: "row:a", entering: false)),
+            (Invocation("click", ["gary.today/menu", "10", "20.5"]), .click(today, kind: .menu, at: CGPoint(x: 10, y: 20.5))),
         ]
         for (invocation, request) in cases {
             #expect(try invocation.parse() == request, "\(invocation.verb) \(invocation.arguments)")
@@ -78,6 +79,8 @@ struct IPCParseTests {
             ),
             (Invocation("scroll", ["gary.today", "3"]), "scroll takes <plugin>/<kind>, such as gary.today/panel"),
             (Invocation("hover", ["gary.today/menu", "row:a", "on"]), "hover takes <plugin>/<kind>, a hoverAction and an optional off"),
+            (Invocation("click", ["gary.today/menu", "10"]), "click takes <plugin>/<kind>, an x and a y in points"),
+            (Invocation("click", ["gary.today/menu", "10", "inf"]), "click takes <plugin>/<kind>, an x and a y in points"),
             (Invocation("hover", ["gary.today", "row:a"]), "hover takes <plugin>/<kind>, such as gary.today/panel"),
             (Invocation("key", ["gary.today/widget", "a"]), "unknown kind \"widget\"; use bar-widget, bar, panel, overlay, menu, service"),
         ]

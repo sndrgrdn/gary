@@ -74,6 +74,8 @@ extension Shell {
             reply(scroll(distance, over: over, on: SlotKey(id: id, kind: kind)))
         case let .hover(id, kind, action, entering):
             reply(hover(action, entering: entering, on: SlotKey(id: id, kind: kind)))
+        case let .click(id, kind, point):
+            reply(click(at: point, on: SlotKey(id: id, kind: kind)))
         case let .call(id, method, arguments):
             call(id, nil, method, arguments) { response in
                 guard case let .ok(text) = response, case let .string(string)? = try? JSON.parse(text) else { return reply(response) }
@@ -155,6 +157,22 @@ extension Shell {
         }
         view.send(.hover, .bool(entering))
         return .ok("\(entering ? "entered" : "left") \(action) on \(key) at \(view.screenFrame.map(describe) ?? "no frame")")
+    }
+
+    private func click(at point: CGPoint, on key: SlotKey) -> Response {
+        guard let host = mounted(key).first, let window = host.window else { return .failure("\(key) is not shown") }
+        guard host.bounds.contains(point) else {
+            return .failure("\(key) is \(Int(host.bounds.width)) by \(Int(host.bounds.height)) points, so \(Int(point.x)),\(Int(point.y)) is outside it")
+        }
+        let location = host.convert(point, to: nil)
+        for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+            let event = NSEvent.mouseEvent(
+                with: type, location: location, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0,
+            )
+            event.map(NSApp.sendEvent)
+        }
+        return .ok("clicked \(key) at \(describe(window.convertToScreen(CGRect(origin: location, size: .zero))))")
     }
 
     private func mounted(_ key: SlotKey) -> [TreeHostingView] {
