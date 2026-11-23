@@ -263,7 +263,7 @@ public extension Request {
             ##"gary applyTheme '{"colors": {"accent": "#ff8800"}}'"##,
         ),
         CommandUsage("listPlugins", "List every plugin with its state.", nil),
-        CommandUsage("doctor", "Report the version, private API, permissions, plugin and config problems.", nil),
+        CommandUsage("doctor", "Report the version, private API, permissions, plugin and config problems, and other bars that are running.", nil),
         CommandUsage(
             "onboarding",
             "Show the permissions window, which lists what the enabled plugins need, with a Grant button for each. Starts Gary if needed.",

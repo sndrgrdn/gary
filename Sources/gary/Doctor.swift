@@ -27,6 +27,21 @@ struct PrivateSymbolCheck {
     }
 }
 
+private let otherBars = ["sketchybar": "SketchyBar", "stablebar": "StableBar", "übersicht": "Übersicht", "zebar": "Zebar", "barik": "Barik"]
+
+private func runningOtherBars() -> [String] {
+    var pids = [pid_t](repeating: 0, count: Int(proc_listallpids(nil, 0)) + 64)
+    let count = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
+    var name = [UInt8](repeating: 0, count: 64)
+    var found: Set<String> = []
+    for pid in pids.prefix(Int(max(count, 0))) where pid > 0 && proc_name(pid, &name, UInt32(name.count)) > 0 {
+        if let bar = otherBars[String(decoding: name.prefix { $0 != 0 }, as: UTF8.self).lowercased()] {
+            found.insert(bar)
+        }
+    }
+    return found.sorted()
+}
+
 struct DoctorRuntime {
     var pid: Int32
     var enabled: [PluginManifest]
@@ -72,6 +87,9 @@ struct Doctor {
 
         section("Plugins")
         let catalog = checkPlugins(runtime)
+
+        section("Other bars")
+        checkOtherBars()
 
         section("Config")
         checkConfig(catalog)
@@ -142,6 +160,16 @@ struct Doctor {
             }
         }
         return catalog
+    }
+
+    private mutating func checkOtherBars() {
+        let bars = runningOtherBars()
+        if bars.isEmpty {
+            ok("none running")
+        }
+        for bar in bars {
+            fail("\(bar) is running and can draw its own bar over Gary's; quit it")
+        }
     }
 
     private mutating func checkConfig(_ catalog: PluginCatalog) {
