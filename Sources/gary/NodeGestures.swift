@@ -115,10 +115,13 @@ final class GestureView: NSView {
     override func scrollWheel(with event: NSEvent) {
         send(.scroll, event.scrollEvent)
         if scrolls {
-            let scrollView = (window?.contentView ?? self).descendants(NSScrollView.self).last { view in
-                view.convert(view.bounds, to: nil).contains(event.locationInWindow)
-            }
-            scrollView?.scrollWheel(with: event)
+            scrollView(under: event)?.scrollWheel(with: event)
+        }
+    }
+
+    func scrollView(under event: NSEvent) -> NSScrollView? {
+        (window?.contentView ?? self).descendants(NSScrollView.self).last { view in
+            view.convert(view.bounds, to: nil).contains(event.locationInWindow)
         }
     }
 

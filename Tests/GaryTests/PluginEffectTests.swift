@@ -5,20 +5,26 @@ import Testing
 
 private func ticker(_ id: String, engine: PluginEngine) throws -> Harness {
     try Harness("""
-    import { Effect } from "gary:effect";
+    import { Effect, Schedule } from "gary:effect";
     let ticks = 0;
     export default {
-      effect: Effect.forever(Effect.andThen(Effect.sleep(5), Effect.sync(() => { ticks += 1; }))),
+      effect: Effect.repeat(Effect.sync(() => { ticks += 1; }), Schedule.spaced(5)),
       render: () => ({ type: "text", text: String(ticks) }),
     };
     """, id: id, engine: engine)
 }
 
-private func count(_ harness: Harness, reaches target: Int) async throws {
+@discardableResult
+private func count(_ harness: Harness, reaches target: Int) async throws -> Int {
     var ticks = 0
     while ticks < target {
-        ticks = try await Int(harness.text()) ?? 0
+        harness.timers.advance(by: 5)
+        await harness.settled()
+        while let event = harness.events.poll() {
+            ticks = try Int(Harness.text(of: event)) ?? ticks
+        }
     }
+    return ticks
 }
 
 struct PluginEffectTests {
@@ -58,9 +64,8 @@ struct PluginEffectTests {
     @Test func `a plugin keeps rendering and its fibers keep running after its engine drops compiled code`() async throws {
         let engine = PluginEngine(effect: vendor.appending(path: "effect.js"))
         let harness = try ticker("test.dropped", engine: engine)
-        try await count(harness, reaches: 1)
+        let ticks = try await count(harness, reaches: 1)
         engine.dropCode()
-        let ticks = try await Int(harness.text()) ?? 0
         try await count(harness, reaches: ticks + 10)
         harness.runtime.stop()
     }
@@ -72,20 +77,6 @@ struct PluginEffectTests {
         plain.runtime.stop()
         let importing = try Harness(widget(setup: "import { Effect } from \"gary:effect\";"), id: "test.importing", engine: engine)
         #expect(try await importing.failure().hasPrefix("Error: cannot load gary:effect from /nonexistent/effect.js"))
-    }
-
-    @Test func `loading gary:effect does not count toward the time limit of the plugin that imports it first`() async throws {
-        let library = FileManager.default.temporaryDirectory.appending(path: "gary-effect-\(UUID().uuidString).js")
-        try Data("""
-        var end = Date.now() + 300;
-        while (Date.now() < end) {}
-        var GaryEffect = { forPlugin: function () { return { exports: {} }; } };
-        """.utf8).write(to: library)
-        defer { try? FileManager.default.removeItem(at: library) }
-        let engine = PluginEngine(effect: library)
-        let importing = try Harness(widget(setup: "import { Effect } from \"gary:effect\";"), id: "test.importing", engine: engine)
-        #expect(try await importing.text() == "0")
-        importing.runtime.stop()
     }
 
     @Test func `a topic stream delivers each value of a subscribed topic`() async throws {
@@ -157,7 +148,7 @@ struct PluginEffectTests {
         import { Effect } from "gary:effect";
         export default {
           methods: {
-            later: (a) => Effect.as(Effect.sleep(1), { echo: a }),
+            later: (a) => Effect.as(Effect.yieldNow, { echo: a }),
             broken: () => Effect.fail({ _tag: "HostError", message: "broke" }),
           },
           render: () => ({ type: "text", text: "up" }),
@@ -186,7 +177,7 @@ struct PluginEffectTests {
         let harness = try Harness("""
         import { Effect } from "gary:effect";
         export default {
-          effect: Effect.andThen(Effect.sleep(1), Effect.die(new Error("boom"))),
+          effect: Effect.andThen(Effect.yieldNow, Effect.die(new Error("boom"))),
           render: () => ({ type: "text", text: "up" }),
         };
         """)

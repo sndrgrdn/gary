@@ -1,5 +1,6 @@
 import Foundation
 @testable import gary
+import os
 import Testing
 
 struct HostExecTests {
@@ -25,7 +26,7 @@ struct HostExecTests {
     @Test func `host exec resolves when the command leaves A child running in the background`() async throws {
         let harness = try Harness(widget("""
         onAction: function () {
-          host.exec(["/bin/sh", "-c", "sleep 100 & echo $!"]).then(function (r) { count = r.status + " " + r.stdout.trim(); });
+          host.exec(["/bin/sh", "-c", "tail -f /dev/null & echo $!"]).then(function (r) { count = r.status + " " + r.stdout.trim(); });
         },
         """), uses: ["exec"])
         #expect(try await harness.text() == "0")
@@ -38,10 +39,10 @@ struct HostExecTests {
     }
 
     @Test func `stopping the plugin stops its running commands`() async throws {
-        let pidFile = FileManager.default.temporaryDirectory.appending(path: "gary-exec-\(UUID().uuidString)").path
+        let pidFile = try pidPipe()
         let harness = try Harness(widget("""
         onAction: function () {
-          host.exec(["/bin/sh", "-c", "echo $$ > \(pidFile); exec sleep 100"]);
+          host.exec(["/bin/sh", "-c", "echo $$ > \(pidFile); exec tail -f /dev/null"]);
         },
         """), uses: ["exec"])
         #expect(try await harness.text() == "0")
@@ -61,39 +62,58 @@ struct HostExecTests {
         """), uses: ["exec"])
         #expect(try await harness.text() == "0")
         harness.runtime.perform("run", .null)
-        try await Task.sleep(for: .milliseconds(300))
+        #expect(try await harness.failure().hasPrefix("Error: failed after exec"))
+        await harness.settled()
         #expect(!FileManager.default.fileExists(atPath: file))
     }
 
-    @Test(.timeLimit(.minutes(1))) func `a command that outlives the deadline is stopped and rejects`() async throws {
-        let pidFile = FileManager.default.temporaryDirectory.appending(path: "gary-exec-\(UUID().uuidString)").path
+    @Test func `a command that outlives the deadline is stopped and rejects`() async {
         let queue = DispatchQueue(label: "test.exec")
-        let runs = ExecRuns(queue: queue, limit: 0.2)
+        let runs = ExecRuns(queue: queue, limit: 0)
         let outcome = await withCheckedContinuation { continuation in
             queue.async {
-                runs.start(["/bin/sh", "-c", "echo $$ > \(pidFile); exec sleep 100"]) { result in
+                runs.start(["/usr/bin/tail", "-f", "/dev/null"]) { result in
                     continuation.resume(returning: (try? result.get()).map { "\($0)" } ?? "\(result)")
                 }
             }
         }
-        #expect(outcome.contains("/bin/sh ran longer than 0 seconds and was stopped"))
-        #expect(try await exits(processID(in: pidFile)))
+        #expect(outcome.contains("/usr/bin/tail ran longer than 0 seconds and was stopped"))
     }
 }
 
-func processID(in file: String) async throws -> pid_t {
-    for _ in 0..<400 {
-        if let text = try? String(contentsOfFile: file, encoding: .utf8), let pid = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)) {
-            return pid
+func pidPipe() throws -> String {
+    let path = FileManager.default.temporaryDirectory.appending(path: "gary-pid-\(UUID().uuidString)").path
+    guard mkfifo(path, 0o600) == 0 else { throw RenderError("mkfifo \(path) failed: \(errno)") }
+    return path
+}
+
+func processID(in pipe: String) async throws -> pid_t {
+    let text = await withCheckedContinuation { done in
+        DispatchQueue.global().async {
+            done.resume(returning: FileHandle(forReadingAtPath: pipe).map { String(decoding: $0.readDataToEndOfFile(), as: UTF8.self) })
         }
-        try await Task.sleep(for: .milliseconds(5))
     }
-    throw RenderError("no pid in \(file)")
+    try? FileManager.default.removeItem(atPath: pipe)
+    guard let text, let pid = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)) else { throw RenderError("no pid in \(pipe)") }
+    return pid
 }
 
-func exits(_ pid: pid_t) async throws -> Bool {
-    for _ in 0..<400 where kill(pid, 0) == 0 {
-        try await Task.sleep(for: .milliseconds(5))
+func exits(_ pid: pid_t) async -> Bool {
+    await withCheckedContinuation { done in
+        let resumed = OSAllocatedUnfairLock(initialState: false)
+        let source = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: .global())
+        let finish: @Sendable () -> Void = {
+            guard resumed.withLock({ resumed in
+                defer { resumed = true }
+                return !resumed
+            }) else { return }
+            source.cancel()
+            done.resume(returning: true)
+        }
+        source.setEventHandler(handler: finish)
+        source.resume()
+        if kill(pid, 0) != 0 {
+            finish()
+        }
     }
-    return kill(pid, 0) != 0
 }

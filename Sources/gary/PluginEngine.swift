@@ -16,9 +16,11 @@ final nonisolated class PluginEngine: @unchecked Sendable {
     private var current: (plugin: PluginID, started: Duration)?
     private var stopped = false
     private var dropping: DispatchWorkItem?
+    private let cpuTime: @Sendable () -> Duration
 
-    init(effect: URL = Paths.effect) {
+    init(effect: URL = Paths.effect, cpuTime: @escaping @Sendable () -> Duration = threadCPUTime) {
         effectScript = effect
+        self.cpuTime = cpuTime
         if let context = JSContext(virtualMachine: machine), !limit(context.jsGlobalContextRef) {
             log("no script time limit on this system")
         }
@@ -95,7 +97,7 @@ final nonisolated class PluginEngine: @unchecked Sendable {
         }
     }
 
-    private func shouldStop(_ context: JSContextRef) -> Bool {
+    func shouldStop(_ context: JSContextRef) -> Bool {
         let stop = state.withLock {
             guard let current, cpuTime() - current.started >= .seconds(Self.timeLimit) else { return false }
             stopped = true
@@ -116,6 +118,6 @@ final nonisolated class PluginEngine: @unchecked Sendable {
     }
 }
 
-private nonisolated func cpuTime() -> Duration {
+nonisolated func threadCPUTime() -> Duration {
     .nanoseconds(clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID))
 }

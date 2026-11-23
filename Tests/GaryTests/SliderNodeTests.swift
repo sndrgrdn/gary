@@ -38,7 +38,7 @@ struct SliderNodeTests {
         }
         for (type, x) in [(NSEvent.EventType.leftMouseDown, 40.0), (.leftMouseDragged, 80), (.leftMouseDragged, 120), (.leftMouseUp, 120)] {
             try window.sendEvent(#require(event(type, x)))
-            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
+            drainMainRunLoop()
         }
         window.close()
         let names = sent.map(\.name)
@@ -48,7 +48,15 @@ struct SliderNodeTests {
         #expect(sent.last?.payload == sent.dropLast().last?.payload)
     }
 
-    @Test func `a progress bar with a rate has advanced from its value by the time since at`() throws {
+    @Test func `a fraction with a rate advances from its value by the time since at and stays within 0 and 1`() {
+        let fraction = Node.Fraction(0.2, rate: 0.25, at: 10000)
+        #expect(fraction.value(at: 12000) == 0.7)
+        #expect(fraction.value(at: 20000) == 1)
+        #expect(Node.Fraction(0.2, rate: -0.25, at: 10000).value(at: 12000) == 0)
+        #expect(Node.Fraction(0.2).value(at: 12000) == 0.2)
+    }
+
+    @Test func `a progress bar with a rate draws its value at the current time`() throws {
         func filled(_ fields: String) throws -> Int {
             let node = try Node.parse(JSON.parse(##"{"type":"progress","width":100,"height":4,"color":"#ff0000",\##(fields)}"##))
             let renderer = ImageRenderer(content: NodeView(node: node, theme: theme))
@@ -57,10 +65,7 @@ struct SliderNodeTests {
             return (0..<bitmap.pixelsWide).count { (bitmap.colorAt(x: $0, y: 2)?.alphaComponent ?? 0) > 0.9 }
         }
         #expect(try filled(#""value":0.2"#) == 20)
-        let start = Date().milliseconds
-        let advanced = try filled(#""value":0.2,"rate":0.25,"at":\#(start - 2000)"#)
-        let rendering = Date().milliseconds - start
-        #expect((69...71 + Int(rendering * 0.025)).contains(advanced))
-        #expect(try filled(#""value":0.2,"rate":-0.25,"at":\#(start - 2000)"#) == 0)
+        #expect(try filled(#""value":0.2,"rate":0.25,"at":0"#) == 100)
+        #expect(try filled(#""value":0.2,"rate":-0.25,"at":0"#) == 0)
     }
 }

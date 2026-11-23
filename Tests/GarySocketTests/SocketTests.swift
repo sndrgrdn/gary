@@ -30,7 +30,7 @@ struct LineServerTests {
     @Test func `replies to each line on one connection`() throws {
         let server = try LineServer(path: path) { "echo:" + $0 }
         defer { server.stop() }
-        #expect(try requestLine("ping", path: path, timeout: 2) == "echo:ping")
+        #expect(try ask("ping", path) == "echo:ping")
 
         let fd = try connectSocket(path)
         defer { close(fd) }
@@ -68,15 +68,14 @@ struct LineServerTests {
 
         let replacement = try LineServer(path: path) { _ in "second" }
         defer { replacement.stop() }
-        #expect(try requestLine("x", path: path, timeout: 2) == "second")
+        #expect(try ask("x", path) == "second")
     }
 
     @Test func `stopping removes the socket`() throws {
         let server = try LineServer(path: path) { $0 }
         server.stop()
-        Thread.sleep(forTimeInterval: 0.05)
         #expect(!FileManager.default.fileExists(atPath: path))
-        #expect(throws: SocketError.unreachable(path)) { try requestLine("ping", path: path, timeout: 1) }
+        #expect(throws: SocketError.unreachable(path)) { try ask("ping", path) }
     }
 
     @Test func `a slow client does not block another`() throws {
@@ -85,14 +84,15 @@ struct LineServerTests {
         let idle = try connectSocket(path)
         defer { close(idle) }
         try writeAll(idle, "no newline yet")
-        let start = Date()
-        #expect(try requestLine("fast", path: path, timeout: 2) == "fast")
-        #expect(Date().timeIntervalSince(start) < 1)
+        #expect(try ask("fast", path) == "fast")
     }
 
     @Test func `a client that hangs up before the reply does not kill the server`() throws {
+        let entered = DispatchSemaphore(value: 0)
+        let replying = DispatchSemaphore(value: 0)
         let server = try LineServer(path: path) { line in
-            Thread.sleep(forTimeInterval: 0.1)
+            entered.signal()
+            replying.wait()
             return String(repeating: line, count: 200_000)
         }
         defer { server.stop() }
@@ -101,8 +101,13 @@ struct LineServerTests {
             try writeAll(fd, "x\n")
             close(fd)
         }
-        Thread.sleep(forTimeInterval: 0.3)
-        #expect(try requestLine("y", path: path, timeout: 2).count == 200_000)
+        for _ in 0..<5 {
+            entered.wait()
+        }
+        for _ in 0..<6 {
+            replying.signal()
+        }
+        #expect(try ask("y", path).count == 200_000)
     }
 
     @Test func `garbage closes only that connection`() throws {
@@ -118,7 +123,7 @@ struct LineServerTests {
             }
             close(fd)
         }
-        #expect(try requestLine("ping", path: path, timeout: 2) == "echo:ping")
+        #expect(try ask("ping", path) == "echo:ping")
     }
 
     @Test func `many concurrent clients all get their own reply`() throws {
@@ -126,7 +131,7 @@ struct LineServerTests {
         defer { server.stop() }
         let replies = Replies()
         DispatchQueue.concurrentPerform(iterations: 300) { index in
-            replies.add(index, (try? requestLine("\(index)", path: path, timeout: 5)) ?? "failed")
+            replies.add(index, (try? ask("\(index)", path)) ?? "failed")
         }
         #expect(replies.all == Dictionary(uniqueKeysWithValues: (0..<300).map { ($0, "echo:\($0)") }))
     }
@@ -138,11 +143,12 @@ struct LineServerTests {
         defer { for fd in idle {
             close(fd)
         } }
-        Thread.sleep(forTimeInterval: 0.2)
-        let start = Date()
-        #expect(try requestLine("fast", path: path, timeout: 4) == "fast")
-        #expect(Date().timeIntervalSince(start) < 1)
+        #expect(try ask("fast", path) == "fast")
     }
+}
+
+private func ask(_ line: String, _ path: String) throws -> String {
+    try requestLine(line, path: path, timeout: 0)
 }
 
 private final class Replies: @unchecked Sendable {

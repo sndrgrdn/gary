@@ -28,13 +28,11 @@ private func reader(_ call: String) -> String {
 }
 
 private func result(_ harness: Harness) async throws -> String {
-    let start = Date()
-    while Date().timeIntervalSince(start) < 60 {
-        if let text = try? await harness.text(), text != "0" {
-            return text
-        }
+    var text = try await harness.text()
+    while text == "0" {
+        text = try await harness.text()
     }
-    throw RenderError("no result in 60 seconds")
+    return text
 }
 
 private let isVirtualMachine = {
