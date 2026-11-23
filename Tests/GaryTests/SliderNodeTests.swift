@@ -38,6 +38,7 @@ struct SliderNodeTests {
         }
         for (type, x) in [(NSEvent.EventType.leftMouseDown, 40.0), (.leftMouseDragged, 80), (.leftMouseDragged, 120), (.leftMouseUp, 120)] {
             try window.sendEvent(#require(event(type, x)))
+            drainMainRunLoop()
         }
         window.close()
         let names = sent.map(\.name)

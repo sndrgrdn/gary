@@ -91,3 +91,10 @@ final class ManualTimers: @unchecked Sendable {
         lock.withLock { now = target }
     }
 }
+
+func drainMainRunLoop() {
+    var handled = true
+    while handled {
+        handled = CFRunLoopRunInMode(.defaultMode, 0, true) == .handledSource
+    }
+}
