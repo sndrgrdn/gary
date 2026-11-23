@@ -17,6 +17,8 @@ actor PluginRuntime: Subscriber {
     private let startTimer: StartTimer
     private var stops: [() -> Void] = []
     private var nextTimer = 1
+    private var replies: [Int: (method: String, reply: @Sendable (Response) -> Void)] = [:]
+    private var nextReply = 1
     let initialScene: Scene
     private var scene: Scene
     private var output = RuntimeOutput()
@@ -160,12 +162,17 @@ extension PluginRuntime {
             reply(.failure("\(id) is not running"))
             return
         }
-        let done: @convention(block) (Bool, String) -> Void = { ok, text in reply(ok ? .ok(text) : .failure(text)) }
+        let number = nextReply
+        nextReply += 1
+        replies[number] = (method, reply)
+        let done: @convention(block) (Bool, String) -> Void = { [weak self] ok, text in
+            self?.assumeIsolated { $0.replies.removeValue(forKey: number)?.reply(ok ? .ok(text) : .failure(text)) }
+        }
         do {
             try invoke(functions.call, [method, encode(JSON.array(arguments.map(JSON.string))), done], [.jsParse, .handler])
             renderAll(Trace("call"))
         } catch {
-            reply(.failure("\(error)"))
+            replies.removeValue(forKey: number)?.reply(.failure("\(error)"))
         }
     }
 
@@ -228,6 +235,8 @@ extension PluginRuntime {
         }
         stops = []
         functions = nil
+        replies.values.forEach { $0.reply(.failure("\(id) stopped before \($0.method) replied")) }
+        replies = [:]
         ShaderCache.shared.drop(id)
     }
 
@@ -383,12 +392,5 @@ private extension PluginRuntime {
         }
         guard let result else { throw RenderError("script returned no value") }
         return result
-    }
-}
-
-nonisolated struct RenderError: Error, CustomStringConvertible {
-    let description: String
-    init(_ description: String) {
-        self.description = description
     }
 }
