@@ -34,12 +34,12 @@ extension PluginRuntime {
         let callBlock: @convention(block) (String, String, String, [String], JSValue, JSValue)
             -> Void = { [weak self] plugin, kind, method, args, resolve, reject in
                 self?.assumeIsolated { runtime in
-                    guard let target = CallTarget(plugin: plugin, kind: kind) else {
+                    do {
+                        try runtime.callPlugin(CallTarget(plugin: plugin, kind: kind), method, args, resolve, reject)
+                    } catch {
                         let context = JSContext.current()
-                        context?.exception = JSValue(newErrorFromMessage: "host.call: \(plugin) is not a plugin id", in: context)
-                        return
+                        context?.exception = JSValue(newErrorFromMessage: "host.call: \(error)", in: context)
                     }
-                    runtime.callPlugin(target, method, args, resolve, reject)
                 }
             }
         let kinds = bundle.manifest.kinds.map(\.rawValue)

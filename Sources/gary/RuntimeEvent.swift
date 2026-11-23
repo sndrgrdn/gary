@@ -24,10 +24,13 @@ nonisolated struct CallTarget {
     let plugin: PluginID?
     let kind: PluginKind?
 
-    init?(plugin: String, kind: String) {
-        guard plugin.isEmpty || PluginID(plugin) != nil else { return nil }
+    init(plugin: String, kind: String) throws {
         self.plugin = PluginID(plugin)
         self.kind = PluginKind(rawValue: kind)
+        guard plugin.isEmpty || self.plugin != nil else { throw RenderError("\(plugin) is not a plugin id") }
+        guard kind.isEmpty || self.kind != nil else {
+            throw RenderError("\(kind) is not a kind; use \(PluginKind.allCases.map(\.rawValue).joined(separator: ", "))")
+        }
     }
 }
 
