@@ -61,7 +61,8 @@ final class HotkeyCenter {
                 &ref,
             )
             guard status == noErr, let ref else {
-                log("hotkey \(binding.hotkey.keys) of \(binding.owner) could not be registered (\(status))")
+                let reason = status == eventHotKeyExistsErr ? "is already taken by another app" : "could not be registered (\(status))"
+                log("hotkey \(binding.hotkey.keys) of \(binding.owner) \(reason)")
                 continue
             }
             registered[binding] = (number, ref)
