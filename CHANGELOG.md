@@ -2,10 +2,17 @@
 
 ## Unreleased
 
+### Upgrading
+
+- In a hotkey, `delete` is forward delete, as it already was in `onKey`. Use `backspace` for the key labeled delete on a Mac keyboard. This applies to manifest `hotkeys`, `host.hotkeys`, and the `hyperkey` trigger and tap.
+- `onKey` keeps Shift in a chord: Control-Shift-A arrives as `ctrl+shift+a`, not `ctrl+a`. A typed character without Control, Option, or Command still arrives as the character, so Shift-A gives `A`.
+- An `image` or `shader` path that starts with `~user/`, or is empty, fails the render with the node that holds it, as such a path already fails in a host call.
+
 ### New
 
 - `gary report` prints a bug report in Markdown, with the versions, `gary doctor`, `gary listPlugins`, the end of the log, and recent crash reports.
 - `gary doctor` flags SketchyBar, StableBar, Übersicht, Zebar, and Barik when they run, since they draw their own bar over Gary's.
+- `onKey` and `gary key` name the function keys `f1` to `f20`, and hotkeys take the `onKey` names `backspace`, `home`, `end`, `pageup`, and `pagedown`.
 
 ### Fixes
 
@@ -17,6 +24,8 @@
 - `host.storage` keeps the writes of a plugin's bar widget, panel, and other kinds, and each kind reads the values the others wrote.
 - A node keeps its children's state, such as the text in an input, when its `colorScheme`, `clip`, or `vibrant` material comes or goes.
 - A node with a `hovered` or `pressed` style, or a button, keeps its children's state when hovering or pressing it adds or removes a shadow.
+- The manifest schema accepts the hotkeys Gary loads, such as `f13`, and rejects the ones it refuses, such as `shift+a`.
+- The Full Disk Access drag tile follows the theme's mode, colors, and spacing from launch.
 
 ## 0.4.0
 
