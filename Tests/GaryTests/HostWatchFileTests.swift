@@ -65,4 +65,22 @@ struct HostWatchFileTests {
         #expect(try await harness.text() == "kept second,kept third")
         harness.runtime.stop()
     }
+
+    @Test func `host watchFile throws for A path that is not A string or A callback that is not A function`() async throws {
+        let harness = try Harness(widget("""
+        onAction: function (name) {
+          try {
+            host.watchFile(name === "path" ? 42 : "notes.txt", name === "path" ? function () {} : "notes.txt");
+          } catch (e) {
+            count = e.message;
+          }
+        },
+        """), uses: ["files"])
+        #expect(try await harness.text() == "0")
+        harness.runtime.perform("path", .null)
+        #expect(try await harness.text() == "host.watchFile: path must be a string")
+        harness.runtime.perform("callback", .null)
+        #expect(try await harness.text() == "host.watchFile: callback must be a function")
+        harness.runtime.stop()
+    }
 }

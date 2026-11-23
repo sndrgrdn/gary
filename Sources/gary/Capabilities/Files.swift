@@ -39,26 +39,15 @@ nonisolated extension Capability {
         install: { host, plugin in
             let folder = plugin.bundle.directory.path
             plugin.installAPI(host, nil, FilesRequest.methods) { call in try .now(perform(FilesRequest.parse(call, home: home, folder: folder))) }
-            let watchFile: @convention(block) (String, JSValue) -> Void = { [weak plugin] raw, callback in
-                guard let plugin, callback.isObject else { return }
-                let path: String
-                do {
-                    path = try HostCall(api: nil, method: "watchFile", arguments: [.string(raw)]).path(0, home: home, folder: folder)
-                } catch {
-                    let context = JSContext.current()
-                    context?.exception = context?.newError("\(error)")
-                    return
+            let queue = plugin.queue
+            plugin.installHandle(host, "watchFile") { [weak plugin] call, arguments in
+                let path = try call.path(0, home: home, folder: folder)
+                let callback = try call.function(1, "callback", in: arguments)
+                let watch = FileWatch(path, queue: queue) { text in
+                    plugin?.assumeIsolated { $0.callBack(callback, [text ?? NSNull()], Trace("file")) }
                 }
-                let watch = FileWatch(path: path, callback: callback)
-                plugin.assumeIsolated { runtime in
-                    runtime.onStop {
-                        watch.source?.cancel()
-                        watch.pending?.cancel()
-                    }
-                }
-                watch.arm(in: plugin, attempts: 10)
+                return HostHandle(stop: watch.stop)
             }
-            host.setObject(watchFile, forKeyedSubscript: "watchFile" as NSString)
         },
     )
 }
@@ -96,49 +85,27 @@ private nonisolated func perform(_ request: FilesRequest) throws -> JSON {
 }
 
 private final nonisolated class FileWatch: @unchecked Sendable {
-    let path: String
-    let callback: JSValue
-    var source: DispatchSourceFileSystemObject?
-    var pending: DispatchWorkItem?
+    private let path: String
+    private let changed: (String?) -> Void
+    private var text: String?
+    private var watch: PathWatch?
 
-    init(path: String, callback: JSValue) {
+    init(_ path: String, queue: DispatchQueue, changed: @escaping (String?) -> Void) {
         self.path = path
-        self.callback = callback
+        self.changed = changed
+        text = try? String(contentsOfFile: path, encoding: .utf8)
+        watch = PathWatch([path, (path as NSString).deletingLastPathComponent], queue: queue) { [weak self] in self?.check() }
     }
 
-    func arm(in plugin: PluginRuntime, attempts: Int) {
-        let descriptor = open(path, O_EVTONLY)
-        guard descriptor >= 0 else {
-            if attempts > 0 {
-                plugin.queue.asyncAfter(deadline: .now() + 0.5) { [weak self, weak plugin] in
-                    guard let self, let plugin, plugin.assumeIsolated({ $0.isRunning }) else { return }
-                    arm(in: plugin, attempts: attempts - 1)
-                }
-            }
-            return
-        }
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: descriptor,
-            eventMask: [.write, .extend, .delete, .rename, .attrib],
-            queue: plugin.queue,
-        )
-        source.setEventHandler { [weak self, weak plugin, weak source] in
-            guard let self, let plugin, let source else { return }
-            if !source.data.isDisjoint(with: [.delete, .rename]) {
-                source.cancel()
-                arm(in: plugin, attempts: 10)
-            }
-            pending?.cancel()
-            let work = DispatchWorkItem { [weak self, weak plugin] in
-                guard let self, let plugin else { return }
-                let text = try? String(contentsOfFile: path, encoding: .utf8)
-                plugin.assumeIsolated { $0.callBack(callback, [text ?? NSNull()], Trace("file")) }
-            }
-            pending = work
-            plugin.queue.asyncAfter(deadline: .now() + 0.02, execute: work)
-        }
-        source.setCancelHandler { close(descriptor) }
-        self.source = source
-        source.resume()
+    func stop() {
+        watch?.stop()
+        watch = nil
+    }
+
+    private func check() {
+        let now = try? String(contentsOfFile: path, encoding: .utf8)
+        guard watch != nil, now != text else { return }
+        text = now
+        changed(now)
     }
 }

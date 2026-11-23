@@ -133,6 +133,32 @@ final nonisolated class Holds {
     }
 }
 
+nonisolated struct HostHandle {
+    let stop: () -> Void
+}
+
+private final nonisolated class LiveHandles {
+    private var stops: [Int: () -> Void] = [:]
+    private var nextID = 1
+
+    func add(_ stop: @escaping () -> Void) -> Int {
+        let id = nextID
+        nextID += 1
+        stops[id] = stop
+        return id
+    }
+
+    func stop(_ id: Int) {
+        stops.removeValue(forKey: id)?()
+    }
+
+    func stopAll() {
+        let all = stops.values
+        stops = [:]
+        all.forEach { $0() }
+    }
+}
+
 nonisolated enum HostResult {
     case now(JSON)
     case later(DispatchQueue, @Sendable () throws -> JSON)
@@ -158,6 +184,15 @@ private nonisolated func message(_ error: Error, _ call: HostCall) -> String {
     case let error as ArgumentError: error.description
     case let error as HostFailure: "\(call.name): \(error)"
     default: "\(call.name): \(error.localizedDescription)"
+    }
+}
+
+nonisolated extension HostCall {
+    func function(_ index: Int, _ label: String, in arguments: JSValue) throws -> JSValue {
+        guard let value = arguments.atIndex(index), value.isObject, JSObjectIsFunction(value.context.jsGlobalContextRef, value.jsValueRef) else {
+            throw fail("\(label) must be a function")
+        }
+        return value
     }
 }
 
@@ -217,6 +252,34 @@ extension PluginRuntime {
           });
         })
         """).call(withArguments: [target, bridge, methods])
+    }
+
+    func installHandle(_ host: JSValue, _ method: String, _ start: @escaping (HostCall, JSValue) throws -> HostHandle) {
+        let handles = LiveHandles()
+        onStop { handles.stopAll() }
+        let bridge: @convention(block) (String, JSValue) -> JSValue? = { text, arguments in
+            guard let context = JSContext.current() else { return nil }
+            let call = HostCall(api: nil, method: method, arguments: (try? JSON.parse(text))?.array ?? [])
+            do {
+                let handle = try start(call, arguments)
+                let id = handles.add(handle.stop)
+                let stop: @convention(block) () -> Void = { handles.stop(id) }
+                let object = JSValue(newObjectIn: context)
+                object?.setObject(stop, forKeyedSubscript: "stop" as NSString)
+                return object
+            } catch {
+                context.exception = context.newError(message(error, call))
+                return nil
+            }
+        }
+        host.context.evaluateScript("""
+        (function (host, method, bridge) {
+          host[method] = function () {
+            var values = Array.prototype.slice.call(arguments);
+            return bridge(JSON.stringify(values), values);
+          };
+        })
+        """).call(withArguments: [host, method, bridge])
     }
 
     private nonisolated func promise(
