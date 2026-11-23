@@ -269,6 +269,7 @@ public extension PluginTypes {
         spawn(argv: string[]): S.Stream<string, HostError>;
         hotkeys(keys: string[]): S.Stream<string, HostError>;
         hyperkey(options?: \(HyperKey.optionsType)): E.Effect<void, HostError, Sc.Scope>;
+        watchFile(path: string): S.Stream<string | null, HostError>;
       }
       export const host: { readonly [K in keyof Gary.Host]: K extends keyof Scoped ? Scoped[K] : Lift<Gary.Host[K]> };
       export const fetch: typeof globalThis extends { fetch: infer F } ? Lift<F> : never;

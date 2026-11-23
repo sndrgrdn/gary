@@ -13,6 +13,14 @@ private func write(_ text: String, to file: URL) throws {
     try Data(text.utf8).write(to: file)
 }
 
+private func isOpen(_ file: URL) -> Bool {
+    guard let real = realpath(file.path, nil) else { return false }
+    defer { free(real) }
+    let target = String(cString: real)
+    var path = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+    return (0..<getdtablesize()).contains { fcntl($0, F_GETPATH, &path) == 0 && String(cChars: path) == target }
+}
+
 private func watching(_ file: URL) throws -> Harness {
     try Harness(widget(setup: """
     host.watchFile(\(JSON.string(file.path).text), function (text) { count = text === null ? "missing" : text; });
@@ -81,6 +89,33 @@ struct HostWatchFileTests {
         #expect(try await harness.text() == "host.watchFile: path must be a string")
         harness.runtime.perform("callback", .null)
         #expect(try await harness.text() == "host.watchFile: callback must be a function")
+        harness.runtime.stop()
+    }
+
+    @Test func `gary:effect streams the text of A watched file and closes the watch when the stream ends`() async throws {
+        let file = try scratchFile()
+        try write("first", to: file)
+        let harness = try Harness("""
+        import { Effect, Stream, host } from "gary:effect";
+        let text = "none";
+        export default {
+          effect: host.watchFile(\(JSON.string(file.path).text)).pipe(
+            Stream.take(1),
+            Stream.runForEach((contents) => Effect.sync(() => { text = contents ?? "missing"; })),
+          ),
+          render: () => ({ type: "text", text }),
+        };
+        """, uses: ["files"])
+        #expect(try await harness.text() == "none")
+        while !isOpen(file) {
+            await harness.settled()
+        }
+        try write("second", to: file)
+        #expect(try await harness.text() == "second")
+        while isOpen(file) {
+            await harness.settled()
+        }
+        #expect(harness.isRunning)
         harness.runtime.stop()
     }
 }

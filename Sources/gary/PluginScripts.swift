@@ -24,7 +24,7 @@ nonisolated enum PluginScripts {
         if (Object.prototype.hasOwnProperty.call(loaded, path)) return loaded[path];
         if (path === "gary:effect") {
           effect = library()({
-            host: host, spawn: host.spawn, hotkeys: host.hotkeys, hyperkey: host.hyperkey, fetch: globalThis.fetch, setTimeout: setTimeout, clearTimeout: clearTimeout, settings: JSON.parse(settings)
+            host: host, spawn: host.spawn, hotkeys: host.hotkeys, hyperkey: host.hyperkey, watchFile: host.watchFile, fetch: globalThis.fetch, setTimeout: setTimeout, clearTimeout: clearTimeout, settings: JSON.parse(settings)
           });
           return loaded[path] = effect.exports;
         }

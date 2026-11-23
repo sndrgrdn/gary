@@ -5,7 +5,11 @@ import GaryCore
 nonisolated extension Capability {
     static let files = Capability(
         name: "files",
-        summary: "Read, write, list, remove, and watch files. A path that does not start with `/` or `~` is relative to the plugin folder.",
+        summary: """
+        Read, write, list, remove, and watch files. A path that does not start with `/` or `~` is relative to the plugin folder. \
+        `host.watchFile(path, callback)` calls `callback` with the file's text, or null when the file is gone, each time the text \
+        changes, also when the file is created after the call or deleted and created again, until `stop()` or the plugin stops.
+        """,
         types: """
         declare namespace Gary {
           interface Host {
@@ -14,8 +18,9 @@ nonisolated extension Capability {
             mkdir(path: string): null;
             remove(path: string): boolean;
             list(path: string): FileEntry[];
-            watchFile(path: string, callback: (text: string | null) => void): void;
+            watchFile(path: string, callback: (text: string | null) => void): WatchFileApi;
           }
+          interface WatchFileApi { stop(): void }
           type FileEntry = { name: string; type: "file" | "directory" | "link" | "other"; size: number }
         }
         """,

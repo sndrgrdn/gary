@@ -1,8 +1,8 @@
 import "./text-encoder";
 import "./text-decoder";
 import { clockOf } from "./clock";
-import { type Listen, pressesOf } from "./hotkeys";
 import { type Hold, heldOf } from "./hyperkey";
+import { type Listen, eventsOf } from "./listen";
 import { type Spawn, linesOf } from "./spawn";
 import {
   Cache,
@@ -45,17 +45,20 @@ type Lifted = (...args: Json[]) => Effect.Effect<Json | undefined, HostError>;
 
 type LineStream = (argv: readonly string[]) => Stream.Stream<string, HostError>;
 
+type TextStream = (path: string) => Stream.Stream<string | null, HostError>;
+
 type Held = (options?: Json) => Effect.Effect<void, HostError, Scope.Scope>;
 
 interface LiftedHost {
-  [name: string]: Lifted | LiftedHost | LineStream | Held;
+  [name: string]: Lifted | LiftedHost | LineStream | TextStream | Held;
 }
 
 interface Env {
   readonly host: Host;
   readonly spawn: Spawn | undefined;
-  readonly hotkeys: Listen | undefined;
+  readonly hotkeys: Listen<readonly string[], string> | undefined;
   readonly hyperkey: Hold<Json> | undefined;
+  readonly watchFile: Listen<string, string | null> | undefined;
   readonly fetch: HostFunction | undefined;
   readonly setTimeout: (callback: () => void, ms: number) => number;
   readonly clearTimeout: (id: number) => void;
@@ -99,21 +102,13 @@ function mirror(host: Host): LiftedHost {
 }
 
 function hostOf(env: Env): LiftedHost {
-  const lifted = mirror(env.host);
-
-  if (env.spawn !== undefined) {
-    lifted.spawn = linesOf(env.spawn, hostError);
-  }
-
-  if (env.hotkeys !== undefined) {
-    lifted.hotkeys = pressesOf(env.hotkeys, hostError);
-  }
-
-  if (env.hyperkey !== undefined) {
-    lifted.hyperkey = heldOf(env.hyperkey, hostError);
-  }
-
-  return lifted;
+  return {
+    ...mirror(env.host),
+    ...(env.spawn && { spawn: linesOf(env.spawn, hostError) }),
+    ...(env.hotkeys && { hotkeys: eventsOf(env.hotkeys, hostError) }),
+    ...(env.hyperkey && { hyperkey: heldOf(env.hyperkey, hostError) }),
+    ...(env.watchFile && { watchFile: eventsOf(env.watchFile, hostError) }),
+  };
 }
 
 function servicesOf(env: Env) {
