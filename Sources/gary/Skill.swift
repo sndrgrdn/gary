@@ -3,8 +3,11 @@ import GaryCore
 
 let skillUsage: [CommandUsage] = [
     CommandUsage(
-        "skill [status|setup|remove|show]",
-        "Install the gary skill into Claude Code and agents that read ~/.agents/skills, or print the guide it points to.",
+        "skill [status|setup|remove|show [topic]]",
+        """
+        Install the gary skill into Claude Code and agents that read ~/.agents/skills, or print the guide it points to, \
+        or one topic of its reference.
+        """,
         nil,
     ),
 ]
@@ -28,7 +31,7 @@ struct BundledExample {
 }
 
 enum Skill {
-    private static let stubVersion = "1"
+    private static let stubVersion = "2"
     private static let stub = """
     ---
     name: gary
@@ -38,7 +41,11 @@ enum Skill {
     ---
     <!-- Installed by "gary skill setup". Remove it with "gary skill remove". -->
 
-    Run `gary skill show` and follow the guide it prints. The guide comes from the installed Gary, so it matches that version.
+    Run `gary skill show` and follow the guide it prints. The guide comes from
+    the installed Gary, so it describes the commands available in that version.
+
+    If the command fails, the installed Gary predates the guide. Start with
+    `gary ping`, then use `gary help`.
 
     """
 
@@ -66,9 +73,12 @@ enum Skill {
     }
 
     static func run(_ words: [String]) -> Int32 {
+        if words.count == 2, words[0] == "show" {
+            return show(words[1])
+        }
         switch words {
         case ["show"]:
-            print(guide(theme: try? JSON.parse(Data(contentsOf: Paths.defaultTheme)), examples: BundledExample.all()), terminator: "")
+            print(guide(theme: nil, examples: BundledExample.all()), terminator: "")
             return 0
         case ["setup"]:
             return setup()
@@ -81,6 +91,16 @@ enum Skill {
             fputs("usage: gary \(skillUsage[0].syntax)\n", stderr)
             return 64
         }
+    }
+
+    private static func show(_ topic: String) -> Int32 {
+        guard let text = reference(topic, theme: try? JSON.parse(Data(contentsOf: Paths.defaultTheme)), examples: BundledExample.all()) else {
+            let names = topics(theme: nil).map(\.name) + ["all", "<capability>"]
+            fputs("unknown topic \"\(topic)\"; use \(names.joined(separator: ", "))\n", stderr)
+            return 64
+        }
+        print(text, terminator: "")
+        return 0
     }
 
     private static func setup() -> Int32 {

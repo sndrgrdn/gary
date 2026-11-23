@@ -8,10 +8,11 @@ private let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().a
 struct SkillTests {
     private var guide: String {
         get throws {
-            try Skill.guide(
+            try #require(Skill.reference(
+                "all",
                 theme: JSON.parse(#"{"styles": {"panel": {"radius": 12}}, "colors": {"accent": "accent"}, "fonts": {"body": {"size": 12}}}"#),
                 examples: [BundledExample(name: "load", summary: "A bar widget that shows the load.", manifest: nil)],
-            )
+            ))
         }
     }
 
@@ -70,6 +71,36 @@ struct SkillTests {
                 )
             }
         }
+        let errors = try typeCheck(folder)
+        #expect(errors == nil, "\(errors ?? "")")
+    }
+
+    @Test func `every recipe in the guide type checks`() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "gary-recipes-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let declarations = PluginTypes.declarations(
+            capabilities: Capability.all.map(\.types),
+            topics: Capability.all.compactMap { capability in capability.topic.map { PluginTypes.TopicType(.capability(capability.name), $0.type) } },
+            published: "Json",
+            theme: nil,
+        )
+        try Data((declarations + PluginTypes.effectDeclarations).utf8).write(to: folder.appending(path: "gary.d.ts"))
+        try Data(PluginScaffold.tsconfig.utf8).write(to: folder.appending(path: PluginScaffold.tsconfigFile))
+        try FileManager.default.createSymbolicLink(
+            at: folder.appending(path: "node_modules"),
+            withDestinationURL: root.appending(path: "node_modules"),
+        )
+        let recipes = Skill.commonRequests.matches(of: #/```(tsx?)\n([\s\S]*?)```/#)
+        #expect(recipes.count == 3)
+        for (index, recipe) in recipes.enumerated() {
+            try Data(String(recipe.2).utf8).write(to: folder.appending(path: "recipe-\(index).\(recipe.1)"))
+        }
+        let errors = try typeCheck(folder)
+        #expect(errors == nil, "\(errors ?? "")")
+    }
+
+    private func typeCheck(_ folder: URL) throws -> String? {
         let check = Process()
         check.executableURL = root.appending(path: "node_modules/.bin/tsc")
         check.currentDirectoryURL = folder
@@ -80,7 +111,7 @@ struct SkillTests {
         try check.run()
         let text = String(bytes: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         check.waitUntilExit()
-        #expect(check.terminationStatus == 0, "\(text)")
+        return check.terminationStatus == 0 ? nil : text
     }
 
     @Test func `documents every permission command manifest field kind node and layer`() throws {

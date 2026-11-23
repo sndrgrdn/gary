@@ -39,27 +39,31 @@ extension Skill {
             "Each section gives the manifest entry, the macOS permissions, an example entry file, and the declarations that `gary.d.ts` adds.",
         ]
         for capability in Capability.all {
-            var entry: [String] = []
-            if capability.install != nil {
-                entry.append("`\"uses\": [\"\(capability.name)\"]` for the functions")
-            }
-            if let topic = capability.topic {
-                entry.append("`\"subscribes\": [\"\(capability.name)\"]` for `state.\(capability.name)`, a `\(topic.type)`")
-            }
-            if let manifestEntry = capability.manifestEntry {
-                entry.append(manifestEntry)
-            }
-            let permissions = capability.permissions.isEmpty ? "none" : capability.permissions.map { "\($0.name) (`\($0.rawValue)`)" }
-                .joined(separator: ", ")
-            lines += [
-                "", "### \(capability.name)", "", capability.summary, "",
-                "- Manifest: \(entry.joined(separator: ", and "))",
-                "- macOS permissions: \(permissions)",
-                "", "```ts", capability.example.trimmingCharacters(in: .newlines), "```",
-                "", "```ts", capability.types.trimmingCharacters(in: .newlines), "```",
-            ]
+            lines += [""] + capabilityEntry(capability)
         }
         return lines.joined(separator: "\n")
+    }
+
+    static func capabilityEntry(_ capability: Capability) -> [String] {
+        var entry: [String] = []
+        if capability.install != nil {
+            entry.append("`\"uses\": [\"\(capability.name)\"]` for the functions")
+        }
+        if let topic = capability.topic {
+            entry.append("`\"subscribes\": [\"\(capability.name)\"]` for `state.\(capability.name)`, a `\(topic.type)`")
+        }
+        if let manifestEntry = capability.manifestEntry {
+            entry.append(manifestEntry)
+        }
+        let permissions = capability.permissions.isEmpty ? "none" : capability.permissions.map { "\($0.name) (`\($0.rawValue)`)" }
+            .joined(separator: ", ")
+        return [
+            "### \(capability.name)", "", capability.summary, "",
+            "- Manifest: \(entry.joined(separator: ", and "))",
+            "- macOS permissions: \(permissions)",
+            "", "```ts", capability.example.trimmingCharacters(in: .newlines), "```",
+            "", "```ts", capability.types.trimmingCharacters(in: .newlines), "```",
+        ]
     }
 
     static var permissionSection: String {
