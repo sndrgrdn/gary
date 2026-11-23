@@ -192,16 +192,18 @@ struct PluginManifestTests {
             ["id": "open", "keys": "ctrl+alt+space"],
             ["id": "next", "keys": "Cmd+Shift+F"],
             ["id": "f", "keys": "f5"],
+            ["id": "music", "keys": "hyper+shift+m"],
         ]])
-        #expect(parsed.hotkeys.map(\.id) == ["open", "next", "f"])
+        #expect(parsed.hotkeys.map(\.id) == ["open", "next", "f", "music"])
         #expect(parsed.hotkeys[0].keys.modifiers == [.control, .option] && parsed.hotkeys[0].keys.keyCode == 49)
         #expect(parsed.hotkeys[1].keys.modifiers == [.command, .shift] && parsed.hotkeys[1].keys.keyCode == 3)
         #expect(parsed.hotkeys[2].keys.modifiers.isEmpty && parsed.hotkeys[2].keys.keyCode == 96)
         #expect(parsed.hotkeys[0].keys.description == "ctrl+alt+space")
+        #expect(parsed.hotkeys[3].keys == KeyCombo.parse("ctrl+alt+cmd+shift+m"))
     }
 
     @Test func `rejects hotkeys without A modifier or with unknown keys`() {
-        for keys in ["space", "shift+a", "ctrl+", "ctrl+ctrl+a", "hyper+a", "ctrl+alt+spacebar"] {
+        for keys in ["space", "shift+a", "ctrl+", "ctrl+ctrl+a", "hyper+ctrl+a", "meh+a", "ctrl+alt+spacebar"] {
             rejects(["hotkeys": [["id": "x", "keys": .string(keys)]]], with: .invalidHotkey(keys))
         }
         rejects(["hotkeys": [["id": "x", "keys": "ctrl+a"], ["id": "x", "keys": "ctrl+b"]]], with: .duplicateHotkey("x"))

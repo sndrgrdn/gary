@@ -143,7 +143,7 @@ extension Skill {
     | `mediakeys` | object | The media keys each kind takes over, such as `{ "overlay": ["volume-up", "volume-down", "mute"] }`. Keys are \(MediaKey.allCases.map { "`\($0.rawValue)`" }.joined(separator: ", ")). While the plugin is enabled, macOS no longer acts on those keys. A press loads the kind if needed and calls its `onMediaKey`, so an overlay needs no service to catch keys. A bar widget takes its keys only while a bar section names it. Gary needs Accessibility. |
     | `surfaces` | object | The surface names of each panel, overlay, and menu, such as `{ "overlay": ["osd"] }`. A kind it leaves out has one surface, `main`. Two kinds cannot share a name. |
     | `bar` | string | `left`, `center`, or `right`, the default: the bar section that `gary plugin install`, `new`, and `enable` add a bar widget to. |
-    | `hotkeys` | array | Global hotkeys, such as `{ "id": "open", "keys": "ctrl+alt+space" }`. Gary calls `onHotkey(id)`. A combination needs `cmd`, `ctrl`, or `alt`, unless its key is `f1` to `f12`. Modifiers are `cmd`, `ctrl`, `alt`, and `shift`. Keys are letters, digits, punctuation, `space`, `return`, `tab`, `delete`, `escape`, the arrows, and `f1` to `f12`. |
+    | `hotkeys` | array | Global hotkeys, such as `{ "id": "open", "keys": "ctrl+alt+space" }`. Gary calls `onHotkey(id)`. A combination needs `cmd`, `ctrl`, or `alt`, unless its key is `f1` to `f12`. Modifiers are `cmd`, `ctrl`, `alt`, `shift`, and `hyper`, which is `ctrl+alt+cmd`. Keys are letters, digits, punctuation, `space`, `return`, `tab`, `delete`, `escape`, the arrows, and `f1` to `f12`. |
 
     ```json
     {

@@ -11,6 +11,7 @@ public struct KeyCombo: Hashable, Sendable, CustomStringConvertible {
         public static let control = Modifiers(rawValue: 2)
         public static let option = Modifiers(rawValue: 4)
         public static let shift = Modifiers(rawValue: 8)
+        public static let hyper: Modifiers = [.control, .option, .command]
     }
 
     public let modifiers: Modifiers
@@ -19,7 +20,7 @@ public struct KeyCombo: Hashable, Sendable, CustomStringConvertible {
 
     private static let modifierNames: [String: Modifiers] = [
         "cmd": .command, "command": .command, "ctrl": .control, "control": .control,
-        "alt": .option, "opt": .option, "option": .option, "shift": .shift,
+        "alt": .option, "opt": .option, "option": .option, "shift": .shift, "hyper": .hyper,
     ]
 
     public static let keyCodes: [String: UInt32] = {
@@ -43,7 +44,7 @@ public struct KeyCombo: Hashable, Sendable, CustomStringConvertible {
         guard let key = parts.last, let code = keyCodes[key] else { return nil }
         var modifiers = Modifiers()
         for part in parts.dropLast() {
-            guard let modifier = modifierNames[part], !modifiers.contains(modifier) else { return nil }
+            guard let modifier = modifierNames[part], modifiers.isDisjoint(with: modifier) else { return nil }
             modifiers.insert(modifier)
         }
         guard !modifiers.isDisjoint(with: [.command, .control, .option]) || key.hasPrefix("f") && key.count > 1 else { return nil }
