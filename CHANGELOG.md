@@ -25,9 +25,9 @@
 - `host.storage` keeps the writes of a plugin's bar widget, panel, and other kinds, and each kind reads the values the others wrote.
 - A node keeps its children's state, such as the text in an input, when its `colorScheme`, `clip`, or `vibrant` material comes or goes.
 - A node with a `hovered` or `pressed` style, or a button, keeps its children's state when hovering or pressing it adds or removes a shadow.
-- The manifest schema accepts the hotkeys Gary loads, such as `f13`, and rejects the ones it refuses, such as `shift+a`.
+- The manifest schema accepts the hotkeys Gary loads, such as `f13`, and rejects the ones it refuses, such as `shift+a` or a hotkey with a newline in it.
 - The Full Disk Access drag tile follows the theme's mode, colors, and spacing from launch.
-- `gary doctor` checks the theme in the Mac's current appearance instead of always in dark mode, and names the mode it checked.
+- `gary doctor` checks the theme Gary shows: in the Mac's current appearance instead of always in dark mode, with the payload of `gary applyTheme`, and it names the mode it checked.
 - `host.watchFile` calls back for a file created after the watch starts, and again when a file is deleted and created anew, instead of giving up after 5 seconds.
 - `host.spawn`, `host.hotkeys`, `host.hyperkey`, and `host.watchFile` name the API in their errors, such as `host.hyperkey: …`, like the other host functions.
 - `host.spawn` cuts a line longer than 1 MB to its first 1 MB, so a command that never prints a newline no longer grows Gary's memory without bound, and long output no longer slows down.
