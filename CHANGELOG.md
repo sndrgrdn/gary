@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- `host.apps.installed()` lists Finder and the apps in `/System/Library/CoreServices/Applications`, such as Keychain Access and Archive Utility.
+
 ## 0.4.0
 
 ### Upgrading

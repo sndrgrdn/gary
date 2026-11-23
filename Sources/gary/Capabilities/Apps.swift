@@ -71,7 +71,13 @@ private nonisolated func json(_ app: NSRunningApplication) -> JSON {
 private nonisolated func perform(_ request: AppsRequest) throws -> JSON {
     switch request {
     case .installed:
-        return .array(installedApps(in: ["/Applications", "/System/Applications", home + "/Applications"]))
+        return .array(installedApps(in: [
+            "/Applications",
+            "/System/Applications",
+            "/System/Library/CoreServices/Applications",
+            "/System/Library/CoreServices/Finder.app",
+            home + "/Applications",
+        ]))
     case let .launch(target):
         return try launch(target)
     case let .activate(target):
@@ -84,22 +90,19 @@ private nonisolated func perform(_ request: AppsRequest) throws -> JSON {
     }
 }
 
-nonisolated func installedApps(in folders: [String]) -> [JSON] {
+nonisolated func installedApps(in roots: [String]) -> [JSON] {
     let files = FileManager.default
-    func bundles(in folder: String, depth: Int) -> [String] {
-        let paths = ((try? files.contentsOfDirectory(atPath: folder)) ?? []).filter { !$0.hasPrefix(".") }.map { folder + "/" + $0 }
-        return paths.flatMap { path -> [String] in
-            if path.hasSuffix(".app") {
-                return [path]
-            }
-            var directory: ObjCBool = false
-            guard depth > 0, files.fileExists(atPath: path, isDirectory: &directory), directory.boolValue else { return [] }
-            return bundles(in: path, depth: depth - 1)
+    func bundles(at path: String, depth: Int) -> [String] {
+        if path.hasSuffix(".app") {
+            return files.fileExists(atPath: path) ? [path] : []
         }
+        guard depth > 0 else { return [] }
+        let names = (try? files.contentsOfDirectory(atPath: path)) ?? []
+        return names.filter { !$0.hasPrefix(".") }.flatMap { bundles(at: path + "/" + $0, depth: depth - 1) }
     }
     var seen: Set<String> = []
     var apps: [(name: String, json: JSON)] = []
-    for path in folders.flatMap({ bundles(in: $0, depth: 1) }) {
+    for path in roots.flatMap({ bundles(at: $0, depth: 2) }) {
         let info = CFBundleCopyInfoDictionaryInDirectory(URL(fileURLWithPath: path) as CFURL) as NSDictionary?
         let id = info?[kCFBundleIdentifierKey as String] as? String
         if let id, !seen.insert(id.lowercased()).inserted {
