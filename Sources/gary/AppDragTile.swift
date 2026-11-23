@@ -126,8 +126,8 @@ final class AppDragTile {
     private static func settingsWindow() -> CGRect? {
         let mainHeight = NSScreen.screens.first?.frame.height ?? 0
         let settings = Set(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.systempreferences").map(\.processIdentifier))
-        return OnScreenWindow.list([.optionOnScreenOnly, .excludeDesktopElements]).lazy
-            .filter { $0.ownerPID.map(settings.contains) == true && $0.layer == 0 }
+        return WindowInfo.list([.optionOnScreenOnly, .excludeDesktopElements]).lazy
+            .filter { settings.contains($0.owner) && $0.layer == 0 }
             .compactMap(\.bounds)
             .filter { $0.width > 200 && $0.height > 200 }
             .map { CGRect(x: $0.minX, y: mainHeight - $0.maxY, width: $0.width, height: $0.height) }
