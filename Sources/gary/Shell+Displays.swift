@@ -109,7 +109,7 @@ extension Shell {
             unmount(key)
         }
         for slot in slots.values {
-            slot.runtime?.setScene(scene(for: slot), trace)
+            slot.runtime?.setScene(scene(slot.key.kind, slot.shown), trace)
         }
         log("screens added=\(change.added.count) removed=\(change.removed.count) changed=\(change.changed.count) bars=\(bars.surfaces.count): "
             + displays

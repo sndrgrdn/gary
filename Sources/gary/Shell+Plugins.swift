@@ -7,33 +7,14 @@ extension Shell {
         if tracing {
             log("hotkey \(binding.hotkey.keys) plugin=\(binding.owner) id=\(binding.hotkey.id)")
         }
-        guard !HotkeyListeners.shared.press(binding), let slot = handlerSlot(binding.owner) else { return }
-        withRuntime(slot, trace) { runtime in runtime?.hotkey(binding.hotkey.id) }
+        guard !HotkeyListeners.shared.press(binding), let key = slots.handler(of: binding.owner) else { return }
+        perform(slots.use(key) { runtime in runtime?.hotkey(binding.hotkey.id) }, trace)
     }
 
     func mediaKeyPressed(_ event: JSON, _ keys: [SlotKey]) {
         let trace = Trace("mediakey")
-        for slot in keys.compactMap({ slots[$0] }) {
-            withRuntime(slot, trace) { runtime in runtime?.mediaKey(event) }
-        }
-    }
-
-    func handlerSlot(_ id: PluginID) -> PluginSlot? {
-        PluginKind.handlerOrder.lazy.compactMap { self.slots[SlotKey(id: id, kind: $0)] }.first
-    }
-
-    func withRuntime(_ slot: PluginSlot, _ trace: Trace, _ body: @escaping (PluginRuntime?) -> Void) {
-        if let runtime = slot.runtime {
-            body(runtime)
-            return
-        }
-        if slot.disabledReason != nil {
-            body(nil)
-            return
-        }
-        slot.waiters.append { [weak slot] _ in body(slot?.runtime) }
-        if slot.candidate == nil {
-            load(slot, trace)
+        for key in keys {
+            perform(slots.use(key) { runtime in runtime?.mediaKey(event) }, trace)
         }
     }
 
@@ -61,23 +42,7 @@ extension Shell {
                 wanted[SlotKey(id: bundle.manifest.id, kind: kind)] = bundle
             }
         }
-        for (key, slot) in slots where wanted[key] == nil {
-            stop(slot)
-            slots[key] = nil
-        }
-        for (key, bundle) in wanted {
-            if let slot = slots[key] {
-                guard slot.bundle != bundle else { continue }
-                slot.bundle = bundle
-                reload(slot, trace)
-            } else {
-                let slot = PluginSlot(key: key, bundle: bundle)
-                slots[key] = slot
-                if !key.kind.isSurface {
-                    load(slot, trace)
-                }
-            }
-        }
+        perform(slots.sync(wanted), trace)
         claimMediaKeys()
         arrangeBars()
         commitFrame()
@@ -85,94 +50,65 @@ extension Shell {
 
     private func claimMediaKeys() {
         var claims: [MediaKey: [SlotKey]] = [:]
-        for (key, slot) in slots {
-            for mediaKey in slot.bundle.manifest.mediaKeys[key.kind] ?? [] {
-                claims[mediaKey, default: []].append(key)
+        for slot in slots.values {
+            for mediaKey in slot.bundle.manifest.mediaKeys[slot.key.kind] ?? [] {
+                claims[mediaKey, default: []].append(slot.key)
             }
         }
         mediaKeys?.claim(claims)
     }
 
-    func reload(_ slot: PluginSlot, _ trace: Trace) {
-        slot.failures.reset()
-        if slot.disabledReason != nil {
-            slot.phase = .stopped
-        }
-        if isLive(slot) {
-            load(slot, trace)
-        }
-    }
-
-    func isLive(_ slot: PluginSlot) -> Bool {
-        !slot.key.kind.isSurface || slot.visible || slot.runtime != nil
-    }
-
-    func scene(for slot: PluginSlot) -> Scene {
-        switch slot.key.kind {
+    func scene(_ kind: PluginKind, _ shown: [String: ShownSurface]) -> Scene {
+        switch kind {
         case .barWidget: Scene(displays: displays.filter { bars[$0.id] != nil }, shown: [SurfaceAddress.main: ShownSurface()])
         case .bar: Scene(displays: displays, shown: [SurfaceAddress.main: ShownSurface()])
         case .service: Scene()
-        case .panel, .overlay, .menu: Scene(displays: displays, shown: slot.shown)
+        case .panel, .overlay, .menu: Scene(displays: displays, shown: shown)
         }
     }
 
-    func load(_ slot: PluginSlot, _ trace: Trace) {
-        slot.candidate?.stop()
-        let key = slot.key
+    func makeRuntime(_ key: SlotKey, _ bundle: PluginBundle, _ scene: Scene) -> PluginRuntime {
         let delivery = MainDelivery { [weak self] runtime, event in self?.handle(event, from: runtime, key) }
-        let runtime = PluginRuntime(
-            bundle: slot.bundle, kind: key.kind, scene: scene(for: slot),
+        return PluginRuntime(
+            bundle: bundle, kind: key.kind, scene: scene,
             settings: config.settings[key.id] ?? .object([:]), theme: theme.json, hub: hub,
             deliver: { delivery.send($0, $1) }, engine: engines.engine(for: key.kind),
         )
-        slot.candidate = runtime
-        runtime.load(trace)
     }
 
-    func stop(_ slot: PluginSlot) {
-        slot.candidate?.stop()
-        slot.candidate = nil
-        slot.runtime?.stop()
-        slot.phase = .stopped
-        unmount(slot.key)
-        slot.answerWaiters(.failure("\(slot.key.id) was stopped"))
+    func perform(_ effects: [PluginSlots<PluginRuntime>.Effect], _ trace: Trace) {
+        for effect in effects {
+            switch effect {
+            case let .start(runtime): runtime.load(trace)
+            case let .stop(runtime): runtime.stop()
+            case let .setScene(runtime, scene): runtime.setScene(scene, trace)
+            case let .present(key, output): present(key, output, trace)
+            case let .unmount(key, surface): unmount(key, surface: surface)
+            case let .answer(waiters, response): waiters.forEach { $0(response) }
+            case let .later(delay, cause, transition):
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.perform(transition(), Trace(cause)) }
+            case .sync: sync(trace)
+            }
+        }
     }
 
     private func handle(_ event: RuntimeEvent, from runtime: PluginRuntime, _ key: SlotKey) {
-        guard let slot = slots[key], slot.candidate === runtime || slot.runtime === runtime else {
+        guard slots.isCurrent(runtime, at: key) else {
             runtime.stop()
             return
         }
         switch event {
         case let .loaded(output, trace):
-            loaded(slot, runtime, output, trace)
+            perform(slots.loaded(runtime, at: key, output), trace)
         case let .output(output, trace):
-            guard slot.runtime === runtime else { return }
-            present(slot, output, trace)
-            if slot.visible {
-                slot.answerWaiters(.ok("shown"))
-            }
+            perform(slots.output(runtime, at: key, output), trace)
         case let .surface(request, address, origin):
             surfaceRequested(request, address, origin, by: key.id)
         case let .call(target, method, arguments, reply):
             call(target.plugin ?? key.id, target.kind, method, arguments, reply)
         case let .failed(reason):
-            failed(slot, runtime, reason)
-        }
-    }
-
-    private func loaded(_ slot: PluginSlot, _ runtime: PluginRuntime, _ output: RuntimeOutput, _ trace: Trace) {
-        slot.candidate = nil
-        slot.runtime?.stop()
-        slot.phase = .running(runtime)
-        log("plugin \(slot.key): loaded \(slot.bundle.manifest.version)")
-        present(slot, output, trace)
-        if runtime.initialScene != scene(for: slot) {
-            runtime.setScene(scene(for: slot), trace)
-        }
-        slot.answerWaiters(.ok(slot.visible ? "shown" : "loaded"))
-        if slot.key.kind == .bar {
-            sync(trace)
+            perform(slots.failed(runtime, at: key, reason), Trace("bar-fallback"))
+            commitFrame()
         }
     }
 
@@ -188,36 +124,6 @@ extension Shell {
         case .hide: report(hide(address, trace))
         case .toggle: toggle(address, trace, origin: origin, report)
         }
-    }
-
-    private func failed(_ slot: PluginSlot, _ runtime: PluginRuntime, _ reason: String) {
-        let key = slot.key
-        if slot.candidate === runtime {
-            slot.candidate = nil
-            if slot.runtime != nil {
-                log("plugin \(key): reload rejected, the running version stays: \(reason)")
-                return
-            }
-        }
-        slot.phase = .failed(reason)
-        unmount(key)
-        slot.shown = [:]
-        slot.answerWaiters(.failure("\(key.id) failed: \(reason)"))
-        log("plugin \(key): failed: \(reason)")
-        if !slot.failures.allowsRestart(afterFailureAt: now()) {
-            slot.phase = .disabled("\(slot.failures.summary), last: \(reason)")
-            log("plugin \(key): disabled after \(slot.failures.summary); reload it or change its files to try again")
-        } else if !key.kind.isSurface {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self, weak slot] in
-                guard let self, let slot, slots[key] === slot, case .failed = slot.phase, slot.candidate == nil else { return }
-                log("plugin \(key): restarting (\(slot.failures.summary))")
-                load(slot, Trace("restart"))
-            }
-        }
-        if key.kind == .bar {
-            sync(Trace("bar-fallback"))
-        }
-        commitFrame()
     }
 
     func perform(_ event: ActionEvent, _ key: SlotKey) {

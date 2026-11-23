@@ -2,21 +2,18 @@ import AppKit
 import GaryCore
 
 extension Shell {
-    func present(_ slot: PluginSlot, _ output: RuntimeOutput, _ trace: Trace) {
-        if slot.key.kind.isSurface, !slot.visible {
-            return
-        }
+    func present(_ slot: SlotKey, _ output: RuntimeOutput, _ trace: Trace) {
         var timings = trace.timings
         let changes = measure(.apply, &timings) {
-            slot.surfaces = output.surfaces
+            let shown = slots[slot]?.shown ?? [:]
             var changes: [MountKey: Bool] = [:]
-            for (surface, trees) in output.trees where !slot.key.kind.isSurface || slot.shown[surface] != nil {
+            for (surface, trees) in output.trees where !slot.kind.isSurface || shown[surface] != nil {
                 for (display, tree) in trees {
-                    let key = MountKey(slot: slot.key, surface: surface, display: display)
+                    let key = MountKey(slot: slot, surface: surface, display: display)
                     changes[key] = mount(key, tree)
                 }
             }
-            for key in mounts.keys where key.slot == slot.key && output.trees[key.surface]?.keys.contains(key.display) != true {
+            for key in mounts.keys where key.slot == slot && output.trees[key.surface]?.keys.contains(key.display) != true {
                 unmount(key)
             }
             return changes
@@ -135,8 +132,7 @@ extension Shell {
     }
 
     private func hide(_ mount: MountKey, _ trace: Trace) {
-        guard let slot = slots[mount.slot] else { return }
-        _ = hide(mount.surface, in: slot, trace)
+        _ = hide(mount.surface, in: mount.slot, trace)
     }
 
     private func keyPressed(_ key: String, _ mount: MountKey) {

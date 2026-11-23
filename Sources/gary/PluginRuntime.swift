@@ -51,6 +51,8 @@ actor PluginRuntime: Subscriber {
     }
 }
 
+extension PluginRuntime: SlotRuntime {}
+
 nonisolated extension PluginRuntime {
     var id: PluginID {
         bundle.manifest.id

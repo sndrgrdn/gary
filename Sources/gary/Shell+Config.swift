@@ -100,7 +100,7 @@ extension Shell {
         guard rescans || config != previous else { return response }
         resolve()
         for slot in slots.values where config.settings[slot.key.id] != previous.settings[slot.key.id] {
-            reload(slot, trace)
+            perform(slots.reload(slot.key), trace)
         }
         sync(trace)
         offerOnboarding(trace)
@@ -112,7 +112,7 @@ extension Shell {
     }
 
     func offerOnboarding(_ trace: Trace) {
-        guard surfaceSlots(.onboarding).first?.visible == false else { return }
+        guard slots.surfaces(of: .onboarding).first?.visible == false else { return }
         guard LocationAccess.shared.reported else {
             LocationAccess.shared.whenReported { [weak self] in self?.offerOnboarding(trace) }
             return
@@ -160,8 +160,7 @@ extension Shell {
             _ = refresh(config: configChanged, catalog: rescan, trace)
         }
         for key in reloads {
-            guard let slot = slots[key] else { continue }
-            reload(slot, trace)
+            perform(slots.reload(key), trace)
         }
     }
 }

@@ -20,7 +20,10 @@ final class Shell {
     var config = ShellConfig.defaults
     private(set) var catalog = PluginCatalog()
     private(set) var resolution: ShellConfig.Resolution
-    var slots: [SlotKey: PluginSlot] = [:]
+    private(set) lazy var slots = PluginSlots<PluginRuntime>(
+        make: { self.makeRuntime($0, $1, $2) },
+        scene: { self.scene($0, $1) },
+    )
     var displays: [DisplayInfo] = []
     var bars = PerDisplay<BarWindow>()
     var windows: [MountKey: SurfaceWindow] = [:]
@@ -112,7 +115,7 @@ final class Shell {
 
     private func restart(reopening id: PluginID?) {
         log("restart: asked by \(id?.rawValue ?? "unknown")")
-        let shown = id.map { id in surfaceSlots(id).flatMap(\.shown.keys).compactMap { SurfaceAddress(id, surface: $0) } } ?? []
+        let shown = id.map { id in slots.surfaces(of: id).flatMap(\.shown.keys).compactMap { SurfaceAddress(id, surface: $0) } } ?? []
         if !shown.isEmpty {
             try? Data(JSON.array(shown.map { .string($0.description) }).text.utf8).write(to: Paths.reopen, options: .atomic)
         }
