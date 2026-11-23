@@ -73,9 +73,8 @@ final nonisolated class ShaderCache: @unchecked Sendable {
     private let compiler = DispatchQueue(label: "gary.shaders", qos: .userInitiated)
 
     func program(_ shader: Node.Shader, plugin: PluginID?) async -> ShaderProgram? {
-        let path = (shader.path as NSString).expandingTildeInPath
-        let modified = (try? FileManager.default.attributesOfItem(atPath: path)[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-        let key = "\(path)|\(shader.function)"
+        let modified = (try? FileManager.default.attributesOfItem(atPath: shader.path)[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+        let key = "\(shader.path)|\(shader.function)"
         if let entry = cached(key, modified) {
             return try? entry.result.get()
         }
@@ -84,7 +83,7 @@ final nonisolated class ShaderCache: @unchecked Sendable {
                 let entry = self.cached(key, modified) ?? Entry(
                     plugin: plugin,
                     modified: modified,
-                    result: Self.compile(shader, path: path, plugin: plugin),
+                    result: Self.compile(shader, plugin: plugin),
                 )
                 self.lock.withLock { self.entries[key] = entry }
                 continuation.resume(returning: try? entry.result.get())
@@ -100,9 +99,9 @@ final nonisolated class ShaderCache: @unchecked Sendable {
         lock.withLock { entries[key].flatMap { $0.modified == modified ? $0 : nil } }
     }
 
-    private static func compile(_ shader: Node.Shader, path: String, plugin: PluginID?) -> Result<ShaderProgram, ShaderError> {
+    private static func compile(_ shader: Node.Shader, plugin: PluginID?) -> Result<ShaderProgram, ShaderError> {
         do {
-            let source = try String(contentsOfFile: path, encoding: .utf8)
+            let source = try String(contentsOfFile: shader.path, encoding: .utf8)
             return try .success(ShaderProgram(source: source, function: shader.function))
         } catch {
             log("plugin \(plugin?.description ?? "?"): shader \(shader.path): \(error.localizedDescription)")

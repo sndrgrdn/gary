@@ -136,7 +136,7 @@ private func decode(_ path: String, _ pixels: CGSize, _ fit: ImageFit, _ key: St
 }
 
 private func isSmall(_ path: String) -> Bool {
-    let attributes = try? FileManager.default.attributesOfItem(atPath: (path as NSString).expandingTildeInPath)
+    let attributes = try? FileManager.default.attributesOfItem(atPath: path)
     return attributes?[.type] as? FileAttributeType == .typeRegular && (attributes?[.size] as? Int ?? .max) <= decodeAtOnceLimit
 }
 
@@ -147,11 +147,10 @@ private nonisolated func decoded(_ path: String, _ pixels: CGSize, _ fit: ImageF
 }
 
 private nonisolated func load(_ path: String, _ pixels: CGSize, _ fit: ImageFit) -> Bitmap? {
-    let expanded = (path as NSString).expandingTildeInPath
-    if expanded.hasSuffix(".app") {
-        return drawn(NSWorkspace.shared.icon(forFile: expanded), pixels, fit)
+    if path.hasSuffix(".app") {
+        return drawn(NSWorkspace.shared.icon(forFile: path), pixels, fit)
     }
-    let url = URL(fileURLWithPath: expanded)
+    let url = URL(fileURLWithPath: path)
     guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
           let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as NSDictionary?,
           let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue,

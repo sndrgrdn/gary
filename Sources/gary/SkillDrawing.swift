@@ -86,7 +86,7 @@ extension Skill {
 
     | Field | Value |
     | --- | --- |
-    | `path` | A `.metal` file, absolute, from `~`, or relative to the plugin folder. |
+    | `path` | A `.metal` file, absolute, from `~/`, or relative to the plugin folder. |
     | `function` | The name of the function to call for each pixel. |
     | `args` | Numbers the function reads as `args`, at most \(Node.Shader.maxArgs). |
     | `animated` | `true` advances `time` at the display's refresh rate while the node is on screen. Otherwise `time` is `0` and Gary draws again only when the node changes. Reduce Motion keeps `time` at `0`. |

@@ -148,17 +148,23 @@ public struct Node: Equatable, Sendable {
         }
     }
 
-    public func resolvingPaths(against folder: URL) -> Node {
-        func resolved(_ path: String) -> String {
-            path.hasPrefix("/") || path.hasPrefix("~") ? path : folder.appending(path: path).standardized.path
+    public func resolvingPaths(against folder: String, home: String, at path: String = "root") throws -> Node {
+        func resolved(_ raw: String) throws -> String {
+            guard let absolute = absolutePath(raw, home: home, folder: folder) else {
+                throw NodeError(path: path, reason: "path \"\(raw)\" must be absolute, start with ~/, or be relative to the plugin folder")
+            }
+            return absolute
         }
         var node = self
         switch content {
-        case let .image(path): node.content = .image(resolved(path))
+        case let .image(raw): node.content = try .image(resolved(raw))
         case var .shader(shader):
-            shader.path = resolved(shader.path)
+            shader.path = try resolved(shader.path)
             node.content = .shader(shader)
-        default: return with(children: children.map { $0.resolvingPaths(against: folder) })
+        default:
+            return try with(children: children.enumerated().map { index, child in
+                try child.resolvingPaths(against: folder, home: home, at: "\(path).children[\(index)]")
+            })
         }
         return node
     }

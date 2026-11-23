@@ -136,15 +136,24 @@ struct NodeDrawingTests {
         #expect(throws: NodeError(path: "root", reason: reason)) { try parse(text) }
     }
 
-    @Test func `a relative shader path resolves inside the plugin folder like an image`() throws {
+    @Test func `a shader path comes out absolute from the plugin folder or the home folder like an image`() throws {
         let tree = try parse(#"""
         {"type":"grid","columns":2,"children":[{"type":"shader","path":"fx/glow.metal","function":"glow"},
-        {"type":"shader","path":"/abs.metal","function":"glow"}]}
+        {"type":"shader","path":"~/fx/glow.metal","function":"glow"},{"type":"shader","path":"/abs.metal","function":"glow"}]}
         """#)
-        let resolved = tree.resolvingPaths(against: URL(fileURLWithPath: "/plugins/you.fx"))
+        let resolved = try tree.resolvingPaths(against: "/plugins/you.fx", home: "/Users/gary")
         #expect(resolved.children.map(\.content) == [
             .shader(Node.Shader(path: "/plugins/you.fx/fx/glow.metal", function: "glow")),
+            .shader(Node.Shader(path: "/Users/gary/fx/glow.metal", function: "glow")),
             .shader(Node.Shader(path: "/abs.metal", function: "glow")),
         ])
+    }
+
+    @Test func `a shader path in another user's home folder fails like an image path`() throws {
+        let tree = try parse(#"{"type":"shader","path":"~other/glow.metal","function":"glow"}"#)
+        let reason = #"path "~other/glow.metal" must be absolute, start with ~/, or be relative to the plugin folder"#
+        #expect(throws: NodeError(path: "root", reason: reason)) {
+            try tree.resolvingPaths(against: "/plugins/you.fx", home: "/Users/gary")
+        }
     }
 }

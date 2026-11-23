@@ -155,18 +155,26 @@ struct NodeTests {
         #expect(Node(.text("a")).childIDs.isEmpty)
     }
 
-    @Test func `relative image paths resolve inside the plugin folder`() throws {
+    @Test func `image paths come out absolute from the plugin folder or the home folder`() throws {
         let tree = try parse(#"""
         {"type":"row","children":[{"type":"image","path":"icons/logo.png"},{"type":"image","path":"art/../Gary.icns"},\#
         {"type":"image","path":"~/a.png"},{"type":"image","path":"/b.png"}]}
         """#)
-        let resolved = tree.resolvingPaths(against: URL(fileURLWithPath: "/App/Resources/plugins/onboarding"))
+        let resolved = try tree.resolvingPaths(against: "/App/Resources/plugins/onboarding", home: "/Users/gary")
         #expect(resolved.children.map(\.content) == [
             .image("/App/Resources/plugins/onboarding/icons/logo.png"),
             .image("/App/Resources/plugins/onboarding/Gary.icns"),
-            .image("~/a.png"),
+            .image("/Users/gary/a.png"),
             .image("/b.png"),
         ])
+    }
+
+    @Test func `an image path in another user's home folder fails with the node that holds it`() throws {
+        let tree = try parse(#"{"type":"row","children":[{"type":"image","path":"a.png"},{"type":"image","path":"~other/a.png"}]}"#)
+        let reason = #"path "~other/a.png" must be absolute, start with ~/, or be relative to the plugin folder"#
+        #expect(throws: NodeError(path: "root.children[1]", reason: reason)) {
+            try tree.resolvingPaths(against: "/plugins/clock", home: "/Users/gary")
+        }
     }
 
     @Test func `null optional fields are absent`() throws {

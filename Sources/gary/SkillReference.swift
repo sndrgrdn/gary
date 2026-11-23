@@ -169,7 +169,7 @@ extension Skill {
     | `button` | `children`, and `hover`, a style name for the pointer-over state | `null` |
     | `text` | `text`, a string or number | `null` |
     | `icon` | `symbol`, an SF Symbol name such as `battery.75percent` | `null` |
-    | `image` | `path` to an image file, absolute, from `~`, or relative to the plugin folder, and `fit` | `null` |
+    | `image` | `path` to an image file, absolute, from `~/`, or relative to the plugin folder, and `fit` | `null` |
     | `slider` | `value` from 0 to 1, `rate` and `at`, and `release`, an action sent once when the user lets go | the new value, to `action` while the user drags and to `release` when they let go |
     | `progress` | `value` from 0 to 1, `rate` and `at` | `null` |
     | `input` | `value`, `placeholder`, `change`, and `submit` | the text. `change` and `submit` name the actions. |

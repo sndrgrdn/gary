@@ -267,7 +267,7 @@ extension PluginRuntime {
         if json == .null, kind == .barWidget {
             return nil
         }
-        return try timed(.nodeParse) { try Node.parse(json).resolvingPaths(against: bundle.directory) }
+        return try timed(.nodeParse) { try Node.parse(json).resolvingPaths(against: bundle.directory.path, home: home) }
     }
 
     private func stateText(for display: DisplayInfo?, surface: String? = nil) -> String {
