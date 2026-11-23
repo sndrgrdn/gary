@@ -10,12 +10,9 @@ A macOS shell you write in TypeScript. Or that your agent writes for you.
 curl -fsSL https://raw.githubusercontent.com/sndrgrdn/gary/main/scripts/install.sh | sh
 ```
 
-![A Gary bar with workspaces on the left, the date, time, and weather in the middle, and Bluetooth, Wi-Fi, audio, display, and battery icons on the right](docs/images/bar.png)
+![A Gary bar with workspaces on the left, the playing track, the date, time, and weather in the middle, and Bluetooth, Wi-Fi, audio, display, and battery icons on the right](docs/images/bar.png)
 
-<p>
-  <img alt="An audio menu with output and input volume sliders and devices" src="docs/images/audio-menu.png" width="320">
-  <img alt="A keyboard-driven main menu with screenshot, record, text, QR code, and color entries" src="docs/images/main-menu.png" width="280">
-</p>
+![A theme picker over a wallpaper, with the selected Omarchy theme's preview in the middle, the other themes as slices on both sides, and its name below](docs/images/theme-picker.jpg)
 
 Gary draws a bar along the top of each display, plus panels, overlays, menus, and background services. Every pixel of it comes from a plugin: one you wrote, one you installed, or one you asked an agent for five minutes ago. The screenshots show [sndrgrdn/gary-plugins](https://github.com/sndrgrdn/gary-plugins), an Omarchy-style desktop built on Gary.
 
@@ -39,6 +36,29 @@ Set up Gary, the macOS shell from https://github.com/sndrgrdn/gary, on this Mac.
 ```
 
 Agents are first-class here. The `gary` command clicks, types, hovers, and scrolls in a plugin, prints its node tree, and captures it as a PNG, so your agent sees what it built instead of guessing. `gary skill setup` installs a small skill into `~/.claude/skills` and `~/.agents/skills`, and `gary skill show` prints the guide for the exact version you run.
+
+## What it looks like
+
+Everything below is a plugin from [sndrgrdn/gary-plugins](https://github.com/sndrgrdn/gary-plugins), installable with one command.
+
+<p>
+  <img alt="A clipboard history menu with a link, a note, a color, and a file path, each with how long ago it was copied" src="docs/images/clipboard.png" height="220">
+  <img alt="A keyboard-driven capture menu with screenshot, record, text, QR code, and color entries" src="docs/images/menu.png" height="220">
+</p>
+
+<p>
+  <img alt="An audio panel with output and input volume sliders, devices, and a per-app volume for Music" src="docs/images/audio.png" height="260">
+  <img alt="A power panel with the battery level, health, charge cycles, discharge rate, CPU, and memory" src="docs/images/power.png" height="260">
+  <img alt="A month calendar with today marked and today's all-day event below" src="docs/images/clock.png" height="260">
+</p>
+
+<p>
+  <img alt="A now playing panel with album artwork, a seek bar, and playback controls" src="docs/images/now-playing.png" height="150">
+  <img alt="A weather panel with the current temperature and a 12-hour forecast curve" src="docs/images/weather.png" height="150">
+  <img alt="A focus timer panel with a countdown ring and Focus and Break buttons" src="docs/images/focus-timer.png" height="150">
+</p>
+
+There is more: Wi-Fi and Bluetooth panels, a fuzzy app launcher that also does calculations and conversions, a Hyper key, an on-screen display for volume and brightness, a drawer for other apps' menu bar icons, and the workspaces of the [dinky](https://github.com/mikker/dinky) window manager.
 
 ## Why Gary
 
