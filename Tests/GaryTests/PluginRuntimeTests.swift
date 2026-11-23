@@ -12,7 +12,7 @@ final class Events: @unchecked Sendable {
     }
 
     func next() async throws -> RuntimeEvent {
-        for _ in 0..<400 {
+        for _ in 0..<2000 {
             if let event = lock.withLock({ events.isEmpty ? nil : events.removeFirst() }) {
                 return event
             }
