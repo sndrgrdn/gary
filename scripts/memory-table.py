@@ -123,6 +123,97 @@ if rows:
             table(["scenario", "median", "range", "runs", *(f"after {name}" for _, name in RELIEF[1:]), "slots loaded", "runs excluded for a plugin failure"], rows), ""]
 
 
+LOADED = re.compile(r"^(\d+\.\d+) plugin (\S+)/bar-widget: loaded", re.M)
+GATE = [
+    ("memory at settle (MB)", "memory", MB),
+    ("memory after the launcher opened (MB)", "memory_launcher", MB),
+    ("idle CPU over the idle window (ms)", "idle_cpu", 1e-3),
+    ("startup wall until every bar widget loaded (ms)", "startup_wall", 1e-3),
+    ("startup CPU at that moment (ms)", "startup_cpu", 1e-3),
+    ("launcher first open (ms)", "launcher_open1", 1),
+    ("launcher second open (ms)", "launcher_open2", 1),
+    ("audio menu first open (ms)", "audio_open1", 1),
+    ("audio menu second open (ms)", "audio_open2", 1),
+]
+
+
+def gate_run(run):
+    settled, idle, launcher = (load(run / f"{label}.phys.json") for label in ("settled", "idle", "launcher"))
+    shell = load(run / "shell.json") or {}
+    widgets = {id for ids in shell.get("bar", {}).values() for id in ids}
+    loaded = {match.group(2): float(match.group(1)) for match in LOADED.finditer(log(run))}
+    responses = {surface: load(run / f"respond-sndrgrdn.{surface}.json") for surface in ("launcher", "audio")}
+    if not (settled and idle and launcher and all(responses.values())) or set(loaded) != widgets:
+        return None
+    if any(response["errors"] for response in responses.values()):
+        return None
+    ready = max(loaded.values())
+    samples = [tuple(map(float, line.split())) for line in (run / "startup.cpu").read_text().splitlines() if len(line.split()) == 2]
+    after = [cpu for time, cpu in samples if time >= ready]
+    if not after:
+        return None
+    result = {
+        "memory": settled["phys_footprint"],
+        "memory_launcher": launcher["phys_footprint"],
+        "idle_cpu": idle["cpu"] - settled["cpu"],
+        "startup_wall": ready - settled["start"],
+        "startup_cpu": after[0],
+    }
+    for surface, response in responses.items():
+        result[f"{surface}_open1"], result[f"{surface}_open2"] = response["open1"], response["open2"]
+    return result
+
+
+def rank_sum(first, second):
+    ranked = sorted([(value, 0) for value in first] + [(value, 1) for value in second])
+    ranks, index = {}, 0
+    while index < len(ranked):
+        end = index
+        while end + 1 < len(ranked) and ranked[end + 1][0] == ranked[index][0]:
+            end += 1
+        for position in range(index, end + 1):
+            ranks[position] = (index + end) / 2 + 1
+        index = end + 1
+    count, other = len(first), len(second)
+    u = sum(rank for position, rank in ranks.items() if ranked[position][1] == 0) - count * (count + 1) / 2
+    spread = (count * other * (count + other + 1) / 12) ** 0.5
+    z = (u - count * other / 2) / spread if spread else 0
+    return 2 * (1 - statistics.NormalDist().cdf(abs(z)))
+
+
+gates = {}
+for directory in sorted((root / "runs").glob("gate*")):
+    every = every_run(directory.name)
+    results = [result for result in (gate_run(run) for run in runs(directory.name)) if result]
+    gates[directory.name.partition("@")[2] or "main"] = {"runs": len(every), "errors": len(every) - len(results), "results": results}
+if gates:
+    order = (root / "sides").read_text().split() if (root / "sides").exists() else []
+    names = sorted(gates, key=lambda name: order.index(name) if name in order else len(order))
+    summary = {}
+    rows = []
+    for label, key, unit in GATE:
+        row = [label]
+        for name in names:
+            numbers = [result[key] / unit for result in gates[name]["results"]]
+            summary.setdefault(name, {})[key] = {"median": median(numbers), "min": min(numbers, default=None), "max": max(numbers, default=None)}
+            row.append(f"{median(numbers):.1f} ({min(numbers):.1f}–{max(numbers):.1f})" if numbers else "–")
+        for name in names[1:]:
+            base = [result[key] / unit for result in gates[names[0]]["results"]]
+            numbers = [result[key] / unit for result in gates[name]["results"]]
+            if base and numbers:
+                delta = median(numbers) - median(base)
+                row.append(f"{delta:+.1f} ({100 * delta / median(base):+.1f}%, p={rank_sum(numbers, base):.3f})")
+            else:
+                row.append("–")
+        rows.append(row)
+    rows.append(["clean runs / runs", *(f"{len(gates[name]['results'])}/{gates[name]['runs']}" for name in names), *("" for _ in names[1:])])
+    out += ["## Gate: all plugins, memory and speed (median and range per side)", "",
+            table(["measure", *names, *(f"{name} vs {names[0]}" for name in names[1:])], rows), ""]
+    for name in names:
+        summary[name]["clean"], summary[name]["runs"] = len(gates[name]["results"]), gates[name]["runs"]
+    (root / "gate.json").write_text(json.dumps(summary, indent=2) + "\n")
+
+
 def marginal_table(prefix, title, header, sign):
     entries, total = [], 0
     for directory in sorted((root / "runs").glob(f"{prefix}:*")):

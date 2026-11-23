@@ -272,11 +272,60 @@ static void listenForReports(void)
     }
 }
 
+static void serveCachedFetches(void)
+{
+    const char *directory = getenv("GARY_PROBE_FETCH_CACHE");
+    if (!directory) return;
+    NSString *root = [NSString stringWithUTF8String:directory];
+    Class session = NSURLSession.class;
+    SEL selector = @selector(dataTaskWithRequest:completionHandler:);
+    IMP make = original(session, selector);
+    replace(session, selector, ^NSURLSessionDataTask *(NSURLSession *self, NSURLRequest *request, void (^done)(NSData *, NSURLResponse *, NSError *)) {
+        NSString *path = [root stringByAppendingPathComponent:request.URL.host ?: @""];
+        if (![NSFileManager.defaultManager fileExistsAtPath:path])
+            return ((NSURLSessionDataTask * (*)(id, SEL, id, id)) make)(self, selector, request, done);
+        NSURL *asked = request.URL;
+        fprintf(stderr, "memory-probe: served %s from the fetch cache\n", asked.host.UTF8String);
+        void (^served)(NSData *, NSURLResponse *, NSError *) = ^(NSData *data, NSURLResponse *response, NSError *error) {
+            NSHTTPURLResponse *ok = [[NSHTTPURLResponse alloc] initWithURL:asked statusCode:200 HTTPVersion:@"HTTP/1.1" headerFields:@{}];
+            done(data, error ? response : ok, error);
+        };
+        return ((NSURLSessionDataTask * (*)(id, SEL, id, id)) make)(self, selector, [NSURLRequest requestWithURL:[NSURL fileURLWithPath:path]], served);
+    });
+}
+
+static void *volatile ballast;
+
+static void addDeliberateCosts(void)
+{
+    const char *megabytes = getenv("GARY_PROBE_ALLOC_MB");
+    if (megabytes) {
+        size_t size = (size_t)(atof(megabytes) * 1024 * 1024);
+        ballast = malloc(size);
+        memset(ballast, 1, size);
+    }
+    const char *busy = getenv("GARY_PROBE_BUSY_MS");
+    if (!busy) return;
+    double seconds = atof(busy) / 1000;
+    void (^spin)(void) = ^{
+        NSDate *until = [NSDate dateWithTimeIntervalSinceNow:seconds];
+        while (until.timeIntervalSinceNow > 0) {}
+    };
+    SEL selector = @selector(orderFrontRegardless);
+    IMP front = original(NSWindow.class, selector);
+    replace(NSWindow.class, selector, ^(NSWindow *self) {
+        spin();
+        ((void (*)(id, SEL))front)(self, selector);
+    });
+}
+
 __attribute__((constructor)) static void start(void)
 {
     @autoreleasepool {
         hideWindows();
         trackContexts();
         listenForReports();
+        serveCachedFetches();
+        addDeliberateCosts();
     }
 }

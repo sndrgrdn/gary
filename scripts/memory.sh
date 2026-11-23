@@ -2,14 +2,22 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-usage="usage: scripts/memory.sh [floor | all | plugins | plugin:<id> | without | without:<id> | effect | growth | attribution | timeline] ...
+usage="usage: scripts/memory.sh [floor | all | gate | plugins | plugin:<id> | without | without:<id> | effect | growth | attribution | timeline] ...
 Runs a private Gary from \$APP (default build/Gary.app) per scenario, each with its own home, config, lock, and socket,
 with windows invisible and hotkeys, event taps, keyboard mapping, menu bar, dock, wallpaper, and notifications stubbed,
-and writes the tables to \$OUT/report.md. Settings: RUNS (3), SETTLE seconds (120), JOBS in parallel (4), CYCLES (20), STAGGER seconds between launches (3)."
+weather answered from one cached open-meteo response, and ~/Library/Caches shared by the runs of one side after a short warm-up run,
+and writes the tables to \$OUT/report.md.
+gate runs all plugins and records the footprint at SETTLE, idle CPU over the next IDLE seconds, startup wall time and CPU
+until every bar widget loaded, the launcher and audio menu opened twice each, and the footprint REOPEN seconds after the launcher opened.
+SIDES names builds to compare, alternating per round; side <name> runs APP_<name>, with PLUGINS_<name> as the gary-plugins checkout
+and ENV_<name> as extra environment (for example GARY_PROBE_ALLOC_MB=5 or GARY_PROBE_BUSY_MS=50).
+Settings: RUNS (3), SETTLE seconds (120), IDLE seconds (60), REOPEN seconds (90), JOBS in parallel (4), CYCLES (20), STAGGER seconds between launches (3)."
 
-app="$(cd "${APP:-build/Gary.app}" && pwd)"
+read -r -a sides <<<"${SIDES:-main}"
 runs="${RUNS:-3}"
 settle="${SETTLE:-120}"
+idle="${IDLE:-60}"
+reopen="${REOPEN:-90}"
 jobs="${JOBS:-4}"
 cycles="${CYCLES:-20}"
 stagger="${STAGGER:-3}"
@@ -33,7 +41,7 @@ for id in [id for ids in shell.get("bar", {}).values() if isinstance(ids, list) 
     print(id)' "$config/shell.json")
         ;;
     effect) expanded+=(effect:plain-widget effect:effect-widget effect:plain-service effect:effect-service effect:both) ;;
-    floor | all | growth | attribution | timeline | plugin:* | without:* | effect:*) expanded+=("$scenario") ;;
+    floor | all | gate | growth | attribution | timeline | plugin:* | without:* | effect:*) expanded+=("$scenario") ;;
     *) echo "$usage" >&2 && exit 64 ;;
     esac
 done
@@ -54,20 +62,62 @@ clang -dynamiclib -fobjc-arc -O1 -w -o "$build/probe.dylib" scripts/memory-probe
     -framework AppKit -framework Carbon -framework JavaScriptCore -framework IOKit -framework UserNotifications -framework ApplicationServices
 cat >"$build/phys.c" <<'EOF'
 #include <libproc.h>
+#include <mach/mach_time.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
+#include <unistd.h>
+static double cpu(struct rusage_info_v6 *usage)
+{
+    mach_timebase_info_data_t base;
+    mach_timebase_info(&base);
+    return (double)(usage->ri_user_time + usage->ri_system_time) * base.numer / base.denom / 1e9;
+}
+static double wall(void)
+{
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    return now.tv_sec + now.tv_usec / 1e6;
+}
 int main(int argc, char **argv)
 {
     struct rusage_info_v6 usage;
-    if (argc < 2 || proc_pid_rusage(atoi(argv[1]), RUSAGE_INFO_V6, (rusage_info_t *)&usage)) return 1;
-    printf("{\"phys_footprint\":%llu,\"peak\":%llu}\n", usage.ri_phys_footprint, usage.ri_lifetime_max_phys_footprint);
+    struct proc_bsdinfo info;
+    if (argc < 2) return 1;
+    int pid = atoi(argv[1]);
+    if (argc == 4) {
+        double until = wall() + atof(argv[2]);
+        while (wall() < until && !proc_pid_rusage(pid, RUSAGE_INFO_V6, (rusage_info_t *)&usage)) {
+            printf("%.6f %.6f\n", wall(), cpu(&usage));
+            fflush(stdout);
+            usleep(atoi(argv[3]) * 1000);
+        }
+        return 0;
+    }
+    if (proc_pid_rusage(pid, RUSAGE_INFO_V6, (rusage_info_t *)&usage)) return 1;
+    if (proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, sizeof info) != sizeof info) return 1;
+    printf("{\"phys_footprint\":%llu,\"peak\":%llu,\"cpu\":%.6f,\"start\":%.6f,\"time\":%.6f}\n", usage.ri_phys_footprint,
+           usage.ri_lifetime_max_phys_footprint, cpu(&usage), info.pbi_start_tvsec + info.pbi_start_tvusec / 1e6, wall());
     return 0;
 }
 EOF
 clang -O1 -o "$build/phys" "$build/phys.c"
 login_path="$("$(dscl . -read "$HOME" UserShell | awk '{print $2}')" -l -c 'exec /usr/bin/printenv PATH')"
-rm -rf "$build/packages"
-/bin/cp -cR "$support/packages" "$build/packages"
+for side in "${sides[@]}"; do
+    app="APP_$side"
+    [[ -n "${!app:-}" || "$side" == main ]] || { echo "side $side has no APP_$side" >&2 && exit 64; }
+    rm -rf "$build/packages-$side" "$build/caches-$side"
+    mkdir -p "$build/caches-$side"
+    /bin/cp -cR "$support/packages" "$build/packages-$side"
+    plugins="PLUGINS_$side"
+    if [[ -n "${!plugins:-}" ]]; then
+        rsync -a --delete --exclude .git --exclude node_modules "${!plugins}/" "$build/packages-$side/git/github.com/sndrgrdn/gary-plugins/"
+    fi
+done
+echo "${sides[*]}" >"$out/sides"
+mkdir -p "$build/fetch"
+curl -fsS --max-time 20 -o "$build/fetch/api.open-meteo.com" \
+    "https://api.open-meteo.com/v1/forecast?latitude=53.2&longitude=5.8&current=temperature_2m,weather_code,is_day&hourly=temperature_2m&forecast_hours=13&timezone=auto"
 
 plugin() {
     local name="memory.$2-$3" kind entry
@@ -88,7 +138,7 @@ export default { effect: Effect.void };' ;;
 }
 
 prepare() {
-    local home="$1" scenario="$2"
+    local home="$1" scenario="$2" side="$3"
     mkdir -p "$home/.config/gary" "$home/.config/fish" "$home/Library/Application Support/Gary" "$home/Library/Logs"
     printf "set -gx PATH (string split : -- '%s')\n" "$login_path" >"$home/.config/fish/config.fish"
     printf "export PATH='%s'\n" "$login_path" | tee "$home/.zprofile" >"$home/.bash_profile"
@@ -101,9 +151,10 @@ prepare() {
     done
     echo '{"missing":["accessibility","audio-capture","automation","bluetooth","calendars","full-disk-access","location","notifications","screen-recording"]}' \
         >"$home/Library/Application Support/Gary/onboarding.json"
-    ln -s "$build/packages" "$home/Library/Application Support/Gary/packages"
+    ln -s "$build/packages-$side" "$home/Library/Application Support/Gary/packages"
     [[ -d "$HOME/Applications" ]] && ln -s "$HOME/Applications" "$home/Applications"
     [[ -d "$HOME/.config/dinky" ]] && ln -s "$HOME/.config/dinky" "$home/.config/dinky"
+    ln -s "$build/caches-$side" "$home/Library/Caches"
     mkdir -p "$home/Library/Group Containers"
     [[ -d "$HOME/Library/Group Containers/group.com.apple.usernoted" ]] &&
         ln -s "$HOME/Library/Group Containers/group.com.apple.usernoted" "$home/Library/Group Containers/group.com.apple.usernoted"
@@ -117,7 +168,7 @@ shell = json.load(open(sys.argv[2]))
 sections = ["left", "center", "right", "notchLeft"]
 bar = {section: [] for section in sections}
 plugins = []
-if scenario in ("all", "growth", "attribution", "timeline"):
+if scenario in ("all", "gate", "growth", "attribution", "timeline"):
     bar = {section: shell.get("bar", {}).get(section, []) for section in sections}
     plugins = shell.get("plugins", [])
 elif scenario.startswith("plugin:"):
@@ -136,7 +187,7 @@ elif scenario.startswith("effect:"):
         plugins = ["memory.plain-service" if variant == "plain-service" else "memory.effect-service"]
 result = {"bar": bar, "plugins": plugins, "packages": shell.get("packages", [])}
 settings = {id: value for id, value in shell.get("settings", {}).items()
-            if scenario in ("all", "growth", "attribution", "timeline") or scenario == f"plugin:{id}" or (scenario.startswith("without:") and scenario != f"without:{id}")}
+            if scenario in ("all", "gate", "growth", "attribution", "timeline") or scenario == f"plugin:{id}" or (scenario.startswith("without:") and scenario != f"without:{id}")}
 if settings:
     result["settings"] = settings
 json.dump(result, sys.stdout, indent=2)
@@ -199,6 +250,34 @@ if not json.loads(reply or b"{}").get("ok"):
 EOF
 }
 
+respond() {
+    python3 - "$(cat "$1/tmpdir")/gary.sock" "$2" >"$1/respond-$2.json" <<'EOF'
+import json, socket, sys, time
+path, plugin = sys.argv[1:]
+def send(verb):
+    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    client.settimeout(10)
+    client.connect(path)
+    client.sendall((json.dumps({"verb": verb, "args": [plugin]}) + "\n").encode())
+    reply = b""
+    while not reply.endswith(b"\n"):
+        chunk = client.recv(4096)
+        if not chunk:
+            break
+        reply += chunk
+    return json.loads(reply or b"{}").get("ok") is True
+result = {"errors": 0}
+for open in ("open1", "open2"):
+    started = time.time()
+    shown = send("summon")
+    result[open] = (time.time() - started) * 1000
+    time.sleep(1)
+    result["errors"] += (not shown) + (not send("hide"))
+    time.sleep(1)
+json.dump(result, sys.stdout)
+EOF
+}
+
 cycle() {
     local dir="$1" count="$2"
     for _ in $(seq "$count"); do
@@ -214,13 +293,16 @@ cycle() {
 }
 
 launch() {
-    local dir="$1" tmpdir
-    shift
+    local dir="$1" side="$2" tmpdir app="APP_$2" extra="ENV_$2"
+    shift 2
     tmpdir="$(mktemp -d /tmp/gary-memory.XXXXXX)"
     echo "$tmpdir" >"$dir/tmpdir"
-    env CFFIXED_USER_HOME="$dir/home" HOME="$dir/home" GARY_PROBE_TMPDIR="$tmpdir/" GARY_PROBE_DIR="$dir" \
-        DYLD_INSERT_LIBRARIES="$build/probe.dylib" "$@" "$app/Contents/MacOS/gary" app >"$dir/gary.log" 2>&1 &
+    read -r -a extra <<<"${!extra:-}"
+    app="$(cd "${!app:-${APP:-build/Gary.app}}" && pwd)"
+    env CFFIXED_USER_HOME="$dir/home" HOME="$dir/home" GARY_PROBE_TMPDIR="$tmpdir/" GARY_PROBE_DIR="$dir" GARY_PROBE_FETCH_CACHE="$build/fetch" \
+        DYLD_INSERT_LIBRARIES="$build/probe.dylib" "${extra[@]}" "$@" "$app/Contents/MacOS/gary" app >"$dir/gary.log" 2>&1 &
     echo $! >"$dir/pid"
+    "$build/phys" $! 20 10 >"$dir/startup.cpu" &
     for _ in $(seq 300); do
         grep -q "ready pid=" "$dir/gary.log" && return 0
         sleep 0.1
@@ -248,16 +330,17 @@ quit() {
 }
 
 run() {
-    local scenario="$1" round="$2" dir
-    dir="$out/runs/$scenario/$round"
+    local scenario="$1" side="$2" round="$3" dir settle="$settle" idle="$idle" reopen="$reopen"
+    dir="$out/$([[ "$round" == 0 ]] && echo warmup || echo runs)/$scenario$([[ "$side" == main ]] || echo "@$side")/$round"
+    [[ "$round" == 0 ]] && settle=20 idle=0 reopen=0
     rm -rf "$dir"
     mkdir -p "$dir"
     trap "quit '$dir'" EXIT
-    prepare "$dir/home" "$scenario"
+    prepare "$dir/home" "$scenario" "$side"
     cp "$dir/home/.config/gary/shell.json" "$dir/shell.json"
     local environment=()
     [[ "$scenario" == attribution ]] && environment=(MallocStackLogging=lite)
-    launch "$dir" "${environment[@]}"
+    launch "$dir" "$side" "${environment[@]}"
     if [[ "$scenario" == timeline ]]; then
         for second in $(seq 0 5 300); do
             phys "$dir" "t$(printf %03d "$second")"
@@ -269,6 +352,14 @@ run() {
     phys "$dir" settled
     probe "$dir" settled stats
     case "$scenario" in
+    gate)
+        sleep "$idle"
+        phys "$dir" idle
+        respond "$dir" sndrgrdn.launcher
+        sleep "$reopen"
+        phys "$dir" launcher
+        respond "$dir" sndrgrdn.audio
+        ;;
     all)
         deep "$dir" settled
         relieve "$dir" settled
@@ -294,15 +385,27 @@ run() {
     esac
 }
 
-echo "memory: ${#expanded[@]} scenarios, $runs runs, settle ${settle}s, $jobs at a time, output $out"
+echo "memory: ${#expanded[@]} scenarios, ${#sides[@]} sides (${sides[*]}), $runs runs, settle ${settle}s, $jobs at a time, output $out"
+for side in "${sides[@]}"; do
+    run "${expanded[0]}" "$side" 0 &
+    sleep "$stagger"
+done
+wait
 for round in $(seq "$runs"); do
+    order=("${sides[@]}")
+    if ((round % 2 == 0)); then
+        order=()
+        for ((index = ${#sides[@]} - 1; index >= 0; index--)); do order+=("${sides[index]}"); done
+    fi
     for scenario in "${expanded[@]}"; do
         if [[ "$round" -gt 1 && ("$scenario" == growth || "$scenario" == attribution || "$scenario" == timeline) ]]; then
             continue
         fi
-        while [[ "$(jobs -rp | wc -l)" -ge "$jobs" ]]; do wait -n || true; done
-        run "$scenario" "$round" &
-        sleep "$stagger"
+        for side in "${order[@]}"; do
+            while [[ "$(jobs -rp | wc -l)" -ge "$jobs" ]]; do wait -n || true; done
+            run "$scenario" "$side" "$round" &
+            sleep "$stagger"
+        done
     done
 done
 wait
