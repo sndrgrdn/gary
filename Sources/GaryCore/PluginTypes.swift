@@ -268,7 +268,7 @@ public extension PluginTypes {
       interface Scoped {
         spawn(argv: string[]): S.Stream<string, HostError>;
         hotkeys(keys: string[]): S.Stream<string, HostError>;
-        hyperkey(options?: { shift?: boolean }): E.Effect<void, HostError, Sc.Scope>;
+        hyperkey(options?: \(HyperKey.optionsType)): E.Effect<void, HostError, Sc.Scope>;
       }
       export const host: { readonly [K in keyof Gary.Host]: K extends keyof Scoped ? Scoped[K] : Lift<Gary.Host[K]> };
       export const fetch: typeof globalThis extends { fetch: infer F } ? Lift<F> : never;

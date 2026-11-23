@@ -8,21 +8,25 @@ extension Capability {
     static let hyperkey = Capability(
         name: "hyperkey",
         summary: """
-        Make Caps Lock a Hyper key. While Caps Lock is held, every key gets Control, Option, and Command, and Shift too with \
-        `shift: true`, so hotkeys written with `hyper`, such as `hyper+m`, fire. Tapping Caps Lock alone does nothing. \
-        `host.hyperkey(options)` holds Hyper until `stop()` or the plugin stops. Gary maps Caps Lock to F18 on every keyboard \
-        and turns F18 into Hyper in an event tap on its own thread. When a keyboard sends Caps Lock anyway, such as one that \
-        connected later or another app that rewrote the mapping, Gary drops that press and maps the keyboards again. \
-        When the last hold stops, or Gary quits or crashes, Gary gives Caps Lock back.
+        Make a key a Hyper key. While the key is held, every other key gets Control, Option, and Command, and Shift too with \
+        `shift: true`, so hotkeys written with `hyper`, such as `hyper+m`, fire. `key` names the key: `capsLock`, the default; \
+        a modifier side, \(HyperKey.Trigger.sides.map { "`\($0.name)`" }.joined(separator: ", ")); or a hotkey key name, such as \
+        `f19`, `escape`, or `a`. Tapping the key alone does nothing unless `tap` names a key to send instead, and \
+        `tap: "capsLock"` toggles Caps Lock. A tap is a press and release within \(HyperKey.tappingTerm / 1_000_000) ms with no other key pressed. \
+        `host.hyperkey(options)` holds Hyper until `stop()` or the plugin stops, and the newest hold's options win. Gary turns \
+        the key into Hyper in an event tap on its own thread, and for Caps Lock first maps Caps Lock to F18 on every keyboard. \
+        When a keyboard sends Caps Lock anyway, such as one that connected later or another app that rewrote the mapping, Gary \
+        drops that press and maps the keyboards again. When the last hold stops, or Gary quits or crashes, Gary gives Caps \
+        Lock back.
         """,
         types: """
         declare namespace Gary {
-          interface Host { hyperkey(options?: { shift?: boolean }): HyperKeyApi }
+          interface Host { hyperkey(options?: \(HyperKey.optionsType)): HyperKeyApi }
           interface HyperKeyApi { stop(): void }
         }
         """,
         example: """
-        host.hyperkey({ shift: false });
+        host.hyperkey({ key: "capsLock", shift: false, tap: "escape" });
 
         export default {} satisfies Gary.Service;
         """,
@@ -33,11 +37,7 @@ extension Capability {
             let hold: @convention(block) (String) -> Int = { text in
                 let call = HostCall(api: nil, method: "hyperkey", arguments: [(try? JSON.parse(text)) ?? .null])
                 do {
-                    let options = call.arguments.first ?? .null
-                    guard options == .null || options.object != nil else { throw call.fail("options must be an object such as { shift: true }") }
-                    let shift = options["shift"] ?? .null
-                    guard shift == .null || shift.bool != nil else { throw call.fail("options.shift must be true or false") }
-                    return try holds.add(HyperKeyTap.shared.hold(shift: shift.bool ?? false))
+                    return try holds.add(HyperKeyTap.shared.hold(options(call)))
                 } catch {
                     let context = JSContext.current()
                     context?.exception = context?.newError("\(error)")
@@ -48,6 +48,22 @@ extension Capability {
             host.context.evaluateScript(hyperkeyScript).call(withArguments: [host, hold, stop])
         },
     )
+}
+
+private func options(_ call: HostCall) throws -> HyperKey.Options {
+    let options = call.arguments.first ?? .null
+    guard options == .null || options.object != nil else { throw call.fail("options must be an object such as { key: \"capsLock\", shift: true }") }
+    let key = options["key"] ?? .null
+    let shift = options["shift"] ?? .null
+    let tap = options["tap"] ?? .null
+    let keys = "a hotkey key name, such as a, 1, ;, return, space, tab, escape, delete, left, or f1 to f20"
+    guard let trigger = key == .null ? HyperKey.Trigger.capsLock : key.string.flatMap(HyperKey.Trigger.init(named:)) else {
+        throw call.fail("options.key must name a key: capsLock, \(HyperKey.Trigger.sides.map(\.name).joined(separator: ", ")), or \(keys)")
+    }
+    guard shift == .null || shift.bool != nil else { throw call.fail("options.shift must be true or false") }
+    let tapped = tap.string.flatMap(HyperKey.Tap.init(named:))
+    guard tap == .null || tapped != nil else { throw call.fail("options.tap must name a key: capsLock, which toggles Caps Lock, or \(keys)") }
+    return HyperKey.Options(trigger: trigger, shift: shift.bool ?? false, tap: tapped)
 }
 
 private let hyperkeyScript = """
@@ -61,9 +77,9 @@ private let hyperkeyScript = """
 
 final class HyperKeyTap {
     static let shared = HyperKeyTap()
-    private static let releaseTag: Int64 = 0x4859_5052
+    private static let ownTag: Int64 = 0x4859_5052
     private let lock = NSLock()
-    private var holds: [Int: Bool] = [:]
+    private var holds: [Int: HyperKey.Options] = [:]
     private var nextID = 1
     private var gate = HyperKey.Gate()
     private var tap: CFMachPort?
@@ -86,15 +102,16 @@ final class HyperKeyTap {
         return loop ?? CFRunLoopGetMain()
     }()
 
-    func hold(shift: Bool) throws -> Int {
+    func hold(_ options: HyperKey.Options) throws -> Int {
         try lock.withLock {
             if tap == nil {
-                try start()
+                try start(options)
+            } else {
+                try use(options)
             }
             let id = nextID
             nextID += 1
-            holds[id] = shift
-            gate.shift = shift
+            holds[id] = options
             return id
         }
     }
@@ -102,15 +119,25 @@ final class HyperKeyTap {
     func release(_ id: Int) {
         lock.withLock {
             guard holds.removeValue(forKey: id) != nil else { return }
-            if let newest = holds.max(by: { $0.key < $1.key }) {
-                gate.shift = newest.value
-            } else {
-                stop()
+            guard let newest = holds.max(by: { $0.key < $1.key }) else { return stop() }
+            do {
+                try use(newest.value)
+            } catch {
+                log("hyperkey: \(error)")
             }
         }
     }
 
-    private func start() throws {
+    private func use(_ options: HyperKey.Options) throws {
+        if options.trigger != gate.options.trigger {
+            letGo()
+            try mapping.sync { options.trigger.kind == .capsLock ? try claim() : giveBack() }
+            log("hyperkey: \(options.trigger.name) is Hyper")
+        }
+        gate.options = options
+    }
+
+    private func start(_ options: HyperKey.Options) throws {
         guard let created = CGEvent.tapCreate(
             tap: .cghidEventTap,
             place: .headInsertEventTap,
@@ -123,16 +150,19 @@ final class HyperKeyTap {
             userInfo: Unmanaged.passUnretained(self).toOpaque(),
         ) else { throw HostFailure(missingGrant(.accessibility, "holding Hyper")) }
         do {
-            try mapping.sync { try claim() }
+            if options.trigger.kind == .capsLock {
+                try mapping.sync { try claim() }
+            }
         } catch {
             CFMachPortInvalidate(created)
             throw error
         }
+        gate.options = options
         let source = CFMachPortCreateRunLoopSource(nil, created, 0)
         CFRunLoopAddSource(runLoop, source, .commonModes)
         CFRunLoopWakeUp(runLoop)
         (tap, self.source) = (created, source)
-        log("hyperkey: Caps Lock is Hyper")
+        log("hyperkey: \(options.trigger.name) is Hyper")
     }
 
     private func stop() {
@@ -144,12 +174,8 @@ final class HyperKeyTap {
         }
         CFMachPortInvalidate(tap)
         (self.tap, source) = (nil, nil)
-        mapping.sync {
-            Keyboards.giveBack(replaced ?? [:])
-            replaced = nil
-            DispatchQueue.main.async { SystemState.update { $0.capsLock = nil } }
-        }
-        log("hyperkey: Caps Lock is Caps Lock again")
+        mapping.sync { giveBack() }
+        log("hyperkey: \(gate.options.trigger.name) is no longer Hyper")
     }
 
     private func claim() throws {
@@ -158,13 +184,51 @@ final class HyperKeyTap {
         DispatchQueue.main.async { SystemState.update { $0.capsLock = claimed } }
     }
 
+    private func giveBack() {
+        guard let replaced else { return }
+        Keyboards.giveBack(replaced)
+        self.replaced = nil
+        DispatchQueue.main.async { SystemState.update { $0.capsLock = nil } }
+    }
+
     private func letGo() {
         guard gate.letGo() else { return }
         let event = CGEvent(keyboardEventSource: CGEventSource(stateID: .hidSystemState), virtualKey: CGKeyCode(kVK_Control), keyDown: false)
         event?.type = .flagsChanged
-        event?.flags = CGEventFlags(rawValue: CGEventSource.flagsState(.hidSystemState).rawValue & ~(HyperKey.Flags.hyper | HyperKey.Flags.capsLock))
-        event?.setIntegerValueField(.eventSourceUserData, value: Self.releaseTag)
+        let held = CGEventSource.flagsState(.hidSystemState).rawValue
+        event?.flags = CGEventFlags(rawValue: gate.options.trigger.stripping(held) & ~HyperKey.Flags.hyper)
+        event?.setIntegerValueField(.eventSourceUserData, value: Self.ownTag)
         event?.post(tap: .cgSessionEventTap)
+    }
+
+    private func send(_ tap: HyperKey.Tap, flags: UInt64) {
+        switch tap {
+        case .capsLock:
+            mapping.async {
+                do {
+                    try Keyboards.toggleCapsLock()
+                } catch {
+                    log("hyperkey: \(error)")
+                }
+            }
+        case let .key(code):
+            CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue) {
+                for down in [true, false] {
+                    let event = CGEvent(keyboardEventSource: CGEventSource(stateID: .hidSystemState), virtualKey: CGKeyCode(code), keyDown: down)
+                    event?.flags = CGEventFlags(rawValue: flags)
+                    event?.setIntegerValueField(.eventSourceUserData, value: Self.ownTag)
+                    event?.post(tap: .cgSessionEventTap)
+                }
+            }
+            CFRunLoopWakeUp(runLoop)
+        }
+    }
+
+    private func modifier(_ event: CGEvent, _ flags: UInt64) -> Unmanaged<CGEvent> {
+        event.type = .flagsChanged
+        event.setIntegerValueField(.keyboardEventKeycode, value: Int64(kVK_Control))
+        event.flags = CGEventFlags(rawValue: flags)
+        return Unmanaged.passUnretained(event)
     }
 
     private func handle(_ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -184,8 +248,9 @@ final class HyperKeyTap {
         case .flagsChanged: .flagsChanged(code)
         default: nil
         }
-        guard let input, event.getIntegerValueField(.eventSourceUserData) != Self.releaseTag else { return Unmanaged.passUnretained(event) }
-        switch lock.withLock({ gate.decide(input, flags: event.flags.rawValue) }) {
+        guard let input, event.getIntegerValueField(.eventSourceUserData) != Self.ownTag else { return Unmanaged.passUnretained(event) }
+        let now = DispatchTime.now().uptimeNanoseconds
+        switch lock.withLock({ gate.decide(input, flags: event.flags.rawValue, at: now) }) {
         case .pass:
             return Unmanaged.passUnretained(event)
         case .drop:
@@ -194,10 +259,10 @@ final class HyperKeyTap {
             event.flags = CGEventFlags(rawValue: flags)
             return Unmanaged.passUnretained(event)
         case let .modifier(flags):
-            event.type = .flagsChanged
-            event.setIntegerValueField(.keyboardEventKeycode, value: Int64(kVK_Control))
-            event.flags = CGEventFlags(rawValue: flags)
-            return Unmanaged.passUnretained(event)
+            return modifier(event, flags)
+        case let .tap(flags, tap):
+            send(tap, flags: flags)
+            return modifier(event, flags)
         case .remap:
             mapping.async { [self] in
                 guard replaced != nil else { return }
@@ -226,7 +291,7 @@ enum Keyboards {
             try write(claimed.mappings, to: keyboard)
             replaced[id(of: keyboard)] = claimed.replaced
         }
-        try switchCapsLockOff()
+        try setCapsLock { _ in false }
         return replaced
     }
 
@@ -274,17 +339,22 @@ enum Keyboards {
         }
     }
 
-    private static func switchCapsLockOff() throws {
+    static func toggleCapsLock() throws {
+        try setCapsLock { !$0 }
+    }
+
+    private static func setCapsLock(_ change: (Bool) -> Bool) throws {
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching(kIOHIDSystemClass))
-        guard service != IO_OBJECT_NULL else { throw HostFailure("IOHIDSystem is missing, so Caps Lock could not be switched off") }
+        guard service != IO_OBJECT_NULL else { throw HostFailure("IOHIDSystem is missing, so Caps Lock could not be set") }
         defer { IOObjectRelease(service) }
         var connection: io_connect_t = IO_OBJECT_NULL
         guard IOServiceOpen(service, mach_task_self_, UInt32(kIOHIDParamConnectType), &connection) == KERN_SUCCESS else {
-            throw HostFailure("IOHIDSystem could not be opened, so Caps Lock could not be switched off")
+            throw HostFailure("IOHIDSystem could not be opened, so Caps Lock could not be set")
         }
         defer { IOServiceClose(connection) }
-        guard IOHIDSetModifierLockState(connection, Int32(kIOHIDCapsLockState), false) == KERN_SUCCESS else {
-            throw HostFailure("Caps Lock could not be switched off")
-        }
+        var locked = false
+        guard IOHIDGetModifierLockState(connection, Int32(kIOHIDCapsLockState), &locked) == KERN_SUCCESS,
+              IOHIDSetModifierLockState(connection, Int32(kIOHIDCapsLockState), change(locked)) == KERN_SUCCESS
+        else { throw HostFailure("Caps Lock could not be set") }
     }
 }

@@ -101,7 +101,7 @@ struct HotkeyListenerTests {
         #expect(bindings(of: "test.stream").isEmpty)
     }
 
-    @Test func `host hyperkey rejects options that are not A shift flag before it touches the keyboard`() async throws {
+    @Test func `host hyperkey rejects options that do not name A key or A shift flag before it touches the keyboard`() async throws {
         let harness = try Harness(widget("""
         onAction: function (options) {
           try {
@@ -115,7 +115,11 @@ struct HotkeyListenerTests {
         harness.runtime.perform(#"{"shift":"yes"}"#, .null)
         #expect(try await harness.text() == "host.hyperkey: options.shift must be true or false")
         harness.runtime.perform("true", .null)
-        #expect(try await harness.text() == "host.hyperkey: options must be an object such as { shift: true }")
+        #expect(try await harness.text() == #"host.hyperkey: options must be an object such as { key: "capsLock", shift: true }"#)
+        harness.runtime.perform(#"{"key":"caps"}"#, .null)
+        #expect(try await harness.text().hasPrefix("host.hyperkey: options.key must name a key: capsLock, leftCommand, rightCommand,"))
+        harness.runtime.perform(#"{"tap":"rightCommand"}"#, .null)
+        #expect(try await harness.text().hasPrefix("host.hyperkey: options.tap must name a key: capsLock, which toggles Caps Lock, or"))
         harness.runtime.stop()
     }
 }
