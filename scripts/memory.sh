@@ -326,7 +326,7 @@ quit() {
     while read -r child command; do
         [[ -n "$child" && "$(ps -o command= -p "$child" 2>/dev/null)" == "$command" ]] && kill -TERM "$child" 2>/dev/null || true
     done <<<"$children"
-    rm -rf "$(cat "$dir/tmpdir")" "$dir/home" "$dir/pid"
+    rm -rf "$(cat "$dir/tmpdir")" "${dir:?}/home" "$dir/pid"
 }
 
 run() {
@@ -335,7 +335,8 @@ run() {
     [[ "$round" == 0 ]] && settle=20 idle=0 reopen=0
     rm -rf "$dir"
     mkdir -p "$dir"
-    trap "quit '$dir'" EXIT
+    running="$dir"
+    trap 'quit "$running"' EXIT
     prepare "$dir/home" "$scenario" "$side"
     cp "$dir/home/.config/gary/shell.json" "$dir/shell.json"
     local environment=()

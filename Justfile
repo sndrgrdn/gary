@@ -37,6 +37,7 @@ format:
 lint:
     swiftformat --lint .
     swiftlint lint --quiet --strict
+    git ls-files -z '*.sh' | xargs -0 shellcheck
     npx oxlint --deny-warnings
     npx oxfmt --check
 
