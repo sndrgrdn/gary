@@ -279,7 +279,9 @@ final class SurfaceWindow {
         let look = theme.style("surface")
         let radius = spec.anchors == SurfaceSpec.all ? 0 : look.radius ?? 0
         content?.paint(
-            spec.background == .solid ? Card(look: look, radius: radius, border: theme.color("border")) : nil,
+            spec.background == .solid
+                ? Card(look: look, radius: radius, border: look.borderColor ?? theme.color("border"), borderWidth: look.border?.width ?? 1)
+                : nil,
             backdrop: spec.background == .backdrop,
         )
         panel.hasShadow = spec.background == .solid

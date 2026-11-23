@@ -30,8 +30,8 @@ final class AppDragTile {
         }
         card.layer?.backgroundColor = (background.map { NSColor($0) } ?? .windowBackgroundColor).cgColor
         card.layer?.cornerRadius = look?.radius ?? 12
-        card.layer?.borderWidth = 1
-        card.layer?.borderColor = theme?.color("border").map { NSColor($0).cgColor }
+        card.layer?.borderWidth = look?.border?.width ?? 1
+        card.layer?.borderColor = (look?.borderColor ?? theme?.color("border")).map { NSColor($0).cgColor }
 
         let icon = DraggableAppIcon()
         let label = NSTextField(wrappingLabelWithString: "Drag Gary into the \(permission.name) list in System Settings.")

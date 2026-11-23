@@ -79,6 +79,7 @@ struct Card: Equatable {
     var look: ResolvedStyle
     var radius: Double
     var border: RGBA?
+    var borderWidth: Double
 }
 
 struct Fit: Layout, Equatable {
@@ -331,7 +332,7 @@ private extension View {
             .clipShape(shape)
             .overlay {
                 if let border = card.border {
-                    shape.strokeBorder(Color(border), lineWidth: 1)
+                    shape.strokeBorder(Color(border), lineWidth: card.borderWidth)
                 }
             }
         } else {
