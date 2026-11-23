@@ -42,8 +42,8 @@ Agents are first-class here. The `gary` command clicks, types, hovers, and scrol
 Everything below is a plugin from [sndrgrdn/gary-plugins](https://github.com/sndrgrdn/gary-plugins), installable with one command.
 
 <p>
-  <img alt="A clipboard history menu with a link, a note, a color, and a file path, each with how long ago it was copied" src="docs/images/clipboard.png" height="220">
-  <img alt="A keyboard-driven capture menu with screenshot, record, text, QR code, and color entries" src="docs/images/menu.png" height="220">
+  <img alt="A launcher with &quot;mu&quot; typed, Music selected, and the Mouse and Menu Bar settings panes and Audio MIDI Setup below it" src="docs/images/launcher.png" height="200">
+  <img alt="A clipboard history menu with a link, a note, a color, and a file path, each with how long ago it was copied" src="docs/images/clipboard.png" height="200">
 </p>
 
 <p>
@@ -53,12 +53,13 @@ Everything below is a plugin from [sndrgrdn/gary-plugins](https://github.com/snd
 </p>
 
 <p>
+  <img alt="A keyboard-driven capture menu with screenshot, record, text, QR code, and color entries" src="docs/images/menu.png" height="150">
   <img alt="A now playing panel with album artwork, a seek bar, and playback controls" src="docs/images/now-playing.png" height="150">
   <img alt="A weather panel with the current temperature and a 12-hour forecast curve" src="docs/images/weather.png" height="150">
   <img alt="A focus timer panel with a countdown ring and Focus and Break buttons" src="docs/images/focus-timer.png" height="150">
 </p>
 
-There is more: Wi-Fi and Bluetooth panels, a fuzzy app launcher that also does calculations and conversions, a Hyper key, an on-screen display for volume and brightness, a drawer for other apps' menu bar icons, and the workspaces of the [dinky](https://github.com/mikker/dinky) window manager.
+There is more: Wi-Fi and Bluetooth panels, a calculator and currency converter in the launcher, a Hyper key, an on-screen display for volume and brightness, a drawer for other apps' menu bar icons, and the workspaces of the [dinky](https://github.com/mikker/dinky) window manager.
 
 ## Why Gary
 
