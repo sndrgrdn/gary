@@ -132,10 +132,12 @@ public struct ShellConfig: Equatable, Sendable {
         public var bar: [BarSection: [PluginID]]
         public var barPlugin: PluginID?
         public var warnings: [String]
+        public var notes: [String]
     }
 
     public func resolve(_ catalog: PluginCatalog) -> Resolution {
         var warnings: [String] = []
+        var notes: [String] = []
         let named = Set(bar.values.joined()).union(plugins)
         let enabledManifests = catalog.plugins.values.filter { bundle in
             let id = bundle.manifest.id
@@ -168,15 +170,18 @@ public struct ShellConfig: Equatable, Sendable {
         }
         for manifest in enabledManifests {
             for case let .plugin(source) in manifest.topics where !enabled.contains(source) {
-                let state = catalog.plugins[source] == nil ? "not installed" : "not enabled"
-                warnings.append("\(manifest.id) subscribes to \(source), which is \(state)")
+                if catalog.plugins[source] == nil {
+                    warnings.append("\(manifest.id) subscribes to \(source), which is not installed")
+                } else {
+                    notes.append("\(manifest.id) subscribes to \(source), which is not enabled")
+                }
             }
         }
         let bars = enabledManifests.filter { $0.kinds.contains(.bar) }.map(\.id)
         for id in bars.dropFirst() {
             warnings.append("\(id) is a bar too; \(bars[0]) replaces the built-in bar")
         }
-        return Resolution(enabled: enabled, bar: resolved, barPlugin: bars.first, warnings: warnings)
+        return Resolution(enabled: enabled, bar: resolved, barPlugin: bars.first, warnings: warnings, notes: notes)
     }
 }
 

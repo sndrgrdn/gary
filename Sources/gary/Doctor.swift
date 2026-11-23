@@ -179,12 +179,16 @@ struct Doctor {
                 info("no shell.json; using defaults")
                 return
             }
-            let warnings = config.warnings.map(\.description) + config.resolve(catalog).warnings.map { "shell.json: \($0)" }
+            let resolution = config.resolve(catalog)
+            let warnings = config.warnings.map(\.description) + resolution.warnings.map { "shell.json: \($0)" }
             if warnings.isEmpty {
                 ok("shell.json")
             }
             for warning in warnings {
                 fail(warning)
+            }
+            for note in resolution.notes {
+                info("shell.json: \(note)")
             }
         } catch {
             fail("shell.json: \(error)")

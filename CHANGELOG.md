@@ -20,6 +20,7 @@
 ### Fixes
 
 - A wide widget in `notchLeft`, such as a long track title, shrinks and truncates against the `left` section instead of pushing it off the left edge of the screen.
+- `gary doctor` lists a subscription to an installed plugin that is not enabled as a note, not a failure, since a plugin can read a companion plugin's topic only when it runs. A subscription to a plugin that is not installed still fails.
 - Gary runs on macOS 26 and later, down from 27.2.
 - `host.apps.installed()` lists Finder and the apps in `/System/Library/CoreServices/Applications`, such as Keychain Access and Archive Utility.
 - A `host.call` with an invalid plugin id rejects with `host.call: <id> is not a plugin id` instead of freezing every plugin on its engine.

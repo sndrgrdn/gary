@@ -106,16 +106,14 @@ struct ShellConfigTests {
         #expect(try config(#"{"plugins": ["acme.top", "acme.alt"], "disabledPlugins": ["acme.alt"]}"#).resolve(bars).barPlugin == id("acme.top"))
     }
 
-    @Test func `subscriptions to plugins that are missing or off are warnings`() throws {
+    @Test func `A subscription to A missing plugin is A warning and to A disabled one A note`() throws {
         let plugins = try catalog(
             [Entry("acme.counter", .user, [.service]), Entry("acme.view", .user, [.barWidget]), Entry("acme.off", .user, [.service])],
             subscribes: ["acme.view": [.capability("clock"), .plugin(id("acme.counter")), .plugin(id("acme.off")), .plugin(id("acme.ghost"))]],
         )
         let resolution = try config(#"{"bar": {"left": ["acme.view"]}, "plugins": ["acme.counter"]}"#).resolve(plugins)
-        #expect(resolution.warnings == [
-            "acme.view subscribes to acme.off, which is not enabled",
-            "acme.view subscribes to acme.ghost, which is not installed",
-        ])
+        #expect(resolution.warnings == ["acme.view subscribes to acme.ghost, which is not installed"])
+        #expect(resolution.notes == ["acme.view subscribes to acme.off, which is not enabled"])
     }
 
     @Test func `settings are kept per plugin`() throws {
