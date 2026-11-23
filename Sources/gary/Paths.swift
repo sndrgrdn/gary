@@ -17,4 +17,5 @@ enum Paths {
     static let systemRestore = storage.deletingLastPathComponent().appending(path: "restore.json")
     static let onboarding = storage.deletingLastPathComponent().appending(path: "onboarding.json")
     static let reopen = storage.deletingLastPathComponent().appending(path: "reopen.json")
+    static let transpiled = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appending(path: "Gary/transpiled")
 }

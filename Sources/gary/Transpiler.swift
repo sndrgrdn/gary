@@ -1,18 +1,23 @@
+import CryptoKit
 import Foundation
 import GaryCore
 import JavaScriptCore
 
 final class Transpiler {
-    static let shared = Transpiler(sucrase: Paths.sucrase)
+    static let shared = Transpiler(sucrase: Paths.sucrase, cache: Paths.transpiled)
     static let idle: TimeInterval = 30
 
     private let sucrase: URL
+    private let cache: URL
+    private let version: Data
     private let lock = NSLock()
     private var loaded: (context: JSContext, transform: JSValue)?
     private var release: DispatchWorkItem?
 
-    init(sucrase: URL) {
+    init(sucrase: URL, cache: URL) {
         self.sucrase = sucrase
+        self.cache = cache
+        version = Data(SHA256.hash(data: (try? Data(contentsOf: sucrase)) ?? Data()))
     }
 
     func modules(of bundle: PluginBundle, from entry: String) throws -> [PluginModule] {
@@ -38,7 +43,19 @@ final class Transpiler {
 
     private func compile(_ source: String, path: String) throws -> String {
         guard let language = ScriptLanguage(path: path) else { throw RenderError("\(path) is not a script") }
-        return try lock.withLock {
+        let key = SHA256.hash(data: version + Data((language.transforms.joined(separator: ",") + "\n" + source).utf8))
+        let cached = cache.appending(path: key.map { String(format: "%02x", $0) }.joined() + ".js")
+        if let code = try? String(contentsOf: cached, encoding: .utf8) {
+            return code
+        }
+        let code = try transpile(source, path: path, language: language)
+        try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+        try? Data(code.utf8).write(to: cached, options: .atomic)
+        return code
+    }
+
+    private func transpile(_ source: String, path: String, language: ScriptLanguage) throws -> String {
+        try lock.withLock {
             let started = now()
             let warm = loaded != nil
             let (context, transform) = try loaded ?? load()
