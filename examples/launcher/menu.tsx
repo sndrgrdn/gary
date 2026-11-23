@@ -38,7 +38,7 @@ export default {
     const { spacing } = state.theme;
 
     return (
-      <column key="card" width={width} style="surface" padding={spacing.item} gap={4}>
+      <column key="card" width={width} style="picker" padding={spacing.item} gap={4}>
         <input
           key="query"
           value={query}
@@ -53,7 +53,7 @@ export default {
             key={app.path}
             action={`pick:${index}`}
             hoverAction={`hover:${index}`}
-            style={index === selected ? "selected" : undefined}
+            style={index === selected ? "highlight" : undefined}
             gap={spacing.item}
             padding={[4, spacing.item]}
           >

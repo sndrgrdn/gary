@@ -60,10 +60,10 @@ extension Skill {
     export default {
       surface: { anchors: { top: true, bottom: true, left: true, right: true }, exclusionMode: "ignore", background: "backdrop" },
       render: () => (
-        <column key="card" width={480} style="surface" padding={8}>
+        <column key="card" width={480} style="picker" padding={8}>
           <input key="query" value={query} placeholder="Search" change="filter" submit="open" />
           {shown().map((item, index) => (
-            <row key={item} action={`pick:${item}`} hoverAction={`hover:${index}`} style={index === selected ? "selected" : undefined}>
+            <row key={item} action={`pick:${item}`} hoverAction={`hover:${index}`} style={index === selected ? "highlight" : undefined}>
               <text>{item}</text>
             </row>
           ))}

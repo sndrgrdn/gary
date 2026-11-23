@@ -3,17 +3,18 @@
     "background": "background",
     "foreground": "foreground",
     "accent": "accent",
-    "dim": ["dark_foreground", "mix(foreground, background, 0.45)"],
+    "dim": "mix(foreground, background, 0.35)",
     "bright": ["bright_foreground", "mix(foreground, contrast(background), 0.4)"],
     "good": ["green", "color2", "#4c9a52"],
     "bad": ["red", "color1", "#d9534f"],
-    "panel": ["lighter_background", "mix(background, foreground, 0.06)"],
+    "panel": "background",
     "border": "alpha(foreground, 0.12)",
     "secondary": "mix(foreground, background, 0.3)",
-    "control": "alpha(foreground, 0.1)",
+    "control": "alpha(foreground, 0.04)",
     "on-accent": "contrast(accent)",
-    "hover": "alpha(foreground, 0.1)",
-    "selected": "alpha(accent, 0.25)",
+    "hover": "alpha(foreground, 0.08)",
+    "selected": "alpha(foreground, 0.18)",
+    "scrim": "alpha(background, 0.5)",
     "bar": "background"
   },
   "fonts": {
@@ -41,31 +42,51 @@
     "bright": { "color": "bright" },
     "good": { "color": "good" },
     "bad": { "color": "bad" },
-    "title": { "color": "bright", "font": "title" },
+    "title": { "color": "foreground", "font": "title" },
     "mono": { "font": "mono" },
     "panel": { "background": "panel", "radius": "surface", "padding": 16 },
-    "surface": { "background": "panel", "radius": "surface" },
-    "tooltip": {
+    "surface": {
       "background": "panel",
+      "radius": "surface",
+      "border": { "color": "accent", "width": 2 }
+    },
+    "picker": {
+      "background": "background",
+      "radius": "surface",
+      "border": { "color": "foreground", "width": 2 }
+    },
+    "tooltip": {
+      "background": "alpha(background, 0.97)",
       "radius": "control",
       "padding": [5, 8],
       "fontSize": 11,
-      "border": { "color": "border" }
+      "border": { "color": "foreground" }
     },
     "toast": {
       "background": "panel",
       "radius": "surface",
       "padding": [12, 16],
       "width": 340,
-      "border": { "color": "border" }
+      "border": { "color": "accent", "width": 2 }
     },
-    "toast-title": { "color": "bright", "font": "strong" },
+    "toast-title": { "color": "foreground", "font": "strong" },
     "toast-body": { "color": "secondary" },
     "toast-icon": { "color": "accent", "fontSize": 20 },
     "hover": { "background": "hover", "radius": "control" },
-    "selected": { "color": "bright", "background": "selected", "radius": "control" },
-    "button": { "background": "control", "radius": "control", "padding": [4, 12] },
-    "button-hover": { "background": "alpha(foreground, 0.18)" },
+    "selected": {
+      "color": "foreground",
+      "font": "strong",
+      "background": "selected",
+      "radius": "control"
+    },
+    "highlight": { "color": "accent", "background": "hover", "radius": "control" },
+    "button": {
+      "background": "control",
+      "radius": "control",
+      "padding": [4, 12],
+      "border": { "color": "alpha(foreground, 0.4)" }
+    },
+    "button-hover": { "background": "hover", "border": { "color": "alpha(foreground, 0.25)" } },
     "primary": {
       "color": "on-accent",
       "background": "accent",

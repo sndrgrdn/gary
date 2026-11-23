@@ -51,11 +51,10 @@ struct ThemeTests {
         }
         #expect(try contrast(#require(colors["dim"]), background) < contrast(foreground, background))
         #expect(try contrast(#require(colors["bright"]), background) > contrast(foreground, background))
-        let panel = try #require(colors["panel"])
-        #expect(panel.alpha == 1)
-        #expect(contrast(panel, background) > 1 && contrast(panel, background) < 1.5)
-        #expect(colors["selected"] == RGBA(red: accent.red, green: accent.green, blue: accent.blue, alpha: 0.25))
-        #expect(colors["hover"] == RGBA(red: foreground.red, green: foreground.green, blue: foreground.blue, alpha: 0.1))
+        #expect(colors["panel"] == background)
+        #expect(colors["selected"] == RGBA(red: foreground.red, green: foreground.green, blue: foreground.blue, alpha: 0.18))
+        #expect(colors["hover"] == RGBA(red: foreground.red, green: foreground.green, blue: foreground.blue, alpha: 0.08))
+        #expect(colors["scrim"] == RGBA(red: background.red, green: background.green, blue: background.blue, alpha: 0.5))
     }
 
     @Test(arguments: [Palette.Mode.light, .dark])
@@ -71,7 +70,7 @@ struct ThemeTests {
         #expect(try contrast(#require(theme.colors["dim"]), theme.bar.background) >= 2.5)
     }
 
-    @Test func `the palette keys the theme names win over its mixes`() throws {
+    @Test func `the palette keys the theme names win over its mixes, but dim and panel ignore Omarchy's gradient stops`() throws {
         let theme = try theme(palette: """
         background = "#101315"
         foreground = "#cacccc"
@@ -84,9 +83,9 @@ struct ThemeTests {
         color1 = "#565d60"
         color2 = "#9fa5a9"
         """)
-        #expect(theme.colors["dim"] == RGBA(hex: "#4b4e55"))
+        #expect(theme.colors["dim"] == theme.resolve(nil, StyleProps(color: "mix(foreground, background, 0.35)")).color)
         #expect(theme.colors["bright"] == RGBA(hex: "#a5aeb4"))
-        #expect(theme.colors["panel"] == RGBA(hex: "#1a1d20"))
+        #expect(theme.colors["panel"] == RGBA(hex: "#101315"))
         #expect(theme.colors["good"] == RGBA(hex: "#9fa5a9"))
         #expect(theme.colors["bad"] == RGBA(hex: "#de6145"))
     }
@@ -130,14 +129,14 @@ struct ThemeTests {
             alpha: 0.5,
         )))
         #expect(theme.resolve(nil, StyleProps(color: "accent")).color == RGBA(hex: "#ff0000"))
-        #expect(theme.colors["selected"] == RGBA(red: 1, green: 0, blue: 0, alpha: 0.25))
+        #expect(theme.style("highlight").color == RGBA(hex: "#ff0000"))
         #expect(theme.resolve(nil, StyleProps(color: "no-such-color")).color == theme.style("default").color)
     }
 
     @Test func `an override colour that does not resolve falls back to the bundled one`() throws {
         let override = #"{"colors": {"dim": "purple", "warn": "orange"}}"#
         let without = try theme(override)
-        #expect(without.colors["dim"] == RGBA(hex: "#565f89"))
+        #expect(try without.colors["dim"] == theme().colors["dim"])
         #expect(without.colors["warn"] == nil)
         #expect(without.warnings == ["colors.warn: no colour resolves with this palette"])
         let with = try theme(override, palette: "purple = \"#9d7cd8\"\norange = \"#ff9e64\"")
@@ -158,7 +157,7 @@ struct ThemeTests {
     @Test func `plugins get the mode the resolved colours the raw palette the spacing and the radius`() throws {
         let json = try theme(palette: "background = \"#fafafa\"\nforeground = \"#333333\"\naccent = \"#3060c0\"\nicon_mark = \"#8839ef\"").json
         #expect(json["mode"] == .string("light"))
-        #expect(json["colors"]?["selected"] == .string("#3060c040"))
+        #expect(json["colors"]?["selected"] == .string("#3333332e"))
         #expect(json["colors"]?["bar"] == .string("#fafafa"))
         #expect(json["palette"] == .object([
             "background": .string("#fafafa"),
@@ -188,7 +187,7 @@ struct ThemeTests {
     @Test func `styles inherit what they leave out from default`() throws {
         let theme = try theme()
         #expect(theme.style("dim").font == theme.style("default").font)
-        #expect(theme.style("dim").color == RGBA(hex: "#565f89"))
+        #expect(theme.style("dim").color == theme.colors["dim"])
     }
 
     @Test func `unknown and missing style names fall back to default`() throws {
@@ -227,7 +226,7 @@ struct ThemeTests {
             red: 0xA9 / 255,
             green: 0xB1 / 255,
             blue: 0xD6 / 255,
-            alpha: 0.1,
+            alpha: 0.08,
         )))
         #expect(theme.resolve(nil, StyleProps(color: "no-such-color")).color == theme.style("default").color)
         #expect(theme.motion.fade == 0.15)

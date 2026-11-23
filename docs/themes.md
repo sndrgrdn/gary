@@ -52,11 +52,11 @@ A theme color maps to a color expression. An expression is a palette or theme co
 | `alpha(a, 0.4)`  | `a` at 40% opacity.                            |
 | `contrast(a)`    | Black or white, whichever reads better on `a`. |
 
-A list, such as `["dark_foreground", "mix(foreground, background, 0.45)"]`, uses the first entry that resolves with the palette. The built-in theme defines `background`, `foreground`, `accent`, `dim`, `bright`, `good`, `bad`, `panel`, `border`, `secondary`, `control`, `on-accent`, `hover`, `selected`, and `bar`, the bar's background.
+A list, such as `["bright_foreground", "mix(foreground, contrast(background), 0.4)"]`, uses the first entry that resolves with the palette. The built-in theme defines `background`, `foreground`, `accent`, `dim`, `bright`, `good`, `bad`, `panel`, `border`, `secondary`, `control`, `on-accent`, `hover`, `selected`, `scrim`, which dims the screen behind a picker, and `bar`, the bar's background.
 
 ### Styles
 
-A style is a set of node style properties, such as `{ "color": "dim", "font": "mono" }`. A node names it with `style`. The built-in theme has styles for text, such as `dim`, `bright`, `title`, and `mono`, and for controls, such as `button`, `primary`, `hover`, and `selected`. Some styles paint what Gary draws itself:
+A style is a set of node style properties, such as `{ "color": "dim", "font": "mono" }`. A node names it with `style`. The built-in theme has styles for text, such as `dim`, `bright`, `title`, and `mono`, and for controls, such as `button`, `primary`, and `hover`. `selected` marks the current item, such as the output that plays. `highlight` marks the row that the keyboard or pointer is on in a picker, and `picker` paints the picker's card. Some styles paint what Gary draws itself:
 
 - `surface` paints every panel, overlay, and menu whose `background` is `"solid"`, the default.
 - `tooltip` paints node tooltips.
