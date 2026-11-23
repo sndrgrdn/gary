@@ -50,7 +50,7 @@ Use `gary tree` to check layout and colors exactly, instead of measuring a scree
 | `inactive`         | A bar that another enabled bar replaces.                                       |
 | `disabled`         | The plugin is not enabled in `shell.json`.                                     |
 | `failed(reason)`   | The kind failed to load or run.                                                |
-| `disabled(reason)` | The kind failed 5 times in 60 seconds. Gary tries again when its files change. |
+| `disabled(reason)` | The kind failed 6 times in 60 seconds. Gary tries again when its files change. |
 
 A kind with several surfaces shows a state per surface, such as `panel:main=shown,osd=hidden`.
 

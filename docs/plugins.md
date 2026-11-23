@@ -75,7 +75,7 @@ Each kind runs in its own context, so kinds share no variables. They share the m
 
 Enabled bar widgets, bars, and services load when Gary starts. A panel, overlay, or menu loads when it is first shown, and stops when its last surface hides, unless the manifest sets `keepLoaded`. A call, hotkey, or media key loads a hidden one, and Gary stops it a minute after the last one.
 
-Saving `manifest.json`, a `.ts`, `.tsx`, `.js`, or `.metal` file in the plugin folder reloads the plugin. A reload starts the module again from the top. A call that runs longer than 100 ms of CPU time stops the plugin. A stopped bar widget, bar, or service restarts after 1 second, and a stopped surface loads again when it is next shown. After 5 failures in 60 seconds, Gary disables the plugin until its files change.
+Saving `manifest.json`, a `.ts`, `.tsx`, `.js`, or `.metal` file in the plugin folder reloads the plugin. A reload starts the module again from the top. A call that runs longer than 100 ms of CPU time stops the plugin. A stopped bar widget, bar, or service restarts after 1 second, and a stopped surface loads again when it is next shown. After 6 failures in 60 seconds, Gary disables the plugin until its files change.
 
 ## Write entry files
 
