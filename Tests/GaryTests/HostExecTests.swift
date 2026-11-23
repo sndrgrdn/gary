@@ -13,7 +13,7 @@ struct HostExecTests {
             count = e.message;
           }
         },
-        """))
+        """), uses: ["exec"])
         #expect(try await harness.text() == "0")
         harness.runtime.perform("echo", .null)
         #expect(try await harness.text() == "3 out err")
@@ -27,7 +27,7 @@ struct HostExecTests {
         onAction: function () {
           host.exec(["/bin/sh", "-c", "sleep 100 & echo $!"]).then(function (r) { count = r.status + " " + r.stdout.trim(); });
         },
-        """))
+        """), uses: ["exec"])
         #expect(try await harness.text() == "0")
         harness.runtime.perform("run", .null)
         let text = try await harness.text()
@@ -43,7 +43,7 @@ struct HostExecTests {
         onAction: function () {
           host.exec(["/bin/sh", "-c", "echo $$ > \(pidFile); exec sleep 100"]);
         },
-        """))
+        """), uses: ["exec"])
         #expect(try await harness.text() == "0")
         harness.runtime.perform("run", .null)
         let pid = try await processID(in: pidFile)
@@ -58,7 +58,7 @@ struct HostExecTests {
           host.exec(["/usr/bin/touch", "\(file)"]);
           throw new Error("failed after exec");
         },
-        """))
+        """), uses: ["exec"])
         #expect(try await harness.text() == "0")
         harness.runtime.perform("run", .null)
         try await Task.sleep(for: .milliseconds(300))

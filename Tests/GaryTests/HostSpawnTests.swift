@@ -19,7 +19,7 @@ struct HostSpawnTests {
           host.spawn(["/bin/sh", "-c", command], function (line) { lines.push(line); })
             .exited.then(function (r) { count = lines.join(",") + " " + r.status + " " + r.stderr.trim(); });
         },
-        """))
+        """), uses: ["exec"])
         #expect(try await harness.text() == "0")
         harness.runtime.perform("run", .null)
         #expect(try await settled(harness) == "one,two,three,four 2 err")
@@ -39,7 +39,7 @@ struct HostSpawnTests {
           var spawned = host.spawn(["/bin/sh", "-c", "echo ready; exec sleep 100"], function () { spawned.stop(); });
           spawned.exited.then(function (r) { count = "stopped " + r.status; });
         },
-        """))
+        """), uses: ["exec"])
         #expect(try await harness.text() == "0")
         harness.runtime.perform("early", .null)
         #expect(try await settled(harness) == "early -1")
@@ -59,7 +59,7 @@ struct HostSpawnTests {
         onAction: function () {
           host.spawn(["/bin/sh", "-c", "echo $$ > \(pidFile); exec sleep 100"], function () {});
         },
-        """))
+        """), uses: ["exec"])
         #expect(try await harness.text() == "0")
         harness.runtime.perform("run", .null)
         let pid = try await processID(in: pidFile)
@@ -76,7 +76,7 @@ struct HostSpawnTests {
             count = e.message;
           }
         },
-        """))
+        """), uses: ["exec"])
         #expect(try await harness.text() == "0")
         harness.runtime.perform("empty", .null)
         #expect(try await harness.text() == "host.spawn: argv must not be empty")
@@ -105,7 +105,7 @@ struct HostSpawnTests {
           },
           render: () => ({ type: "text", text }),
         };
-        """)
+        """, uses: ["exec"])
         #expect(try await harness.text() == "0")
         harness.runtime.perform("ok", .null)
         #expect(try await settled(harness) == "a,b")

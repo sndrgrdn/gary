@@ -6,7 +6,7 @@ import Testing
 
 struct PowerTests {
     @Test func `host power offers each action its types declare`() async throws {
-        let harness = try Harness(widget(setup: "count = Object.keys(host.power).sort().join(\",\");"))
+        let harness = try Harness(widget(setup: "count = Object.keys(host.power).sort().join(\",\");"), uses: ["power"])
         #expect(try await harness.text() == "lock,logOut,restart,shutDown,sleep,stayAwake")
         let declared = Capability.power.types.firstMatch(of: #/power: \{([^}]*)\}/#).map { String($0.1) } ?? ""
         #expect(declared.matches(of: #/(\w+)\(/#).map { String($0.1) }.sorted() == ["lock", "logOut", "restart", "shutDown", "sleep", "stayAwake"])
@@ -26,6 +26,7 @@ struct PowerTests {
         let harness = try Harness(
             widget("onAction: function (mode) { try { host.power.stayAwake(mode); count = mode; } catch (e) { count = e.message; } },"),
             id: "test.awake",
+            uses: ["power"],
         )
         #expect(try await harness.text() == "0")
         harness.runtime.perform("display", .null)
