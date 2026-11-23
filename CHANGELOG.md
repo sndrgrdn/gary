@@ -11,6 +11,11 @@
 
 - Gary runs on macOS 26 and later, down from 27.2.
 - `host.apps.installed()` lists Finder and the apps in `/System/Library/CoreServices/Applications`, such as Keychain Access and Archive Utility.
+- A `host.call` with an invalid plugin id rejects with `host.call: <id> is not a plugin id` instead of freezing every plugin on its engine.
+- A `host.call` to a kind that doesn't exist, such as `pannel`, rejects and lists the kinds instead of running in another kind.
+- A `gary call` or `host.call` whose plugin stops before it replies fails at once instead of after 60 seconds.
+- `host.storage` keeps the writes of a plugin's bar widget, panel, and other kinds, and each kind reads the values the others wrote.
+- A node keeps its children's state, such as the text in an input, when its `colorScheme`, `clip`, or `vibrant` material comes or goes.
 
 ## 0.4.0
 
