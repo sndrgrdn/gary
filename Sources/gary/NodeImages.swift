@@ -10,6 +10,7 @@ private nonisolated(unsafe) let images: NSCache<NSString, Bitmap> = {
 
 private let decoder = DispatchQueue(label: "gary.images", qos: .userInitiated)
 private let decodeAtOnceLimit = 32 << 10
+private let keptAfterHiding = 60.0
 
 struct ImageNode: View {
     let path: String
@@ -33,6 +34,10 @@ struct ImageNode: View {
         .task(id: key) {
             guard cached(key) == nil, let image = await decode(path, pixels, fit, key as String)?.image() else { return }
             withAnimation(shown.wrappedValue == nil ? arrival : nil) { shown.wrappedValue = image }
+        }
+        .onDisappear {
+            let image = cached(key) ?? shown.wrappedValue
+            DispatchQueue.main.asyncAfter(deadline: .now() + keptAfterHiding) { _ = image }
         }
     }
 }
