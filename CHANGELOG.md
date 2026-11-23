@@ -26,6 +26,7 @@
 - A node with a `hovered` or `pressed` style, or a button, keeps its children's state when hovering or pressing it adds or removes a shadow.
 - The manifest schema accepts the hotkeys Gary loads, such as `f13`, and rejects the ones it refuses, such as `shift+a`.
 - The Full Disk Access drag tile follows the theme's mode, colors, and spacing from launch.
+- `gary doctor` checks the theme in the Mac's current appearance instead of always in dark mode, and names the mode it checked.
 
 ## 0.4.0
 
