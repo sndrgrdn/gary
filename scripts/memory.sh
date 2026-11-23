@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 usage="usage: scripts/memory.sh [floor | all | gate | images | plugins | plugin:<id> | without | without:<id> | effect | growth | attribution | timeline] ...
-Runs a private Gary from \$APP (default build/Gary.app) per scenario, each with its own home, config, lock, and socket,
+Runs a private Gary from a copy of \$APP (default build/Gary.app), re-signed to load the probe library, per scenario, each with its own home, config, lock, and socket,
 with windows invisible and hotkeys, event taps, keyboard mapping, menu bar, dock, wallpaper, and notifications stubbed,
 weather answered from one cached open-meteo response, and ~/Library/Caches shared by the runs of one side after a short warm-up run,
 and writes the tables to \$OUT/report.md.
@@ -109,7 +109,15 @@ login_path="$("$(dscl . -read "$HOME" UserShell | awk '{print $2}')" -l -c 'exec
 for side in "${sides[@]}"; do
     app="APP_$side"
     [[ -n "${!app:-}" || "$side" == main ]] || { echo "side $side has no APP_$side" >&2 && exit 64; }
-    rm -rf "$build/packages-$side" "$build/caches-$side"
+    rm -rf "$build/packages-$side" "$build/caches-$side" "$build/$side.app" "$build/$side.entitlements"
+    /bin/cp -cR "${!app:-${APP:-build/Gary.app}}" "$build/$side.app"
+    codesign -d --entitlements - --xml "$build/$side.app" >"$build/$side.entitlements" 2>/dev/null
+    [[ -s "$build/$side.entitlements" ]] || plutil -create xml1 "$build/$side.entitlements"
+    for entitlement in allow-dyld-environment-variables disable-library-validation; do
+        /usr/libexec/PlistBuddy -c "Add :com.apple.security.cs.$entitlement bool true" "$build/$side.entitlements"
+    done
+    codesign --force --options runtime --entitlements "$build/$side.entitlements" \
+        --sign "$(codesign -dvv "$build/$side.app" 2>&1 | sed -n 's/^Authority=//p' | head -1)" "$build/$side.app" 2>/dev/null
     mkdir -p "$build/caches-$side"
     /bin/cp -cR "$support/packages" "$build/packages-$side"
     plugins="PLUGINS_$side"
@@ -301,12 +309,12 @@ cycle() {
 }
 
 launch() {
-    local dir="$1" side="$2" tmpdir app="APP_$2" extra="ENV_$2"
+    local dir="$1" side="$2" tmpdir app extra="ENV_$2"
     shift 2
     tmpdir="$(mktemp -d /tmp/gary-memory.XXXXXX)"
     echo "$tmpdir" >"$dir/tmpdir"
     read -r -a extra <<<"${!extra:-}"
-    app="$(cd "${!app:-${APP:-build/Gary.app}}" && pwd)"
+    app="$build/$side.app"
     env CFFIXED_USER_HOME="$dir/home" HOME="$dir/home" GARY_PROBE_TMPDIR="$tmpdir/" GARY_PROBE_DIR="$dir" GARY_PROBE_FETCH_CACHE="$build/fetch" \
         DYLD_INSERT_LIBRARIES="$build/probe.dylib" "${extra[@]}" "$@" "$app/Contents/MacOS/gary" app >"$dir/gary.log" 2>&1 &
     echo $! >"$dir/pid"

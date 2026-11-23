@@ -39,6 +39,6 @@ ln -s Versions/Current/MediaRemoteAdapter "$ADAPTER/MediaRemoteAdapter"
 ln -s Versions/Current/Resources "$ADAPTER/Resources"
 cp Vendor/mediaremote-adapter/bin/mediaremote-adapter.pl Vendor/mediaremote-adapter/LICENSE "$APP/Contents/Resources/mediaremote-adapter/"
 
-codesign --force --sign "$IDENTITY" "$ADAPTER"
-codesign --force --sign "$IDENTITY" "$APP"
+codesign --force --options runtime --sign "$IDENTITY" "$ADAPTER"
+codesign --force --options runtime --sign "$IDENTITY" "$APP"
 echo "built $APP ($CONFIG, $VERSION build $BUILD)"
