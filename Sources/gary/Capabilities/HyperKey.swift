@@ -46,7 +46,7 @@ private nonisolated func options(_ call: HostCall) throws -> HyperKey.Options {
     let key = options["key"] ?? .null
     let shift = options["shift"] ?? .null
     let tap = options["tap"] ?? .null
-    let keys = "a hotkey key name, such as a, 1, ;, return, space, tab, escape, delete, left, or f1 to f20"
+    let keys = "a hotkey key name, such as a, 1, ;, return, space, tab, escape, backspace, left, or f1 to f20"
     guard let trigger = key == .null ? HyperKey.Trigger.capsLock : key.string.flatMap(HyperKey.Trigger.init(named:)) else {
         throw call.fail("options.key must name a key: capsLock, \(HyperKey.Trigger.sides.map(\.name).joined(separator: ", ")), or \(keys)")
     }
