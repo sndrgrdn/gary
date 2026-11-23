@@ -4,8 +4,7 @@ import GaryCore
 import Testing
 
 struct AppsTests {
-    @Test func `installed apps come from each folder to its subfolder depth and from named app bundles, with ids from binary and XML plists`(
-    ) throws {
+    @Test func `installed apps come from folders to their subfolder depth and from named bundles, with ids from binary and XML plists`() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: "gary-apps-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
         func app(_ path: String, id: String?, format: PropertyListSerialization.PropertyListFormat = .binary) throws {
