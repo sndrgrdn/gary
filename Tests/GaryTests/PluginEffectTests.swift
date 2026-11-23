@@ -55,6 +55,16 @@ struct PluginEffectTests {
         second.runtime.stop()
     }
 
+    @Test func `a plugin keeps rendering and its fibers keep running after its engine drops compiled code`() async throws {
+        let engine = PluginEngine(effect: vendor.appending(path: "effect.js"))
+        let harness = try ticker("test.dropped", engine: engine)
+        try await count(harness, reaches: 1)
+        engine.dropCode()
+        let ticks = try await Int(harness.text()) ?? 0
+        try await count(harness, reaches: ticks + 10)
+        harness.runtime.stop()
+    }
+
     @Test func `a plugin that does not import gary:effect never loads it`() async throws {
         let engine = PluginEngine(effect: URL(fileURLWithPath: "/nonexistent/effect.js"))
         let plain = try Harness(widget(), id: "test.plain", engine: engine)
