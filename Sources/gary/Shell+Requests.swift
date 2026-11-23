@@ -66,6 +66,18 @@ extension Shell {
             reply(.ok(permissionReport(enabled: enabledManifests)))
         case let .requestPermission(permission):
             reply(.ok(permission.request()))
+        case let .call(id, method, arguments):
+            call(id, nil, method, arguments) { response in
+                guard case let .ok(text) = response, case let .string(string)? = try? JSON.parse(text) else { return reply(response) }
+                reply(.ok(string))
+            }
+        case .action, .key, .scroll, .hover, .click, .tree, .capture:
+            drive(request, reply)
+        }
+    }
+
+    private func drive(_ request: Request, _ reply: @escaping (Response) -> Void) {
+        switch request {
         case let .action(id, kind, action, payload):
             reply(click(action, payload, on: SlotKey(id: id, kind: kind)))
         case let .key(id, kind, keys):
@@ -78,11 +90,10 @@ extension Shell {
             reply(click(at: point, on: SlotKey(id: id, kind: kind)))
         case let .tree(id, kind):
             outline(SlotKey(id: id, kind: kind), reply)
-        case let .call(id, method, arguments):
-            call(id, nil, method, arguments) { response in
-                guard case let .ok(text) = response, case let .string(string)? = try? JSON.parse(text) else { return reply(response) }
-                reply(.ok(string))
-            }
+        case let .capture(id, kind, path):
+            reply(capture(SlotKey(id: id, kind: kind), to: path))
+        default:
+            reply(.failure("\(request.verb) does not drive a surface"))
         }
     }
 
@@ -164,7 +175,9 @@ extension Shell {
     private func click(at point: CGPoint, on key: SlotKey) -> Response {
         guard let host = mounted(key).first, let window = host.window else { return .failure("\(key) is not shown") }
         guard host.bounds.contains(point) else {
-            return .failure("\(key) is \(Int(host.bounds.width)) by \(Int(host.bounds.height)) points, so \(Int(point.x)),\(Int(point.y)) is outside it")
+            return .failure(
+                "\(key) is \(Int(host.bounds.width)) by \(Int(host.bounds.height)) points, so \(Int(point.x)),\(Int(point.y)) is outside it",
+            )
         }
         let location = host.convert(point, to: nil)
         for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
@@ -178,13 +191,29 @@ extension Shell {
     }
 
     private func outline(_ key: SlotKey, _ reply: @escaping (Response) -> Void) {
-        guard let tree = mounted(key).first?.tree else { return reply(.failure("\(key) is not shown")) }
+        guard let tree = mounted(key).first?.tree else {
+            reply(.failure("\(key) is not shown"))
+            return
+        }
         let recorder = FrameRecorder()
         tree.inspection = recorder
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             tree.inspection = nil
             reply(.ok(tree.root.outline(recorder.entries).joined(separator: "\n")))
         }
+    }
+
+    private func capture(_ key: SlotKey, to path: String) -> Response {
+        guard let host = mounted(key).first else { return .failure("\(key) is not shown") }
+        guard let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return .failure("\(key) has nothing to draw") }
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        guard let png = bitmap.representation(using: .png, properties: [:]) else { return .failure("could not encode \(key) as PNG") }
+        do {
+            try png.write(to: URL(fileURLWithPath: path))
+        } catch {
+            return .failure("could not write \(path): \(error.localizedDescription)")
+        }
+        return .ok("wrote \(path), \(bitmap.pixelsWide)x\(bitmap.pixelsHigh) pixels for \(Int(host.bounds.width))x\(Int(host.bounds.height)) points")
     }
 
     private func mounted(_ key: SlotKey) -> [TreeHostingView] {

@@ -7,7 +7,6 @@ final class FrameRecorder {
         let look: ResolvedStyle
     }
 
-    static let space = "gary.tree"
     var entries: [String: Entry] = [:]
 }
 
@@ -30,17 +29,27 @@ struct FrameProbe: View {
     var body: some View {
         GeometryReader { proxy in
             Color.clear.onAppear {
-                recorder?.entries[path] = FrameRecorder.Entry(frame: proxy.frame(in: .named(FrameRecorder.space)), look: look)
+                recorder?.entries[path] = FrameRecorder.Entry(frame: proxy.frame(in: .global), look: look)
             }
         }
     }
 }
 
-extension Node.ChildID {
-    var label: String {
-        switch self {
-        case let .key(key): key
-        case let .position(position): "#\(position)"
+extension View {
+    func probed(_ path: String?, _ look: ResolvedStyle) -> some View {
+        background {
+            if let path {
+                FrameProbe(path: path, look: look)
+            }
+        }
+    }
+}
+
+extension String {
+    func child(_ id: Node.ChildID) -> String {
+        switch id {
+        case let .key(key): "\(self)/\(key)"
+        case let .position(position): "\(self)/#\(position)"
         }
     }
 }
@@ -50,7 +59,7 @@ extension Node {
         let name = key.map { "\(kind.rawValue) \($0)" } ?? kind.rawValue
         let line = [String(repeating: "  ", count: depth) + name, quoted, entries[path].map(Self.describe)].compactMap(\.self)
         return [line.joined(separator: " ")] + zip(childIDs, children).flatMap { id, child in
-            child.outline(entries, path: "\(path)/\(id.label)", depth: depth + 1)
+            child.outline(entries, path: path.child(id), depth: depth + 1)
         }
     }
 

@@ -166,7 +166,7 @@ struct GridNode: View {
         Grid(alignment: Alignment(horizontal: HorizontalAlignment(align), vertical: .center), horizontalSpacing: gap, verticalSpacing: gap) {
             ForEach(rows.indices, id: \.self) { row in
                 GridRow {
-                    ForEach(rows[row], id: \.0) { id, child in NodeView(node: child, theme: theme, path: path.map { "\($0)/\(id.label)" }) }
+                    ForEach(rows[row], id: \.0) { id, child in NodeView(node: child, theme: theme, path: path?.child(id)) }
                 }
             }
         }

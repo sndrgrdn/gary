@@ -25,105 +25,7 @@ public enum Request: Equatable, Sendable {
     case hover(PluginID, kind: PluginKind, action: String, entering: Bool)
     case click(PluginID, kind: PluginKind, at: CGPoint)
     case tree(PluginID, kind: PluginKind)
-
-    public static let usage: [CommandUsage] = [
-        CommandUsage("ping", "Check that Gary is running.", nil),
-        CommandUsage("quit", "Stop Gary and its crash supervisor, restoring the menu bar and Dock settings that plugins changed.", nil),
-        CommandUsage(
-            "summon <plugin>[:<surface>]",
-            "Load and show a plugin's panel, overlay or menu. Name a surface to show one other than main.",
-            "gary summon you.music:osd",
-        ),
-        CommandUsage(
-            "hide <plugin>[:<surface>]",
-            "Hide a plugin's surface, main unless named, and unload the plugin when no surface of its kind stays shown, unless it is keepLoaded.",
-            nil,
-        ),
-        CommandUsage("toggle <plugin>[:<surface>]", "Summon a hidden surface or hide a shown one.", nil),
-        CommandUsage("reloadPlugins [plugin]", "Reload one plugin, or every loaded plugin, from disk.", nil),
-        CommandUsage("rescanPlugins", "Find added and removed plugin directories.", nil),
-        CommandUsage("reloadConfig", "Re-read ~/.config/gary/shell.json.", nil),
-        CommandUsage(
-            "applyTheme [json]",
-            "Apply a theme override payload, or re-read the theme files.",
-            ##"gary applyTheme '{"colors": {"accent": "#ff8800"}}'"##,
-        ),
-        CommandUsage("listPlugins", "List every plugin with its state.", nil),
-        CommandUsage("doctor", "Report the version, private API, permissions, plugin and config problems.", nil),
-        CommandUsage(
-            "onboarding",
-            "Show the permissions window, which lists what the enabled plugins need, with a Grant button for each. Starts Gary if needed.",
-            nil,
-        ),
-        CommandUsage(
-            "permissions",
-            "List each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Starts Gary if needed.",
-            nil,
-        ),
-        CommandUsage(
-            "permissions request <name>",
-            "Show the macOS prompt for a permission, or open its System Settings pane where macOS has no prompt.",
-            "gary permissions request screen-recording",
-        ),
-        CommandUsage(
-            "call <plugin> <method> [args...]",
-            """
-            Call a method a plugin exports, loading it first if needed. Arguments arrive as strings. \
-            Gary waits up to 60 seconds for a method that returns a promise. \
-            A result that is not a string prints as JSON, and a thrown error or rejected promise prints its message and exits with status 1.
-            """,
-            "gary call you.weather forecast 3",
-        ),
-        CommandUsage(
-            "action <plugin>/<kind> <action> [payload]",
-            """
-            Click the shown node of a running kind whose action, rightAction or middleAction has this name, so onAction gets the node's frame \
-            as from a real click. Send any other action, such as an input's change, without a frame. The payload is an optional number or text.
-            """,
-            "gary action you.music/panel volume 0.5",
-        ),
-        CommandUsage(
-            "key <plugin>[/<kind>] <key>...",
-            """
-            Press keys in order, each named as onKey names it, as the user would. A key that the plugin holds as a hotkey, from its manifest \
-            or host.hotkeys, presses that hotkey. \
-            Any other key goes to the plugin's focused surface, where an input takes typed characters and onKey gets the rest.
-            """,
-            "gary key you.launcher s a f enter",
-        ),
-        CommandUsage(
-            "scroll <plugin>/<kind> [action] <dy> [--precise]",
-            """
-            Scroll by dy over the shown node with this action, or over the surface when no action is named, as the user would, so onScroll gets \
-            event.y = dy. A mouse wheel moves in lines; --precise makes a trackpad gesture in points, sent as a began and an ended event.
-            """,
-            "gary scroll you.music/bar-widget volume 3",
-        ),
-        CommandUsage(
-            "hover <plugin>/<kind> <hoverAction> [off]",
-            """
-            Move the pointer onto the shown node with this hoverAction, as the user would, so onAction gets the action with true, \
-            or with off move it away, so onAction gets false.
-            """,
-            "gary hover you.launcher/menu row:safari",
-        ),
-        CommandUsage(
-            "click <plugin>/<kind> <x> <y>",
-            """
-            Click with the left mouse button at a point of the shown surface, in points from its top left corner, as the user would, \
-            whether a node with an action, a node without one, or empty space is there.
-            """,
-            "gary click you.launcher/menu 10 10",
-        ),
-        CommandUsage(
-            "tree <plugin>/<kind>",
-            """
-            Print the shown nodes of a running kind as an outline: each node's type, key and text, then its frame in points from the top left \
-            of its surface, and its color, background, opacity, border and font as drawn now.
-            """,
-            "gary tree you.launcher/menu",
-        ),
-    ]
+    case capture(PluginID, kind: PluginKind, to: String)
 
     public static let callTimeout: TimeInterval = 60
 
@@ -163,6 +65,10 @@ public enum Request: Equatable, Sendable {
         case "scroll": return try scroll(arguments)
         case "hover": return try hover(arguments)
         case "click": return try click(arguments)
+        case "capture":
+            try expect(arguments, count: 2, for: verb)
+            let (id, kind) = try slotWithKind(arguments[0], for: verb)
+            return .capture(id, kind: kind, to: URL(fileURLWithPath: arguments[1]).standardizedFileURL.path)
         case "tree":
             try expect(arguments, count: 1, for: verb)
             let (id, kind) = try slotWithKind(arguments[0], for: verb)
@@ -295,6 +201,7 @@ public enum Request: Equatable, Sendable {
         case .hover: "hover"
         case .click: "click"
         case .tree: "tree"
+        case .capture: "capture"
         }
     }
 
@@ -312,6 +219,7 @@ public enum Request: Equatable, Sendable {
         case let .scroll(id, kind, over, .points(y)): ["\(id)/\(kind.rawValue)"] + (over.map { [$0] } ?? []) + [String(y), "--precise"]
         case let .hover(id, kind, action, entering): ["\(id)/\(kind.rawValue)", action] + (entering ? [] : ["off"])
         case let .tree(id, kind): ["\(id)/\(kind.rawValue)"]
+        case let .capture(id, kind, path): ["\(id)/\(kind.rawValue)", path]
         case let .click(id, kind, point): ["\(id)/\(kind.rawValue)", String(Double(point.x)), String(Double(point.y))]
         }
     }
@@ -329,6 +237,115 @@ public enum Request: Equatable, Sendable {
         guard arguments.count == raw.count else { throw RequestError(description: "args must be strings") }
         return try parse(verb: verb, arguments: arguments)
     }
+}
+
+public extension Request {
+    static let usage: [CommandUsage] = [
+        CommandUsage("ping", "Check that Gary is running.", nil),
+        CommandUsage("quit", "Stop Gary and its crash supervisor, restoring the menu bar and Dock settings that plugins changed.", nil),
+        CommandUsage(
+            "summon <plugin>[:<surface>]",
+            "Load and show a plugin's panel, overlay or menu. Name a surface to show one other than main.",
+            "gary summon you.music:osd",
+        ),
+        CommandUsage(
+            "hide <plugin>[:<surface>]",
+            "Hide a plugin's surface, main unless named, and unload the plugin when no surface of its kind stays shown, unless it is keepLoaded.",
+            nil,
+        ),
+        CommandUsage("toggle <plugin>[:<surface>]", "Summon a hidden surface or hide a shown one.", nil),
+        CommandUsage("reloadPlugins [plugin]", "Reload one plugin, or every loaded plugin, from disk.", nil),
+        CommandUsage("rescanPlugins", "Find added and removed plugin directories.", nil),
+        CommandUsage("reloadConfig", "Re-read ~/.config/gary/shell.json.", nil),
+        CommandUsage(
+            "applyTheme [json]",
+            "Apply a theme override payload, or re-read the theme files.",
+            ##"gary applyTheme '{"colors": {"accent": "#ff8800"}}'"##,
+        ),
+        CommandUsage("listPlugins", "List every plugin with its state.", nil),
+        CommandUsage("doctor", "Report the version, private API, permissions, plugin and config problems.", nil),
+        CommandUsage(
+            "onboarding",
+            "Show the permissions window, which lists what the enabled plugins need, with a Grant button for each. Starts Gary if needed.",
+            nil,
+        ),
+        CommandUsage(
+            "permissions",
+            "List each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Starts Gary if needed.",
+            nil,
+        ),
+        CommandUsage(
+            "permissions request <name>",
+            "Show the macOS prompt for a permission, or open its System Settings pane where macOS has no prompt.",
+            "gary permissions request screen-recording",
+        ),
+        CommandUsage(
+            "call <plugin> <method> [args...]",
+            """
+            Call a method a plugin exports, loading it first if needed. Arguments arrive as strings. \
+            Gary waits up to 60 seconds for a method that returns a promise. \
+            A result that is not a string prints as JSON, and a thrown error or rejected promise prints its message and exits with status 1.
+            """,
+            "gary call you.weather forecast 3",
+        ),
+        CommandUsage(
+            "action <plugin>/<kind> <action> [payload]",
+            """
+            Click the shown node of a running kind whose action, rightAction or middleAction has this name, so onAction gets the node's frame \
+            as from a real click. Send any other action, such as an input's change, without a frame. The payload is an optional number or text.
+            """,
+            "gary action you.music/panel volume 0.5",
+        ),
+        CommandUsage(
+            "key <plugin>[/<kind>] <key>...",
+            """
+            Press keys in order, each named as onKey names it, as the user would. A key that the plugin holds as a hotkey, from its manifest \
+            or host.hotkeys, presses that hotkey. \
+            Any other key goes to the plugin's focused surface, where an input takes typed characters and onKey gets the rest.
+            """,
+            "gary key you.launcher s a f enter",
+        ),
+        CommandUsage(
+            "scroll <plugin>/<kind> [action] <dy> [--precise]",
+            """
+            Scroll by dy over the shown node with this action, or over the surface when no action is named, as the user would, so onScroll gets \
+            event.y = dy. A mouse wheel moves in lines; --precise makes a trackpad gesture in points, sent as a began and an ended event.
+            """,
+            "gary scroll you.music/bar-widget volume 3",
+        ),
+        CommandUsage(
+            "hover <plugin>/<kind> <hoverAction> [off]",
+            """
+            Move the pointer onto the shown node with this hoverAction, as the user would, so onAction gets the action with true, \
+            or with off move it away, so onAction gets false.
+            """,
+            "gary hover you.launcher/menu row:safari",
+        ),
+        CommandUsage(
+            "click <plugin>/<kind> <x> <y>",
+            """
+            Click with the left mouse button at a point of the shown surface, in points from its top left corner, as the user would, \
+            whether a node with an action, a node without one, or empty space is there.
+            """,
+            "gary click you.launcher/menu 10 10",
+        ),
+        CommandUsage(
+            "tree <plugin>/<kind>",
+            """
+            Print the shown nodes of a running kind as an outline: each node's type, key and text, then its frame in points from the top left \
+            of its surface, and its color, background, opacity, border and font as drawn now.
+            """,
+            "gary tree you.launcher/menu",
+        ),
+        CommandUsage(
+            "capture <plugin>/<kind> <file.png>",
+            """
+            Draw a running kind's shown surface into a PNG at the display's scale, without Screen Recording and without other windows. \
+            Blur and materials are left out, since macOS composites them later.
+            """,
+            "gary capture you.launcher/menu /tmp/launcher.png",
+        ),
+    ]
 }
 
 public enum ScrollDistance: Equatable, Sendable {

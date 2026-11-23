@@ -2,6 +2,19 @@ import AppKit
 import GaryCore
 import SwiftUI
 
+typealias ActionHandler = (ActionEvent) -> Void
+
+private struct ActionKey: EnvironmentKey {
+    static let defaultValue: ActionHandler? = nil
+}
+
+extension EnvironmentValues {
+    var nodeAction: ActionHandler? {
+        get { self[ActionKey.self] }
+        set { self[ActionKey.self] = newValue }
+    }
+}
+
 struct ActionEvent {
     let name: String
     let payload: JSON

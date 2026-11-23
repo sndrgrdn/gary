@@ -3,8 +3,6 @@ import Combine
 import GaryCore
 import SwiftUI
 
-typealias ActionHandler = (ActionEvent) -> Void
-
 final class MountedTree: ObservableObject {
     @Published var root: Node
     @Published var theme: Theme
@@ -57,10 +55,6 @@ struct TreeView: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        Group { surface }.coordinateSpace(.named(FrameRecorder.space))
-    }
-
-    @ViewBuilder private var surface: some View {
         let root = NodeView(node: tree.root, theme: tree.theme, path: tree.inspection == nil ? nil : "")
             .environment(\.nodeAction, onAction)
             .environment(\.frameRecorder, tree.inspection)
@@ -118,17 +112,6 @@ private struct ScrollFit: Layout {
     }
 }
 
-private struct ActionKey: EnvironmentKey {
-    static let defaultValue: ActionHandler? = nil
-}
-
-extension EnvironmentValues {
-    var nodeAction: ActionHandler? {
-        get { self[ActionKey.self] }
-        set { self[ActionKey.self] = newValue }
-    }
-}
-
 private struct Child: Identifiable {
     let id: Node.ChildID
     let node: Node
@@ -178,10 +161,10 @@ struct NodeView: View {
                 look,
                 node,
                 anchor.wrappedValue,
-                path: path,
                 hovering: tracksHover ? animated(hovering, fade) : nil,
                 pressing: node.pressed != nil ? animated(pressing, fade) : nil,
             )
+            .probed(path, look)
             .transaction(value: look.animation == nil ? nil : node) { transaction in
                 guard let animation = look.animation else { return }
                 transaction.animation = reduceMotion ? nil : SwiftUI.Animation(animation, duration: look.duration)
@@ -266,31 +249,17 @@ private struct Children: View {
     let path: String?
 
     var body: some View {
-        ForEach(node.identifiedChildren) { child in
-            NodeView(node: child.node, theme: theme, axis: axis, path: path.map { "\($0)/\(child.id.label)" })
-        }
+        ForEach(node.identifiedChildren) { child in NodeView(node: child.node, theme: theme, axis: axis, path: path?.child(child.id)) }
     }
 }
 
 private extension View {
-    func box(
-        _ look: ResolvedStyle,
-        _ node: Node,
-        _ anchor: GestureAnchor,
-        path: String?,
-        hovering: Binding<Bool>?,
-        pressing: Binding<Bool>?,
-    ) -> some View {
+    func box(_ look: ResolvedStyle, _ node: Node, _ anchor: GestureAnchor, hovering: Binding<Bool>?, pressing: Binding<Bool>?) -> some View {
         let box = NodeBox(look, node)
         let shape = RoundedRectangle(cornerRadius: look.radius ?? 0, style: .continuous)
         return padding(EdgeInsets(box.padding))
             .frame(width: box.width.map { CGFloat($0) }, height: box.height.map { CGFloat($0) }, alignment: box.alignment)
             .minWidth(look.minWidth, alignment: box.alignment)
-            .background {
-                if let path {
-                    FrameProbe(path: path, look: look)
-                }
-            }
             .background {
                 if let background = box.background {
                     shape.fill(AnyShapeStyle(background))
@@ -409,7 +378,7 @@ private struct ScrollNode: View {
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: gap) {
                         ForEach(node.identifiedChildren) { child in
-                            NodeView(node: child.node, theme: theme, axis: .vertical, path: path.map { "\($0)/\(child.id.label)" }).id(child.id)
+                            NodeView(node: child.node, theme: theme, axis: .vertical, path: path?.child(child.id)).id(child.id)
                         }
                     }
                     .padding(EdgeInsets(padding))
