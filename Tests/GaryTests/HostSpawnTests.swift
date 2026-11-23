@@ -15,7 +15,7 @@ struct HostSpawnTests {
         let harness = try Harness(widget("""
         onAction: function () {
           var lines = [];
-          var command = "printf 'one\\\\ntwo\\\\n'; sleep 0.1; printf 'three\\\\nfour'; echo err >&2; exit 2";
+          var command = "printf 'one\\\\ntwo\\\\n'; printf 'three\\\\nfour'; echo err >&2; exit 2";
           host.spawn(["/bin/sh", "-c", command], function (line) { lines.push(line); })
             .exited.then(function (r) { count = lines.join(",") + " " + r.status + " " + r.stderr.trim(); });
         },
@@ -36,7 +36,7 @@ struct HostSpawnTests {
             early.exited.then(function (r) { count = "early " + r.status; });
             return;
           }
-          var spawned = host.spawn(["/bin/sh", "-c", "echo ready; exec sleep 100"], function () { spawned.stop(); });
+          var spawned = host.spawn(["/bin/sh", "-c", "echo ready; exec tail -f /dev/null"], function () { spawned.stop(); });
           spawned.exited.then(function (r) { count = "stopped " + r.status; });
         },
         """), uses: ["exec"])
@@ -54,10 +54,10 @@ struct HostSpawnTests {
     }
 
     @Test func `stopping the plugin stops its spawned commands`() async throws {
-        let pidFile = FileManager.default.temporaryDirectory.appending(path: "gary-spawn-\(UUID().uuidString)").path
+        let pidFile = try pidPipe()
         let harness = try Harness(widget("""
         onAction: function () {
-          host.spawn(["/bin/sh", "-c", "echo $$ > \(pidFile); exec sleep 100"], function () {});
+          host.spawn(["/bin/sh", "-c", "echo $$ > \(pidFile); exec tail -f /dev/null"], function () {});
         },
         """), uses: ["exec"])
         #expect(try await harness.text() == "0")
@@ -86,7 +86,7 @@ struct HostSpawnTests {
     }
 
     @Test func `gary effect host spawn is A stream of lines that fails on A nonzero status and stops the command when interrupted`() async throws {
-        let pidFile = FileManager.default.temporaryDirectory.appending(path: "gary-spawn-\(UUID().uuidString)").path
+        let pidFile = try pidPipe()
         let harness = try Harness("""
         import { Effect, Stream, host } from "gary:effect";
         let text = "0";
@@ -99,7 +99,7 @@ struct HostSpawnTests {
             if (name === "ok") Effect.runFork(Effect.map(collect("echo a; echo b"), (lines) => { text = lines; }));
             if (name === "fail") Effect.runFork(Effect.map(collect("echo a; echo oops >&2; exit 3"), (lines) => { text = lines; }));
             if (name === "take") {
-              const command = "echo $$ > \(pidFile); echo first; exec sleep 100";
+              const command = "echo $$ > \(pidFile); echo first; exec tail -f /dev/null";
               Effect.runFork(Effect.map(Stream.runCollect(Stream.take(host.spawn(["/bin/sh", "-c", command]), 1)), (lines) => { text = lines.join(","); }));
             }
           },
@@ -116,10 +116,11 @@ struct HostSpawnTests {
         }
         #expect(text == "/bin/sh exited with status 3: oops")
         harness.runtime.perform("take", .null)
+        async let pid = processID(in: pidFile)
         while text != "first" {
             text = try await harness.text()
         }
-        #expect(try await exits(processID(in: pidFile)))
+        #expect(try await exits(pid))
         harness.runtime.stop()
     }
 }

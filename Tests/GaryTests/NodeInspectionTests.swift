@@ -32,7 +32,7 @@ struct NodeInspectionTests {
         let recorder = FrameRecorder()
         tree.inspection = recorder
         host.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.2))
+        CATransaction.flush()
         let lines = node.outline(recorder.entries)
         #expect(lines.count == 4)
         #expect(lines[0].hasPrefix("column @0,0 200x100 "))

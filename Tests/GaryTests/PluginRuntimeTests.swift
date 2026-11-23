@@ -3,29 +3,6 @@ import Foundation
 import GaryCore
 import Testing
 
-final class Events: @unchecked Sendable {
-    private let lock = NSLock()
-    private var events: [RuntimeEvent] = []
-
-    func append(_ event: RuntimeEvent) {
-        lock.withLock { events.append(event) }
-    }
-
-    func next() async throws -> RuntimeEvent {
-        for _ in 0..<2000 {
-            if let event = lock.withLock({ events.isEmpty ? nil : events.removeFirst() }) {
-                return event
-            }
-            try await Task.sleep(for: .milliseconds(5))
-        }
-        throw RenderError("no event")
-    }
-
-    var isEmpty: Bool {
-        lock.withLock { events.isEmpty }
-    }
-}
-
 final class Listener: Subscriber, @unchecked Sendable {
     private let lock = NSLock()
     private var received: [JSON] = []
@@ -54,6 +31,7 @@ struct Harness {
     let runtime: PluginRuntime
     let events: Events
     let hub: StateHub
+    let timers: ManualTimers
 
     init(
         _ source: String,
@@ -89,6 +67,8 @@ struct Harness {
         let bundle = try PluginBundle.load(directory, origin: .user, capabilities: Capability.names())
         let events = Events()
         let hub = StateHub(sources: [:])
+        let timers = ManualTimers()
+        self.timers = timers
         runtime = PluginRuntime(
             bundle: bundle,
             kind: kind,
@@ -99,6 +79,7 @@ struct Harness {
             deliver: { _, event in events.append(event) },
             engine: engine,
             transpiler: transpiler,
+            startTimer: timers.start,
         )
         self.events = events
         self.hub = hub
@@ -125,6 +106,11 @@ struct Harness {
         case .surface, .call:
             throw RenderError("unexpected \(event)")
         }
+    }
+
+    func settled() async {
+        await withCheckedContinuation { done in runtime.queue.async { done.resume() } }
+        await withCheckedContinuation { done in DispatchQueue.main.async { done.resume() } }
     }
 
     func failure() async throws -> String {
@@ -205,7 +191,7 @@ struct PluginRuntimeTests {
         #expect(try await harness.text() == "2")
         guard case let .failed(key) = try await unhandled.next() else { throw RenderError("expected the fallback") }
         #expect(key == "down")
-        try await Task.sleep(for: .milliseconds(50))
+        await harness.settled()
         #expect(unhandled.isEmpty)
         harness.runtime.stop()
     }
@@ -218,13 +204,15 @@ struct PluginRuntimeTests {
         clearTimeout(cancelled);
         """))
         #expect(try await harness.text() == "0")
-        var seen = ["0"]
-        while seen.last != "12" {
-            try await seen.append(harness.text())
-        }
-        try await Task.sleep(for: .milliseconds(60))
+        harness.timers.advance(by: 5)
+        #expect(try await harness.text() == "10")
+        harness.timers.advance(by: 5)
+        #expect(try await harness.text() == "11")
+        harness.timers.advance(by: 10)
+        #expect(try await harness.text() == "12")
+        harness.timers.advance(by: 1000)
+        await harness.settled()
         #expect(harness.events.isEmpty)
-        #expect(seen.contains("10"))
         harness.runtime.stop()
     }
 
@@ -322,6 +310,8 @@ struct PluginRuntimeTests {
         harness.runtime.perform("now", .null, origin: origin)
         #expect(try await next() == (.show, origin))
         harness.runtime.perform("later", .null, origin: origin)
+        await harness.settled()
+        harness.timers.advance(by: 1)
         #expect(try await next() == (.toggle, nil))
         harness.runtime.hotkey("open")
         #expect(try await next() == (.show, nil))

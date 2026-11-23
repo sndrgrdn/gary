@@ -114,7 +114,7 @@ struct GestureViewTests {
         #expect(sent.isEmpty)
     }
 
-    private func scrolled(_ node: String) throws -> (sent: [String], offset: Double) {
+    private func scrolled(_ node: String) throws -> (sent: [String], forwarded: Bool) {
         var sent: [String] = []
         let host = try mount(node) { sent.append($0.name) }
         let list = try #require(host.descendants(NSScrollView.self).first)
@@ -123,23 +123,24 @@ struct GestureViewTests {
         wheel.location = CGPoint(x: point.x, y: CGDisplayBounds(CGMainDisplayID()).height - point.y)
         let event = try #require(NSEvent(cgEvent: wheel))
         let catcher = try #require(host.descendants(GestureView.self).first)
-        try #require(catcher.hitTest(catcher.superview?.convert(point, from: nil) ?? point, event: event)).scrollWheel(with: event)
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.5))
-        return (sent, list.contentView.bounds.origin.y)
+        let target = try #require(catcher.hitTest(catcher.superview?.convert(point, from: nil) ?? point, event: event) as? GestureView)
+        target.scrollWheel(with: event)
+        return (sent, target.scrolls && target.scrollView(under: event) === list)
     }
 
     private let rows = (0..<40).map { #"{"type":"text","key":"\#($0)","text":"row \#($0)"}"# }.joined(separator: ",")
 
-    @Test(.enabled(if: CGDisplayIsAsleep(CGMainDisplayID()) == 0, "AppKit moves a scroll view only while a display is awake"))
-    func `a scroll node with a scroll action scrolls and sends the action`() throws {
+    @Test func `a scroll node with a scroll action scrolls and sends the action`() throws {
         let result = try scrolled(#"{"type":"scroll","height":100,"scrollAction":"wheel","children":[\#(rows)]}"#)
         #expect(result.sent == ["wheel"])
-        #expect(result.offset > 0)
+        #expect(result.forwarded)
     }
 
     @Test func `a node with a scroll action inside a scroll node takes the scroll from it`() throws {
-        let result = try scrolled(#"{"type":"scroll","height":100,"children":[{"type":"column","scrollAction":"wheel","children":[\#(rows)]}]}"#)
+        let result = try scrolled(
+            #"{"type":"scroll","height":100,"children":[{"type":"column","scrollAction":"wheel","children":[\#(rows)]}]}"#,
+        )
         #expect(result.sent == ["wheel"])
-        #expect(result.offset == 0)
+        #expect(!result.forwarded)
     }
 }

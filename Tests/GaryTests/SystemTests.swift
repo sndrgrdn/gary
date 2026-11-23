@@ -2,6 +2,7 @@ import Darwin
 import Foundation
 @testable import gary
 import GaryCore
+import os
 import Testing
 
 struct SystemTests {
@@ -27,12 +28,20 @@ struct SystemTests {
         #expect(MemoryUse(stats, pageSize: 16384, total: 1 << 30, pressureLevel: 1).pressure == .normal)
     }
 
-    @MainActor @Test func `the topic publishes CPU memory and idle time half A second after it starts`() throws {
-        nonisolated(unsafe) var value: JSON?
+    @MainActor @Test func `the topic publishes CPU memory and idle time half A second after it starts`() async throws {
         let source = try #require(Capability.system.topic).source
-        let feed = source { published, _ in value = published }
-        withExtendedLifetime(feed) { RunLoop.main.run(until: Date(timeIntervalSinceNow: 1)) }
-        let system = try #require(value?.object)
+        var feed: TopicFeed?
+        let value = await withCheckedContinuation { (done: CheckedContinuation<JSON, Never>) in
+            let waiting = OSAllocatedUnfairLock<CheckedContinuation<JSON, Never>?>(initialState: done)
+            feed = source { published, _ in
+                waiting.withLock { waiting in
+                    waiting?.resume(returning: published)
+                    waiting = nil
+                }
+            }
+        }
+        _ = feed
+        let system = try #require(value.object)
         let cpu = try #require(system["cpu"]?.object)
         let shares = try ["user", "system", "idle"].map { try #require(cpu[$0]?.number) }
         #expect(abs(shares.reduce(0, +) - 1) < 0.000_001)

@@ -90,7 +90,6 @@ struct TreeViewBench {
         }
         let flush = Self.milliseconds { CATransaction.flush() }
         let cpu = Self.threadCPU()
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.002))
         return ["apply": apply, "layout": layout, "flush": flush, "frame": apply + layout + flush, "between_cpu": Self.threadCPU() - cpu]
     }
 

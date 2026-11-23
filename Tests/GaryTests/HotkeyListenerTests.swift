@@ -92,7 +92,7 @@ struct HotkeyListenerTests {
         """, id: "test.stream", uses: ["hotkeys"])
         #expect(try await harness.text() == "none")
         while bindings(of: "test.stream").isEmpty {
-            try await Task.sleep(for: .milliseconds(5))
+            await harness.settled()
         }
         #expect(try press("hyper+return", of: "test.stream"))
         #expect(try await harness.text() == "hyper+return")
