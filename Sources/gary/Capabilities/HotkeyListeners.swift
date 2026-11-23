@@ -25,47 +25,27 @@ nonisolated extension Capability {
         export default {} satisfies Gary.Service;
         """,
         install: { host, plugin in
-            let holds = Holds { HotkeyListeners.shared.remove($0) }
-            plugin.onStop { holds.stopAll() }
-            let listen: @convention(block) (String, JSValue) -> Int = { [weak plugin] text, onPress in
-                guard let plugin else { return 0 }
-                let call = HostCall(api: nil, method: "hotkeys", arguments: [(try? JSON.parse(text)) ?? .null])
-                do {
-                    var keys: [KeyCombo: String] = [:]
-                    for name in try call.strings(0, "keys") {
-                        guard let combo = KeyCombo.parse(name) else {
-                            throw call.fail("\"\(name)\" is not a hotkey; write modifiers and a key, such as hyper+shift+m or ctrl+alt+space")
-                        }
-                        if let other = keys[combo] {
-                            throw call.fail("\"\(other)\" and \"\(name)\" are the same hotkey")
-                        }
-                        keys[combo] = name
+            let owner = plugin.id
+            plugin.installHandle(host, "hotkeys") { [weak plugin] call, arguments in
+                let onPress = try call.function(1, "onPress", in: arguments)
+                var keys: [KeyCombo: String] = [:]
+                for name in try call.strings(0, "keys") {
+                    guard let combo = KeyCombo.parse(name) else {
+                        throw call.fail("\"\(name)\" is not a hotkey; write modifiers and a key, such as hyper+shift+m or ctrl+alt+space")
                     }
-                    return holds.add(HotkeyListeners.shared.add(owner: plugin.id, keys: keys) { [weak plugin] name in
-                        guard let plugin else { return }
-                        plugin.onQueue { $0.callBack(onPress, [name], Trace("hotkey")) }
-                    })
-                } catch {
-                    let context = JSContext.current()
-                    context?.exception = context?.newError("\(error)")
-                    return 0
+                    if let other = keys[combo] {
+                        throw call.fail("\"\(other)\" and \"\(name)\" are the same hotkey")
+                    }
+                    keys[combo] = name
                 }
+                let id = HotkeyListeners.shared.add(owner: owner, keys: keys) { [weak plugin] name in
+                    plugin?.onQueue { $0.callBack(onPress, [name], Trace("hotkey")) }
+                }
+                return HostHandle { HotkeyListeners.shared.remove(id) }
             }
-            let stop: @convention(block) (Int) -> Void = { holds.stop($0) }
-            host.context.evaluateScript(hotkeysScript).call(withArguments: [host, listen, stop])
         },
     )
 }
-
-private nonisolated let hotkeysScript = """
-(function (host, listen, stop) {
-  host.hotkeys = function (keys, onPress) {
-    if (typeof onPress !== "function") throw new TypeError("host.hotkeys: onPress must be a function");
-    var id = listen(JSON.stringify(keys), onPress);
-    return { stop: function () { stop(id); } };
-  };
-})
-"""
 
 final nonisolated class HotkeyListeners: @unchecked Sendable {
     private struct Listener {

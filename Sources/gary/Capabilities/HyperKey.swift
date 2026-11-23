@@ -32,20 +32,10 @@ nonisolated extension Capability {
         """,
         permissions: [.accessibility],
         install: { host, plugin in
-            let holds = Holds { HyperKeyTap.shared.release($0) }
-            plugin.onStop { holds.stopAll() }
-            let hold: @convention(block) (String) -> Int = { text in
-                let call = HostCall(api: nil, method: "hyperkey", arguments: [(try? JSON.parse(text)) ?? .null])
-                do {
-                    return try holds.add(HyperKeyTap.shared.hold(options(call)))
-                } catch {
-                    let context = JSContext.current()
-                    context?.exception = context?.newError("\(error)")
-                    return 0
-                }
+            plugin.installHandle(host, "hyperkey") { call, _ in
+                let id = try HyperKeyTap.shared.hold(options(call))
+                return HostHandle { HyperKeyTap.shared.release(id) }
             }
-            let stop: @convention(block) (Int) -> Void = { holds.stop($0) }
-            host.context.evaluateScript(hyperkeyScript).call(withArguments: [host, hold, stop])
         },
     )
 }
@@ -65,15 +55,6 @@ private nonisolated func options(_ call: HostCall) throws -> HyperKey.Options {
     guard tap == .null || tapped != nil else { throw call.fail("options.tap must name a key: capsLock, which toggles Caps Lock, or \(keys)") }
     return HyperKey.Options(trigger: trigger, shift: shift.bool ?? false, tap: tapped)
 }
-
-private nonisolated let hyperkeyScript = """
-(function (host, hold, stop) {
-  host.hyperkey = function (options) {
-    var id = hold(JSON.stringify(options === undefined ? null : options));
-    return { stop: function () { stop(id); } };
-  };
-})
-"""
 
 final nonisolated class HyperKeyTap: @unchecked Sendable {
     static let shared = HyperKeyTap()

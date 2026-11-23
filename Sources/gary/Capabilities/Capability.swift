@@ -108,33 +108,9 @@ final class Observation {
     isolated deinit { cancel() }
 }
 
-final nonisolated class Holds {
-    private var ids: Set<Int> = []
-    private let release: (Int) -> Void
-
-    init(release: @escaping (Int) -> Void) {
-        self.release = release
-    }
-
-    func add(_ id: Int) -> Int {
-        ids.insert(id)
-        return id
-    }
-
-    func stop(_ id: Int) {
-        if ids.remove(id) != nil {
-            release(id)
-        }
-    }
-
-    func stopAll() {
-        ids.forEach(release)
-        ids = []
-    }
-}
-
 nonisolated struct HostHandle {
     let stop: () -> Void
+    var exited: JSValue?
 }
 
 private final nonisolated class LiveHandles {
@@ -266,6 +242,9 @@ extension PluginRuntime {
                 let stop: @convention(block) () -> Void = { handles.stop(id) }
                 let object = JSValue(newObjectIn: context)
                 object?.setObject(stop, forKeyedSubscript: "stop" as NSString)
+                if let exited = handle.exited {
+                    object?.setObject(exited, forKeyedSubscript: "exited" as NSString)
+                }
                 return object
             } catch {
                 context.exception = context.newError(message(error, call))

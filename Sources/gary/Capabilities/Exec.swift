@@ -49,33 +49,33 @@ nonisolated extension Capability {
         install: { host, plugin in
             let runs = ExecRuns(queue: plugin.queue)
             let spawns = SpawnRuns(queue: plugin.queue)
-            plugin.onStop {
-                runs.stopAll()
-                spawns.stopAll()
-            }
+            plugin.onStop { runs.stopAll() }
             plugin.installAPI(host, nil, ["exec"]) { call in
                 let argv = try call.strings(0, "argv")
                 guard !argv.isEmpty else { throw call.fail("argv must not be empty") }
                 return .pending { finish in runs.start(argv, finish) }
             }
-            let start = spawner(spawns, for: plugin)
-            let stop: @convention(block) (Int) -> Void = { id in spawns.stop(id) }
-            host.context.evaluateScript(spawnScript).call(withArguments: [host, start, stop])
+            let forEach: JSValue = host.context
+                .evaluateScript("(function (callback, values) { values.forEach(function (value) { callback(value); }); })")
+            plugin.installHandle(host, "spawn") { [weak plugin] call, arguments in
+                let onLine = try call.function(1, "onLine", in: arguments)
+                let argv = try call.strings(0, "argv")
+                guard !argv.isEmpty else { throw call.fail("argv must not be empty") }
+                var finish: JSValue?
+                let exited = JSValue(newPromiseIn: onLine.context) { resolve, _ in finish = resolve }
+                let id = spawns.start(
+                    argv,
+                    lines: { [weak plugin] lines in plugin?.assumeIsolated { $0.callBack(forEach, [onLine, lines], Trace("spawn")) } },
+                    exit: { [weak plugin] status, stderr in
+                        guard let finish else { return }
+                        plugin?.assumeIsolated { $0.callBack(finish, [["status": status, "stderr": stderr]], Trace("spawn")) }
+                    },
+                )
+                return HostHandle(stop: { spawns.stop(id) }, exited: exited)
+            }
         },
     )
 }
-
-private nonisolated let spawnScript = """
-(function (host, start, stop) {
-  host.spawn = function (argv, onLine) {
-    if (typeof onLine !== "function") throw new TypeError("host.spawn: onLine must be a function");
-    var finish;
-    var exited = new Promise(function (resolve) { finish = resolve; });
-    var id = start(JSON.stringify(argv), function (lines) { lines.forEach(function (line) { onLine(line); }); }, finish);
-    return { exited: exited, stop: function () { stop(id); } };
-  };
-})
-"""
 
 final nonisolated class ExecRuns: @unchecked Sendable {
     private struct Run {
@@ -142,28 +142,6 @@ final nonisolated class ExecRuns: @unchecked Sendable {
     }
 }
 
-private nonisolated func spawner(_ spawns: SpawnRuns, for plugin: PluginRuntime) -> @convention(block) (String, JSValue, JSValue) -> Int {
-    { [weak plugin] text, deliver, finish in
-        guard let plugin else { return 0 }
-        let call = HostCall(api: nil, method: "spawn", arguments: [(try? JSON.parse(text)) ?? .null])
-        do {
-            let argv = try call.strings(0, "argv")
-            guard !argv.isEmpty else { throw call.fail("argv must not be empty") }
-            return spawns.start(
-                argv,
-                lines: { [weak plugin] lines in plugin?.assumeIsolated { $0.callBack(deliver, [lines], Trace("spawn")) } },
-                exit: { [weak plugin] status, stderr in
-                    plugin?.assumeIsolated { $0.callBack(finish, [["status": status, "stderr": stderr]], Trace("spawn")) }
-                },
-            )
-        } catch {
-            let context = JSContext.current()
-            context?.exception = context?.newError("\(error)")
-            return 0
-        }
-    }
-}
-
 final nonisolated class SpawnRuns: @unchecked Sendable {
     private final class Run: @unchecked Sendable {
         let process: Process
@@ -200,7 +178,6 @@ final nonisolated class SpawnRuns: @unchecked Sendable {
     private let queue: DispatchQueue
     private var runs: [Int: Run] = [:]
     private var nextID = 1
-    private var stopped = false
 
     init(queue: DispatchQueue) {
         self.queue = queue
@@ -215,7 +192,7 @@ final nonisolated class SpawnRuns: @unchecked Sendable {
     }
 
     private func launch(_ id: Int) {
-        guard !stopped, let run = runs[id] else { return }
+        guard let run = runs[id] else { return }
         let stdout = Pipe()
         let stderr = Pipe()
         run.process.standardOutput = stdout
@@ -239,15 +216,6 @@ final nonisolated class SpawnRuns: @unchecked Sendable {
             return
         }
         run.process.terminate()
-    }
-
-    func stopAll() {
-        stopped = true
-        for run in runs.values where run.process.processIdentifier != 0 {
-            run.process.terminate()
-            run.close()
-        }
-        runs = [:]
     }
 
     private func exited(_ id: Int) {
