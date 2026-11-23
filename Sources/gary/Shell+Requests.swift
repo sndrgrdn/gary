@@ -158,7 +158,7 @@ extension Shell {
             case .stopped, .running: (slot.key.description, nil)
             }
         }
-        return DoctorRuntime(pid: getpid(), enabled: enabledManifests, pluginStates: states)
+        return DoctorRuntime(pid: getpid(), enabled: enabledManifests, pluginStates: states, themePayload: themePayload)
     }
 
     var enabledManifests: [PluginManifest] {

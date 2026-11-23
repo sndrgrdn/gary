@@ -97,7 +97,7 @@ struct Doctor {
 
         section("Config")
         checkConfig(config, catalog)
-        checkTheme()
+        checkTheme(override: runtime?.themePayload)
 
         lines.append("\n\(problems == 0 ? "no problems" : "\(problems) problem\(problems == 1 ? "" : "s")")")
     }
@@ -210,10 +210,10 @@ struct Doctor {
         }
     }
 
-    private mutating func checkTheme() {
+    private mutating func checkTheme(override: JSON?) {
         let file = checkPalette()
         do {
-            let theme = try files.theme(palette: file, system: system)
+            let theme = try files.theme(palette: file, system: system, override: override)
             if theme.warnings.isEmpty {
                 ok("\(FileManager.default.fileExists(atPath: files.userTheme.path) ? "theme.json" : "built-in theme") in \(theme.mode.rawValue) mode")
             }
