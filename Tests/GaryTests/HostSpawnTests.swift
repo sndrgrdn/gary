@@ -26,6 +26,38 @@ struct HostSpawnTests {
         harness.runtime.stop()
     }
 
+    @Test func `host spawn joins A line written across several reads`() async throws {
+        let harness = try Harness(widget("""
+        onAction: function () {
+          var lines = [];
+          var command = "printf x; yes \\"$(printf '\\\\303\\\\251')\\" | head -n 100000 | tr -d '\\\\n'; echo; echo next";
+          host.spawn(["/bin/sh", "-c", command], function (line) { lines.push(line === "x" + "é".repeat(100000) ? "whole" : line); })
+            .exited.then(function () { count = lines.join(","); });
+        },
+        """), uses: ["exec"])
+        #expect(try await harness.text() == "0")
+        harness.runtime.perform("run", .null)
+        let lines = try await settled(harness)
+        #expect(lines == "whole,next")
+        harness.runtime.stop()
+    }
+
+    @Test func `host spawn cuts A line longer than 1 MB to its first 1 MB and drops the rest of it`() async throws {
+        let harness = try Harness(widget("""
+        onAction: function () {
+          var lines = [];
+          var command = "head -c 20000000 /dev/zero | tr '\\\\0' a; echo; echo next";
+          host.spawn(["/bin/sh", "-c", command], function (line) { lines.push(line.replace(/^a+$/, function (run) { return run.length; })); })
+            .exited.then(function () { count = lines.join(","); });
+        },
+        """), uses: ["exec"])
+        #expect(try await harness.text() == "0")
+        harness.runtime.perform("run", .null)
+        let lines = try await settled(harness)
+        #expect(lines == "\(1 << 20),next")
+        harness.runtime.stop()
+    }
+
     @Test func `stop ends A spawned command, and stopping before it starts never runs it`() async throws {
         let file = FileManager.default.temporaryDirectory.appending(path: "gary-spawn-\(UUID().uuidString)").path
         let harness = try Harness(widget("""
