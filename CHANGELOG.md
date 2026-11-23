@@ -31,6 +31,9 @@
 - `host.watchFile` calls back for a file created after the watch starts, and again when a file is deleted and created anew, instead of giving up after 5 seconds.
 - `host.spawn`, `host.hotkeys`, `host.hyperkey`, and `host.watchFile` name the API in their errors, such as `host.hyperkey: …`, like the other host functions.
 - `host.spawn` cuts a line longer than 1 MB to its first 1 MB, so a command that never prints a newline no longer grows Gary's memory without bound, and long output no longer slows down.
+- A panel, overlay, or menu that a hotkey, media key, `gary call`, or `host.call` loaded while hidden stops a minute after its last use, unless it is shown or sets `keepLoaded`, instead of running until Gary quits.
+- A reload that fails keeps the running version's manifest in charge, so hiding, surface names, media keys, and `gary listPlugins` follow the version that runs. Summoning a surface that only the failed manifest names fails at once instead of after 5 seconds.
+- A `shell.json` change to a plugin's settings and its files loads the plugin once instead of twice.
 
 ## 0.4.0
 
