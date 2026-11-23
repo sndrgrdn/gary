@@ -4,7 +4,7 @@ import GaryCore
 extension Shell {
     func arrangeBars() {
         for bar in bars.surfaces.values {
-            for (section, ids) in resolution.bar {
+            for (section, ids) in setup.resolution.bar {
                 bar.setSection(
                     section,
                     ids
@@ -34,7 +34,7 @@ extension Shell {
     }
 
     func pointerReachedTop(_ id: String) {
-        guard config.revealMenuBar, !SystemState.saved.menuBarHidden, barsAside[id] == nil,
+        guard setup.config.revealMenuBar, !SystemState.saved.menuBarHidden, barsAside[id] == nil,
               let display = displays.first(where: { $0.id == id }) else { return }
         barsAside[id] = NativeMenuBar.revealed(on: display.frame)
         applyBarLevel(id)
@@ -48,7 +48,7 @@ extension Shell {
     private func returnBarsAside() {
         let pointer = NSEvent.mouseLocation
         for (id, menuBarWasShown) in barsAside {
-            if let display = displays.first(where: { $0.id == id }), config.revealMenuBar, !SystemState.saved.menuBarHidden {
+            if let display = displays.first(where: { $0.id == id }), setup.config.revealMenuBar, !SystemState.saved.menuBarHidden {
                 let band = NSRect(x: display.frame.minX, y: display.frame.maxY - display.band, width: display.frame.width, height: display.band)
                 if NSMouseInRect(pointer, band, false) || (!menuBarWasShown && NativeMenuBar.revealed(on: display.frame)) {
                     continue

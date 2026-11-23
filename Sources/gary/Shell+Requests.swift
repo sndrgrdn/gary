@@ -52,7 +52,7 @@ extension Shell {
             reply(reloadPlugins(id, trace))
         case .rescanPlugins:
             _ = refresh(config: false, catalog: true, trace)
-            reply(.ok("\(catalog.plugins.count) plugins, \(catalog.problems.count) problems"))
+            reply(.ok("\(setup.catalog.plugins.count) plugins, \(setup.catalog.problems.count) problems"))
         case .reloadConfig:
             reply(refresh(config: true, catalog: false, trace))
         case let .applyTheme(payload):
@@ -62,7 +62,7 @@ extension Shell {
         case .doctor:
             reply(.ok(Doctor.report(doctorRuntime(), system: theme.system)))
         case .permissions:
-            reply(.ok(permissionReport(enabled: enabledManifests)))
+            reply(.ok(permissionReport(enabled: setup.enabledManifests)))
         case let .requestPermission(permission):
             reply(.ok(permission.request()))
         case let .call(id, method, arguments):
@@ -157,19 +157,16 @@ extension Shell {
             case .stopped, .running: (slot.key.description, nil)
             }
         }
-        return DoctorRuntime(pid: getpid(), enabled: enabledManifests, pluginStates: states, themePayload: theme.payload)
-    }
-
-    var enabledManifests: [PluginManifest] {
-        resolution.enabled.compactMap { catalog.plugins[$0]?.manifest }
+        return DoctorRuntime(pid: getpid(), enabled: setup.enabledManifests, pluginStates: states, themePayload: theme.payload)
     }
 
     private func listing() -> String {
+        let catalog = setup.catalog
         var lines = catalog.sortedIDs.compactMap { catalog.plugins[$0] }.map { bundle -> String in
             let manifest = bundle.manifest
             let id = manifest.id
             let states = manifest.kinds.map { kind -> String in
-                guard resolution.enabled.contains(id) else { return "\(kind.rawValue):disabled" }
+                guard setup.resolution.enabled.contains(id) else { return "\(kind.rawValue):disabled" }
                 guard let slot = slots[SlotKey(id: id, kind: kind)]
                 else { return "\(kind.rawValue):\(kind == .barWidget ? "not-in-bar" : "inactive")" }
                 switch slot.phase {

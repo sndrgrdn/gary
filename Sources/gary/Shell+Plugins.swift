@@ -19,7 +19,7 @@ extension Shell {
     }
 
     var usesBuiltinBar: Bool {
-        guard let id = resolution.barPlugin else { return true }
+        guard let id = setup.resolution.barPlugin else { return true }
         switch slots[SlotKey(id: id, kind: .bar)]?.phase {
         case .failed, .disabled: return true
         default: return false
@@ -28,21 +28,7 @@ extension Shell {
 
     func sync(_ trace: Trace, reloading: Set<SlotKey> = []) {
         refreshDisplays(trace)
-        var wanted: [SlotKey: PluginBundle] = [:]
-        if usesBuiltinBar {
-            for id in resolution.bar.values.joined() {
-                wanted[SlotKey(id: id, kind: .barWidget)] = catalog.plugins[id]
-            }
-        }
-        if let id = resolution.barPlugin {
-            wanted[SlotKey(id: id, kind: .bar)] = catalog.plugins[id]
-        }
-        for bundle in resolution.enabled.compactMap({ catalog.plugins[$0] }) {
-            for kind in bundle.manifest.kinds where kind.isSurface || kind == .service {
-                wanted[SlotKey(id: bundle.manifest.id, kind: kind)] = bundle
-            }
-        }
-        perform(slots.sync(wanted, reloading: reloading), trace)
+        perform(slots.sync(setup.wanted(builtinBar: usesBuiltinBar), reloading: reloading), trace)
         claimMediaKeys()
         arrangeBars()
         commitFrame()
@@ -71,7 +57,7 @@ extension Shell {
         let delivery = MainDelivery { [weak self] runtime, event in self?.handle(event, from: runtime, key) }
         return PluginRuntime(
             bundle: bundle, kind: key.kind, scene: scene,
-            settings: config.settings[key.id] ?? .object([:]), theme: theme.value.json, hub: hub,
+            settings: setup.config.settings[key.id] ?? .object([:]), theme: theme.value.json, hub: hub,
             deliver: { delivery.send($0, $1) }, engine: engines.engine(for: key.kind),
         )
     }

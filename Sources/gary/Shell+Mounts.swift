@@ -92,7 +92,7 @@ extension Shell {
 
     private func placeInBar(_ key: MountKey) {
         guard let bar = bars[key.display] else { return }
-        for (section, ids) in resolution.bar where ids.contains(key.slot.id) {
+        for (section, ids) in setup.resolution.bar where ids.contains(key.slot.id) {
             bar.setSection(
                 section,
                 ids.compactMap { mounts[MountKey(slot: SlotKey(id: $0, kind: .barWidget), surface: key.surface, display: key.display)] },

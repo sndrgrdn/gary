@@ -11,12 +11,9 @@ struct MountKey: Hashable {
 final class Shell {
     let hub = StateHub(sources: Capability.topics)
     let engines = PluginEngines()
-    let files = ConfigFiles()
     let theme: CurrentTheme
     private var appearanceObservation: NSKeyValueObservation?
-    var config = ShellConfig.defaults
-    private(set) var catalog = PluginCatalog()
-    private(set) var resolution: ShellConfig.Resolution
+    let setup = PluginSetup(files: ConfigFiles())
     private(set) lazy var slots = PluginSlots<PluginRuntime>(
         make: { self.makeRuntime($0, $1, $2) },
         scene: { self.scene($0, $1) },
@@ -43,7 +40,6 @@ final class Shell {
         theme = try CurrentTheme(files: ConfigFiles(), system: Palette.Mode(NSApp.effectiveAppearance))
         tooltipPanel = TooltipPanel(theme: theme.value)
         ToastStack.shared.theme = theme.value
-        resolution = config.resolve(catalog)
     }
 
     func start() throws {
@@ -56,9 +52,8 @@ final class Shell {
         try FileManager.default.createDirectory(at: Paths.packages, withIntermediateDirectories: true)
         theme.loadPalette()
         changeTheme(Trace("start"), theme.reload)
-        loadConfig()
-        scan()
-        resolve()
+        _ = setup.refresh(config: true, catalog: true)
+        applyResolution()
         refreshDisplays(Trace("start"))
         sync(Trace("start"))
         offerOnboarding(Trace("start"))
@@ -95,7 +90,7 @@ final class Shell {
         }
         log(PrivateSymbolCheck.summary())
         log(
-            "ready pid=\(getpid()) levels=bar:\(SurfaceLevels.bar),\(SurfaceLayer.allCases.map { "\($0.rawValue):\(SurfaceLevels.level($0))" }.joined(separator: ",")) plugins=\(catalog.sortedIDs.map(\.rawValue).joined(separator: ","))",
+            "ready pid=\(getpid()) levels=bar:\(SurfaceLevels.bar),\(SurfaceLayer.allCases.map { "\($0.rawValue):\(SurfaceLevels.level($0))" }.joined(separator: ",")) plugins=\(setup.catalog.sortedIDs.map(\.rawValue).joined(separator: ","))",
         )
     }
 
@@ -128,7 +123,7 @@ final class Shell {
     }
 
     var pluginRoots: [URL] {
-        [Paths.userPlugins, Paths.packages] + config.packages.compactMap {
+        [Paths.userPlugins, Paths.packages] + setup.config.packages.compactMap {
             if case let .local(url) = $0 {
                 url
             } else {
@@ -146,7 +141,7 @@ final class Shell {
     }
 
     func installMissingPackages() {
-        for source in config.packages where source.managedPath != nil && !PackageStore.isInstalled(source) {
+        for source in setup.config.packages where source.managedPath != nil && !PackageStore.isInstalled(source) {
             guard installingPackages.insert(source.identity).inserted else { continue }
             log("package \(source.declaration): installing")
             DispatchQueue.global(qos: .utility).async { [weak self] in
@@ -166,24 +161,13 @@ final class Shell {
         }
     }
 
-    func scan() {
-        catalog = files.catalog(config.packages)
-        for problem in catalog.problems {
-            log("plugin \(problem.directory.path): \(problem.reason)")
-        }
-    }
-
-    func resolve() {
-        resolution = config.resolve(catalog)
-        PermissionNeed.enabledPlugins = enabledManifests
-        for warning in resolution.warnings {
-            log("shell.json: \(warning)")
-        }
+    func applyResolution() {
+        PermissionNeed.enabledPlugins = setup.enabledManifests
         updateHotkeys()
     }
 
     private func updateHotkeys() {
-        hotkeys?.update(resolution.enabled.sorted().compactMap { catalog.plugins[$0]?.manifest }.flatMap { manifest in
+        hotkeys?.update(setup.resolution.enabled.sorted().compactMap { setup.catalog.plugins[$0]?.manifest }.flatMap { manifest in
             manifest.hotkeys.map { HotkeyBinding(owner: manifest.id, hotkey: $0) }
         } + HotkeyListeners.shared.bindings)
     }

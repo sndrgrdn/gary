@@ -54,44 +54,21 @@ extension Shell {
         }
     }
 
-    @discardableResult
-    func loadConfig() -> Response {
-        do {
-            guard let loaded = try files.config() else {
-                config = .defaults
-                return .ok("no shell.json; using defaults")
-            }
-            config = loaded
-            for warning in config.warnings {
-                log("\(warning); skipped")
-            }
-            return .ok("config loaded")
-        } catch {
-            log("\(error); keeping the current config")
-            return .failure("\(error)")
-        }
-    }
-
     func refresh(config reloadsConfig: Bool, catalog rescans: Bool, _ trace: Trace) -> Response {
-        let previous = config
-        let response = reloadsConfig ? loadConfig() : .ok("config unchanged")
-        let packagesChanged = config.packages != previous.packages
-        if packagesChanged {
+        let refresh = setup.refresh(config: reloadsConfig, catalog: rescans)
+        if refresh.packagesChanged {
             watch()
             installMissingPackages()
         }
-        if rescans || packagesChanged {
-            scan()
-        }
-        guard rescans || config != previous else { return response }
-        resolve()
-        sync(trace, reloading: Set(slots.values.map(\.key).filter { config.settings[$0.id] != previous.settings[$0.id] }))
+        guard refresh.resolved else { return refresh.response }
+        applyResolution()
+        sync(trace, reloading: Set(slots.values.map(\.key).filter { refresh.settingsChanged.contains($0.id) }))
         offerOnboarding(trace)
-        return response
+        return refresh.response
     }
 
     private var missingPermissions: [String] {
-        PermissionNeed.all(enabled: enabledManifests, checkGrants: true).filter(\.isMissing).map(\.permission.rawValue)
+        PermissionNeed.all(enabled: setup.enabledManifests, checkGrants: true).filter(\.isMissing).map(\.permission.rawValue)
     }
 
     func offerOnboarding(_ trace: Trace) {
