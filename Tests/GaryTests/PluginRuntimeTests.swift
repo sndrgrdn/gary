@@ -141,6 +141,16 @@ func widget(_ members: String = "", setup: String = "") -> String {
 }
 
 struct PluginRuntimeTests {
+    @Test func `the host offers only the capabilities the manifest uses`() async throws {
+        let setup = "count = typeof host.exec + \" \" + typeof host.power;"
+        let bare = try Harness(widget(setup: setup))
+        #expect(try await bare.text() == "undefined undefined")
+        bare.runtime.stop()
+        let exec = try Harness(widget(setup: setup), uses: ["exec"])
+        #expect(try await exec.text() == "function undefined")
+        exec.runtime.stop()
+    }
+
     @Test func `renders each display with the state settings theme and display`() async throws {
         let harness = try Harness("""
         export default {

@@ -279,8 +279,9 @@ private extension PluginRuntime {
         context.name = "\(id)"
         context.exceptionHandler = { [weak self] _, value in self?.exception = value?.toString() ?? "unknown exception" }
         let host = try check(in: context) { makeHost(in: context) }
+        let declared = bundle.manifest.capabilities
         try check(in: context) {
-            for capability in Capability.all {
+            for capability in Capability.all where declared.contains(capability.name) {
                 capability.install?(host, self)
             }
             return JSValue(undefinedIn: context)
