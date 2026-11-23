@@ -7,6 +7,7 @@
 - In a hotkey, `delete` is forward delete, as it already was in `onKey`. Use `backspace` for the key labeled delete on a Mac keyboard. This applies to manifest `hotkeys`, `host.hotkeys`, and the `hyperkey` trigger and tap.
 - `onKey` keeps Shift in a chord: Control-Shift-A arrives as `ctrl+shift+a`, not `ctrl+a`. A typed character without Control, Option, or Command still arrives as the character, so Shift-A gives `A`.
 - An `image` or `shader` path that starts with `~user/`, or is empty, fails the render with the node that holds it, as such a path already fails in a host call.
+- `host.watchFile` returns a handle with `stop()`, and in `gary:effect` it is a stream of the file's text that stops watching when its scope closes. It calls back about 200 ms after a change, and not for a write that leaves the text the same.
 
 ### New
 
@@ -27,6 +28,8 @@
 - The manifest schema accepts the hotkeys Gary loads, such as `f13`, and rejects the ones it refuses, such as `shift+a`.
 - The Full Disk Access drag tile follows the theme's mode, colors, and spacing from launch.
 - `gary doctor` checks the theme in the Mac's current appearance instead of always in dark mode, and names the mode it checked.
+- `host.watchFile` calls back for a file created after the watch starts, and again when a file is deleted and created anew, instead of giving up after 5 seconds.
+- `host.spawn`, `host.hotkeys`, `host.hyperkey`, and `host.watchFile` name the API in their errors, such as `host.hyperkey: …`, like the other host functions.
 
 ## 0.4.0
 
