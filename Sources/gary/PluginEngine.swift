@@ -63,12 +63,16 @@ final class PluginEngine: @unchecked Sendable {
     }
 
     private func dropCode() {
-        entry.withLock {
-            if let context = JSContext(virtualMachine: machine) {
-                gary_drop_compiled_code(context.jsGlobalContextRef)
-            }
+        let dropped = entry.withLock { JSContext(virtualMachine: machine).map { gary_drop_compiled_code($0.jsGlobalContextRef) } }
+        if dropped == false {
+            _ = Self.cannotDropCode
         }
     }
+
+    private static let cannotDropCode: Void = {
+        let missing = missingSymbols([.lockEngine, .unlockEngine, .deleteAllCode, .collectGarbage, .releaseFreeMemory])
+        log("cannot drop plugin bytecode: \(missing.joined(separator: ", ")) is missing from JavaScriptCore on this macOS")
+    }()
 
     func run(_ plugin: PluginID, in context: JSContext, _ body: () -> JSValue?) throws -> JSValue? {
         entry.lock()
