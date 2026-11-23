@@ -67,6 +67,22 @@ struct PluginEngineTests {
         bar.runtime.stop()
     }
 
+    @Test func `time a script spends asleep in a host call does not count toward its limit`() throws {
+        let library = FileManager.default.temporaryDirectory.appending(path: "gary-effect-\(UUID().uuidString).js")
+        try Data("\(spin) spin(70); var GaryEffect = { forPlugin: function () {} };".utf8).write(to: library)
+        defer { try? FileManager.default.removeItem(at: library) }
+        let engine = PluginEngine(effect: library)
+        let context = try #require(engine.makeContext())
+        let load: @convention(block) () -> Void = { _ = try? engine.effect() }
+        let sleep: @convention(block) () -> Void = { Thread.sleep(forTimeInterval: 0.15) }
+        context.setObject(load, forKeyedSubscript: "load" as NSString)
+        context.setObject(sleep, forKeyedSubscript: "sleep" as NSString)
+        let value = try engine.run(#require(PluginID("test.sleeper")), in: context) {
+            context.evaluateScript("\(spin) load(); sleep(); spin(40); 1")
+        }
+        #expect(value?.toInt32() == 1)
+    }
+
     @Test func `a runaway after the last loaded plugin unloads is stopped`() async throws {
         let engine = PluginEngine()
         let runaway = try Harness(widget("onAction: function () { for (;;) {} },"), id: "test.first", engine: engine)

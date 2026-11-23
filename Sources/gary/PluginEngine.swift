@@ -13,7 +13,7 @@ final class PluginEngine: @unchecked Sendable {
     private var effectLibrary: JSValue?
     private let entry = NSLock()
     private let state = NSLock()
-    private var current: (plugin: PluginID, started: ContinuousClock.Instant)?
+    private var current: (plugin: PluginID, started: Duration)?
     private var stopped = false
     private var dropping: DispatchWorkItem?
 
@@ -33,8 +33,8 @@ final class PluginEngine: @unchecked Sendable {
             return effectLibrary
         }
         let paused = state.withLock { current.take() }
-        let loading = ContinuousClock.now
-        defer { state.withLock { current = paused.map { ($0.plugin, $0.started + loading.duration(to: .now)) } } }
+        let loading = cpuTime()
+        defer { state.withLock { current = paused.map { ($0.plugin, $0.started + cpuTime() - loading) } } }
         guard let context = JSContext(virtualMachine: machine) else { throw RenderError("cannot load gary:effect: no JavaScript context") }
         context.name = "gary:effect"
         var failure: String?
@@ -85,7 +85,7 @@ final class PluginEngine: @unchecked Sendable {
 
     private func timed(_ plugin: PluginID, _ body: () -> JSValue?) -> (value: JSValue?, stopped: Bool) {
         state.withLock {
-            current = (plugin, .now)
+            current = (plugin, cpuTime())
             stopped = false
         }
         let value = body()
@@ -97,7 +97,7 @@ final class PluginEngine: @unchecked Sendable {
 
     private func shouldStop(_ context: JSContextRef) -> Bool {
         let stop = state.withLock {
-            guard let current, current.started.duration(to: .now) >= .seconds(Self.timeLimit) else { return false }
+            guard let current, cpuTime() - current.started >= .seconds(Self.timeLimit) else { return false }
             stopped = true
             return true
         }
@@ -114,4 +114,8 @@ final class PluginEngine: @unchecked Sendable {
             return Unmanaged<PluginEngine>.fromOpaque(info).takeUnretainedValue().shouldStop(context)
         }, Unmanaged.passUnretained(self).toOpaque())
     }
+}
+
+private func cpuTime() -> Duration {
+    .nanoseconds(clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID))
 }
