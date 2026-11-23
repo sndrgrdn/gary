@@ -88,7 +88,21 @@ struct PluginTypesTests {
         for text in valid {
             #expect(matches(text) && KeyCombo.parse(text) != nil, "\(text)")
         }
-        for text in ["shift+a", "a", "space", "f21", "f0", "ctrl+", "meh+a", "ctrl+alt+spacebar", "cmd++", "ctrl+a+b", "shift+f"] {
+        for text in [
+            "shift+a",
+            "a",
+            "space",
+            "f21",
+            "f0",
+            "ctrl+",
+            "meh+a",
+            "ctrl+alt+spacebar",
+            "cmd++",
+            "ctrl+a+b",
+            "shift+f",
+            "\nctrl+a",
+            "ctrl\n+a",
+        ] {
             #expect(!matches(text) && KeyCombo.parse(text) == nil, "\(text)")
         }
     }
