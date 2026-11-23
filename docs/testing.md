@@ -64,7 +64,8 @@ tail -f ~/Library/Logs/gary.log | grep --line-buffered 'plugin you.hello'
 
 ## Find problems
 
-- `gary doctor` reports problems with private APIs, permissions, plugins, `shell.json`, and the theme.
+- `gary doctor` reports problems with private APIs, permissions, plugins, `shell.json`, and the theme, and other bars that are running, such as SketchyBar, which draw over Gary's bar.
+- `gary report` prints a bug report in Markdown: the versions, `gary doctor`, `gary listPlugins`, the last 100 log lines, and recent crash reports. Paste it into a [bug report](https://github.com/sndrgrdn/gary/issues/new) after you remove anything personal.
 - `gary permissions` lists each macOS permission, whether Gary has it, and the enabled plugins that need it.
 - `gary plugin validate <folder>` runs the checks that Gary runs when it loads a plugin.
 - When `gary` prints `not running`, start Gary with `open -a Gary`.

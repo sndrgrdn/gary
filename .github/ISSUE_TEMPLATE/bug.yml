@@ -1,0 +1,19 @@
+name: Bug
+description: Report a bug in Gary
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: The steps to reproduce it, what you expected, and what happened instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: report
+    attributes:
+      label: gary report
+      description: Paste the output of `gary report`. Remove anything personal first, such as clipboard text or file paths in log lines.
+    validations:
+      required: true

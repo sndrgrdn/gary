@@ -2,6 +2,8 @@
 
 Gary needs macOS 26 or later on Apple silicon. Install it with the install script, with Homebrew, or from source. Each method puts the `gary` command on your `PATH`.
 
+Quit any other bar, such as SketchyBar or StableBar, first, because both bars would draw at the top of the screen. `gary doctor` flags one that is still running.
+
 ## Install with the script
 
 ```sh

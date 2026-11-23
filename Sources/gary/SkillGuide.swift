@@ -18,6 +18,7 @@ extension Skill {
             testing,
             commonRequests,
             verification,
+            bugReport,
             referenceIndex,
             exampleSection(examples),
         ]
@@ -220,7 +221,7 @@ extension Skill {
     - `gary tree <id>/<kind>` prints the nodes the surface shows as an outline, one line per node: its type, key and text, then `@x,y widthxheight` in points from the top left of the surface, and the color, background, opacity, border and font it is drawn with now, hover included. A node in a `scroll` that is out of view, or that has not been laid out, prints without a frame. Use it to check layout and colors exactly, instead of measuring a screenshot.
     - `gary capture <id>/<kind> <file.png>` draws the shown surface into a PNG at the display's scale, so a Retina PNG has two pixels per point. It needs no Screen Recording and shows no other windows, but it leaves out blur and materials, which macOS composites later. Prefer it to `screencapture`.
     - `gary reloadPlugins <id>` reloads a plugin from disk. `gary rescanPlugins` finds added and removed plugin folders.
-    - `gary doctor` reports private API, permission, plugin, `shell.json`, and theme problems.
+    - `gary doctor` reports private API, permission, plugin, `shell.json`, and theme problems, and other bars that are running, such as SketchyBar, which draw over Gary's bar.
     - `gary permissions` shows which macOS permissions Gary has and which enabled plugins need them. A capability that lacks a permission says so in its error or topic value, with the `gary permissions request <name>` command that asks for it.
     - Check the result with `gary tree` and `gary capture`. When you need what they leave out, such as blur, take a screenshot. Capture only the rectangle you need with `-R x,y,width,height`, because a full-screen capture includes the user's other windows. `screencapture -x -R 0,0,1728,40 /tmp/bar.png` captures the bar of a display 1728 points wide. The `screens` line in the log gives each display's size in points. Rectangles are in points from the top left of the main display. A Retina PNG has two pixels per point, so halve PNG pixel positions to get points. The bar is `theme.bar.height` points tall, 32 by default. Summon a surface before you capture it, and capture the corner its `anchors` and `margins` place it in. The screenshot needs Screen Recording for the program that runs `screencapture`, not for Gary.
     - When `gary` prints `not running`, start Gary with `open -a Gary`. To restart Gary, for example after the user grants Screen Recording, run `gary quit` and then `open -a Gary`.
@@ -232,6 +233,22 @@ extension Skill {
     Confirm the result the user asked for, not only that a command ran: the plugin's state in `gary listPlugins`, no new failure in the log, the nodes, frames, and colors in `gary tree`, and the look in a `gary capture` PNG that you read. Read `gary tree` and `gary capture` after the step that should change them, such as a key press or a click.
 
     Describe the result in the user's terms, such as "The bar shows the uptime at the right" or "The launcher opens with ⌘Space and selects the row under the pointer". Say what you could not check, such as blur, which `gary capture` leaves out, a permission only the user can grant, or a hotkey that another app holds.
+    """
+
+    static let bugReport = """
+    ## Report a bug in Gary
+
+    First rule out the user's own plugins. Reproduce the problem with only the built-in plugins, or with the user's plugin turned off by `gary plugin disable <id>`, and turn it on again afterwards. A `failed` line in `gary listPlugins` or the log that names a user plugin is a bug in that plugin, not in Gary.
+
+    To report a bug in Gary:
+
+    1. Run `gary report > /tmp/gary-report.md`. It writes the versions, `gary doctor`, `gary listPlugins`, the last 100 log lines, and recent crash reports as Markdown.
+    2. Read the report and remove anything personal, such as clipboard text or file paths in log lines that `host.log` wrote.
+    3. Add the steps to reproduce, what you expected, and what happened above the report.
+    4. Show the user the report and ask before you file it.
+    5. File it with `gh issue create --repo sndrgrdn/gary --title "<what goes wrong>" --body-file /tmp/gary-report.md`.
+
+    When `gh` is not available, give the user the report and the link https://github.com/sndrgrdn/gary/issues/new.
     """
 
     static var referenceIndex: String {

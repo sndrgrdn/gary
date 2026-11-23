@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### New
+
+- `gary report` prints a bug report in Markdown, with the versions, `gary doctor`, `gary listPlugins`, the end of the log, and recent crash reports.
+- `gary doctor` flags SketchyBar, StableBar, Übersicht, Zebar, and Barik when they run, since they draw their own bar over Gary's.
+
 ### Fixes
 
 - Gary runs on macOS 26 and later, down from 27.2.
