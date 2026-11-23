@@ -338,7 +338,7 @@ private nonisolated enum AudioCaptureAccess {
     static let preflight = privateSymbol(.tccAccessPreflight, as: (@convention(c) (CFString, CFDictionary?) -> Int32).self)
     static let request = privateSymbol(
         .tccAccessRequest,
-        as: (@convention(c) (CFString, CFDictionary?, @Sendable @convention(block) (Bool) -> Void) -> Void).self,
+        as: (@convention(c) (CFString, CFDictionary?, @escaping @Sendable @convention(block) (Bool) -> Void) -> Void).self,
     )
 }
 
