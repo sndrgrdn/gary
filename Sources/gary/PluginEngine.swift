@@ -62,7 +62,7 @@ final class PluginEngine: @unchecked Sendable {
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + Self.quiet, execute: work)
     }
 
-    private func dropCode() {
+    func dropCode() {
         let dropped = entry.withLock { JSContext(virtualMachine: machine).map { gary_drop_compiled_code($0.jsGlobalContextRef) } }
         if dropped == false {
             _ = Self.cannotDropCode
