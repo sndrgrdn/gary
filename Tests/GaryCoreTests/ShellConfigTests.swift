@@ -106,7 +106,7 @@ struct ShellConfigTests {
         #expect(try config(#"{"plugins": ["acme.top", "acme.alt"], "disabledPlugins": ["acme.alt"]}"#).resolve(bars).barPlugin == id("acme.top"))
     }
 
-    @Test func `A subscription to A missing plugin is A warning and to A disabled one A note`() throws {
+    @Test func `subscriptions to missing plugins are warnings and to disabled ones notes`() throws {
         let plugins = try catalog(
             [Entry("acme.counter", .user, [.service]), Entry("acme.view", .user, [.barWidget]), Entry("acme.off", .user, [.service])],
             subscribes: ["acme.view": [.capability("clock"), .plugin(id("acme.counter")), .plugin(id("acme.off")), .plugin(id("acme.ghost"))]],
