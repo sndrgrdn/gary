@@ -85,6 +85,22 @@ struct GestureViewTests {
         #expect(host.clickable("missing") == nil)
     }
 
+    @Test func `the pointer entering and leaving a node with a hover action sends true and then false, and gary action cannot click it`() throws {
+        var sent: [ActionEvent] = []
+        let host = try mount(#"{"type":"row","hoverAction":"row:a","width":80,"height":20,"children":[]}"#) { sent.append($0) }
+        let view = try #require(host.descendants(GestureView.self).first)
+        let entered = try #require(NSEvent.enterExitEvent(
+            with: .mouseEntered, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, eventNumber: 0, trackingNumber: 0,
+            userData: nil,
+        ))
+        view.mouseEntered(with: entered)
+        view.mouseExited(with: entered)
+        #expect(sent.map(\.name) == ["row:a", "row:a"])
+        #expect(sent.map(\.payload) == [.bool(true), .bool(false)])
+        #expect(sent.first?.origin == view.screenFrame)
+        #expect(host.clickable("row:a") == nil)
+    }
+
     @Test func `a scroll over a node goes to the innermost node with a scroll action under its centre`() throws {
         let open = #"{"type":"row","action":"open","width":80,"height":20,"children":[]}"#
         let inner = #"{"type":"row","scrollAction":"inner","width":80,"height":20,"children":[]}"#

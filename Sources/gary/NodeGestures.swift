@@ -74,11 +74,13 @@ final class GestureView: NSView {
     override func mouseEntered(with _: NSEvent) {
         pointerInside = true
         hover()
+        send(.hover, .bool(true))
     }
 
     override func mouseExited(with _: NSEvent) {
         pointerInside = false
         tooltipPanel?.hide(for: self)
+        send(.hover, .bool(false))
     }
 
     private func hover() {
@@ -128,7 +130,7 @@ extension NSView {
 
     func clickable(_ action: String) -> (view: GestureView, gesture: Node.Gesture)? {
         for view in descendants(GestureView.self) {
-            if let gesture = view.actions.first(where: { $0.key != .scroll && $0.value == action })?.key {
+            if let gesture = view.actions.first(where: { $0.key != .scroll && $0.key != .hover && $0.value == action })?.key {
                 return (view, gesture)
             }
         }

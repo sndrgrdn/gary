@@ -72,6 +72,8 @@ extension Shell {
             reply(press(keys, on: id, kind))
         case let .scroll(id, kind, over, distance):
             reply(scroll(distance, over: over, on: SlotKey(id: id, kind: kind)))
+        case let .hover(id, kind, action, entering):
+            reply(hover(action, entering: entering, on: SlotKey(id: id, kind: kind)))
         case let .call(id, method, arguments):
             call(id, nil, method, arguments) { response in
                 guard case let .ok(text) = response, case let .string(string)? = try? JSON.parse(text) else { return reply(response) }
@@ -144,6 +146,15 @@ extension Shell {
             runtime.scroll(event)
         }
         return .ok("scrolled \(key)")
+    }
+
+    private func hover(_ action: String, entering: Bool, on key: SlotKey) -> Response {
+        let views = mounted(key).flatMap { $0.descendants(GestureView.self) }
+        guard let view = views.first(where: { $0.actions[.hover] == action }) else {
+            return .failure("no shown node of \(key) has the hoverAction \(action)")
+        }
+        view.send(.hover, .bool(entering))
+        return .ok("\(entering ? "entered" : "left") \(action) on \(key) at \(view.screenFrame.map(describe) ?? "no frame")")
     }
 
     private func mounted(_ key: SlotKey) -> [TreeHostingView] {

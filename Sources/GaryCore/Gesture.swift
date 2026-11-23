@@ -4,5 +4,6 @@ public extension Node {
         case rightClick = "rightAction"
         case middleClick = "middleAction"
         case scroll = "scrollAction"
+        case hover = "hoverAction"
     }
 }

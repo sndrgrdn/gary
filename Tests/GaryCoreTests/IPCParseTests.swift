@@ -38,6 +38,8 @@ struct IPCParseTests {
                 Invocation("scroll", ["gary.today/bar-widget", "volume", "12.5", "--precise"]),
                 .scroll(today, kind: .barWidget, over: "volume", by: .points(12.5)),
             ),
+            (Invocation("hover", ["gary.today/menu", "row:a"]), .hover(today, kind: .menu, action: "row:a", entering: true)),
+            (Invocation("hover", ["gary.today/menu", "row:a", "off"]), .hover(today, kind: .menu, action: "row:a", entering: false)),
         ]
         for (invocation, request) in cases {
             #expect(try invocation.parse() == request, "\(invocation.verb) \(invocation.arguments)")
@@ -75,6 +77,8 @@ struct IPCParseTests {
                 "scroll takes <plugin>/<kind>, an optional action, a number of lines or points, and an optional --precise",
             ),
             (Invocation("scroll", ["gary.today", "3"]), "scroll takes <plugin>/<kind>, such as gary.today/panel"),
+            (Invocation("hover", ["gary.today/menu", "row:a", "on"]), "hover takes <plugin>/<kind>, a hoverAction and an optional off"),
+            (Invocation("hover", ["gary.today", "row:a"]), "hover takes <plugin>/<kind>, such as gary.today/panel"),
             (Invocation("key", ["gary.today/widget", "a"]), "unknown kind \"widget\"; use bar-widget, bar, panel, overlay, menu, service"),
         ]
         for (invocation, message) in cases {
