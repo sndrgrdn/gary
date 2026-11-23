@@ -15,9 +15,10 @@ struct TreeViewIdentityTests {
 
     @Test(arguments: [
         #""opacity":0.5,"#, #""scale":0.9,"#, #""rotation":5,"#, #""blur":2,"#, #""blend":"multiply","#,
-        #""x":4,"#, #""y":4,"#, #""minWidth":300,"#,
+        #""x":4,"#, #""y":4,"#, #""minWidth":300,"#, ##""shadow":{"color":"#000000","radius":4,"y":2},"##, #""clip":true,"#,
+        #""material":"vibrant","#, #""material":"glass","#, #""colorScheme":"light","#, #""action":"open","#,
     ])
-    func `a node that gains or loses a visual effect or minWidth keeps its children's state`(style: String) throws {
+    func `a node that gains or loses a style or a click action keeps its children's state`(style: String) throws {
         var sent: [String] = []
         let theme = try Theme.parse(
             JSON.parse(Data(contentsOf: URL(fileURLWithPath: #filePath)
