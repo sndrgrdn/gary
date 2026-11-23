@@ -1,97 +1,118 @@
 # Gary
 
-Gary is a macOS shell that draws a bar, panels, overlays, and menus from plugins you write in TypeScript. Each plugin runs in its own JavaScriptCore context and reaches the system through capabilities such as battery, audio, Wi-Fi, and now playing.
+Gary is a macOS shell that you build from TypeScript plugins. It draws a bar along the top of each display, and panels, overlays, menus, and background services, from plugins that you write, install, or ask an agent to write for you.
+
+![A Gary bar with workspaces on the left, the date, time, and weather in the middle, and Bluetooth, Wi-Fi, audio, display, and battery icons on the right](docs/images/bar.png)
+
+<p>
+  <img alt="An audio menu with output and input volume sliders and devices" src="docs/images/audio-menu.png" width="320">
+  <img alt="A keyboard-driven main menu with screenshot, record, text, QR code, and color entries" src="docs/images/main-menu.png" width="280">
+</p>
+
+The screenshots show [sndrgrdn/gary-plugins](https://github.com/sndrgrdn/gary-plugins), an Omarchy-style desktop built on Gary.
+
+## Features
+
+- **Six plugin kinds.** Bar widgets, whole bars, panels, overlays, keyboard-driven menus, and services without a view.
+- **TypeScript and JSX without a build step.** Gary compiles `.ts` and `.tsx` files itself. `gary plugin types` writes declarations for exactly the capabilities that a plugin's manifest asks for, so `tsc` checks every field.
+- **Capabilities for the whole Mac.** Audio, battery, Bluetooth, brightness, calendar, clipboard, Wi-Fi, now playing, notifications, screen capture, text recognition, global hotkeys, a Hyper key, the menu bar tray, and more. Gary asks for a macOS permission only when an enabled plugin needs it.
+- **Live reload.** Save a file and Gary reloads the plugin in about 40 ms. A version that fails logs its error and leaves the running version in place.
+- **Isolation.** Each plugin kind runs in its own JavaScriptCore context. Gary stops a handler that runs longer than 100 ms of CPU time, and restarts the plugin.
+- **Effect built in.** Import [Effect](https://effect.website) from `gary:effect` for services, timers, `fetch`, and streams. Only plugins that import it load it.
+- **Themes.** A `palette.toml` of colors, in the format of an Omarchy theme's `colors.toml`, and a `theme.json` of styles, fonts, spacing, and corner radii that every plugin follows.
+- **Packages.** Install plugins from git, npm, or a local folder, and keep them up to date with `gary plugin update`.
+- **Made for agents.** The `gary` command clicks, types, hovers, and scrolls in a plugin, prints its node tree, and captures it as a PNG, so an agent can test what it builds. `gary skill setup` teaches your coding agent how.
+
+## Requirements
 
 Gary needs macOS 27.2 or later on Apple silicon.
 
-## Install
+## Quick start
 
-Run the install script:
+1. Install Gary:
 
-```sh
-curl -fsSL https://raw.githubusercontent.com/sndrgrdn/gary/main/scripts/install.sh | sh
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/sndrgrdn/gary/main/scripts/install.sh | sh
+   ```
+
+   The script installs `~/Applications/Gary.app`, links `~/.local/bin/gary`, starts Gary at login, and starts it now. A bar with a clock and the battery level appears at the top of each display. [Install Gary](docs/install.md) covers Homebrew, building from source, updating, and uninstalling.
+
+2. Create your first plugin:
+
+   ```sh
+   gary plugin new you.hello
+   ```
+
+   Gary writes `~/.config/gary/plugins/you.hello` and adds the widget to the right of the bar. Edit `widget.ts` and save it. The bar shows your change at once.
+
+3. Copy one of the [examples](examples), such as an app launcher on Control-Option-Space:
+
+   ```sh
+   gary plugin new you.launcher --from launcher
+   ```
+
+   Or install a whole desktop of ready-made plugins. Several of them draw Nerd Font icons, and their READMEs say which font they need:
+
+   ```sh
+   gary plugin install git:github.com/sndrgrdn/gary-plugins
+   ```
+
+4. Grant the macOS permissions that your plugins need:
+
+   ```sh
+   gary onboarding
+   ```
+
+   The **Set up Gary** window lists each permission that an enabled plugin needs, with an **Allow** button for each. Gary also opens it on first launch, and when a newly enabled plugin needs a permission.
+
+A plugin is a folder with a `manifest.json` and one entry file per kind. This bar widget shows the battery level, with `"subscribes": ["battery"]` in its manifest:
+
+```tsx
+export default {
+  render(state) {
+    return (
+      <row gap={4}>
+        <icon symbol={state.battery?.charging ? "bolt.fill" : "battery.75percent"} style="dim" />
+        <text>{state.battery?.percent ?? "–"}%</text>
+      </row>
+    );
+  },
+} satisfies Gary.BarWidget;
 ```
 
-The script downloads the latest release and checks its checksum and signature. It installs `~/Applications/Gary.app`, links `~/.local/bin/gary`, starts Gary at login, and starts Gary now. To install a specific version, add `-s -- 0.2.0` after `sh`. You can run the script again at any time.
+## For agents
 
-### Install with Homebrew
+Copy this prompt into Claude Code, Codex, pi, or another coding agent. The agent installs Gary, learns how to write plugins for it, and builds the setup you ask for.
 
-```sh
-brew install --cask sndrgrdn/tap/gary
+```text
+Set up Gary, the macOS shell from https://github.com/sndrgrdn/gary, on this Mac.
+
+1. Check that this Mac runs macOS 27.2 or later on Apple silicon with `sw_vers -productVersion` and `uname -m`. If it does not, stop and tell me.
+2. If `gary --version` fails, install Gary. Ask me whether I prefer Homebrew. With Homebrew, run `brew install --cask sndrgrdn/tap/gary`, then `gary login on` and `open -a Gary`. Otherwise run `curl -fsSL https://raw.githubusercontent.com/sndrgrdn/gary/main/scripts/install.sh | sh`.
+3. Run `gary ping` and check that it prints `pong`.
+4. Run `gary skill setup`, then run `gary skill show`. Follow the guide it prints for every step after this one.
+5. Ask me what I want Gary to show, such as a bar with the time, battery, Wi-Fi, and audio, a launcher, or a clipboard history. Offer the plugins in https://github.com/sndrgrdn/gary-plugins as a starting point, and install them with `gary plugin install git:github.com/sndrgrdn/gary-plugins` only if I agree.
+6. Build each plugin I ask for in ~/.config/gary/plugins, starting from the closest bundled example. Test each one with the gary commands that the guide lists.
+7. Run `gary permissions` and tell me which macOS permissions my plugins need and why. Then run `gary onboarding` so that I can grant them.
+8. Tell me what Gary now shows, and what you could not check.
 ```
 
-Homebrew installs `/Applications/Gary.app` and puts `gary` on your `PATH`. To start Gary at login and start it now, run:
+`gary skill setup` installs a small skill into `~/.claude/skills` and `~/.agents/skills`, which Codex, OpenCode, and pi read. The skill tells the agent to run `gary skill show`, which prints the guide for the installed version of Gary.
 
-```sh
-gary login on
-open -a Gary
-```
+## Documentation
 
-### Install from source
+| Guide                                                | Covers                                                                                 |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| [Install Gary](docs/install.md)                      | The install script, Homebrew, building from source, permissions, updates, and removal. |
+| [Write plugins](docs/plugins.md)                     | Plugin kinds, surfaces, topics, entry files, layout, Effect, and settings.             |
+| [Test plugins](docs/testing.md)                      | Driving and inspecting a plugin with the `gary` command, and reading the log.          |
+| [Capabilities and permissions](docs/capabilities.md) | What each capability gives a plugin, and the macOS permission it needs.                |
+| [Configure the shell](docs/configuration.md)         | `shell.json`: the bar's sections, enabled plugins, plugin settings, and packages.      |
+| [Themes](docs/themes.md)                             | `palette.toml` and `theme.json`: colors, styles, fonts, spacing, and the bar.          |
+| [Packages](docs/packages.md)                         | Installing, updating, and publishing plugins from git, npm, or a folder.               |
+| [Develop Gary](docs/development.md)                  | Building, testing, and releasing Gary itself.                                          |
 
-You need Xcode with Swift 6.2, [`just`](https://github.com/casey/just), and a code-signing certificate in your keychain. Then run:
-
-```sh
-IDENTITY="<your certificate name>" just install
-```
-
-`IDENTITY` defaults to `Sander Local Signing`. `just install` does not turn on start at login. Run `gary login on` for that.
-
-## First run
-
-Grant the macOS permissions that your plugins need:
-
-```sh
-gary onboarding
-```
-
-The **Set up Gary** window lists each permission with an **Allow** button. Run `gary permissions` to see what Gary has.
-
-Gary is signed with a local certificate and is not notarized. If macOS says that it cannot verify the developer, open **System Settings > Privacy & Security** and click **Open Anyway**. macOS keeps your permission grants across updates because every release uses the same certificate.
-
-## Write plugins with an agent
-
-Install the `gary` skill into Claude Code and into agents that read `~/.agents/skills`:
-
-```sh
-gary skill setup
-```
-
-The skill points the agent to `gary skill show`, which prints the plugin guide for the installed version. [`docs/plugins.md`](docs/plugins.md) covers the same ground for people.
-
-## Install plugins
-
-```sh
-gary plugin install git:github.com/you/gary-plugins
-```
-
-`gary plugin install` takes `npm:<name>[@version]`, `git:<host>/<owner>/<repo>[@ref]`, a git URL, or a local folder. It records the package in `packages` in `~/.config/gary/shell.json` and enables its plugins. `gary plugin update` updates every package, and `gary plugin remove <source>` removes one. [`docs/plugins.md`](docs/plugins.md) has the details.
-
-## Update
-
-```sh
-gary update
-```
-
-`gary update` prints the installed and latest versions, and installs the latest release if they differ. If you installed Gary with Homebrew, run `brew upgrade --cask gary` instead. `gary --version` prints the installed version.
-
-## Uninstall
-
-```sh
-gary login off
-gary skill remove
-gary quit
-rm -rf ~/Applications/Gary.app ~/.local/bin/gary
-```
-
-If you installed Gary with Homebrew, replace the last line with `brew uninstall --cask gary`.
-
-To also delete your settings, plugins, plugin storage, log, and permission grants, run:
-
-```sh
-rm -rf ~/.config/gary ~/Library/Application\ Support/Gary ~/Library/Logs/gary.log
-tccutil reset All com.sndrgrdn.gary
-```
+`gary help` lists every command. `gary skill show <topic>` prints the full reference that ships with your version, such as `gary skill show manifest` or `gary skill show audio`.
 
 ## License
 

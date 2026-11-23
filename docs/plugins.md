@@ -1,78 +1,240 @@
-# Writing Gary plugins
+# Write plugins
 
-A plugin is a folder with a `manifest.json` and one entry file per kind. Gary runs each entry file in its own JavaScriptCore context. It calls `render(state)` and draws the node tree that `render` returns. Entry files are ES modules in TypeScript (`.ts` or `.tsx`) or JavaScript (`.js`).
+A plugin is a folder with a `manifest.json` and one entry file per kind. Gary runs each entry file in its own JavaScriptCore context, calls `render(state)`, and draws the node tree that `render` returns with SwiftUI. Entry files are ES modules in TypeScript (`.ts` or `.tsx`) or JavaScript (`.js`).
 
-Gary.app bundles the plugins in [`examples/`](../examples) in `Contents/Resources/examples`. Gary does not load them. Copy one under your own id to start:
-
-| Example                          | Shows                                                                                          |
-| -------------------------------- | ---------------------------------------------------------------------------------------------- |
-| [`load`](../examples/load)       | A bar widget that runs a command with `host.exec`.                                             |
-| [`disk`](../examples/disk)       | A service written with Effect that publishes a value, and a bar widget that subscribes to it.  |
-| [`timer`](../examples/timer)     | A panel with buttons, a slider, a progress bar, and `host.storage`.                            |
-| [`today`](../examples/today)     | A panel that subscribes to the `clock` and `battery` topics.                                   |
-| [`gallery`](../examples/gallery) | A panel that draws a gradient, a progress ring, charts, a calendar grid, loops, and a shader.  |
-| [`popover`](../examples/popover) | A bar widget with right-click, middle-click, scroll, and tooltip that opens an attached panel. |
-| [`osd`](../examples/osd)         | A panel with two surfaces at once: a settings panel and a volume display that hides itself.    |
-
-The only built-in plugins are the `gary.clock` and `gary.battery` bar widgets, so a fresh install shows a bar.
+This guide explains how plugins work and how to write one. [Test plugins](testing.md) covers checking a plugin in the running Gary, and `gary skill show <topic>` prints the full reference for your version.
 
 ## Create a plugin
 
-1. Scaffold a bar widget and turn it on:
+1. Scaffold a plugin. Start from the [example](../examples) closest to what you want, or from a kind:
 
    ```sh
+   gary plugin new you.weather --from weather
    gary plugin new you.hello
+   gary plugin new you.music --kind bar-widget,panel
    ```
 
-   Gary writes `~/.config/gary/plugins/you.hello/` with `manifest.json`, `widget.ts`, `gary.d.ts`, `manifest.schema.json`, `tsconfig.json`, and `README.md`. The widget appears at the right of the bar. To start from an example instead, pass `--from`, such as `gary plugin new you.timer --from timer`. Gary replaces the example's id with yours in every file.
+   Gary writes `~/.config/gary/plugins/<id>/` with `manifest.json`, one entry file per kind, `gary.d.ts`, `manifest.schema.json`, `tsconfig.json`, and `README.md`. A plugin with a service also gets a `package.json` for the Effect types. Gary enables the plugin in `~/.config/gary/shell.json`. A bar widget goes to the bar section that the manifest's `bar` field names, `right` by default. Without `--kind` or `--from`, the plugin is one bar widget.
 
-2. Edit `widget.ts` and save. Gary reloads the plugin within about 40 ms. If the new version fails, Gary logs the reason and keeps the running version.
-3. Type-check the folder:
+2. Edit an entry file and save it. Gary reloads the plugin within about 40 ms. If the new version fails, Gary logs the reason and keeps the running version.
+
+3. After you change `uses` or `subscribes` in `manifest.json`, refresh the types:
 
    ```sh
-   npx -p typescript tsc -p ~/.config/gary/plugins/you.hello
+   gary plugin types ~/.config/gary/plugins/you.weather
    ```
 
-4. Run the checks Gary runs when it loads plugins:
+4. Type-check the folder, then run the checks that Gary runs when it loads plugins:
 
    ```sh
-   gary plugin validate ~/.config/gary/plugins/you.hello
+   npx -p typescript tsc -p ~/.config/gary/plugins/you.weather
+   gary plugin validate ~/.config/gary/plugins/you.weather
    ```
 
-For another kind, pass `--kind`, for example `--kind panel` or `--kind service,bar-widget`. To scaffold outside the plugins folder, pass `--dir <path>`. Gary then records that folder in `packages` in `shell.json` and loads it in place.
+   For a plugin with a `package.json`, run `npm install` in its folder first, and then `npx tsc -p .`.
 
-Gary logs `host.log` lines and load failures. The app writes them to `~/Library/Logs/gary.log`. Run `gary app` in a terminal to see them live.
+To scaffold outside the plugins folder, such as in a git repository, pass `--dir <folder>`. Gary records that folder in `packages` in `shell.json` and loads it in place.
 
-## Test a plugin
+## Plugin ids and kinds
 
-The `gary` command drives a plugin the way a user would, without Accessibility for your terminal, and shows what it draws:
+A plugin id has two or more dot-separated parts of lowercase letters, digits, and hyphens, such as `you.weather`. The `gary.` prefix is reserved for the built-in plugins.
 
-| Command                                        | Does                                                                             |
-| ---------------------------------------------- | -------------------------------------------------------------------------------- |
-| `gary summon you.hello`, `gary hide you.hello` | Shows or hides a panel, overlay, or menu.                                        |
-| `gary action you.hello/panel <action>`         | Clicks the node with that `action`.                                              |
-| `gary click you.hello/panel <x> <y>`           | Clicks a point of the surface, such as empty space.                              |
-| `gary key you.hello/menu s a f enter`          | Types and presses keys, or a hotkey the plugin holds.                            |
-| `gary hover you.hello/menu <hoverAction>`      | Moves the pointer onto the node with that `hoverAction`.                         |
-| `gary scroll you.hello/panel 3`                | Scrolls over the surface.                                                        |
-| `gary tree you.hello/panel`                    | Prints every shown node with its frame and colors.                               |
-| `gary capture you.hello/panel /tmp/hello.png`  | Saves the surface as a PNG, without Screen Recording.                            |
-| `gary call you.hello <method>`                 | Runs a function from the plugin's `methods`, such as one that returns its state. |
+The manifest's `kinds` lists what the plugin runs as, and `entryPoints` names the file for each kind:
 
-## Write TypeScript
+| Kind         | Runs as                                                                                                               |
+| ------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `bar-widget` | A view in the built-in bar. `shell.json` places it in a bar section. When `render` returns `null`, it takes no space. |
+| `bar`        | A whole bar that replaces the built-in bar.                                                                           |
+| `panel`      | A window that the plugin, a command, or another plugin shows and hides.                                               |
+| `overlay`    | A panel that covers the whole display above other windows.                                                            |
+| `menu`       | A panel that takes keys, and hides when the user clicks outside it or presses Escape.                                 |
+| `service`    | A script with no view. It publishes values for other plugins, holds hotkeys, and answers `gary call`.                 |
 
-Gary compiles TypeScript and modules with a bundled copy of [sucrase](https://github.com/alangpierce/sucrase) and keeps line numbers, so errors point at the `.ts` line. Gary does not type-check. Run `tsc` for that.
+```json
+{
+  "$schema": "./manifest.schema.json",
+  "schemaVersion": 1,
+  "id": "you.music",
+  "name": "Music",
+  "version": "0.1.0",
+  "kinds": ["bar-widget", "panel"],
+  "entryPoints": { "bar-widget": "widget.tsx", "panel": "panel.tsx" },
+  "subscribes": ["nowplaying"],
+  "uses": ["nowplaying"]
+}
+```
 
-- Write `export default { ... } satisfies Gary.BarWidget`, or `Gary.Panel`, `Gary.Service`, or the type for your kind. TypeScript then types `state` and checks the tree you return.
-- Split a plugin into files with relative imports, such as `import { parse } from "./parse"`. Gary finds `.ts`, `.tsx`, and `.js` files and `index` files in folders. Besides `gary:effect`, any other import, such as an npm package, fails the load with an error that names it.
-- After you change `uses` or `subscribes`, run `gary plugin types <folder>`. `gary.d.ts` declares only the `host` functions and `state` fields that your manifest asks for, and `onTopic` narrows `value` by the topic name.
-- To type the value a plugin publishes, export `type Topic` from `topic.ts` in its folder. `gary plugin types` types `host.publish` with it, and `state["<id>"]` in every plugin that subscribes and sits in a sibling folder, in `~/.config/gary/plugins`, or in a package. The [`disk`](../examples/disk) example does this.
+Each kind runs in its own context, so kinds share no variables. They share the manifest. `uses` applies to every kind, and so does `subscribes` unless it lists topics per kind, such as `{ "panel": ["nowplaying"], "bar-widget": [] }`. Other manifest fields set `keepLoaded`, global `hotkeys`, the `mediakeys` a kind takes over, the `surfaces` of each kind, and the `bar` section a new widget goes to. `gary skill show manifest` describes every field.
+
+## Lifecycle
+
+1. Gary loads a kind and runs its entry file once from the top.
+2. Gary delivers the current value of each subscribed topic to `onTopic`.
+3. Gary calls `render(state)` once per display.
+4. After each handler, timer, host callback, and topic change, Gary calls `render` again and redraws only what changed.
+
+Enabled bar widgets, bars, and services load when Gary starts. A panel, overlay, or menu loads when it is first shown, and stops when its last surface hides, unless the manifest sets `keepLoaded`.
+
+Saving `manifest.json`, a `.ts`, `.tsx`, `.js`, or `.metal` file in the plugin folder reloads the plugin. A reload starts the module again from the top. A call that runs longer than 100 ms of CPU time stops the plugin. A stopped bar widget, bar, or service restarts after 1 second, and a stopped surface loads again when it is next shown. After 5 failures in 60 seconds, Gary disables the plugin until its files change.
+
+## Write entry files
+
+An entry file's default export is an object. `satisfies Gary.BarWidget`, or the type for your kind, makes TypeScript check `state`, the handlers, and the node tree:
+
+```tsx
+let clicks = 0;
+
+export default {
+  render() {
+    return <text action="count">{`Clicked ${clicks} times`}</text>;
+  },
+
+  onAction(action) {
+    if (action === "count") {
+      clicks += 1;
+    }
+  },
+} satisfies Gary.BarWidget;
+```
+
+- Keep state that survives renders in module variables. Keep values that survive reloads and restarts in `host.storage`.
+- Keep `render` pure and fast. Do slow work in timers, promises, or Effect, store the result in a variable, and let the next render show it.
+- Split a plugin into files with relative imports, such as `import { parse } from "./parse"`. Gary finds `.ts`, `.tsx`, and `.js` files and `index` files in folders. The only other import is `gary:effect`. An npm package fails the load with an error that names it.
+- There is no DOM, no `console`, and no Node.js API. Log with `host.log`. Run commands with `host.exec`, read files with the `files` capability, and fetch URLs with the `network` capability.
+- A module cannot use `await` at its top level. Start async work in a function that you call, in a handler, or in the `effect` field.
+- `setTimeout`, `setInterval`, `clearTimeout`, and `clearInterval` work as in a browser.
+
+Gary compiles TypeScript and JSX with a bundled copy of [sucrase](https://github.com/alangpierce/sucrase), keeps line numbers so that errors point at your source, and caches the result. Gary does not type-check, so run `tsc`.
+
+### The default export
+
+| Field                       | Gary calls it                                                                                     |
+| --------------------------- | ------------------------------------------------------------------------------------------------- |
+| `render(state)`             | After every change, once per display. It returns a node. A service needs no `render`.             |
+| `onAction(action, payload)` | When the user clicks a node, moves a slider, types in an input, or moves the pointer onto a node. |
+| `onKey(key)`                | When a focused surface gets a key that no input takes. Return `true` when the plugin handled it.  |
+| `onScroll(event)`           | When the user scrolls over a panel, overlay, or menu, or over a node with `scrollAction`.         |
+| `onHotkey(id)`              | When a manifest hotkey fires.                                                                     |
+| `onTopic({ topic, value })` | When a subscribed topic changes, and once per topic at load.                                      |
+| `onMediaKey(event)`         | When a key that the manifest's `mediakeys` lists is pressed.                                      |
+| `methods`                   | Functions that `gary call` and `host.call` run.                                                   |
+| `effect`                    | The plugin's long-running Effect program, when the module imports `gary:effect`.                  |
+| `surface`, `surfaces`       | Where a panel, overlay, or menu shows.                                                            |
+
+Each handler also gets `state` as its last argument. `gary skill show plugin` describes each field, every `state` field, and every `host` function.
+
+## Read state
+
+`state` holds what the plugin subscribes to, its settings, and the theme:
+
+- `state.<topic>` is the value of a capability topic, such as `state.battery` or `state.wifi`. It is `undefined` until the first value arrives.
+- `state["<plugin id>"]` is the last value that another plugin, or this one, published with `host.publish`.
+- `state.settings` is the plugin's object from `settings` in `shell.json`. Gary reloads the plugin when it changes.
+- `state.theme` holds the resolved colors, the `spacing` scale, and the `radius` scale.
+- `state.display` and `state.surface` say which display and which surface `render` draws.
+
+A topic with `available: false` cannot read its data, and gives the reason, such as a missing permission, in `reason`.
+
+## Lay out nodes
+
+`render` returns a tree of plain objects, such as `{ type: "text", text: "Hi" }`. In a `.tsx` file, write the same tree in JSX: `<row gap={8}><icon symbol="cpu" /><text>{load}</text></row>`. A lowercase tag is a node type, child tags become `children`, and the text inside `<text>` becomes `text`. A capitalized tag calls your own function with its attributes, so `<Button action="start" label="Start" />` runs `Button({ action: "start", label: "Start" })`. `gary.d.ts` types each tag, so a misspelled attribute is a `tsc` error.
+
+A `row` is a horizontal stack, a `column` is a vertical stack, a `stack` layers its children from its top left corner, and a `spacer` takes the free space. The other node types are `scroll`, `button`, `text`, `icon` for an SF Symbol, `image`, `slider`, `progress`, `input`, `grid`, `shape`, `chart`, and `shader`. `gary skill show nodes` lists the fields of each.
+
+Every node takes these style properties, as does every style in `theme.json`:
+
+| Property                                  | Value                                                                                                                                                                   |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `style`                                   | The name of a theme style, such as `"dim"`, `"title"`, or `"panel"`. A property on the node overrides the same property in its style.                                   |
+| `color`, `background`, `font`, `fontSize` | Theme color names or color expressions, a theme font name, and a size in points. `background` also takes a gradient.                                                    |
+| `padding`                                 | One number for every side, `[vertical, horizontal]`, or `[top, right, bottom, left]`.                                                                                   |
+| `width`, `height`, `minWidth`, `gap`      | Sizes in points, padding included. `gap` is the space between children.                                                                                                 |
+| `radius`, `opacity`                       | The corner radius in points, and the opacity from 0 to 1.                                                                                                               |
+| `align`                                   | `"leading"`, `"center"`, or `"trailing"`: where the content sits in a node wider than its content, and how wrapped lines align.                                         |
+| `lines`, `truncate`                       | The most lines a text shows, and where it cuts text that does not fit.                                                                                                  |
+| `x`, `y`, `zIndex`                        | Points to move the node without moving its siblings, and the order of overlapping siblings. In a `stack` they place the child.                                          |
+| `scale`, `rotation`                       | Draws the node larger, smaller, or turned clockwise in degrees around its center, without changing its layout size.                                                     |
+| `animation`, `duration`                   | `"smooth"`, `"spring"`, or `"none"`: how the node animates what changes inside it between renders, and the length in seconds. Reduce Motion turns it off.               |
+| `transition`                              | `"opacity"`, `"scale"`, or `"none"`: how a child appears and disappears.                                                                                                |
+| `material`, `colorScheme`                 | `"vibrant"`, `"glass"`, or `"none"`: a material behind the node, inside its `radius`. `"dark"` or `"light"` sets the appearance of the node and its children.           |
+| `clip`, `border`, `shadow`                | `clip: true` cuts the content to the rounded `radius`. `border` is `{ color, width }` and `shadow` is `{ color, radius, y }`.                                           |
+| `blur`, `blend`                           | `blur` blurs the node by a radius in points. `blend` mixes its colors with what is under it, such as `"multiply"`, `"screen"`, or `"plusLighter"`.                      |
+| `loop`                                    | `{ opacity, scale, rotation, x, y, duration, reverse }`: an animation that repeats without calling `render`. Each property is `[from, to]`. Reduce Motion turns it off. |
+| `fit`                                     | `"fit"` or `"fill"`: how an `image` fills its size.                                                                                                                     |
+
+A node also takes `hovered` and `pressed`: objects of style properties that apply while the pointer is over the node, and while a node with `action` is held down.
+
+Use theme style and color names, such as `style="dim"` or `color="accent"`, instead of hex colors, so that your plugin follows the user's palette. Take spacing and corner radii from `state.theme.spacing` and `state.theme.radius`, so that a theme respaces every plugin alike. [Themes](themes.md) lists the defaults.
+
+A `text` node is exactly as wide as its text, with no padding of its own. This row centers each workspace number in a 20-point cell:
+
+```tsx
+<row gap={1}>
+  {[1, 2, 3].map((n) => (
+    <text key={String(n)} width={20} align="center">
+      {n}
+    </text>
+  ))}
+</row>
+```
+
+Give siblings unique `key` values, so that Gary keeps each child's state, such as hover or typed text, when their order changes.
+
+A path that does not start with `/` or `~` is relative to the plugin folder, in an `image` or `shader` node, the `files` functions, and `host.wallpaper.set`. So a plugin finds the files it ships wherever it is installed.
+
+## Handle input
+
+| Field on a node | Sends                                                                              |
+| --------------- | ---------------------------------------------------------------------------------- |
+| `action`        | A click to `onAction`. On a `slider`, the new value as the user drags.             |
+| `rightAction`   | A right click to `onAction`.                                                       |
+| `middleAction`  | A middle click to `onAction`.                                                      |
+| `hoverAction`   | `true` to `onAction` when the pointer enters the node, and `false` when it leaves. |
+| `scrollAction`  | A scroll over the node to `onScroll`, with the name in `event.action`.             |
+| `tooltip`       | Text that Gary shows below the node when the pointer rests on it.                  |
+
+An `input` sends its text to the action named by `change` on each edit, and to the action named by `submit` on Return. A menu, or a surface with `focusable: true`, sends other keys to `onKey`, such as `down`, `escape`, or `cmd+k`. Escape hides a menu or overlay unless `onKey` returns `true`.
+
+A manifest hotkey, such as `{ "id": "open", "keys": "ctrl+alt+space" }`, calls `onHotkey("open")`, loading the plugin if needed. To read keys from settings instead, register them while the plugin runs with `host.hotkeys`, as the [`shortcuts`](../examples/shortcuts) example does.
+
+The [`popover`](../examples/popover) example uses the click, scroll, and tooltip fields, and the [`launcher`](../examples/launcher) example uses an input, `onKey`, `hoverAction`, and a hotkey.
+
+## Show panels, overlays, and menus
+
+The `surface` field of the default export places a panel, overlay, or menu: its `anchors` to display edges, `margins`, size, `layer`, `background`, and whether it takes keys. `gary skill show nodes` lists every surface field.
+
+```tsx
+export default {
+  surface: { anchors: { top: true, right: true }, margins: { top: 8, right: 16 } },
+  render: () => <text style="title">Hello</text>,
+} satisfies Gary.Panel;
+```
+
+- `host.show()`, `host.hide()`, and `host.toggle()` show and hide the plugin's surface from any of its kinds, so a bar widget opens its own panel with `host.toggle()`. `gary summon`, `gary hide`, and `gary toggle` do the same from the terminal.
+- A surface with `attach: true` opens centered below the node whose click called `host.show()` or `host.toggle()`, such as a bar widget.
+- A surface with `background: "backdrop"` and `anchors` on every edge covers the display, centers the root node, and hides when the user clicks outside it. Use it for launchers and pickers.
+- To show several windows of one kind at once, such as a settings panel and an on-screen display, export `surfaces`, which maps each surface name to a `surface` object, and list the names in the manifest's `surfaces`. `render` gets the name in `state.surface`, and `host.show("osd")` or `gary summon you.music:osd` acts on one surface. The [`osd`](../examples/osd) example does this.
+- Given a surface address, such as `host.toggle("you.music")` or `host.toggle("you.music:osd")`, the functions act on another enabled plugin's surface.
+
+## Share values between kinds and plugins
+
+Kinds and plugins share no variables. Pick one of these ways to pass values:
+
+- **Publish a topic.** `host.publish(value)` publishes a JSON value under the plugin's id. Any plugin, the same one included, lists that id in `subscribes` and reads `state["you.source"]`. Export `type Topic` from a `topic.ts` at the root of the publishing plugin, so that `gary plugin types` types `host.publish` and every subscriber's `state`. The [`disk`](../examples/disk) example does this.
+- **Call a method.** `host.call({ kind: "panel" }, "refresh")` runs a function from another kind's `methods`, and `host.call({ plugin: "you.recorder" }, "start")` runs one from another plugin. It returns a promise of the result.
+- **Store a value.** `host.storage` keeps JSON values per plugin, shared by its kinds, in `~/Library/Application Support/Gary/storage/<id>.json`.
+
+## Use capabilities
+
+A capability adds functions to `host`, a topic to `state`, or both. List the functions you call in the manifest's `uses`, and the topics you read in `subscribes`. `gary.d.ts` declares only what the manifest asks for, so `tsc` catches a capability that you forgot to list. Some capabilities need a macOS permission. [Capabilities and permissions](capabilities.md) lists each one.
+
+`host.exec` runs a command off the main thread, and finds commands in the `PATH` of your login shell, so `["dinky", "workspace", "2"]` runs `/opt/homebrew/bin/dinky`. Subscribe to `session` to act when the screen is locked or unlocked.
 
 ## Write services and timers with Effect
 
-Import [Effect](https://effect.website) from `gary:effect` for work that outlives one handler: polling, timers, `fetch`, and `host.exec`. Put the long-running program in the default export's `effect` field. Gary runs it after load and interrupts it, with every fiber the plugin started, when the plugin unloads or reloads. `render` stays synchronous and reads module variables.
+Import [Effect](https://effect.website) from `gary:effect` for work that outlives one handler: polling, timers, `fetch`, streams, and `host.exec`. Put the long-running program in the default export's `effect` field. Gary runs it after load, and interrupts it, with every fiber the plugin started, when the plugin unloads or reloads. `render` stays synchronous and reads module variables.
 
-```ts
+```tsx
 import { Effect, Schedule, host } from "gary:effect";
 
 let uptime = "…";
@@ -88,73 +250,9 @@ export default {
 } satisfies Gary.BarWidget;
 ```
 
-`gary:effect` also exports `host` with each function as an Effect, `fetch`, `settings`, and `topic(name)`, a `Stream` of a subscribed topic. A plugin that does not import it never loads Effect. To type-check, install the matching version in the plugin folder with `npm install --save-dev effect@4.1.5`, and set `"skipLibCheck": true` in `tsconfig.json`. `gary plugin new --kind service` scaffolds a service this way, and the [`disk`](../examples/disk) example's service uses it.
+`gary:effect` exports Effect's modules, `host` with each function returning an Effect, `fetch`, `settings`, and `topic(name)`, a `Stream` of a subscribed topic. A handler or method can return an Effect, and Gary runs it in the plugin's scope. An Effect that fails, fails the plugin, so handle expected errors such as `HostError`. A plugin that does not import `gary:effect` never loads Effect.
 
-## Lay out nodes
-
-`render` returns a tree of plain objects, such as `{ type: "text", text: "Hi" }`. In a `.tsx` file, write the same tree in JSX: `<row gap={8}><icon symbol="cpu" /><text>{load}</text></row>`. A lowercase tag is a node type, child tags become `children`, and the text inside `<text>` becomes `text`. A capitalized tag calls your own function with its attributes, so `<Button action="start" label="Start" />` runs `Button({ action: "start", label: "Start" })`. `gary.d.ts` types each tag, so a misspelled attribute is a `tsc` error. The [`timer`](../examples/timer) example writes its panel this way, and [`gallery`](../examples/gallery) keeps plain objects.
-
-Gary draws each node tree with SwiftUI. A `row` is a horizontal stack, a `column` is a vertical stack, a `stack` layers its children from its top left corner, and a `spacer` takes the free space. Every node takes these style properties, as does every style in `theme.json`:
-
-| Property                   | Value                                                                                                                                                                                                                    |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `padding`                  | One number for every side, `[vertical, horizontal]`, or `[top, right, bottom, left]`.                                                                                                                                    |
-| `width`, `height`          | The exact size in points, padding included.                                                                                                                                                                              |
-| `minWidth`                 | The smallest width in points.                                                                                                                                                                                            |
-| `align`                    | `"leading"`, `"center"`, or `"trailing"`: where the content sits in a node wider than its content, and how wrapped lines align.                                                                                          |
-| `x`, `y`                   | Points to move the node right and down, or left and up when negative, without moving its siblings. In a `stack` they place the child.                                                                                    |
-| `zIndex`                   | Draws the node above siblings with a lower `zIndex`.                                                                                                                                                                     |
-| `scale`                    | Draws the node larger or smaller around its center without changing its layout size.                                                                                                                                     |
-| `animation`                | `"smooth"`, `"spring"`, or `"none"`: how the node animates what changes inside it between renders. `duration` sets its length in seconds. Reduce Motion turns it off.                                                    |
-| `transition`               | `"opacity"`, `"scale"`, or `"none"`: how a child appears and disappears.                                                                                                                                                 |
-| `material`                 | `"vibrant"`, `"glass"`, or `"none"`: a material behind the node, inside its `radius`.                                                                                                                                    |
-| `colorScheme`              | `"dark"` or `"light"`: the appearance of the node and its children, whatever the theme's mode. A `material` and system colors follow it.                                                                                 |
-| `clip`, `border`, `shadow` | `clip: true` cuts the content to the rounded `radius`. `border` is `{ color, width }` and `shadow` is `{ color, radius, y }`.                                                                                            |
-| `rotation`                 | Degrees to turn the node clockwise around its center without changing its layout. It animates like `scale`.                                                                                                              |
-| `blur`, `blend`            | `blur` blurs the node by a radius in points. `blend` mixes its colors with what is under it: `"normal"`, `"multiply"`, `"screen"`, `"overlay"`, `"plusLighter"`, `"plusDarker"`, or `"difference"`.                      |
-| `loop`                     | `{ opacity, scale, rotation, x, y, duration, reverse }`: an animation that repeats without calling `render`. Each property is `[from, to]`. Reduce Motion turns it off.                                                  |
-| `fit`                      | `"fit"` or `"fill"`: how an `image` fills its size. Gary decodes images at the size they show, a file over 32 KB off the main thread. It appears when ready, faded only by the image's own `transition` and `animation`. |
-
-`background` takes a color or a gradient: `{ gradient: "linear", colors: ["accent", "panel"], angle: 90 }`, with `"linear"`, `"radial"`, or `"angular"` and two or more colors.
-
-A node also takes `hovered` and `pressed`: objects of style properties that apply while the pointer is over it, and while a node with `action` is held down.
-
-`action` names what a click on a node sends to `onAction`. `rightAction` and `middleAction` do the same for a right click and a middle click. `scrollAction` sends a scroll over the node to `onScroll`, with the name in the event's `action`. `tooltip` is text that Gary shows below the node when the pointer rests on it. A surface with `attach: true` opens centred below the node whose click called `host.show()` or `host.toggle()`. The `popover` example uses each of them.
-
-A `text` node is exactly as wide as its text, with no padding of its own. This row centers each workspace number in a 20-point cell and moves it down 1 point:
-
-```ts
-{
-	type: "row",
-	gap: 1,
-	children: [1, 2, 3].map((n): Gary.Node => ({ type: "text", key: String(n), text: n, width: 20, align: "center", y: 1 })),
-}
-```
-
-A panel, overlay, or menu kind can show several windows at once. Export `surfaces`, which maps each surface name to what `surface` takes, instead of `surface`. `render` draws each surface with its name in `state.surface`. `host.show("osd")`, `host.hide("osd")`, and `host.toggle("osd")` act on one surface, and `gary summon you.music:osd` does the same from the command line. Without a name they act on `main`, the only surface of a module that exports `surface`. Given a surface address, such as `host.toggle("you.music:osd")`, they act on another enabled plugin's surface. The `osd` example shows a settings panel and an on-screen display at the same time.
-
-To give every panel, overlay, and menu a material, set it on the `surface` style in `~/.config/gary/theme.json`, with a translucent background:
-
-```json
-{ "styles": { "surface": { "material": "glass", "background": "alpha(panel, 0.4)" } } }
-```
-
-The theme also sets the shell's spacing and corner radii, in points. Plugins read them from `state.theme.spacing` and `state.theme.radius`, so changing them in `~/.config/gary/theme.json` respaces and rounds every plugin alike. Only keys that differ from Gary's defaults need to be in your file:
-
-| Key               | Default           | What it sets                                                                                          |
-| ----------------- | ----------------- | ----------------------------------------------------------------------------------------------------- |
-| `spacing.item`    | `8`               | The gap between an icon and its label, and inside rows.                                               |
-| `spacing.section` | `16`              | Panel padding and the gap between blocks.                                                             |
-| `spacing.edge`    | `20`              | How far surfaces stay inside the display.                                                             |
-| `radius.control`  | `6`               | Rows, buttons, and other controls.                                                                    |
-| `radius.surface`  | `12`              | Panels, menus, toasts, and cards.                                                                     |
-| `bar.height`      | `32`              | The bar's height.                                                                                     |
-| `bar.gap`         | `spacing.section` | The gap between bar widgets. `0` lets widgets that draw their own fixed-width slots sit side by side. |
-| `bar.edge`        | `spacing.edge`    | How far the bar's left and right sections sit from the display's edges.                               |
-
-`host.exec` finds commands in the PATH of your login shell, so `["dinky", "workspace", "2"]` runs `/opt/homebrew/bin/dinky`. Subscribe to `session` to act when the screen is locked or unlocked.
-
-A path that does not start with `/` or `~` is relative to the plugin folder, in an `image` or `shader` node, the `files` functions, and `host.wallpaper.set`. So a plugin finds the files it ships wherever it is installed, in `~/.config/gary/plugins` or in a package.
+To type-check a plugin that imports `gary:effect`, install the matching version of Effect in its folder with `npm install --save-dev effect@4.1.5`. The scaffold of a service, and the [`disk`](../examples/disk), [`weather`](../examples/weather), and [`shortcuts`](../examples/shortcuts) examples, include a `package.json` for it. `gary skill show effect` describes every export.
 
 ## Draw shapes, charts, grids, and shaders
 
@@ -167,38 +265,23 @@ Four node types draw more than text and images. The [`gallery`](../examples/gall
 | `grid`   | Its `children` in rows of `columns` cells, such as a month calendar.                                                                |
 | `shader` | A Metal function from a `.metal` file in the plugin folder, drawn into the node's frame and animated when `animated` is `true`.     |
 
-Run `gary skill show drawing` for every field.
+A node's `background`, a shape path's `fill` and `stroke`, and a chart series' `color` take gradients too: `{ gradient: "linear", colors: ["accent", "panel"], angle: 90 }`, with `"linear"`, `"radial"`, or `"angular"` and two or more colors. `gary skill show drawing` describes every field.
 
-## Share and install plugins
+## Look up the reference
 
-A package is a folder that holds plugins. If its root has a `manifest.json`, it is one plugin. Otherwise each folder directly inside it that has a `manifest.json` is a plugin. Push a package to a git repository or publish it to npm. Others install it with one of:
+`gary skill show <topic>` prints the full reference that ships with your version of Gary:
 
-```sh
-gary plugin install git:github.com/you/gary-plugins
-gary plugin install git:github.com/you/gary-plugins@v1.0.0
-gary plugin install https://github.com/you/gary-plugins
-gary plugin install npm:gary-weather@1.2.0
-gary plugin install ~/src/gary-plugins
-```
+| Topic          | Covers                                                                                                                                           |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `manifest`     | Every field of `manifest.json` and `shell.json`.                                                                                                 |
+| `plugin`       | The default export, `state`, and the `host` functions that every plugin has.                                                                     |
+| `effect`       | `gary:effect` and its declarations.                                                                                                              |
+| `nodes`        | Every node type with its fields and style properties, and the surface fields.                                                                    |
+| `drawing`      | Gradients, rotation, blur, loops, and the `shape`, `chart`, `grid`, and `shader` nodes.                                                          |
+| `theme`        | The styles, colors, and fonts of the installed theme.                                                                                            |
+| `types`        | The core declarations that `gary plugin types` writes into `gary.d.ts`.                                                                          |
+| `capabilities` | Every capability with its manifest entry, permissions, example, and types. Name one, such as `gary skill show audio`, for that capability alone. |
+| `permissions`  | The macOS permissions that capabilities need.                                                                                                    |
+| `commands`     | Every `gary` command.                                                                                                                            |
 
-`gary plugin install` fetches the package and validates its plugins without running any of them. It lists each plugin's capabilities with their macOS permissions, then adds the source to `packages` in `~/.config/gary/shell.json` and enables each plugin. A bar widget goes to the end of the bar section named by its manifest's `bar` field, `right` by default. A plugin that `shell.json` already places or disables keeps that setting.
-
-Gary keeps git and npm packages in `~/Library/Application Support/Gary/packages`. It clones git packages with the system `git`, and downloads npm packages from the registry without Node, checking each download against the registry's sha512 integrity. A local folder loads in place, and Gary reloads its plugins when you save, as it does for `~/.config/gary/plugins`. When Gary starts, it installs each declared package that is missing. If that fails, for example offline, Gary logs it, skips the package, and tries again on the next start.
-
-A source identifies its package: npm by name, git by repository without the ref, and a local folder by its absolute path. So `git:github.com/you/gary-plugins@v2` replaces `git:github.com/you/gary-plugins`, and one package never loads twice. When two plugins share an id, the first one wins: built-in plugins, then `~/.config/gary/plugins`, then packages in the order `shell.json` lists them.
-
-| Command                                               | What it does                                                                                                                                                                |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gary plugin list`                                    | Lists plugins with their version, whether `shell.json` enables them, their source, and whether the source is pinned.                                                        |
-| `gary plugin enable <id>`, `gary plugin disable <id>` | Edits `~/.config/gary/shell.json`. A bar widget goes to the bar section its manifest names.                                                                                 |
-| `gary plugin update [<source>]`                       | Updates every package, or one, and prints the old and new version or commit. An exact npm version, a git tag, or a commit stays put. A branch or no ref follows the remote. |
-| `gary plugin remove <source\|id>`                     | Removes a package and drops its plugins from `shell.json`, or moves a plugin in `~/.config/gary/plugins` to the Trash. Settings stay.                                       |
-| `gary plugin types [folder]`                          | Writes `gary.d.ts` and `manifest.schema.json`.                                                                                                                              |
-
-## Grant permissions
-
-Some capabilities need a macOS permission, such as Accessibility for `tray` or Full Disk Access for `focus`. macOS grants it to Gary itself, so install Gary with `just install`, which keeps it at `~/Applications/Gary.app` where grants stick across rebuilds. `gary permissions` lists each permission, whether Gary has it, and the capabilities and enabled plugins that need it. `gary permissions request <name>` shows the macOS prompt, or opens the System Settings pane where macOS has none. `gary onboarding` opens the same list as a window that says what each permission lets your plugins do, with an Allow button for each. Gary opens it on first launch and when an enabled plugin needs a permission it lacks.
-
-## Reference
-
-Run `gary skill show` for the guide that `gary skill setup` points coding agents to. `gary skill show <topic>` prints the full reference for one topic: `manifest` for every manifest field and `shell.json`, `plugin` for the default export, `state`, and `host`, `effect`, `nodes` for nodes and `surface`, `drawing`, `theme`, `types`, `capabilities` or one capability by name, such as `hotkeys`, `permissions`, and `commands`. `gary skill show all` prints everything. The text comes from the installed Gary, so it matches that version.
+`gary skill show all` prints everything. A plugin's `gary.d.ts` declares every field and function the plugin can use.
