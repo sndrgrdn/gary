@@ -12,22 +12,34 @@ public struct LineBuffer: Sendable {
 
     private let limit: Int
     private let invalidUTF8: InvalidUTF8
+    private let breaksOnCarriageReturn: Bool
     private var pending: [UInt8] = []
     private var skipping = false
+    private var afterCarriageReturn = false
 
-    public init(limit: Int, invalidUTF8: InvalidUTF8) {
+    public init(limit: Int, invalidUTF8: InvalidUTF8, breaksOnCarriageReturn: Bool = false) {
         self.limit = limit
         self.invalidUTF8 = invalidUTF8
+        self.breaksOnCarriageReturn = breaksOnCarriageReturn
     }
 
     public mutating func append(_ bytes: some Collection<UInt8>) -> [Line] {
         var lines: [Line] = []
         var rest = bytes[...]
-        while let newline = rest.firstIndex(of: 10) {
-            if let line = take(rest[..<newline], ending: true) {
+        while true {
+            if afterCarriageReturn, let first = rest.first {
+                afterCarriageReturn = false
+                if first == 10 {
+                    rest = rest.dropFirst()
+                    continue
+                }
+            }
+            guard let end = rest.firstIndex(where: { $0 == 10 || (breaksOnCarriageReturn && $0 == 13) }) else { break }
+            if let line = take(rest[..<end], ending: true) {
                 lines.append(line)
             }
-            rest = rest[rest.index(after: newline)...]
+            afterCarriageReturn = rest[end] == 13
+            rest = rest[rest.index(after: end)...]
         }
         if let line = take(rest, ending: false) {
             lines.append(line)

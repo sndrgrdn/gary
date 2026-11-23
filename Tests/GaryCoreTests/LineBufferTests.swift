@@ -32,4 +32,13 @@ struct LineBufferTests {
         #expect(buffer.append(Array("abcdefgh\nz".utf8)) == [.tooLong("abcd")])
         #expect(buffer.flush() == .text("z"))
     }
+
+    @Test func `breaks on A carriage return when asked and counts CR LF as one break across reads`() {
+        var buffer = LineBuffer(limit: 32, invalidUTF8: .reject, breaksOnCarriageReturn: true)
+        #expect(buffer.append(Array("\u{1B}[2K\rDownlink: 190 Mbps\rDownlink: 375".utf8)) == [.text("\u{1B}[2K"), .text("Downlink: 190 Mbps")])
+        #expect(buffer.append(Array(" Mbps\r".utf8)) == [.text("Downlink: 375 Mbps")])
+        #expect(buffer.append(Array("\nsummary\r\n\n".utf8)) == [.text("summary"), .text("")])
+        var plain = LineBuffer(limit: 32, invalidUTF8: .reject)
+        #expect(plain.append(Array("a\rb\n".utf8)) == [.text("a\rb")])
+    }
 }
