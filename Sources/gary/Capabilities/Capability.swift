@@ -28,6 +28,7 @@ struct Capability {
         .exec,
         .files,
         .focus,
+        .hotkeys,
         .mediakeys,
         .menubar,
         .network,
@@ -82,6 +83,31 @@ final class Observation {
     }
 
     deinit { cancel() }
+}
+
+final class Holds {
+    private var ids: Set<Int> = []
+    private let release: (Int) -> Void
+
+    init(release: @escaping (Int) -> Void) {
+        self.release = release
+    }
+
+    func add(_ id: Int) -> Int {
+        ids.insert(id)
+        return id
+    }
+
+    func stop(_ id: Int) {
+        if ids.remove(id) != nil {
+            release(id)
+        }
+    }
+
+    func stopAll() {
+        ids.forEach(release)
+        ids = []
+    }
 }
 
 enum HostResult {

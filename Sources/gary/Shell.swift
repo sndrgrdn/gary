@@ -49,6 +49,7 @@ final class Shell {
 
     func start() throws {
         hotkeys = HotkeyCenter { [weak self] binding in self?.hotkeyPressed(binding) }
+        HotkeyListeners.shared.changed = { [weak self] in self?.updateHotkeys() }
         mediaKeys = MediaKeyTap { [weak self] event, keys in self?.mediaKeyPressed(event, keys) }
         server = try LineServer(path: socketPath) { [weak self] line in self?.serve(line) ?? Response.failure("shutting down").line }
         SystemState.restore()
@@ -173,8 +174,12 @@ final class Shell {
         for warning in resolution.warnings {
             log("shell.json: \(warning)")
         }
+        updateHotkeys()
+    }
+
+    private func updateHotkeys() {
         hotkeys?.update(resolution.enabled.sorted().compactMap { catalog.plugins[$0]?.manifest }.flatMap { manifest in
             manifest.hotkeys.map { HotkeyBinding(owner: manifest.id, hotkey: $0) }
-        })
+        } + HotkeyListeners.shared.bindings)
     }
 }

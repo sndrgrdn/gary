@@ -1,6 +1,7 @@
 import "./text-encoder";
 import "./text-decoder";
 import { clockOf } from "./clock";
+import { type Listen, pressesOf } from "./hotkeys";
 import { type Spawn, linesOf } from "./spawn";
 import {
   Cache,
@@ -50,6 +51,7 @@ interface LiftedHost {
 interface Env {
   readonly host: Host;
   readonly spawn: Spawn | undefined;
+  readonly hotkeys: Listen | undefined;
   readonly fetch: HostFunction | undefined;
   readonly setTimeout: (callback: () => void, ms: number) => number;
   readonly clearTimeout: (id: number) => void;
@@ -97,6 +99,10 @@ function hostOf(env: Env): LiftedHost {
 
   if (env.spawn !== undefined) {
     lifted.spawn = linesOf(env.spawn, hostError);
+  }
+
+  if (env.hotkeys !== undefined) {
+    lifted.hotkeys = pressesOf(env.hotkeys, hostError);
   }
 
   return lifted;

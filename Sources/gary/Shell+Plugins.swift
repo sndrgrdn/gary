@@ -7,7 +7,7 @@ extension Shell {
         if tracing {
             log("hotkey \(binding.hotkey.keys) plugin=\(binding.owner) id=\(binding.hotkey.id)")
         }
-        guard let slot = handlerSlot(binding.owner) else { return }
+        guard !HotkeyListeners.shared.press(binding), let slot = handlerSlot(binding.owner) else { return }
         withRuntime(slot, trace) { runtime in runtime?.hotkey(binding.hotkey.id) }
     }
 

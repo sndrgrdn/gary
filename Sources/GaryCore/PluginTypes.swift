@@ -265,9 +265,11 @@ public extension PluginTypes {
       type Lift<T> = T extends (...args: infer A) => infer R
         ? (...args: A) => E.Effect<Awaited<R>, HostError>
         : { readonly [K in keyof T]: Lift<T[K]> };
-      export const host: {
-        readonly [K in keyof Gary.Host]: K extends "spawn" ? (argv: string[]) => S.Stream<string, HostError> : Lift<Gary.Host[K]>;
-      };
+      interface Scoped {
+        spawn(argv: string[]): S.Stream<string, HostError>;
+        hotkeys(keys: string[]): S.Stream<string, HostError>;
+      }
+      export const host: { readonly [K in keyof Gary.Host]: K extends keyof Scoped ? Scoped[K] : Lift<Gary.Host[K]> };
       export const fetch: typeof globalThis extends { fetch: infer F } ? Lift<F> : never;
       export const settings: Gary.State["settings"];
       export function topic<K extends keyof Gary.Topics>(name: K): S.Stream<Gary.Topics[K]>;
