@@ -1,0 +1,12 @@
+{
+  "$schema": "./manifest.schema.json",
+  "schemaVersion": 1,
+  "id": "example.launcher",
+  "name": "Launcher",
+  "version": "0.1.0",
+  "kinds": ["menu"],
+  "entryPoints": { "menu": "menu.tsx" },
+  "keepLoaded": true,
+  "uses": ["apps"],
+  "hotkeys": [{ "id": "open", "keys": "ctrl+alt+space" }]
+}

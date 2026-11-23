@@ -67,9 +67,10 @@ struct PluginTypesTests {
     @Test func `the manifest schema lists the registered capabilities and kinds`() throws {
         let schema = PluginTypes.manifestSchema(makeTestCapabilities())
         let properties = try #require(schema["properties"])
-        #expect(properties["uses"]?["items"]?["enum"] == .array(["audio", "exec", "files", "mediakeys", "network"].map(JSON.string)))
+        #expect(properties["uses"]?["items"]?["enum"] ==
+            .array(["apps", "audio", "exec", "files", "hotkeys", "mediakeys", "network"].map(JSON.string)))
         let topics = try #require(properties["subscribes"]?["anyOf"]?.array)
-        #expect(topics[0]["items"]?["anyOf"]?.array?.first?["enum"] == .array(["audio", "battery", "clock"].map(JSON.string)))
+        #expect(topics[0]["items"]?["anyOf"]?.array?.first?["enum"] == .array(["apps", "audio", "battery", "clock", "session"].map(JSON.string)))
         #expect(topics[1]["additionalProperties"] == topics[0])
         #expect(properties["kinds"]?["items"]?["enum"] == .array(PluginKind.allCases.map { .string($0.rawValue) }))
         #expect(properties["mediakeys"]?["additionalProperties"]?["items"]?["enum"] == .array(MediaKey.allCases.map { .string($0.rawValue) }))

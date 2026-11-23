@@ -1,0 +1,11 @@
+{
+  "$schema": "./manifest.schema.json",
+  "schemaVersion": 1,
+  "id": "example.weather",
+  "name": "Weather",
+  "version": "0.1.0",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "bar-widget": "widget.tsx" },
+  "subscribes": ["session"],
+  "uses": ["network"]
+}
