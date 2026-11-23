@@ -5,6 +5,8 @@
 #import <UserNotifications/UserNotifications.h>
 #import <objc/runtime.h>
 #include <dlfcn.h>
+#include <ImageIO/ImageIO.h>
+#include <stdatomic.h>
 #include <malloc/malloc.h>
 #include <notify.h>
 
@@ -64,6 +66,16 @@ static size_t probe_confstr(int name, char *buffer, size_t length)
     return strlen(directory) + 1;
 }
 
+static atomic_int thumbnails;
+static atomic_int icons;
+
+static CGImageRef probe_thumbnail(CGImageSourceRef source, size_t index, CFDictionaryRef options)
+{
+    atomic_fetch_add(&thumbnails, 1);
+    return CGImageSourceCreateThumbnailAtIndex(source, index, options);
+}
+
+INTERPOSE(probe_thumbnail, CGImageSourceCreateThumbnailAtIndex)
 INTERPOSE(probe_menu_bar, SLSSetMenuBarInsetAndAlpha)
 INTERPOSE(probe_dock_rect, SLSSetDockRectWithOrientation)
 INTERPOSE(probe_dock_autohide, CoreDockSetAutoHideEnabled)
@@ -138,6 +150,15 @@ static void hideWindows(void)
             ^(UNUserNotificationCenter *self, UNNotificationRequest *request, void (^done)(NSError *)) {
                 if (done) done(nil);
             });
+}
+
+static void countImages(void)
+{
+    IMP icon = original(NSWorkspace.class, @selector(iconForFile:));
+    replace(NSWorkspace.class, @selector(iconForFile:), ^NSImage *(NSWorkspace *self, NSString *path) {
+        atomic_fetch_add(&icons, 1);
+        return ((NSImage * (*)(id, SEL, id)) icon)(self, @selector(iconForFile:), path);
+    });
 }
 
 static NSHashTable<JSContext *> *contexts;
@@ -251,7 +272,11 @@ static NSArray *windows(void)
 static void report(ProbeAction action)
 {
     NSString *directory = [NSString stringWithUTF8String:getenv("GARY_PROBE_DIR")];
-    NSDictionary *output = @{@"machines": machines(action), @"windows": windows()};
+    NSDictionary *output = @{
+        @"machines": machines(action),
+        @"windows": windows(),
+        @"images": @{@"thumbnails": @(atomic_load(&thumbnails)), @"icons": @(atomic_load(&icons))},
+    };
     NSData *data = [NSJSONSerialization dataWithJSONObject:output options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys error:nil];
     NSString *path = [directory stringByAppendingPathComponent:@"probe.json"];
     NSString *partial = [path stringByAppendingString:@".partial"];
@@ -323,6 +348,7 @@ __attribute__((constructor)) static void start(void)
 {
     @autoreleasepool {
         hideWindows();
+        countImages();
         trackContexts();
         listenForReports();
         serveCachedFetches();
