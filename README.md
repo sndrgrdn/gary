@@ -1,6 +1,14 @@
+<img src="Resources/Gary.svg" alt="Gary" width="128">
+
 # Gary
 
-Gary is a macOS shell that you build from TypeScript plugins. It draws a bar along the top of each display, and panels, overlays, menus, and background services, from plugins that you write, install, or ask an agent to write for you.
+> meow.
+
+A macOS shell you write in TypeScript. Or that your agent writes for you.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/sndrgrdn/gary/main/scripts/install.sh | sh
+```
 
 ![A Gary bar with workspaces on the left, the date, time, and weather in the middle, and Bluetooth, Wi-Fi, audio, display, and battery icons on the right](docs/images/bar.png)
 
@@ -9,80 +17,13 @@ Gary is a macOS shell that you build from TypeScript plugins. It draws a bar alo
   <img alt="A keyboard-driven main menu with screenshot, record, text, QR code, and color entries" src="docs/images/main-menu.png" width="280">
 </p>
 
-The screenshots show [sndrgrdn/gary-plugins](https://github.com/sndrgrdn/gary-plugins), an Omarchy-style desktop built on Gary.
-
-## Features
-
-- **Six plugin kinds.** Bar widgets, whole bars, panels, overlays, keyboard-driven menus, and services without a view.
-- **TypeScript and JSX without a build step.** Gary compiles `.ts` and `.tsx` files itself. `gary plugin types` writes declarations for exactly the capabilities that a plugin's manifest asks for, so `tsc` checks every field.
-- **Capabilities for the whole Mac.** Audio, battery, Bluetooth, brightness, calendar, clipboard, Wi-Fi, now playing, notifications, screen capture, text recognition, global hotkeys, a Hyper key, the menu bar tray, and more. Gary asks for a macOS permission only when an enabled plugin needs it.
-- **Live reload.** Save a file and Gary reloads the plugin in about 40 ms. A version that fails logs its error and leaves the running version in place.
-- **Isolation.** Each plugin kind runs in its own JavaScriptCore context. Gary stops a handler that runs longer than 100 ms of CPU time, and restarts the plugin.
-- **Effect built in.** Import [Effect](https://effect.website) from `gary:effect` for services, timers, `fetch`, and streams. Only plugins that import it load it.
-- **Themes.** A `palette.toml` of colors, in the format of an Omarchy theme's `colors.toml`, and a `theme.json` of styles, fonts, spacing, and corner radii that every plugin follows.
-- **Packages.** Install plugins from git, npm, or a local folder, and keep them up to date with `gary plugin update`.
-- **Made for agents.** The `gary` command clicks, types, hovers, and scrolls in a plugin, prints its node tree, and captures it as a PNG, so an agent can test what it builds. `gary skill setup` teaches your coding agent how.
-
-## Requirements
+Gary draws a bar along the top of each display, plus panels, overlays, menus, and background services. Every pixel of it comes from a plugin: one you wrote, one you installed, or one you asked an agent for five minutes ago. The screenshots show [sndrgrdn/gary-plugins](https://github.com/sndrgrdn/gary-plugins), an Omarchy-style desktop built on Gary.
 
 Gary needs macOS 27.2 or later on Apple silicon.
 
-## Quick start
+## Hand it to your agent
 
-1. Install Gary:
-
-   ```sh
-   curl -fsSL https://raw.githubusercontent.com/sndrgrdn/gary/main/scripts/install.sh | sh
-   ```
-
-   The script installs `~/Applications/Gary.app`, links `~/.local/bin/gary`, starts Gary at login, and starts it now. A bar with a clock and the battery level appears at the top of each display. [Install Gary](docs/install.md) covers Homebrew, building from source, updating, and uninstalling.
-
-2. Create your first plugin:
-
-   ```sh
-   gary plugin new you.hello
-   ```
-
-   Gary writes `~/.config/gary/plugins/you.hello` and adds the widget to the right of the bar. Edit `widget.ts` and save it. The bar shows your change at once.
-
-3. Copy one of the [examples](examples), such as an app launcher on Control-Option-Space:
-
-   ```sh
-   gary plugin new you.launcher --from launcher
-   ```
-
-   Or install a whole desktop of ready-made plugins. Several of them draw Nerd Font icons, and their READMEs say which font they need:
-
-   ```sh
-   gary plugin install git:github.com/sndrgrdn/gary-plugins
-   ```
-
-4. Grant the macOS permissions that your plugins need:
-
-   ```sh
-   gary onboarding
-   ```
-
-   The **Set up Gary** window lists each permission that an enabled plugin needs, with an **Allow** button for each. Gary also opens it on first launch, and when a newly enabled plugin needs a permission.
-
-A plugin is a folder with a `manifest.json` and one entry file per kind. This bar widget shows the battery level, with `"subscribes": ["battery"]` in its manifest:
-
-```tsx
-export default {
-  render(state) {
-    return (
-      <row gap={4}>
-        <icon symbol={state.battery?.charging ? "bolt.fill" : "battery.75percent"} style="dim" />
-        <text>{state.battery?.percent ?? "–"}%</text>
-      </row>
-    );
-  },
-} satisfies Gary.BarWidget;
-```
-
-## For agents
-
-Copy this prompt into Claude Code, Codex, pi, or another coding agent. The agent installs Gary, learns how to write plugins for it, and builds the setup you ask for.
+Paste this into Claude Code, Codex, pi, or another coding agent. It installs Gary, learns how to write plugins, and builds the setup you ask for.
 
 ```text
 Set up Gary, the macOS shell from https://github.com/sndrgrdn/gary, on this Mac.
@@ -97,7 +38,80 @@ Set up Gary, the macOS shell from https://github.com/sndrgrdn/gary, on this Mac.
 8. Tell me what Gary now shows, and what you could not check.
 ```
 
-`gary skill setup` installs a small skill into `~/.claude/skills` and `~/.agents/skills`, which Codex, OpenCode, and pi read. The skill tells the agent to run `gary skill show`, which prints the guide for the installed version of Gary.
+Agents are first-class here. The `gary` command clicks, types, hovers, and scrolls in a plugin, prints its node tree, and captures it as a PNG, so your agent sees what it built instead of guessing. `gary skill setup` installs a small skill into `~/.claude/skills` and `~/.agents/skills`, and `gary skill show` prints the guide for the exact version you run.
+
+## Why Gary
+
+- **Save, and it's there.** Gary reloads a plugin about 40 ms after you save. A broken version logs its error and the working one keeps running.
+- **No build step.** Write `.ts` and `.tsx` with JSX. Gary compiles them itself.
+- **Types that know your manifest.** `gary plugin types` writes declarations for exactly the capabilities a plugin asks for, so `tsc` catches the field you misspelled.
+- **The whole Mac, one import away.** Audio, battery, Bluetooth, brightness, calendar, clipboard, Wi-Fi, now playing, notifications, screen capture, text recognition, global hotkeys, a Hyper key, the menu bar tray, and more. Gary asks for a macOS permission only when an enabled plugin needs it.
+- **More than a bar.** Bar widgets, whole bars, panels, overlays, keyboard-driven menus, and headless services. Draw with gradients, animated shapes, charts, grids, blur, and Metal shaders.
+- **Plugins can't take the shell down.** Each plugin kind runs in its own JavaScriptCore context. A handler that burns more than 100 ms of CPU gets stopped and its plugin restarted.
+- **Effect built in.** Import [Effect](https://effect.website) from `gary:effect` for services, schedules, `fetch`, and streams. Plugins that don't import it don't pay for it.
+- **Themes.** A `palette.toml` in the format of an Omarchy theme's `colors.toml`, and a `theme.json` of styles, fonts, spacing, and corner radii that every plugin follows.
+- **Packages.** Install plugins from git, npm, or a folder, and keep them current with `gary plugin update`.
+
+## Do it yourself
+
+1. Install Gary with the command at the top. It installs `~/Applications/Gary.app`, links `~/.local/bin/gary`, starts Gary at login, and starts it now. [Install Gary](docs/install.md) covers Homebrew, building from source, updating, and uninstalling.
+
+2. Make a plugin:
+
+   ```sh
+   gary plugin new you.hello
+   ```
+
+   Gary writes `~/.config/gary/plugins/you.hello` and puts it in the bar. Edit `widget.ts`, save, and watch the bar change.
+
+3. Steal an [example](examples), like an app launcher on Control-Option-Space:
+
+   ```sh
+   gary plugin new you.launcher --from launcher
+   ```
+
+   Or install a whole desktop. Several of these plugins draw Nerd Font icons, and their READMEs say which font they need:
+
+   ```sh
+   gary plugin install git:github.com/sndrgrdn/gary-plugins
+   ```
+
+4. Grant the permissions your plugins need:
+
+   ```sh
+   gary onboarding
+   ```
+
+   The **Set up Gary** window lists each permission an enabled plugin needs, each with an **Allow** button. Gary also opens it on first launch, and whenever a newly enabled plugin needs something new.
+
+A plugin is a folder with a `manifest.json` and one entry file per kind. Here is a whole battery widget, with `"subscribes": ["battery"]` in its manifest:
+
+```tsx
+export default {
+  render(state) {
+    return (
+      <row gap={4}>
+        <icon symbol={state.battery?.charging ? "bolt.fill" : "battery.75percent"} style="dim" />
+        <text>{state.battery?.percent ?? "–"}%</text>
+      </row>
+    );
+  },
+} satisfies Gary.BarWidget;
+```
+
+## Examples
+
+Copy any of these with `gary plugin new you.<name> --from <example>`.
+
+- [`launcher`](examples/launcher): a keyboard-driven app launcher on a global hotkey.
+- [`osd`](examples/osd): a volume slider panel and an on-screen volume display, from one module.
+- [`gallery`](examples/gallery): gradients, an animated progress ring, sparklines, a calendar grid, and a Metal shader.
+- [`weather`](examples/weather): the temperature from Open-Meteo, fetched and decoded with Effect.
+- [`popover`](examples/popover): a bar widget with a panel attached below it, and every kind of click and scroll.
+- [`timer`](examples/timer): a countdown that keeps running while its panel is hidden.
+- [`disk`](examples/disk): a service and a widget in one plugin, talking over a typed topic.
+- [`shortcuts`](examples/shortcuts): global shortcuts that open apps, read from settings.
+- [`load`](examples/load) and [`today`](examples/today): small starters without Effect.
 
 ## Documentation
 
@@ -112,8 +126,8 @@ Set up Gary, the macOS shell from https://github.com/sndrgrdn/gary, on this Mac.
 | [Packages](docs/packages.md)                         | Installing, updating, and publishing plugins from git, npm, or a folder.               |
 | [Develop Gary](docs/development.md)                  | Building, testing, and releasing Gary itself.                                          |
 
-`gary help` lists every command. `gary skill show <topic>` prints the full reference that ships with your version, such as `gary skill show manifest` or `gary skill show audio`.
+`gary help` lists every command. `gary skill show <topic>` prints the full reference for your version, such as `gary skill show manifest` or `gary skill show audio`.
 
 ## License
 
-Gary is released under the [MIT License](LICENSE). It includes [mediaremote-adapter](https://github.com/ungive/mediaremote-adapter) under the [BSD 3-Clause License](Vendor/mediaremote-adapter/LICENSE).
+MIT. Gary includes [mediaremote-adapter](https://github.com/ungive/mediaremote-adapter) under the [BSD 3-Clause License](Vendor/mediaremote-adapter/LICENSE).
