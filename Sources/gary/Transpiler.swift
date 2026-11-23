@@ -27,7 +27,7 @@ final class Transpiler {
         var seen: Set = [entry]
         while let path = pending.popLast() {
             let url = bundle.directory.appending(path: path)
-            let code = try compile(String(contentsOf: url, encoding: .utf8), path: path)
+            let code = try compile(String(contentsOf: url, encoding: .utf8), at: url, path: path)
             var links: [String: String] = [:]
             for match in code.matches(of: #/require\(['"]([^'"\n]+)['"]\)/#) {
                 let specifier = String(match.1)
@@ -42,16 +42,18 @@ final class Transpiler {
         return modules
     }
 
-    private func compile(_ source: String, path: String) throws -> String {
+    private func compile(_ source: String, at url: URL, path: String) throws -> String {
         guard let language = ScriptLanguage(path: path) else { throw RenderError("\(path) is not a script") }
-        let key = SHA256.hash(data: version + Data((language.transforms.joined(separator: ",") + "\n" + source).utf8))
-        let cached = cache.appending(path: key.map { String(format: "%02x", $0) }.joined() + ".js")
-        if let code = try? String(contentsOf: cached, encoding: .utf8) {
-            return code
+        let key = SHA256.hash(data: version + Data((language.transforms.joined(separator: ",") + "\n" + source).utf8)).hex + "\n"
+        let cached = cache.appending(path: SHA256.hash(data: Data(url.path.utf8)).hex + ".js")
+        if let entry = try? String(contentsOf: cached, encoding: .utf8), entry.hasPrefix(key) {
+            return String(entry.dropFirst(key.count))
         }
         let code = try transpile(source, path: path, language: language)
-        try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
-        try? Data(code.utf8).write(to: cached, options: .atomic)
+        if !code.isEmpty {
+            try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+            try? Data((key + code).utf8).write(to: cached, options: .atomic)
+        }
         return code
     }
 
@@ -94,6 +96,12 @@ struct PluginModule {
     let url: URL
     let code: String
     let links: [String: String]
+}
+
+private extension SHA256.Digest {
+    var hex: String {
+        map { String(format: "%02x", $0) }.joined()
+    }
 }
 
 private extension ScriptLanguage {
