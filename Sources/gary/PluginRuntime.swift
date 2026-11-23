@@ -63,6 +63,9 @@ final class PluginRuntime: Subscriber {
                 }
                 output = try renderOutput(functions)
                 deliver(self, .loaded(output, traced(trace)))
+                if !kind.isSurface {
+                    engine.dropCodeWhenQuiet()
+                }
             } catch {
                 teardown()
                 deliver(self, .failed("\(error)"))

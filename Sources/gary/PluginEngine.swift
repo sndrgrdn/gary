@@ -5,6 +5,7 @@ import JavaScriptCore
 
 final class PluginEngine: @unchecked Sendable {
     static let timeLimit = 0.1
+    static let quiet: TimeInterval = 10
 
     private let machine: JSVirtualMachine = .init()
     private let effectScript: URL
@@ -13,6 +14,7 @@ final class PluginEngine: @unchecked Sendable {
     private let state = NSLock()
     private var current: (plugin: PluginID, started: ContinuousClock.Instant)?
     private var stopped = false
+    private var dropping: DispatchWorkItem?
 
     init(effect: URL = Paths.effect) {
         effectScript = effect
@@ -48,6 +50,23 @@ final class PluginEngine: @unchecked Sendable {
         context.exceptionHandler = { _, value in log("gary:effect: \(value?.toString() ?? "unknown exception")") }
         effectLibrary = library
         return library
+    }
+
+    func dropCodeWhenQuiet() {
+        let work = DispatchWorkItem { [weak self] in self?.dropCode() }
+        state.withLock {
+            dropping?.cancel()
+            dropping = work
+        }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + Self.quiet, execute: work)
+    }
+
+    private func dropCode() {
+        entry.withLock {
+            if let context = JSContext(virtualMachine: machine) {
+                gary_drop_compiled_code(context.jsGlobalContextRef)
+            }
+        }
     }
 
     func run(_ plugin: PluginID, in context: JSContext, _ body: () -> JSValue?) throws -> JSValue? {
