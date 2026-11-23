@@ -34,6 +34,7 @@
 - A panel, overlay, or menu that a hotkey, media key, `gary call`, or `host.call` loaded while hidden stops a minute after its last use, unless it is shown or sets `keepLoaded`, instead of running until Gary quits.
 - A reload that fails keeps the running version's manifest in charge, so hiding, surface names, media keys, and `gary listPlugins` follow the version that runs. Summoning a surface that only the failed manifest names fails at once instead of after 5 seconds.
 - A `shell.json` change to a plugin's settings and its files loads the plugin once instead of twice.
+- A `gary applyTheme` payload that the theme rejects is no longer kept, so later theme reloads no longer fail on it and the theme keeps following the Mac's appearance, `palette.toml`, and `theme.json`.
 
 ## 0.4.0
 
