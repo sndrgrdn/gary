@@ -47,6 +47,22 @@ struct PluginRuntimeKindTests {
         harness.runtime.stop()
     }
 
+    @Test func `host call to another plugin rejects a kind that does not exist`() async throws {
+        let harness = try Harness(widget("""
+        render: function () { return { type: "text", text: shown }; },
+        onAction: function () {
+          host.call({ plugin: "you.music", kind: "pannel" }, "ping").then(
+            function () { shown = "resolved"; },
+            function (error) { shown = error.message; }
+          );
+        },
+        """, setup: "var shown = \"start\";"))
+        #expect(try await harness.text() == "start")
+        harness.runtime.perform("go", .null)
+        #expect(try await harness.text() == "host.call: pannel is not a kind; use bar-widget, bar, panel, overlay, menu, service")
+        harness.runtime.stop()
+    }
+
     @Test func `a bar widget that renders null has no tree until it renders a node and a panel that renders null fails`() async throws {
         let source = """
         var count = 0;
