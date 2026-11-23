@@ -30,6 +30,23 @@ struct PluginRuntimeKindTests {
         harness.runtime.stop()
     }
 
+    @Test func `host call with an invalid plugin id rejects and leaves the engine free`() async throws {
+        let harness = try Harness(widget("""
+        render: function () { return { type: "text", text: shown }; },
+        onAction: function () {
+          host.call({ plugin: "nope" }, "ping").then(
+            function () { shown = "resolved"; },
+            function (error) { shown = error.message; }
+          );
+        },
+        """, setup: "var shown = \"start\";"), engine: PluginEngine(effect: vendor.appending(path: "effect.js")))
+        #expect(try await harness.text() == "start")
+        harness.runtime.perform("go", .null)
+        await harness.settled()
+        #expect(try await harness.text() == "host.call: nope is not a plugin id")
+        harness.runtime.stop()
+    }
+
     @Test func `a bar widget that renders null has no tree until it renders a node and a panel that renders null fails`() async throws {
         let source = """
         var count = 0;
