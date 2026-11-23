@@ -6,7 +6,8 @@ extension Capability {
         name: "apps",
         summary: """
         The frontmost app, the running apps, and the apps installed in the Applications folders. \
-        Launch, activate, and quit an app by bundle id or by .app path.
+        Launch, activate, and quit an app by bundle id or by .app path. `activate` leaves the frontmost app alone and otherwise \
+        opens the app the way the Dock does, which brings a running app to the front, even from a hotkey while Gary is in the background.
         """,
         types: """
         declare namespace Gary {
@@ -73,9 +74,10 @@ private func perform(_ request: AppsRequest) throws -> JSON {
     case let .launch(target):
         return try launch(target)
     case let .activate(target):
-        guard let app = running(target).first else { return try launch(target) }
-        app.activate()
-        return json(app)
+        if let app = running(target).first(where: \.isActive) {
+            return json(app)
+        }
+        return try launch(target)
     case let .quit(target):
         return .object(["asked": .number(Double(running(target).count(where: { $0.terminate() })))])
     }
