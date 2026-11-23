@@ -29,6 +29,7 @@ struct PluginSlot<Runtime: SlotRuntime> {
     var shown: [String: ShownSurface] = [:]
     var surfaces: [String: SurfaceSpec] = [:]
     var waiters: [(Response) -> Void] = []
+    var lastUse: Double?
 
     var visible: Bool {
         !shown.isEmpty
@@ -145,11 +146,18 @@ final class PluginSlots<Runtime: SlotRuntime> {
     func use(_ key: SlotKey, _ body: @escaping (Runtime?) -> Void) -> [Effect] {
         let waiter: Waiter = { [weak self] _ in body(self?.slots[key]?.runtime) }
         return update(key) { slot in
+            var effects: [Effect]
             if slot.runtime != nil || slot.disabledReason != nil {
-                return [.answer([waiter], .ok("running"))]
+                effects = [.answer([waiter], .ok("running"))]
+            } else {
+                slot.waiters.append(waiter)
+                effects = slot.candidate == nil ? load(&slot) : []
             }
-            slot.waiters.append(waiter)
-            return slot.candidate == nil ? load(&slot) : []
+            if key.kind.isSurface, !slot.bundle.manifest.keepLoaded {
+                slot.lastUse = clock()
+                effects.append(stopWhenIdle(key, after: Request.callTimeout))
+            }
+            return effects
         }
     }
 
@@ -249,6 +257,18 @@ final class PluginSlots<Runtime: SlotRuntime> {
         let effects = transition(&slot)
         slots[key] = slot
         return effects
+    }
+
+    private func stopWhenIdle(_ key: SlotKey, after delay: TimeInterval) -> Effect {
+        .later(delay, cause: "idle") { [weak self] in
+            guard let self else { return [] }
+            return update(key) { slot in
+                guard !slot.visible, !slot.bundle.manifest.keepLoaded, slot.runtime != nil || slot.candidate != nil,
+                      let lastUse = slot.lastUse else { return [] }
+                let idle = clock() - lastUse
+                return idle < Request.callTimeout ? [stopWhenIdle(key, after: Request.callTimeout - idle)] : stop(&slot)
+            }
+        }
     }
 
     private func reload(_ slot: inout PluginSlot<Runtime>) -> [Effect] {

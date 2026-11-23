@@ -45,7 +45,7 @@ Use `gary tree` to check layout and colors exactly, instead of measuring a scree
 | `stopped`          | A bar widget, bar, or service waits to restart after a failure.                |
 | `shown`            | A panel, overlay, or menu is on screen.                                        |
 | `hidden`           | A panel, overlay, or menu is not loaded.                                       |
-| `paused`           | A hidden surface that `keepLoaded` keeps running.                              |
+| `paused`           | A hidden surface that `keepLoaded` or a call in the last minute keeps running. |
 | `not-in-bar`       | An enabled bar widget that no bar section in `shell.json` names.               |
 | `inactive`         | A bar that another enabled bar replaces.                                       |
 | `disabled`         | The plugin is not enabled in `shell.json`.                                     |
