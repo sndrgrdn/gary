@@ -49,7 +49,7 @@ struct HostExecTests {
         harness.runtime.perform("run", .null)
         let pid = try await processID(in: pidFile)
         harness.runtime.stop()
-        #expect(try await exits(pid))
+        #expect(await exits(pid))
     }
 
     @Test func `a command started by a call that fails never runs`() async throws {

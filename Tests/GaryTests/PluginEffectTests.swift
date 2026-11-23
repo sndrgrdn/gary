@@ -133,7 +133,7 @@ struct PluginEffectTests {
         #expect(try await harness.text() == "0")
         let origin = CGRect(x: 10, y: 700, width: 40, height: 24)
         harness.runtime.perform("open", .null, origin: origin)
-        guard case let .surface(request, _, shownAt) = try await harness.events.next() else { throw RenderError("expected a surface request") }
+        guard case let .surface(request, _, shownAt) = await harness.events.next() else { throw RenderError("expected a surface request") }
         #expect(request == .toggle && shownAt == origin)
         #expect(try await harness.text() == "1")
         let unhandled = Listener()
@@ -166,7 +166,7 @@ struct PluginEffectTests {
         }
         var texts: [String] = []
         for _ in 0..<2 {
-            guard case let .failed(text) = try await replies.next() else { throw RenderError("expected a reply") }
+            guard case let .failed(text) = await replies.next() else { throw RenderError("expected a reply") }
             texts.append(text)
         }
         #expect(texts.sorted() == ["failure broke", #"ok {"echo":"x"}"#])

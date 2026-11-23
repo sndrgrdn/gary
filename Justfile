@@ -1,8 +1,12 @@
-build:
-    swift build --jobs 4
+swift_flags := '--jobs 4 -Xswiftc -warnings-as-errors -Xswiftc -plugin-path -Xswiftc "$(dirname "$(xcrun --find swift)")/../lib/swift/host/plugins/testing"'
 
-test:
-    swift test --jobs 4 -Xswiftc -plugin-path -Xswiftc "$(dirname "$(xcrun --find swift)")/../lib/swift/host/plugins/testing"
+build:
+    swift build --build-tests {{swift_flags}}
+
+test: build
+    swift test --skip-build
+
+check: lint build test typecheck dead-code anti-slop
 
 bundle *flags:
     scripts/bundle.sh {{flags}}
@@ -44,7 +48,7 @@ lint:
 typecheck: build
     #!/usr/bin/env bash
     set -euo pipefail
-    gary="$(swift build --show-bin-path)/gary"
+    gary="$(swift build {{swift_flags}} --show-bin-path)/gary"
     for config in examples/*/tsconfig.json Resources/plugins/*/tsconfig.json; do
         dir="$(dirname "$config")"
         "$gary" plugin types "$dir" >/dev/null
@@ -52,8 +56,8 @@ typecheck: build
     done
     npx tsc -p Sources/gary-effect
 
-dead-code:
-    outskirts scan --quiet --strict --retain-public --retain-assign-only-properties --retain-objc-annotated --relative-results
+dead-code: build
+    outskirts scan --skip-build --quiet --strict --retain-public --retain-assign-only-properties --retain-objc-annotated --relative-results
 
 anti-slop:
     #!/usr/bin/env bash

@@ -64,7 +64,7 @@ struct HostSpawnTests {
         harness.runtime.perform("run", .null)
         let pid = try await processID(in: pidFile)
         harness.runtime.stop()
-        #expect(try await exits(pid))
+        #expect(await exits(pid))
     }
 
     @Test func `host spawn throws for arguments that are not a command`() async throws {

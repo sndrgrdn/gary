@@ -16,14 +16,25 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: lts/*
+          cache: npm
       - uses: jdx/mise-action@v5
         with:
           version: 2026.11.8
           install_args: --locked
+      - uses: actions/cache@v6
+        with:
+          path: .build
+          key: build-xcode-27.2-${{ github.sha }}
+          restore-keys: build-xcode-27.2-
+      - uses: actions/cache@v6
+        with:
+          path: tools/anti-slop-swift/.build
+          key: anti-slop-xcode-27.2-${{ hashFiles('tools/anti-slop-swift/Package.resolved') }}-${{ hashFiles('tools/anti-slop-swift/Package.swift', 'tools/anti-slop-swift/Sources/**') }}
+          restore-keys: anti-slop-xcode-27.2-${{ hashFiles('tools/anti-slop-swift/Package.resolved') }}-
       - run: swift --version
       - run: npm ci
       - run: just lint
-      - run: swift build --jobs 4 -Xswiftc -warnings-as-errors
+      - run: just build
       - run: just test
       - run: just typecheck
       - run: just dead-code

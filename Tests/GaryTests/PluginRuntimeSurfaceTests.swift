@@ -10,7 +10,7 @@ func names(_ values: String...) -> JSON {
 struct PluginRuntimeSurfaceTests {
     @Test func `surfaces resolve their spec from the module`() async throws {
         let harness = try Harness(widget("surface: function (state) { return { width: 300, height: 200 }; },"), kind: .panel)
-        guard case let .loaded(output, _) = try await harness.events.next() else { throw RenderError("expected loaded") }
+        guard case let .loaded(output, _) = await harness.events.next() else { throw RenderError("expected loaded") }
         #expect(output.surfaces[SurfaceAddress.main]?.width == .points(300))
         #expect(output.trees.mapValues { $0.keys.sorted() } == [SurfaceAddress.main: [display.id]])
         harness.runtime.stop()
@@ -27,7 +27,7 @@ struct PluginRuntimeSurfaceTests {
           render: function (state) { return { type: "text", text: state.surface + " on " + state.display.id }; },
         };
         """, kind: .panel, shown: ["main", "osd"], manifest: ["surfaces": .object(["panel": names("main", "osd", "idle")])])
-        guard case let .loaded(output, _) = try await harness.events.next() else { throw RenderError("expected loaded") }
+        guard case let .loaded(output, _) = await harness.events.next() else { throw RenderError("expected loaded") }
         #expect(output.surfaces.keys.sorted() == ["main", "osd"])
         #expect(output.surfaces["main"]?.width == .points(300))
         #expect(output.surfaces["osd"]?.margins.bottom == 80 && output.surfaces["osd"]?.clickThrough == true)
@@ -65,7 +65,7 @@ struct PluginRuntimeSurfaceTests {
         ])
         #expect(try await harness.text() == "0")
         func next() async throws -> (SurfaceRequest, String) {
-            guard case let .surface(request, address, _) = try await harness.events.next() else { throw RenderError("expected a surface request") }
+            guard case let .surface(request, address, _) = await harness.events.next() else { throw RenderError("expected a surface request") }
             return (request, address.description)
         }
         harness.runtime.perform("osd", .null)

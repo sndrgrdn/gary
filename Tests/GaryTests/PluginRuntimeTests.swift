@@ -114,7 +114,7 @@ struct Harness {
     }
 
     func failure() async throws -> String {
-        guard case let .failed(reason) = try await events.next() else { throw RenderError("expected a failure") }
+        guard case let .failed(reason) = await events.next() else { throw RenderError("expected a failure") }
         return reason
     }
 }
@@ -157,14 +157,14 @@ struct PluginRuntimeTests {
 
     @Test func `a hidden scene loads with no output`() async throws {
         let harness = try Harness(widget(), shown: [])
-        guard case let .loaded(output, _) = try await harness.events.next() else { throw RenderError("expected loaded") }
+        guard case let .loaded(output, _) = await harness.events.next() else { throw RenderError("expected loaded") }
         #expect(output == RuntimeOutput())
         harness.runtime.stop()
     }
 
     @Test func `a service loads without a render function`() async throws {
         let harness = try Harness("export default { methods: {} };", kind: .service, shown: [])
-        guard case .loaded = try await harness.events.next() else { throw RenderError("expected loaded") }
+        guard case .loaded = await harness.events.next() else { throw RenderError("expected loaded") }
         harness.runtime.stop()
     }
 
@@ -189,7 +189,7 @@ struct PluginRuntimeTests {
         #expect(try await harness.text() == "1")
         harness.runtime.key("down") { unhandled.append(.failed("down")) }
         #expect(try await harness.text() == "2")
-        guard case let .failed(key) = try await unhandled.next() else { throw RenderError("expected the fallback") }
+        guard case let .failed(key) = await unhandled.next() else { throw RenderError("expected the fallback") }
         #expect(key == "down")
         await harness.settled()
         #expect(unhandled.isEmpty)
@@ -228,18 +228,18 @@ struct PluginRuntimeTests {
         """, setup: "var shown = \"start\";"))
         #expect(try await harness.text() == "start")
         harness.runtime.perform("good", .null)
-        guard case let .call(target, method, arguments, reply) = try await harness.events.next() else { throw RenderError("expected a call") }
+        guard case let .call(target, method, arguments, reply) = await harness.events.next() else { throw RenderError("expected a call") }
         #expect(target.plugin == nil && target.kind == nil)
         #expect(method == "good")
         #expect(arguments == ["1", "two"])
         reply(.ok(#"{"a":1}"#))
         #expect(try await harness.text() == #"ok {"a":1}"#)
         harness.runtime.perform("empty", .null)
-        guard case let .call(_, _, _, replyEmpty) = try await harness.events.next() else { throw RenderError("expected a call") }
+        guard case let .call(_, _, _, replyEmpty) = await harness.events.next() else { throw RenderError("expected a call") }
         replyEmpty(.ok(""))
         #expect(try await harness.text() == "ok undefined")
         harness.runtime.perform("bad", .null)
-        guard case let .call(_, _, _, replyBad) = try await harness.events.next() else { throw RenderError("expected a call") }
+        guard case let .call(_, _, _, replyBad) = await harness.events.next() else { throw RenderError("expected a call") }
         replyBad(.failure("nope"))
         #expect(try await harness.text() == "true nope")
         harness.runtime.stop()
@@ -266,7 +266,7 @@ struct PluginRuntimeTests {
         }
         var texts: [String] = []
         for _ in 0..<5 {
-            guard case let .failed(text) = try await replies.next() else { throw RenderError("expected a reply") }
+            guard case let .failed(text) = await replies.next() else { throw RenderError("expected a reply") }
             texts.append(text)
         }
         #expect(texts.sorted() == ["failure Error: no method missing", "failure broke", "ok ", "ok 3", #"ok {"echo":"x"}"#])
@@ -286,7 +286,7 @@ struct PluginRuntimeTests {
         harness.runtime.perform("publish", .null)
         for request in [SurfaceRequest.show, .hide, .toggle] {
             harness.runtime.perform(request.rawValue, .null)
-            guard case let .surface(next, surface, _) = try await harness.events.next() else { throw RenderError("expected \(request)") }
+            guard case let .surface(next, surface, _) = await harness.events.next() else { throw RenderError("expected \(request)") }
             #expect(next == request && surface == SurfaceAddress(harness.runtime.id))
         }
         #expect(listener.values == [.object(["n": .number(1)])])
@@ -304,7 +304,7 @@ struct PluginRuntimeTests {
         #expect(try await harness.text() == "0")
         let origin = CGRect(x: 10, y: 700, width: 40, height: 24)
         func next() async throws -> (SurfaceRequest, CGRect?) {
-            guard case let .surface(request, _, origin) = try await harness.events.next() else { throw RenderError("expected a surface request") }
+            guard case let .surface(request, _, origin) = await harness.events.next() else { throw RenderError("expected a surface request") }
             return (request, origin)
         }
         harness.runtime.perform("now", .null, origin: origin)
@@ -332,7 +332,7 @@ struct PluginRuntimeTests {
         harness.runtime.scroll(.object(["y": .number(-2)]))
         #expect(try await harness.text() == "-2")
         harness.runtime.scroll(.object(["y": .number(3)]), action: "volume", origin: origin)
-        guard case let .surface(request, _, shownAt) = try await harness.events.next() else { throw RenderError("expected a surface request") }
+        guard case let .surface(request, _, shownAt) = await harness.events.next() else { throw RenderError("expected a surface request") }
         #expect(request == .show && shownAt == origin)
         #expect(try await harness.text() == "volume 3")
         harness.runtime.stop()

@@ -16,12 +16,12 @@ struct PluginRuntimeKindTests {
         """, setup: "var shown = \"start\";"))
         #expect(try await harness.text() == "start")
         harness.runtime.perform("bar-widget", .null)
-        guard case let .call(target, method, arguments, reply) = try await harness.events.next() else { throw RenderError("expected a call") }
+        guard case let .call(target, method, arguments, reply) = await harness.events.next() else { throw RenderError("expected a call") }
         #expect(target.plugin == nil && target.kind == .barWidget && method == "ping" && arguments == ["3"])
         reply(.ok("4"))
         #expect(try await harness.text() == "ok 4")
         harness.runtime.perform("other", .null)
-        guard case let .call(other, _, _, answer) = try await harness.events.next() else { throw RenderError("expected a call") }
+        guard case let .call(other, _, _, answer) = await harness.events.next() else { throw RenderError("expected a call") }
         #expect(other.plugin == PluginID("you.other"))
         answer(.failure("you.other is not enabled"))
         #expect(try await harness.text() == "you.other is not enabled")
@@ -39,7 +39,7 @@ struct PluginRuntimeKindTests {
         };
         """
         let widget = try Harness(source)
-        guard case let .loaded(output, _) = try await widget.events.next() else { throw RenderError("expected loaded") }
+        guard case let .loaded(output, _) = await widget.events.next() else { throw RenderError("expected loaded") }
         #expect(output.trees == [SurfaceAddress.main: [display.id: nil]])
         widget.runtime.perform("add", .null)
         #expect(try await widget.text() == "1")

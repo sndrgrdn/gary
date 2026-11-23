@@ -122,7 +122,7 @@ private let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().a
         for usage in Request.usage + appUsage + skillUsage + pluginUsage {
             #expect(guide.contains("`gary \(usage.syntax)`"), "\(usage.syntax)")
         }
-        let fields = try #require(try PluginTypes.manifestSchema(Capability.names())["properties"]?.object).keys
+        let fields = try #require(PluginTypes.manifestSchema(Capability.names())["properties"]?.object).keys
         for field in fields {
             #expect(guide.contains("`\(field)`"), "\(field)")
         }
