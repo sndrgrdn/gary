@@ -67,3 +67,11 @@ line_length:
 
 identifier_name:
   excluded: [x, y, id, to, ok, at, by, fd, of]
+
+custom_rules:
+  no_waiting_in_tests:
+    name: "No waiting in tests"
+    included: "/Tests/"
+    regex: '\b(Thread|Task)\.sleep\b|\busleep\(|\bsleep\(|\bsleep +[0-9]|run\(until:|before: *(Date|\.now)|asyncAfter|\.timeLimit\(|requestLine\([^)]*timeout: *[0-9.]*[1-9]|\.wait\(timeout|timeIntervalSinceNow|Date\(\)\.timeIntervalSince|Date\.now\(\)|CFRunLoopRunInMode\([^,]+, *[0-9.]*[1-9]'
+    message: "Tests never sleep, wait for wall-clock time or set a timeout. Wait for the event itself (Events.next, Harness.settled, runMainRunLoop(until:)), drive timers with Harness.timers, or inject the clock."
+    severity: error
