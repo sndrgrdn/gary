@@ -23,6 +23,11 @@ typedef NS_ENUM(NSInteger, GarySymbol) {
     GarySymbolDisplayInfo,
     GarySymbolTCCAccessPreflight,
     GarySymbolTCCAccessRequest,
+    GarySymbolLockEngine,
+    GarySymbolUnlockEngine,
+    GarySymbolDeleteAllCode,
+    GarySymbolCollectGarbage,
+    GarySymbolReleaseFreeMemory,
 };
 
 typedef struct {
@@ -38,5 +43,6 @@ void *_Nullable gary_private_resolve(size_t index);
 typedef bool (*GaryShouldTerminate)(JSContextRef context, void *_Nullable info);
 
 bool gary_script_time_limit(JSGlobalContextRef context, double seconds, GaryShouldTerminate callback, void *_Nullable info);
+bool gary_drop_compiled_code(JSGlobalContextRef context);
 
 NS_ASSUME_NONNULL_END
