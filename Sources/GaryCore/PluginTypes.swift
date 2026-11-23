@@ -113,7 +113,7 @@ public enum PluginTypes {
         let modules = PluginKind.allCases
             .map { "  type \(typeName($0.rawValue)) = \($0 == .service ? "Module" : $0 == .barWidget ? "Rendered<Node | null>" : "Rendered");" }
         return """
-          type ActionPayload = null | number | string;
+          type ActionPayload = null | boolean | number | string;
           interface Storage {
             get(key: string): Json | undefined;
             set(key: string, value: Json | undefined): void;
