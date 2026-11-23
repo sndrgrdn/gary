@@ -80,6 +80,15 @@ struct MinWidth: Layout {
     }
 }
 
+nonisolated struct BoxClip: Shape {
+    var radius: Double
+    var clips: Bool
+
+    func path(in rect: CGRect) -> Path {
+        clips ? RoundedRectangle(cornerRadius: radius, style: .continuous).path(in: rect) : Path(CGRect.infinite)
+    }
+}
+
 struct RowLayout: Layout {
     var spacing: Double
 

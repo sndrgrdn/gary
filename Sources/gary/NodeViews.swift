@@ -269,7 +269,7 @@ private extension View {
             }
             .material(look.material, radius: look.radius ?? 0)
             .appearance(look.colorScheme)
-            .clipped(to: box.clip ? shape : nil)
+            .clipShape(BoxClip(radius: look.radius ?? 0, clips: box.clip))
             .overlay {
                 if let border = look.border, let color = look.borderColor {
                     shape.strokeBorder(Color(color), lineWidth: border.width)
@@ -301,14 +301,6 @@ private extension View {
             if let scheme {
                 inherited = scheme == .dark ? .dark : .light
             }
-        }
-    }
-
-    @ViewBuilder func clipped(to shape: RoundedRectangle?) -> some View {
-        if let shape {
-            clipShape(shape)
-        } else {
-            self
         }
     }
 
