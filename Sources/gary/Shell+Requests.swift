@@ -76,6 +76,8 @@ extension Shell {
             reply(hover(action, entering: entering, on: SlotKey(id: id, kind: kind)))
         case let .click(id, kind, point):
             reply(click(at: point, on: SlotKey(id: id, kind: kind)))
+        case let .tree(id, kind):
+            outline(SlotKey(id: id, kind: kind), reply)
         case let .call(id, method, arguments):
             call(id, nil, method, arguments) { response in
                 guard case let .ok(text) = response, case let .string(string)? = try? JSON.parse(text) else { return reply(response) }
@@ -173,6 +175,16 @@ extension Shell {
             event.map(NSApp.sendEvent)
         }
         return .ok("clicked \(key) at \(describe(window.convertToScreen(CGRect(origin: location, size: .zero))))")
+    }
+
+    private func outline(_ key: SlotKey, _ reply: @escaping (Response) -> Void) {
+        guard let tree = mounted(key).first?.tree else { return reply(.failure("\(key) is not shown")) }
+        let recorder = FrameRecorder()
+        tree.inspection = recorder
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            tree.inspection = nil
+            reply(.ok(tree.root.outline(recorder.entries).joined(separator: "\n")))
+        }
     }
 
     private func mounted(_ key: SlotKey) -> [TreeHostingView] {

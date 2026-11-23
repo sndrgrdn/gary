@@ -24,6 +24,7 @@ public enum Request: Equatable, Sendable {
     case scroll(PluginID, kind: PluginKind, over: String?, by: ScrollDistance)
     case hover(PluginID, kind: PluginKind, action: String, entering: Bool)
     case click(PluginID, kind: PluginKind, at: CGPoint)
+    case tree(PluginID, kind: PluginKind)
 
     public static let usage: [CommandUsage] = [
         CommandUsage("ping", "Check that Gary is running.", nil),
@@ -114,6 +115,14 @@ public enum Request: Equatable, Sendable {
             """,
             "gary click you.launcher/menu 10 10",
         ),
+        CommandUsage(
+            "tree <plugin>/<kind>",
+            """
+            Print the shown nodes of a running kind as an outline: each node's type, key and text, then its frame in points from the top left \
+            of its surface, and its color, background, opacity, border and font as drawn now.
+            """,
+            "gary tree you.launcher/menu",
+        ),
     ]
 
     public static let callTimeout: TimeInterval = 60
@@ -154,6 +163,10 @@ public enum Request: Equatable, Sendable {
         case "scroll": return try scroll(arguments)
         case "hover": return try hover(arguments)
         case "click": return try click(arguments)
+        case "tree":
+            try expect(arguments, count: 1, for: verb)
+            let (id, kind) = try slotWithKind(arguments[0], for: verb)
+            return .tree(id, kind: kind)
         default: throw RequestError(description: "unknown verb \"\(verb)\"")
         }
     }
@@ -281,6 +294,7 @@ public enum Request: Equatable, Sendable {
         case .scroll: "scroll"
         case .hover: "hover"
         case .click: "click"
+        case .tree: "tree"
         }
     }
 
@@ -297,6 +311,7 @@ public enum Request: Equatable, Sendable {
         case let .scroll(id, kind, over, .lines(y)): ["\(id)/\(kind.rawValue)"] + (over.map { [$0] } ?? []) + [String(y)]
         case let .scroll(id, kind, over, .points(y)): ["\(id)/\(kind.rawValue)"] + (over.map { [$0] } ?? []) + [String(y), "--precise"]
         case let .hover(id, kind, action, entering): ["\(id)/\(kind.rawValue)", action] + (entering ? [] : ["off"])
+        case let .tree(id, kind): ["\(id)/\(kind.rawValue)"]
         case let .click(id, kind, point): ["\(id)/\(kind.rawValue)", String(Double(point.x)), String(Double(point.y))]
         }
     }

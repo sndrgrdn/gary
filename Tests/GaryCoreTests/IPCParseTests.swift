@@ -40,6 +40,7 @@ struct IPCParseTests {
             ),
             (Invocation("hover", ["gary.today/menu", "row:a"]), .hover(today, kind: .menu, action: "row:a", entering: true)),
             (Invocation("hover", ["gary.today/menu", "row:a", "off"]), .hover(today, kind: .menu, action: "row:a", entering: false)),
+            (Invocation("tree", ["gary.today/menu"]), .tree(today, kind: .menu)),
             (Invocation("click", ["gary.today/menu", "10", "20.5"]), .click(today, kind: .menu, at: CGPoint(x: 10, y: 20.5))),
         ]
         for (invocation, request) in cases {

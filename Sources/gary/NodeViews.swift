@@ -11,6 +11,7 @@ final class MountedTree: ObservableObject {
     @Published var fit: Fit?
     @Published var card: Card?
     @Published var backdrop = false
+    @Published var inspection: FrameRecorder?
     var plugin: PluginID?
 
     init(root: Node, theme: Theme) {
@@ -56,8 +57,13 @@ struct TreeView: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        let root = NodeView(node: tree.root, theme: tree.theme)
+        Group { surface }.coordinateSpace(.named(FrameRecorder.space))
+    }
+
+    @ViewBuilder private var surface: some View {
+        let root = NodeView(node: tree.root, theme: tree.theme, path: tree.inspection == nil ? nil : "")
             .environment(\.nodeAction, onAction)
+            .environment(\.frameRecorder, tree.inspection)
             .environment(\.tooltipPanel, tooltipPanel)
             .environment(\.pluginID, tree.plugin)
         if let fit = tree.fit, tree.backdrop {
@@ -146,6 +152,7 @@ struct NodeView: View {
     let node: Node
     let theme: Theme
     var axis: Axis?
+    var path: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let hovering = State(initialValue: false)
     private let pressing = State(initialValue: false)
@@ -171,6 +178,7 @@ struct NodeView: View {
                 look,
                 node,
                 anchor.wrappedValue,
+                path: path,
                 hovering: tracksHover ? animated(hovering, fade) : nil,
                 pressing: node.pressed != nil ? animated(pressing, fade) : nil,
             )
@@ -191,13 +199,13 @@ struct NodeView: View {
         let gap = look.gap ?? theme.spacing.item
         switch node.content {
         case .row:
-            RowLayout(spacing: gap) { Children(node: node, theme: theme, axis: .horizontal) }
+            RowLayout(spacing: gap) { Children(node: node, theme: theme, axis: .horizontal, path: path) }
         case .column:
-            VStack(alignment: .leading, spacing: gap) { Children(node: node, theme: theme, axis: .vertical) }
+            VStack(alignment: .leading, spacing: gap) { Children(node: node, theme: theme, axis: .vertical, path: path) }
         case .stack:
-            ZStack(alignment: .topLeading) { Children(node: node, theme: theme, axis: nil) }
+            ZStack(alignment: .topLeading) { Children(node: node, theme: theme, axis: nil, path: path) }
         case .scroll:
-            ScrollNode(node: node, theme: theme, gap: gap, padding: look.padding ?? Insets(0), maxHeight: look.height)
+            ScrollNode(node: node, theme: theme, gap: gap, padding: look.padding ?? Insets(0), maxHeight: look.height, path: path)
         case let .text(text):
             TextNode(text: text, look: look, lines: theme.textLines)
         case let .icon(symbol):
@@ -226,13 +234,13 @@ struct NodeView: View {
         case .spacer:
             SpacerNode(axis: axis)
         case .button:
-            HStack(alignment: .center, spacing: gap) { Children(node: node, theme: theme, axis: .horizontal) }.fixedSize()
+            HStack(alignment: .center, spacing: gap) { Children(node: node, theme: theme, axis: .horizontal, path: path) }.fixedSize()
         case let .shape(shape):
             ShapeNode(shape: shape, theme: theme, color: look.color)
         case let .chart(chart):
             ChartNode(chart: chart, theme: theme, color: look.color, font: nsFont(look.font))
         case let .grid(_, columns):
-            GridNode(node: node, columns: columns, theme: theme, gap: gap, align: look.align ?? .leading)
+            GridNode(node: node, columns: columns, theme: theme, gap: gap, align: look.align ?? .leading, path: path)
         case let .shader(shader):
             ShaderNode(shader: shader)
         }
@@ -255,19 +263,34 @@ private struct Children: View {
     let node: Node
     let theme: Theme
     let axis: Axis?
+    let path: String?
 
     var body: some View {
-        ForEach(node.identifiedChildren) { child in NodeView(node: child.node, theme: theme, axis: axis) }
+        ForEach(node.identifiedChildren) { child in
+            NodeView(node: child.node, theme: theme, axis: axis, path: path.map { "\($0)/\(child.id.label)" })
+        }
     }
 }
 
 private extension View {
-    func box(_ look: ResolvedStyle, _ node: Node, _ anchor: GestureAnchor, hovering: Binding<Bool>?, pressing: Binding<Bool>?) -> some View {
+    func box(
+        _ look: ResolvedStyle,
+        _ node: Node,
+        _ anchor: GestureAnchor,
+        path: String?,
+        hovering: Binding<Bool>?,
+        pressing: Binding<Bool>?,
+    ) -> some View {
         let box = NodeBox(look, node)
         let shape = RoundedRectangle(cornerRadius: look.radius ?? 0, style: .continuous)
         return padding(EdgeInsets(box.padding))
             .frame(width: box.width.map { CGFloat($0) }, height: box.height.map { CGFloat($0) }, alignment: box.alignment)
             .minWidth(look.minWidth, alignment: box.alignment)
+            .background {
+                if let path {
+                    FrameProbe(path: path, look: look)
+                }
+            }
             .background {
                 if let background = box.background {
                     shape.fill(AnyShapeStyle(background))
@@ -377,6 +400,7 @@ private struct ScrollNode: View {
     let gap: Double
     let padding: Insets
     let maxHeight: Double?
+    let path: String?
 
     var body: some View {
         let revealed = node.revealedChild.map { node.childIDs[$0] }
@@ -384,7 +408,9 @@ private struct ScrollNode: View {
             ScrollViewReader { proxy in
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: gap) {
-                        ForEach(node.identifiedChildren) { child in NodeView(node: child.node, theme: theme, axis: .vertical).id(child.id) }
+                        ForEach(node.identifiedChildren) { child in
+                            NodeView(node: child.node, theme: theme, axis: .vertical, path: path.map { "\($0)/\(child.id.label)" }).id(child.id)
+                        }
                     }
                     .padding(EdgeInsets(padding))
                 }
