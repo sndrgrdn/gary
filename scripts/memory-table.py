@@ -134,6 +134,8 @@ GATE = [
     ("launcher second open (ms)", "launcher_open2", 1),
     ("audio menu first open (ms)", "audio_open1", 1),
     ("audio menu second open (ms)", "audio_open2", 1),
+    ("theme picker first open (ms)", "theme_open1", 1),
+    ("theme picker second open (ms)", "theme_open2", 1),
 ]
 
 
@@ -142,7 +144,7 @@ def gate_run(run):
     shell = load(run / "shell.json") or {}
     widgets = {id for ids in shell.get("bar", {}).values() for id in ids}
     loaded = {match.group(2): float(match.group(1)) for match in LOADED.finditer(log(run))}
-    responses = {surface: load(run / f"respond-sndrgrdn.{surface}.json") for surface in ("launcher", "audio")}
+    responses = {surface: load(run / f"respond-sndrgrdn.{surface}.json") for surface in ("launcher", "audio", "theme")}
     if not (settled and idle and launcher and all(responses.values())) or set(loaded) != widgets:
         return None
     if any(response["errors"] for response in responses.values()):
@@ -290,6 +292,28 @@ if deep_runs:
             rows.append([vm, mb(size), mb(capacity), mb(extra), mb(median(heap("all", "settled-gc", vm, "after"))), mb(median(heap("all", "settled-code", vm, "after")))])
     out += ["### JavaScriptCore heap per VM (median of all-plugins runs, MB)", "",
             table(["VM", "heap size", "heap capacity", "extra memory", "heap after full GC", "heap after code delete + GC"], rows), ""]
+
+IMAGES = ["theme1", "theme2", "theme3", "waited", "theme4", "launcher1", "launcher2"]
+image_sides = sorted({directory.name.partition("@")[2] or "main" for directory in (root / "runs").glob("images*")}, key=lambda name: name != "main")
+if image_sides:
+    rows = []
+    for side in image_sides:
+        sampled = [run for run in runs("images" + ("" if side == "main" else f"@{side}")) if all((run / f"{label}.jsc.json").exists() for label in IMAGES)]
+        previous = [{"thumbnails": 0, "icons": 0} for _ in sampled]
+        for label in IMAGES:
+            processes = [load(run / f"{label}.footprint.json")["processes"][0] for run in sampled]
+            counts = [load(run / f"{label}.jsc.json")["images"] for run in sampled]
+            footprints = [process["footprint"] for process in processes]
+            dirty = lambda name: median([process["categories"].get(name, {}).get("dirty", 0) for process in processes])
+            decoded = lambda kind: median([count[kind] - earlier[kind] for count, earlier in zip(counts, previous)])
+            opens = [load(run / f"{label}.open.json") for run in sampled]
+            opened = median([each["ms"] for each in opens if each])
+            rows.append([side, label, len(sampled), "–" if opened is None else f"{opened:.1f}", mb(median(footprints)), extent(footprints),
+                         mb(dirty("CG Raster Data")), mb(dirty("CoreAnimation")), decoded("thumbnails"), decoded("icons")])
+            previous = counts
+    out += ["## Images: the theme picker opened 3x, KEEP s of rest, once more, then the launcher 2x; footprint 5 s after each close (median per side)", "",
+            table(["side", "point", "runs", "open ms", "footprint MB", "range", "CG Raster Data MB", "CoreAnimation MB", "thumbnails decoded",
+                   "app icons loaded"], rows), ""]
 
 growth = runs("growth")
 if growth:

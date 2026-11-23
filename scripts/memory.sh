@@ -2,22 +2,25 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-usage="usage: scripts/memory.sh [floor | all | gate | plugins | plugin:<id> | without | without:<id> | effect | growth | attribution | timeline] ...
+usage="usage: scripts/memory.sh [floor | all | gate | images | plugins | plugin:<id> | without | without:<id> | effect | growth | attribution | timeline] ...
 Runs a private Gary from \$APP (default build/Gary.app) per scenario, each with its own home, config, lock, and socket,
 with windows invisible and hotkeys, event taps, keyboard mapping, menu bar, dock, wallpaper, and notifications stubbed,
 weather answered from one cached open-meteo response, and ~/Library/Caches shared by the runs of one side after a short warm-up run,
 and writes the tables to \$OUT/report.md.
 gate runs all plugins and records the footprint at SETTLE, idle CPU over the next IDLE seconds, startup wall time and CPU
-until every bar widget loaded, the launcher and audio menu opened twice each, and the footprint REOPEN seconds after the launcher opened.
+until every bar widget loaded, the launcher, audio menu, and theme picker opened twice each, and the footprint REOPEN seconds after the launcher opened.
+images opens and closes the theme picker three times, waits KEEP seconds, opens it once more, then opens the launcher, listing
+apps on an empty query, twice, and records each open's time and, 5 s after each close, the footprint by category and the images decoded.
 SIDES names builds to compare, alternating per round; side <name> runs APP_<name>, with PLUGINS_<name> as the gary-plugins checkout
 and ENV_<name> as extra environment (for example GARY_PROBE_ALLOC_MB=5 or GARY_PROBE_BUSY_MS=50).
-Settings: RUNS (3), SETTLE seconds (120), IDLE seconds (60), REOPEN seconds (90), JOBS in parallel (4), CYCLES (20), STAGGER seconds between launches (3)."
+Settings: RUNS (3), SETTLE seconds (120), IDLE seconds (60), REOPEN seconds (90), KEEP seconds (65), JOBS in parallel (4), CYCLES (20), STAGGER seconds between launches (3)."
 
 read -r -a sides <<<"${SIDES:-main}"
 runs="${RUNS:-3}"
 settle="${SETTLE:-120}"
 idle="${IDLE:-60}"
 reopen="${REOPEN:-90}"
+keep="${KEEP:-65}"
 jobs="${JOBS:-4}"
 cycles="${CYCLES:-20}"
 stagger="${STAGGER:-3}"
@@ -41,7 +44,7 @@ for id in [id for ids in shell.get("bar", {}).values() if isinstance(ids, list) 
     print(id)' "$config/shell.json")
         ;;
     effect) expanded+=(effect:plain-widget effect:effect-widget effect:plain-service effect:effect-service effect:both) ;;
-    floor | all | gate | growth | attribution | timeline | plugin:* | without:* | effect:*) expanded+=("$scenario") ;;
+    floor | all | gate | images | growth | attribution | timeline | plugin:* | without:* | effect:*) expanded+=("$scenario") ;;
     *) echo "$usage" >&2 && exit 64 ;;
     esac
 done
@@ -168,7 +171,7 @@ shell = json.load(open(sys.argv[2]))
 sections = ["left", "center", "right", "notchLeft"]
 bar = {section: [] for section in sections}
 plugins = []
-if scenario in ("all", "gate", "growth", "attribution", "timeline"):
+if scenario in ("all", "gate", "images", "growth", "attribution", "timeline"):
     bar = {section: shell.get("bar", {}).get(section, []) for section in sections}
     plugins = shell.get("plugins", [])
 elif scenario.startswith("plugin:"):
@@ -187,7 +190,9 @@ elif scenario.startswith("effect:"):
         plugins = ["memory.plain-service" if variant == "plain-service" else "memory.effect-service"]
 result = {"bar": bar, "plugins": plugins, "packages": shell.get("packages", [])}
 settings = {id: value for id, value in shell.get("settings", {}).items()
-            if scenario in ("all", "gate", "growth", "attribution", "timeline") or scenario == f"plugin:{id}" or (scenario.startswith("without:") and scenario != f"without:{id}")}
+            if scenario in ("all", "gate", "images", "growth", "attribution", "timeline") or scenario == f"plugin:{id}" or (scenario.startswith("without:") and scenario != f"without:{id}")}
+if scenario == "images":
+    settings["sndrgrdn.launcher"] = {**settings.get("sndrgrdn.launcher", {}), "minimal": False}
 if settings:
     result["settings"] = settings
 json.dump(result, sys.stdout, indent=2)
@@ -232,9 +237,10 @@ deep() {
 }
 
 send() {
-    python3 - "$(cat "$1/tmpdir")/gary.sock" "$2" "$3" <<'EOF'
-import json, socket, sys
-path, verb, argument = sys.argv[1:]
+    python3 - "$(cat "$1/tmpdir")/gary.sock" "$2" "$3" "${4:-}" <<'EOF'
+import json, socket, sys, time
+path, verb, argument, timing = sys.argv[1:]
+started = time.time()
 client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 client.settimeout(10)
 client.connect(path)
@@ -247,6 +253,8 @@ while not reply.endswith(b"\n"):
     reply += chunk
 if not json.loads(reply or b"{}").get("ok"):
     sys.exit(f"{verb} {argument}: {reply.decode().strip()}")
+if timing:
+    json.dump({"ms": (time.time() - started) * 1000}, open(timing, "w"))
 EOF
 }
 
@@ -360,6 +368,23 @@ run() {
         sleep "$reopen"
         phys "$dir" launcher
         respond "$dir" sndrgrdn.audio
+        respond "$dir" sndrgrdn.theme
+        ;;
+    images)
+        local opened
+        for opened in theme1 theme2 theme3 waited theme4 launcher1 launcher2; do
+            if [[ "$opened" == waited ]]; then
+                sleep "$keep"
+            else
+                send "$dir" summon "sndrgrdn.${opened%?}" "$dir/$opened.open.json"
+                sleep 2
+                send "$dir" hide "sndrgrdn.${opened%?}"
+                sleep 5
+            fi
+            phys "$dir" "$opened"
+            probe "$dir" "$opened" stats
+            footprint -p "$(cat "$dir/pid")" -f bytes --json "$dir/$opened.footprint.json" >/dev/null 2>&1
+        done
         ;;
     all)
         deep "$dir" settled
