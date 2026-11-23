@@ -16,6 +16,7 @@
 - A `gary call` or `host.call` whose plugin stops before it replies fails at once instead of after 60 seconds.
 - `host.storage` keeps the writes of a plugin's bar widget, panel, and other kinds, and each kind reads the values the others wrote.
 - A node keeps its children's state, such as the text in an input, when its `colorScheme`, `clip`, or `vibrant` material comes or goes.
+- A node with a `hovered` or `pressed` style, or a button, keeps its children's state when hovering or pressing it adds or removes a shadow.
 
 ## 0.4.0
 

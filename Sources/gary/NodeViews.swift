@@ -281,16 +281,16 @@ private extension View {
                 }
             }
             .interactive(box.action, hovering: hovering, pressing: pressing) { _ in anchor.view?.send(.click, .null) }
-            .dropShadow(look.shadow, look.shadowColor)
+            .dropShadow(look.shadow, look.shadowColor, always: node.hovered != nil || node.pressed != nil || node.kind == .button)
     }
 
     func minWidth(_ minWidth: Double?, alignment: Alignment) -> some View {
         MinWidth(minWidth: minWidth, alignment: alignment) { self }
     }
 
-    @ViewBuilder func dropShadow(_ shadow: Shadow?, _ color: RGBA?) -> some View {
-        if let shadow, let color {
-            self.shadow(color: Color(color), radius: shadow.radius, y: shadow.y)
+    @ViewBuilder func dropShadow(_ shadow: Shadow?, _ color: RGBA?, always: Bool) -> some View {
+        if always || shadow != nil && color != nil {
+            self.shadow(color: color.map { Color($0) } ?? .clear, radius: shadow?.radius ?? 0, y: shadow?.y ?? 0)
         } else {
             self
         }
