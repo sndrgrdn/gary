@@ -41,7 +41,10 @@ final class Listener: Subscriber, @unchecked Sendable {
 
 let vendor = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../../Resources/vendor")
 
-let transpiler = Transpiler(sucrase: vendor.appending(path: "sucrase.js"))
+let transpiler = Transpiler(
+    sucrase: vendor.appending(path: "sucrase.js"),
+    cache: FileManager.default.temporaryDirectory.appending(path: "gary-tests-\(UUID().uuidString)"),
+)
 
 let engine = PluginEngine(effect: vendor.appending(path: "effect.js"))
 
