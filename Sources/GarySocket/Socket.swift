@@ -47,9 +47,11 @@ public struct LineBuffer {
 
 public final class LineServer {
     private let source: DispatchSourceRead
+    private let path: String
 
     @preconcurrency
     public init(path: String, handle: @escaping @Sendable (String) -> String) throws {
+        self.path = path
         unlink(path)
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw SocketError.system(errno) }
@@ -77,14 +79,12 @@ public final class LineServer {
                 thread.start()
             }
         }
-        source.setCancelHandler {
-            close(fd)
-            unlink(path)
-        }
+        source.setCancelHandler { close(fd) }
         source.resume()
     }
 
     public func stop() {
+        unlink(path)
         source.cancel()
     }
 }

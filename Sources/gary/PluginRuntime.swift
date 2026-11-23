@@ -13,7 +13,8 @@ actor PluginRuntime: Subscriber {
     private var functions: PluginFunctions?
     private var exception: String?
     private var state: StateText
-    private var timers: [Int: DispatchSourceTimer] = [:]
+    private var timers: [Int: @Sendable () -> Void] = [:]
+    private let startTimer: StartTimer
     private var stops: [() -> Void] = []
     private var nextTimer = 1
     let initialScene: Scene
@@ -32,6 +33,7 @@ actor PluginRuntime: Subscriber {
         deliver: @escaping @Sendable (PluginRuntime, RuntimeEvent) -> Void,
         engine: PluginEngine,
         transpiler: Transpiler = .shared,
+        startTimer: @escaping StartTimer = dispatchTimer,
     ) {
         self.bundle = bundle
         self.kind = kind
@@ -42,6 +44,7 @@ actor PluginRuntime: Subscriber {
         self.deliver = deliver
         self.engine = engine
         self.transpiler = transpiler
+        self.startTimer = startTimer
         queue = DispatchSerialQueue(label: "gary.plugin.\(bundle.manifest.id)", qos: .userInitiated, target: engine.queue)
     }
 }
@@ -216,8 +219,8 @@ extension PluginRuntime {
     private func teardown() {
         functions.map(unload)
         hub.unsubscribe(self)
-        for timer in timers.values {
-            timer.cancel()
+        for cancel in timers.values {
+            cancel()
         }
         timers = [:]
         for stop in stops {
@@ -337,7 +340,7 @@ private extension PluginRuntime {
             self?.assumeIsolated { $0.addTimer(callback, milliseconds: milliseconds, repeats: repeats) } ?? 0
         }
         let clear: @convention(block) (Int) -> Void = { [weak self] id in
-            self?.assumeIsolated { $0.timers.removeValue(forKey: id)?.cancel() }
+            self?.assumeIsolated { $0.timers.removeValue(forKey: id)?() }
         }
         try check(in: context) { context.evaluateScript(PluginScripts.timers)?.call(withArguments: [add, clear]) }
     }
@@ -346,23 +349,15 @@ private extension PluginRuntime {
         let id = nextTimer
         nextTimer += 1
         let interval = max(repeats ? 10 : 0, milliseconds.isFinite ? milliseconds : 0) / 1000
-        let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(
-            deadline: .now() + interval,
-            repeating: repeats ? interval : .infinity,
-            leeway: .milliseconds(max(1, min(100, Int(interval * 100)))),
-        )
-        timer.setEventHandler { [weak self] in
+        timers[id] = startTimer(interval, repeats, queue) { [weak self] in
             self?.assumeIsolated { runtime in
                 guard runtime.isRunning else { return }
                 if !repeats {
-                    runtime.timers.removeValue(forKey: id)?.cancel()
+                    runtime.timers.removeValue(forKey: id)?()
                 }
                 runtime.callBack(callback, [], Trace("timer"))
             }
         }
-        timers[id] = timer
-        timer.resume()
         return id
     }
 
