@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import GaryCore
 import GaryPrivate
 import GarySocket
@@ -49,6 +49,8 @@ struct DoctorRuntime {
 }
 
 struct Doctor {
+    private let files: ConfigFiles
+    private let system: Palette.Mode
     private var lines: [String] = []
     private var problems = 0
 
@@ -69,8 +71,8 @@ struct Doctor {
         lines.append("  FAIL  \(text)")
     }
 
-    static func report(_ runtime: DoctorRuntime?) -> String {
-        var doctor = Doctor()
+    static func report(_ runtime: DoctorRuntime?, system: Palette.Mode, files: ConfigFiles = ConfigFiles()) -> String {
+        var doctor = Doctor(files: files, system: system)
         doctor.build(runtime)
         return doctor.lines.joined(separator: "\n")
     }
@@ -143,9 +145,9 @@ struct Doctor {
     }
 
     private mutating func checkPlugins(_ runtime: DoctorRuntime?) -> PluginCatalog {
-        let packages = (try? ShellConfig.parse(JSON.parse(Data(contentsOf: Paths.shellConfig))))?.packages ?? []
+        let packages = (try? ShellConfig.parse(JSON.parse(Data(contentsOf: files.shellConfig))))?.packages ?? []
         let catalog = PluginCatalog.scan(
-            builtin: Paths.builtinPlugins, user: Paths.userPlugins, packages: packages.map(PackageStore.directory), capabilities: Capability.names(),
+            builtin: files.builtinPlugins, user: files.userPlugins, packages: packages.map(PackageStore.directory), capabilities: Capability.names(),
         )
         for source in packages where !PackageStore.isInstalled(source) {
             fail("package \(source.declaration) is not installed; run gary plugin update")
@@ -173,11 +175,11 @@ struct Doctor {
     }
 
     private mutating func checkConfig(_ catalog: PluginCatalog) {
-        guard FileManager.default.fileExists(atPath: Paths.shellConfig.path) else { info("no shell.json; using defaults")
+        guard FileManager.default.fileExists(atPath: files.shellConfig.path) else { info("no shell.json; using defaults")
             return
         }
         do {
-            let config = try ShellConfig.parse(JSON.parse(Data(contentsOf: Paths.shellConfig)))
+            let config = try ShellConfig.parse(JSON.parse(Data(contentsOf: files.shellConfig)))
             let warnings = config.warnings.map(\.description) + config.resolve(catalog).warnings.map { "shell.json: \($0)" }
             if warnings.isEmpty {
                 ok("shell.json")
@@ -191,12 +193,12 @@ struct Doctor {
     }
 
     private mutating func checkPalette() -> PaletteFile? {
-        guard FileManager.default.fileExists(atPath: Paths.palette.path) else {
+        guard FileManager.default.fileExists(atPath: files.palette.path) else {
             info("no palette.toml; following the system appearance")
             return nil
         }
         do {
-            let file = try PaletteFile.parse(String(contentsOf: Paths.palette, encoding: .utf8))
+            let file = try PaletteFile.parse(String(contentsOf: files.palette, encoding: .utf8))
             if file.ignored.isEmpty {
                 ok("palette.toml")
             }
@@ -213,10 +215,10 @@ struct Doctor {
     private mutating func checkTheme() {
         let file = checkPalette()
         do {
-            let override = FileManager.default.fileExists(atPath: Paths.userTheme.path) ? try JSON.parse(Data(contentsOf: Paths.userTheme)) : nil
-            let theme = try Theme.parse(JSON.parse(Data(contentsOf: Paths.defaultTheme)), palette: Palette(file, system: .dark), override: override)
+            let override = FileManager.default.fileExists(atPath: files.userTheme.path) ? try JSON.parse(Data(contentsOf: files.userTheme)) : nil
+            let theme = try Theme.parse(JSON.parse(Data(contentsOf: files.defaultTheme)), palette: Palette(file, system: .dark), override: override)
             if theme.warnings.isEmpty {
-                ok(override == nil ? "built-in theme" : "theme.json")
+                ok("\(override == nil ? "built-in theme" : "theme.json") in \(theme.mode.rawValue) mode")
             }
             for warning in theme.warnings {
                 fail("theme: \(warning)")
@@ -228,15 +230,16 @@ struct Doctor {
 }
 
 func doctorText() -> String {
+    let onDisk = { Doctor.report(nil, system: Palette.Mode(NSApplication.shared.effectiveAppearance)) }
     do {
         switch try Response.decode(line: requestLine(Request.doctor.line, path: socketPath, timeout: 10)) {
         case let .ok(report): return report
         case let .failure(message): return "gary: \(message)"
         }
     } catch SocketError.unreachable {
-        return Doctor.report(nil)
+        return onDisk()
     } catch {
-        return "gary: \(error); reading the files on disk instead\n\n" + Doctor.report(nil)
+        return "gary: \(error); reading the files on disk instead\n\n" + onDisk()
     }
 }
 

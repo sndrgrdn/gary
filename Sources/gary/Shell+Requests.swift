@@ -61,7 +61,7 @@ extension Shell {
         case .listPlugins:
             reply(.ok(listing()))
         case .doctor:
-            reply(.ok(Doctor.report(doctorRuntime())))
+            reply(.ok(Doctor.report(doctorRuntime(), system: systemMode)))
         case .permissions:
             reply(.ok(permissionReport(enabled: enabledManifests)))
         case let .requestPermission(permission):
