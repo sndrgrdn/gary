@@ -79,6 +79,11 @@ let appUsage: [CommandUsage] = [
     CommandUsage("login [on|off|status]", "Start Gary at login, or stop doing so.", nil),
     CommandUsage("--version", "Print the version of this Gary.", nil),
     CommandUsage("update", "Install the latest release from GitHub, after saying which version is installed and which is the latest.", nil),
+    CommandUsage(
+        "report",
+        "Print a bug report in Markdown: the versions, gary doctor, gary listPlugins, the last 100 log lines, and recent crash reports.",
+        nil,
+    ),
 ]
 
 func runUpdate(_ arguments: [String]) -> Int32 {

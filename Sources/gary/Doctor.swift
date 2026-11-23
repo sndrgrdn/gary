@@ -227,17 +227,20 @@ struct Doctor {
     }
 }
 
-func runDoctor() -> Int32 {
+func doctorText() -> String {
     do {
         switch try Response.decode(line: requestLine(Request.doctor.line, path: socketPath, timeout: 10)) {
-        case let .ok(report): print(report)
-        case let .failure(message): print("gary: \(message)")
+        case let .ok(report): return report
+        case let .failure(message): return "gary: \(message)"
         }
     } catch SocketError.unreachable {
-        print(Doctor.report(nil))
+        return Doctor.report(nil)
     } catch {
-        print("gary: \(error); reading the files on disk instead\n")
-        print(Doctor.report(nil))
+        return "gary: \(error); reading the files on disk instead\n\n" + Doctor.report(nil)
     }
+}
+
+func runDoctor() -> Int32 {
+    print(doctorText())
     return 0
 }
