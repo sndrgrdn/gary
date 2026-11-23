@@ -12,10 +12,7 @@ final class Shell {
     let hub = StateHub(sources: Capability.topics)
     let engines = PluginEngines()
     let files = ConfigFiles()
-    var theme: Theme
-    var themePayload: JSON?
-    var paletteFile: PaletteFile?
-    var systemMode = Palette.Mode(NSApp.effectiveAppearance)
+    let theme: CurrentTheme
     private var appearanceObservation: NSKeyValueObservation?
     var config = ShellConfig.defaults
     private(set) var catalog = PluginCatalog()
@@ -43,9 +40,9 @@ final class Shell {
     private var observers: [NSObjectProtocol] = []
 
     init() throws {
-        theme = try Theme.parse(JSON.parse(Data(contentsOf: Paths.defaultTheme)), palette: Palette(nil, system: systemMode))
-        tooltipPanel = TooltipPanel(theme: theme)
-        ToastStack.shared.theme = theme
+        theme = try CurrentTheme(files: ConfigFiles(), system: Palette.Mode(NSApp.effectiveAppearance))
+        tooltipPanel = TooltipPanel(theme: theme.value)
+        ToastStack.shared.theme = theme.value
         resolution = config.resolve(catalog)
     }
 
@@ -57,8 +54,8 @@ final class Shell {
         SystemState.restore()
         try FileManager.default.createDirectory(at: Paths.config, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: Paths.packages, withIntermediateDirectories: true)
-        loadPalette()
-        reloadTheme(Trace("start"))
+        theme.loadPalette()
+        changeTheme(Trace("start"), theme.reload)
         loadConfig()
         scan()
         resolve()
@@ -110,7 +107,7 @@ final class Shell {
     }
 
     private func showAppDragTile(until permission: Permission) {
-        AppDragTile.show(until: permission, theme: theme)
+        AppDragTile.show(until: permission, theme: theme.value)
     }
 
     private func restart(reopening id: PluginID?) {

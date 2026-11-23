@@ -59,7 +59,7 @@ extension Shell {
     }
 
     func theme(for kind: PluginKind) -> Theme {
-        kind == .bar || kind == .barWidget ? theme.inBar : theme
+        kind == .bar || kind == .barWidget ? theme.value.inBar : theme.value
     }
 
     func place(_ key: MountKey) {
@@ -81,9 +81,9 @@ extension Shell {
             spec.anchors = Edges(top: true, bottom: false, left: true, right: true)
             spec.height = .points(display.band)
             spec.exclusionMode = .ignore
-            window.place(spec, on: display, origin: nil, level: barLevel(display.id), theme: theme)
+            window.place(spec, on: display, origin: nil, level: barLevel(display.id), theme: theme.value)
         } else if let spec = slot.surfaces[key.surface] {
-            window.place(spec, on: display, origin: slot.shown[key.surface]?.origin, level: SurfaceLevels.level(spec.layer), theme: theme)
+            window.place(spec, on: display, origin: slot.shown[key.surface]?.origin, level: SurfaceLevels.level(spec.layer), theme: theme.value)
         }
         if isNew {
             open(window, key, focusable: slot.surfaces[key.surface]?.focusable == true)
@@ -179,7 +179,7 @@ extension Shell {
     }
 
     private func fade(_ slot: SlotKey) -> Double {
-        slot.kind.isSurface ? theme.motion.fade : 0
+        slot.kind.isSurface ? theme.value.motion.fade : 0
     }
 
     private func watchClicks() {

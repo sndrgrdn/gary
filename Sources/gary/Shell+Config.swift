@@ -2,35 +2,21 @@ import AppKit
 import GaryCore
 
 extension Shell {
-    func loadPalette() {
-        do {
-            paletteFile = try files.paletteFile()
-            for problem in paletteFile?.ignored ?? [] {
-                log("palette.toml \(problem); ignored")
-            }
-        } catch {
-            log("palette.toml: \(error); using the built-in palette")
-            paletteFile = nil
-        }
-    }
-
     func systemAppearanceChanged(_ mode: Palette.Mode) {
-        guard mode != systemMode else { return }
-        systemMode = mode
+        guard theme.follow(mode) else { return }
         log("system appearance \(mode.rawValue)")
-        reloadTheme(Trace("appearance"))
+        changeTheme(Trace("appearance"), theme.reload)
     }
 
     @discardableResult
-    func reloadTheme(_ trace: Trace) -> Response {
+    func changeTheme(_ trace: Trace, _ change: () throws -> Bool) -> Response {
         let started = now()
         do {
-            let next = try files.theme(palette: paletteFile, system: systemMode, override: themePayload)
-            guard next != theme else { return .ok("theme unchanged") }
-            theme = next
-            tooltipPanel.theme = theme
-            ToastStack.shared.theme = theme
-            for warning in theme.warnings {
+            guard try change() else { return .ok("theme unchanged") }
+            let applied = theme.value
+            tooltipPanel.theme = applied
+            ToastStack.shared.theme = applied
+            for warning in applied.warnings {
                 log("theme \(warning)")
             }
             for panel in panels {
@@ -38,7 +24,7 @@ extension Shell {
             }
             refreshDisplays(trace)
             for bar in bars.surfaces.values {
-                bar.layout(theme: theme)
+                bar.layout(theme: applied)
             }
             for (key, view) in mounts {
                 view.tree.theme = theme(for: key.slot.kind)
@@ -47,7 +33,7 @@ extension Shell {
                 place(key)
             }
             commitFrame()
-            let json = theme.json
+            let json = applied.json
             for slot in slots.values {
                 slot.candidate?.setTheme(json, trace)
                 slot.runtime?.setTheme(json, trace)
@@ -55,8 +41,8 @@ extension Shell {
             let end = now()
             log(String(
                 format: "theme applied mode=%@ palette=%@ cause=%@ since_ms=%.3f apply_ms=%.3f",
-                theme.mode.rawValue,
-                paletteFile == nil ? "built-in" : "palette.toml",
+                applied.mode.rawValue,
+                theme.palette == nil ? "built-in" : "palette.toml",
                 trace.cause,
                 (end - trace.start) * 1000,
                 (end - started) * 1000,
@@ -147,10 +133,10 @@ extension Shell {
             }
         }
         if changes.contains(.palette) {
-            loadPalette()
+            theme.loadPalette()
         }
         if changes.contains(.theme) || changes.contains(.palette) {
-            reloadTheme(trace)
+            changeTheme(trace, theme.reload)
         }
         let configChanged = changes.contains(.shellConfig)
         if rescan || configChanged {

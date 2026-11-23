@@ -25,7 +25,7 @@ extension Shell {
         let panels = [bars[display]?.panel].compactMap(\.self) + windows.filter { $0.key.slot.kind == .bar && $0.key.display == display }
             .map(\.value.panel)
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = theme.motion.fade
+            context.duration = theme.value.motion.fade
             for panel in panels {
                 panel.level = NSWindow.Level(rawValue: barLevel(display))
                 panel.animator().alphaValue = aside ? 0 : 1
@@ -69,7 +69,7 @@ extension Shell {
     }
 
     var appearance: NSAppearance? {
-        NSAppearance(theme.mode)
+        NSAppearance(theme.value.mode)
     }
 
     @discardableResult
@@ -84,7 +84,7 @@ extension Shell {
     }
 
     func refreshDisplays(_ trace: Trace) {
-        let theme = theme
+        let theme = theme.value
         let next = NSScreen.screens.enumerated().map { $1.display(index: $0, theme: theme) }
         let change = DisplayChange(from: displays, to: next)
         displays = next

@@ -56,12 +56,11 @@ extension Shell {
         case .reloadConfig:
             reply(refresh(config: true, catalog: false, trace))
         case let .applyTheme(payload):
-            themePayload = payload
-            reply(reloadTheme(trace))
+            reply(changeTheme(trace) { try theme.apply(payload) })
         case .listPlugins:
             reply(.ok(listing()))
         case .doctor:
-            reply(.ok(Doctor.report(doctorRuntime(), system: systemMode)))
+            reply(.ok(Doctor.report(doctorRuntime(), system: theme.system)))
         case .permissions:
             reply(.ok(permissionReport(enabled: enabledManifests)))
         case let .requestPermission(permission):
@@ -158,7 +157,7 @@ extension Shell {
             case .stopped, .running: (slot.key.description, nil)
             }
         }
-        return DoctorRuntime(pid: getpid(), enabled: enabledManifests, pluginStates: states, themePayload: themePayload)
+        return DoctorRuntime(pid: getpid(), enabled: enabledManifests, pluginStates: states, themePayload: theme.payload)
     }
 
     var enabledManifests: [PluginManifest] {

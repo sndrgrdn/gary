@@ -71,7 +71,7 @@ extension Shell {
         let delivery = MainDelivery { [weak self] runtime, event in self?.handle(event, from: runtime, key) }
         return PluginRuntime(
             bundle: bundle, kind: key.kind, scene: scene,
-            settings: config.settings[key.id] ?? .object([:]), theme: theme.json, hub: hub,
+            settings: config.settings[key.id] ?? .object([:]), theme: theme.value.json, hub: hub,
             deliver: { delivery.send($0, $1) }, engine: engines.engine(for: key.kind),
         )
     }
