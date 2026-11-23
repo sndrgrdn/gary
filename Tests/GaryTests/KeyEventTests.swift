@@ -7,14 +7,15 @@ import Testing
 struct KeyEventTests {
     @Test(arguments: [
         "a", "A", "!", " ", "+", "ç", "up", "down", "left", "right", "enter", "escape", "tab", "backspace", "delete", "home", "end",
-        "pageup", "pagedown", "shift+tab", "cmd+k", "cmd++", "ctrl+alt+cmd+a", "alt+shift+left", "cmd+enter",
+        "pageup", "pagedown", "shift+tab", "cmd+k", "cmd++", "ctrl+alt+cmd+a", "alt+shift+left", "cmd+enter", "shift+cmd+k", "ctrl+shift+a",
+        "f1", "f13", "f20", "shift+f5",
     ])
     func `a key name makes an event that onKey names the same`(name: String) throws {
         let event = try #require(NSEvent.keyDown(named: name, windowNumber: 0))
         #expect(event.keyName == name)
     }
 
-    @Test(arguments: ["", "space", "shift+a", "cmd+K", "cmd+", "cmd+shift+k", "alt+ctrl+a", "f1", "ab"])
+    @Test(arguments: ["", "space", "shift+a", "cmd+K", "cmd+", "cmd+shift+k", "alt+ctrl+a", "f21", "F1", "ab"])
     func `a name onKey never gets makes no event`(name: String) {
         #expect(NSEvent.keyDown(named: name, windowNumber: 0) == nil)
     }

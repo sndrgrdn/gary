@@ -29,12 +29,30 @@ struct KeyNameTests {
         #expect(name(48, "\u{19}", "\t", .shift) == "shift+tab")
         #expect(name(40, "k", "k", .command) == "cmd+k")
         #expect(name(0, "\u{1}", "a", [.command, .control, .option]) == "ctrl+alt+cmd+a")
-        #expect(name(0, "\u{1}", "A", [.control, .shift]) == "ctrl+a")
+        #expect(name(0, "\u{1}", "A", [.control, .shift]) == "ctrl+shift+a")
+        #expect(name(18, "!", "!", [.command, .shift]) == "shift+cmd+!")
         #expect(name(123, "\u{F702}", nil, [.option, .shift]) == "alt+shift+left")
     }
 
+    @Test func `names function keys f1 to f20`() {
+        #expect(name(122, "\u{F704}") == "f1")
+        #expect(name(111, "\u{F70F}") == "f12")
+        #expect(name(105, "\u{F710}") == "f13")
+        #expect(name(90, "\u{F717}") == "f20")
+        #expect(name(120, "\u{F705}", nil, [.shift]) == "shift+f2")
+    }
+
+    @Test func `a hotkey key is the key onKey gives the same name`() throws {
+        for key in ["a", "enter", "escape", "tab", "backspace", "delete", "home", "end", "pageup", "pagedown", "left", "up", "f1", "f13", "f20"] {
+            let combo = try #require(KeyCombo.parse("cmd+\(key)"), "\(key)")
+            #expect(name(UInt16(combo.keyCode), key, key, .command) == "cmd+\(key)")
+        }
+        #expect(KeyCombo.parse("cmd+backspace")?.keyCode == 51)
+        #expect(KeyCombo.parse("cmd+delete")?.keyCode == 117)
+    }
+
     @Test func `drops keys without A name or printable character`() {
-        #expect(name(122, "\u{F704}") == nil)
+        #expect(name(114, "\u{F746}") == nil)
         #expect(name(0, nil) == nil)
         #expect(name(0, "") == nil)
     }

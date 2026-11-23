@@ -76,6 +76,22 @@ struct PluginTypesTests {
         #expect(properties["mediakeys"]?["additionalProperties"]?["items"]?["enum"] == .array(MediaKey.allCases.map { .string($0.rawValue) }))
         #expect(properties["schemaVersion"]?["const"] == .number(Double(PluginManifest.schemaVersion)))
     }
+
+    @Test func `the manifest schema accepts the hotkeys the parser accepts and rejects the ones it rejects`() throws {
+        let keys = PluginTypes.manifestSchema(makeTestCapabilities())["properties"]?["hotkeys"]?["items"]?["properties"]?["keys"]
+        let pattern = try NSRegularExpression(pattern: #require(keys?["pattern"]?.string))
+        let matches = { (text: String) in pattern.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil }
+        let valid = [
+            "ctrl+alt+space", "Cmd+Shift+F", "hyper+shift+m", "ctrl + a", "f5", "F12", "f13", "f20", "shift+f13", "cmd+backspace",
+            "cmd+delete", "alt+pagedown", "control+return", "opt+esc", "command+\\", "ctrl+.", "ctrl+[", "alt+/", "ctrl+`",
+        ]
+        for text in valid {
+            #expect(matches(text) && KeyCombo.parse(text) != nil, "\(text)")
+        }
+        for text in ["shift+a", "a", "space", "f21", "f0", "ctrl+", "meh+a", "ctrl+alt+spacebar", "cmd++", "ctrl+a+b", "shift+f"] {
+            #expect(!matches(text) && KeyCombo.parse(text) == nil, "\(text)")
+        }
+    }
 }
 
 struct PluginScaffoldTests {
