@@ -18,6 +18,7 @@ final nonisolated class StateHub: @unchecked Sendable {
     private var live: Set<Topic> = []
     private var running: [Topic: any TopicFeed] = [:]
     private var replay: (topics: Set<Topic>, plugin: PluginID?)?
+    private var reconciling: [(Topic, TopicSource)] = []
 
     init(sources: [Topic: TopicSource]) {
         self.sources = sources
@@ -133,28 +134,39 @@ final nonisolated class StateHub: @unchecked Sendable {
         let managed = topics.compactMap { topic in sources[topic].map { (topic, $0) } }
         guard !managed.isEmpty else { return }
         DispatchQueue.main.async { [self] in
-            for (topic, source) in managed {
-                let (wanted, replayed) = lock.withLock {
-                    let wanted = !(subscribers[topic]?.isEmpty ?? true)
-                    let replayed = replay.map { $0.plugin == nil && $0.topics.contains(topic) } ?? false
-                    if wanted {
-                        live.insert(topic)
-                    }
-                    return (wanted, replayed)
-                }
-                if wanted, !replayed, running[topic] == nil {
-                    let started = now()
-                    running[topic] = source { [weak self] value, trace in self?.publish(topic, value, trace) }
-                    log(String(format: "topic %@: started in %.1f ms", topic.description, (now() - started) * 1000))
-                } else if !wanted, running[topic] != nil {
-                    lock.withLock {
-                        live.remove(topic)
-                        latest[topic] = nil
-                    }
-                    running[topic] = nil
-                    log("topic \(topic): stopped")
-                }
+            let idle = reconciling.isEmpty
+            reconciling += managed
+            if idle {
+                reconcileNext()
             }
         }
+    }
+
+    @MainActor private func reconcileNext() {
+        guard let (topic, source) = reconciling.first else { return }
+        let (wanted, replayed) = lock.withLock {
+            let wanted = !(subscribers[topic]?.isEmpty ?? true)
+            let replayed = replay.map { $0.plugin == nil && $0.topics.contains(topic) } ?? false
+            if wanted {
+                live.insert(topic)
+            }
+            return (wanted, replayed)
+        }
+        if wanted, !replayed, running[topic] == nil {
+            let started = now()
+            running[topic] = source { [weak self] value, trace in self?.publish(topic, value, trace) }
+            log(String(format: "topic %@: started in %.1f ms", topic.description, (now() - started) * 1000))
+        } else if !wanted, running[topic] != nil {
+            lock.withLock {
+                live.remove(topic)
+                latest[topic] = nil
+            }
+            running[topic] = nil
+            log("topic \(topic): stopped")
+        }
+        reconciling.removeFirst()
+        guard !reconciling.isEmpty else { return }
+        CFRunLoopPerformBlock(CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue) { [self] in MainActor.assumeIsolated { reconcileNext() } }
+        CFRunLoopWakeUp(CFRunLoopGetMain())
     }
 }
