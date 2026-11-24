@@ -14,6 +14,12 @@ nonisolated struct Scene: Equatable {
 nonisolated struct RuntimeOutput: Equatable {
     var surfaces: [String: SurfaceSpec] = [:]
     var trees: [String: [String: Node?]] = [:]
+    var refreshRate = 60
+
+    mutating func draw(_ surface: String, on displays: [DisplayInfo], _ render: (DisplayInfo) throws -> Node?) rethrows {
+        refreshRate = max(refreshRate, displays.map(\.refreshRate).max() ?? 0)
+        trees[surface] = try Dictionary(uniqueKeysWithValues: displays.map { try ($0.id, render($0)) })
+    }
 }
 
 nonisolated enum SurfaceRequest: String {
@@ -44,27 +50,23 @@ nonisolated enum RuntimeEvent {
 }
 
 final nonisolated class MainDelivery: @unchecked Sendable {
-    static let frame = 1.0 / 120
-
     private let lock = NSLock()
-    private let interval: Double
     private var pending: (runtime: PluginRuntime, event: RuntimeEvent)?
     private var applied: DispatchTime?
     private let handle: @MainActor (PluginRuntime, RuntimeEvent) -> Void
 
-    init(interval: Double = frame, _ handle: @escaping @MainActor (PluginRuntime, RuntimeEvent) -> Void) {
-        self.interval = interval
+    init(_ handle: @escaping @MainActor (PluginRuntime, RuntimeEvent) -> Void) {
         self.handle = handle
     }
 
     func send(_ runtime: PluginRuntime, _ event: RuntimeEvent) {
-        guard case .output = event else {
+        guard case let .output(output, _) = event else {
             DispatchQueue.main.async { [self] in handle(runtime, event) }
             return
         }
         let due: DispatchTime? = lock.withLock {
             defer { pending = (runtime, event) }
-            return pending == nil ? applied.map { $0 + interval } ?? .now() : nil
+            return pending == nil ? applied.map { $0 + 1 / Double(max(output.refreshRate, 1)) } ?? .now() : nil
         }
         guard let due else { return }
         if due <= .now() {

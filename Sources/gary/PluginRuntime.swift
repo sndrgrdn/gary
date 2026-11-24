@@ -219,9 +219,7 @@ extension PluginRuntime {
                 targets = spec.screen.select(targets, focused: shown.focused)
                 next.surfaces[name] = spec
             }
-            next.trees[name] = try Dictionary(uniqueKeysWithValues: targets.map { display in
-                try (display.id, render(display, name, with: functions))
-            })
+            try next.draw(name, on: targets) { try render($0, name, with: functions) }
         }
         return next
     }

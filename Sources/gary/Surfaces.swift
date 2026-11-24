@@ -112,7 +112,10 @@ extension NSScreen {
 
     func display(index: Int, theme: Theme) -> DisplayInfo {
         let notch = notch
-        return DisplayInfo(id: uuid, index: index, frame: frame, band: notch != nil ? safeAreaInsets.top : theme.bar.height, notch: notch)
+        return DisplayInfo(
+            id: uuid, index: index, frame: frame, band: notch != nil ? safeAreaInsets.top : theme.bar.height,
+            notch: notch, refreshRate: maximumFramesPerSecond,
+        )
     }
 }
 

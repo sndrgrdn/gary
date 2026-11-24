@@ -7,13 +7,15 @@ public struct DisplayInfo: Equatable, Sendable {
     public var frame: CGRect
     public var band: Double
     public var notch: ClosedRange<Double>?
+    public var refreshRate: Int
 
-    public init(id: String, index: Int, frame: CGRect, band: Double, notch: ClosedRange<Double>? = nil) {
+    public init(id: String, index: Int, frame: CGRect, band: Double, notch: ClosedRange<Double>? = nil, refreshRate: Int = 60) {
         self.id = id
         self.index = index
         self.frame = frame
         self.band = band
         self.notch = notch
+        self.refreshRate = refreshRate
     }
 
     public var json: JSON {
