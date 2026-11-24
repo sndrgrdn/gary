@@ -295,12 +295,16 @@ final nonisolated class LiveCommands: @unchecked Sendable {
 
     func run(_ process: Process, exited: @escaping @Sendable () -> Void) throws {
         process.terminationHandler = { [self] process in
-            lock.withLock { _ = running.remove(process.processIdentifier) }
+            lock.withLock {
+                _ = running.remove(process.processIdentifier)
+                ExitWatchdog.shared.untrack(process.processIdentifier)
+            }
             exited()
         }
         try lock.withLock {
             try process.run()
             running.insert(process.processIdentifier)
+            ExitWatchdog.shared.track(process.processIdentifier)
         }
     }
 

@@ -102,7 +102,6 @@ nonisolated struct SavedSystemState: Codable, Equatable {
 
 enum SystemState {
     private(set) static var saved = SavedSystemState()
-    private static var watchdog: pid_t = 0
 
     static func update(_ change: (inout SavedSystemState) -> Void) {
         var next = saved
@@ -119,7 +118,7 @@ enum SystemState {
         } catch {
             log("system state not saved: \(error)")
         }
-        startWatchdog()
+        ExitWatchdog.shared.start()
     }
 
     static func restore(_ state: SavedSystemState? = nil) {
@@ -143,44 +142,4 @@ enum SystemState {
             "restored the system state Gary had changed: menubar hidden=\(state.menuBarHidden) dock=\(state.dock?.own.rect.debugDescription ?? "-") autohide=\(state.dockVisibility.map { String($0.rawValue) } ?? "-") capslock=\(state.capsLock != nil)",
         )
     }
-
-    private static func startWatchdog() {
-        guard watchdog == 0, let path = Bundle.main.executablePath else { return }
-        var actions: posix_spawn_file_actions_t?
-        var attributes: posix_spawnattr_t?
-        posix_spawn_file_actions_init(&actions)
-        posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
-        posix_spawn_file_actions_addinherit_np(&actions, STDOUT_FILENO)
-        posix_spawn_file_actions_addinherit_np(&actions, STDERR_FILENO)
-        posix_spawnattr_init(&attributes)
-        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_CLOEXEC_DEFAULT))
-        posix_spawnattr_setpgroup(&attributes, 0)
-        let arguments = ["gary-restore", "restore-after", String(getpid())]
-        let argv = arguments.map { strdup($0) } + [nil]
-        let status = posix_spawn(&watchdog, path, &actions, &attributes, argv, environ)
-        for argument in argv {
-            free(argument)
-        }
-        posix_spawn_file_actions_destroy(&actions)
-        posix_spawnattr_destroy(&attributes)
-        if status != 0 {
-            log("restore watchdog not started: \(String(cString: strerror(status)))")
-        }
-    }
-}
-
-func runRestoreAfter(_ arguments: [String]) -> Int32 {
-    guard let pid = arguments.first.flatMap(Int32.init) else { return 64 }
-    let exited = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: .main)
-    exited.setEventHandler {
-        log("restore watchdog: gary \(pid) exited")
-        MainActor.assumeIsolated { SystemState.restore() }
-        exit(0)
-    }
-    exited.resume()
-    if kill(pid, 0) != 0 {
-        SystemState.restore()
-        return 0
-    }
-    dispatchMain()
 }

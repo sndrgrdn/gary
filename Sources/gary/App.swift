@@ -16,6 +16,7 @@ func runApp() -> Int32 {
         fputs("gary: already running\n", stderr)
         return ProcessExit.alreadyRunning
     }
+    ExitWatchdog.shared.start()
     if Paths.isolated {
         log("isolated: home \(Paths.home.path), runtime \(Paths.runtime.path), drives the system: \(Paths.drivesSystem)")
     }
