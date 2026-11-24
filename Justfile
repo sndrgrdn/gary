@@ -13,7 +13,7 @@ bundle *flags:
 
 run: kill
     scripts/bundle.sh --debug
-    ./build/Gary.app/Contents/MacOS/gary
+    "{{justfile_directory()}}/build/Gary.app/Contents/MacOS/gary"
 
 isolated home="tmp/isolated":
     #!/usr/bin/env bash
@@ -26,7 +26,7 @@ isolated home="tmp/isolated":
     [[ -f "$support/onboarding.json" ]] || echo '{ "missing": ["accessibility", "audio-capture", "automation", "bluetooth", "calendars", "full-disk-access", "location", "notifications", "screen-recording"] }' > "$support/onboarding.json"
     scripts/bundle.sh --debug
     echo "drive it with: GARY_RUNTIME_DIR=$home/run $PWD/build/Gary.app/Contents/MacOS/gary <verb>"
-    exec env GARY_HOME="$home" GARY_RUNTIME_DIR="$home/run" ./build/Gary.app/Contents/MacOS/gary
+    exec env GARY_HOME="$home" GARY_RUNTIME_DIR="$home/run" "$PWD/build/Gary.app/Contents/MacOS/gary"
 
 install: bundle
     #!/usr/bin/env bash
@@ -47,7 +47,7 @@ release version:
     scripts/release.sh {{version}}
 
 kill:
-    pkill -f "Gary.app/Contents/MacOS/gary" || true
+    pkill -f "^{{justfile_directory()}}/build/Gary.app/Contents/MacOS/gary( |$)" || true
 
 format:
     swiftlint --fix --quiet
