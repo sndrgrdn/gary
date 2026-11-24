@@ -15,7 +15,7 @@ update_tap() (
         git -C "$checkout" commit -q -m "Update gary to $version"
         export HOMEBREW_NO_AUTO_UPDATE=1
         brew tap -q sndrgrdn/release-check "$checkout"
-        if brew trust --help >/dev/null 2>&1; then brew trust sndrgrdn/release-check >/dev/null; fi
+        brew trust sndrgrdn/release-check >/dev/null
         brew style --cask sndrgrdn/release-check/gary
         brew audit --cask --strict --online sndrgrdn/release-check/gary
         git -C "$checkout" push -q

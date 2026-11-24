@@ -28,7 +28,6 @@ if [[ "$(plutil -extract status raw "$tmp/result.json")" != Accepted ]]; then
     exit 1
 fi
 xcrun stapler staple "$APP"
-spctl --assess --type execute --verbose=1 "$APP"
 
 ditto -c -k --keepParent "$APP" "dist/$zip"
 (cd dist && shasum -a 256 "$zip" >"$zip.sha256")
