@@ -74,31 +74,32 @@ struct SurfaceReuseTests {
         }
 
         func diff(_ other: Shown) -> String {
-            guard let a = bitmap, let b = other.bitmap else { return "no bitmap" }
-            guard a.pixelsWide == b.pixelsWide,
-                  a.pixelsHigh == b.pixelsHigh else { return "size \(a.pixelsWide)x\(a.pixelsHigh) vs \(b.pixelsWide)x\(b.pixelsHigh)" }
+            guard let mine = bitmap, let theirs = other.bitmap else { return "no bitmap" }
+            guard mine.pixelsWide == theirs.pixelsWide,
+                  mine.pixelsHigh == theirs.pixelsHigh
+            else { return "size \(mine.pixelsWide)col\(mine.pixelsHigh) vs \(theirs.pixelsWide)col\(theirs.pixelsHigh)" }
             var count = 0
             var minX = Int.max
             var minY = Int.max
             var maxX = 0
             var maxY = 0
             var sample = ""
-            for y in 0..<a.pixelsHigh {
-                for x in 0..<a.pixelsWide {
-                    let p = a.colorAt(x: x, y: y)
-                    let q = b.colorAt(x: x, y: y)
-                    if p !=
-                        q
+            for row in 0..<mine.pixelsHigh {
+                for col in 0..<mine.pixelsWide {
+                    let here = mine.colorAt(x: col, y: row)
+                    let there = theirs.colorAt(x: col, y: row)
+                    if here !=
+                        there
                     {
-                        count += 1; minX = min(minX, x); minY = min(minY, y); maxX = max(maxX, x); maxY = max(maxY, y); if sample
+                        count += 1; minX = min(minX, col); minY = min(minY, row); maxX = max(maxX, col); maxY = max(maxY, row); if sample
                             .isEmpty
                         {
-                            sample = "\(x),\(y) \(String(describing: p)) vs \(String(describing: q))"
+                            sample = "\(col),\(row) \(String(describing: here)) vs \(String(describing: there))"
                         }
                     }
                 }
             }
-            return "size \(a.pixelsWide)x\(a.pixelsHigh) differing \(count) bbox \(minX),\(minY)-\(maxX),\(maxY) first \(sample) scroller \(NSScroller.preferredScrollerStyle.rawValue) views \(view.descendants(NSScroller.self).map { "\($0.frame) hidden=\($0.isHidden) alpha=\($0.alphaValue) knob=\($0.doubleValue)" })"
+            return "size \(mine.pixelsWide)col\(mine.pixelsHigh) differing \(count) bbox \(minX),\(minY)-\(maxX),\(maxY) first \(sample) scroller \(NSScroller.preferredScrollerStyle.rawValue) views \(view.descendants(NSScroller.self).map { "\($0.frame) hidden=\($0.isHidden) alpha=\($0.alphaValue) knob=\($0.doubleValue)" })"
         }
     }
 
