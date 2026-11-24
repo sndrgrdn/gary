@@ -99,6 +99,24 @@ struct HostSpawnTests {
         #expect(await exits(pid))
     }
 
+    @Test func `stop ends every process A spawned command started`() async throws {
+        let pidFile = try pidPipe()
+        let harness = try Harness(widget("""
+        onAction: function () {
+          var spawned = host.spawn(["/bin/sh", "-c", "tail -f /dev/null | tail -f /dev/null & echo $! > \(pidFile); echo ready; wait"], function () {
+            spawned.stop();
+          });
+          spawned.exited.then(function (r) { count = "stopped " + r.status; });
+        },
+        """), uses: ["exec"])
+        #expect(try await harness.text() == "0")
+        harness.runtime.perform("run", .null)
+        let pid = try await processID(in: pidFile)
+        #expect(try await settled(harness) == "stopped \(SIGTERM)")
+        #expect(await exits(pid))
+        harness.runtime.stop()
+    }
+
     @Test func `host spawn throws for arguments that are not a command`() async throws {
         let harness = try Harness(widget("""
         onAction: function (name) {

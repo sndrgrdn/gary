@@ -7,7 +7,8 @@ nonisolated extension Capability {
         name: "exec",
         summary: """
         Run a command off the main thread. Gary looks the command up in the PATH of the user's login shell, \
-        so commands from Homebrew and `~/.local/bin` need no absolute path, and stops every running command when the plugin stops. \
+        so commands from Homebrew and `~/.local/bin` need no absolute path, and stops every running command, with the processes it started, \
+        when the plugin stops or Gary quits. \
         `host.exec` runs a one-shot command and resolves with its exit status and output when it exits, even if it left a child \
         running in the background. Gary stops an `exec` command that runs longer than 60 seconds and rejects the promise. \
         `host.spawn` runs a long-running command with no time limit and calls `onLine` with each line it writes to stdout, \
@@ -289,7 +290,7 @@ final nonisolated class LiveCommands: @unchecked Sendable {
 
     func stopAll() {
         for pid in lock.withLock({ running }) {
-            kill(pid, SIGTERM)
+            kill(-pid, SIGTERM)
         }
     }
 }

@@ -52,6 +52,20 @@ struct HostExecTests {
         #expect(await exits(pid))
     }
 
+    @Test func `stopping the plugin stops every process its running commands started`() async throws {
+        let pidFile = try pidPipe()
+        let harness = try Harness(widget("""
+        onAction: function () {
+          host.exec(["/bin/sh", "-c", "tail -f /dev/null | tail -f /dev/null & echo $! > \(pidFile); wait"]);
+        },
+        """), uses: ["exec"])
+        #expect(try await harness.text() == "0")
+        harness.runtime.perform("run", .null)
+        let pid = try await processID(in: pidFile)
+        harness.runtime.stop()
+        #expect(await exits(pid))
+    }
+
     @Test func `a command started by a call that fails never runs`() async throws {
         let file = FileManager.default.temporaryDirectory.appending(path: "gary-exec-\(UUID().uuidString)").path
         let harness = try Harness(widget("""
