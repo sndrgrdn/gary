@@ -120,7 +120,8 @@ public extension Request {
             """
             Report frame pacing per display: frames, hitch time in ms per second against the display's refresh rate, frame time p50, p99 \
             and max, and for each hitch the main-thread work inside it, such as a plugin's tree, layout, image decode or the Core Animation \
-            commit. Gary records frames only while a surface changes or animates. Without --record it summarizes the last 60 seconds; \
+            commit. A frame counts as dropped only when the main thread was busy at a refresh it missed; a gap the main thread slept \
+            through had nothing to draw and counts as an idle gap. Gary records frames only while a surface changes or animates. Without --record it summarizes the last 60 seconds; \
             with --record it waits that many seconds and reports only them.
             """,
             "gary frames --record 10",

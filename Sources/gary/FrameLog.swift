@@ -206,7 +206,8 @@ final class FrameLog: NSObject {
             "\(head): \(summary.isSmooth ? "holds its refresh rate" : "drops frames"), "
                 + "\(format(summary.hitchRatio)) ms of hitches per second over \(format(summary.seconds, 2)) s recorded",
             "  \(summary.frames) frames, frame time p50 \(ms(summary.p50)), p99 \(ms(summary.p99)), max \(ms(summary.max)), "
-                + "\(summary.hitches.count) hitch\(summary.hitches.count == 1 ? "" : "es")",
+                + "\(summary.hitches.count) hitch\(summary.hitches.count == 1 ? "" : "es"), "
+                + "\(summary.idleGaps) idle gap\(summary.idleGaps == 1 ? "" : "s") with nothing to draw",
         ]
         let listed = summary.hitches.sorted { $0.frame.duration > $1.frame.duration }.prefix(listedHitches).sorted { $0.frame.end < $1.frame.end }
         lines += listed.map { hitch in

@@ -52,12 +52,16 @@ public struct Frame: Equatable, Sendable {
         end - start
     }
 
-    public var isHitch: Bool {
+    public var isLate: Bool {
         duration > interval * 1.5
     }
 
     public var missed: Int {
-        isHitch ? Int((duration / interval).rounded()) - 1 : 0
+        isLate ? Int((duration / interval).rounded()) - 1 : 0
+    }
+
+    public var deadlines: [Double] {
+        (1...Swift.max(1, missed)).map { start + Double($0) * interval }
     }
 }
 
@@ -75,6 +79,7 @@ public struct FrameSummary: Equatable, Sendable {
     public static let smoothHitchRatio = 5.0
 
     public let frames: Int
+    public let idleGaps: Int
     public let seconds: Double
     public let hitchRatio: Double
     public let p50: Double
@@ -83,15 +88,21 @@ public struct FrameSummary: Equatable, Sendable {
     public let hitches: [Hitch]
 
     public init(_ frames: [Frame], spans: [FrameSpan]) {
-        let durations = frames.map(\.duration).sorted()
-        self.frames = frames.count
-        seconds = durations.reduce(0, +)
-        let hitchTime = frames.filter(\.isHitch).map { $0.duration - $0.interval }.reduce(0, +)
+        let asleep = spans.filter { $0.work == .asleep }
+        let shown = frames.filter { frame in
+            !frame.isLate || frame.deadlines.contains { deadline in !asleep.contains { $0.start <= deadline && deadline <= $0.end } }
+        }
+        let durations = shown.map(\.duration).sorted()
+        self.frames = shown.count
+        idleGaps = frames.count - shown.count
+        seconds = frames.map(\.duration).reduce(0, +)
+        let late = shown.filter(\.isLate)
+        let hitchTime = late.map { $0.duration - $0.interval }.reduce(0, +)
         hitchRatio = seconds > 0 ? hitchTime * 1000 / seconds : 0
         p50 = Self.percentile(durations, 0.5)
         p99 = Self.percentile(durations, 0.99)
         max = durations.last ?? 0
-        hitches = frames.filter(\.isHitch).map { Hitch(frame: $0, causes: Self.causes(of: $0, spans)) }
+        hitches = late.map { Hitch(frame: $0, causes: Self.causes(of: $0, spans)) }
     }
 
     public var isSmooth: Bool {
