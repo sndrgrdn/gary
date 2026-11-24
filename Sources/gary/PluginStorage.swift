@@ -22,6 +22,25 @@ nonisolated enum PluginStorage {
     }
 
     private static func values(_ id: PluginID) -> [String: JSON] {
-        (try? JSON.parse(Data(contentsOf: file(id))))?.object ?? [:]
+        let file = file(id)
+        let problem: String
+        do {
+            if let values = try JSON.parse(Data(contentsOf: file)).object {
+                return values
+            }
+            problem = "not a JSON object"
+        } catch CocoaError.fileReadNoSuchFile {
+            return [:]
+        } catch {
+            problem = "\(error)"
+        }
+        let aside = Paths.storage.appending(path: "\(id).corrupt-\(Int(now())).json")
+        do {
+            try FileManager.default.moveItem(at: file, to: aside)
+            log("plugin \(id): storage \(file.path) is unreadable (\(problem)), moved it to \(aside.lastPathComponent) and started empty")
+        } catch {
+            log("plugin \(id): storage \(file.path) is unreadable (\(problem)) and could not be moved aside: \(error)")
+        }
+        return [:]
     }
 }

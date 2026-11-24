@@ -222,7 +222,7 @@ Kinds and plugins share no variables. Pick one of these ways to pass values:
 
 - **Publish a topic.** `host.publish(value)` publishes a JSON value under the plugin's id. Any plugin, the same one included, lists that id in `subscribes` and reads `state["you.source"]`. Export `type Topic` from a `topic.ts` at the root of the publishing plugin, so that `gary plugin types` types `host.publish` and every subscriber's `state`. The [`disk`](../examples/disk) example does this.
 - **Call a method.** `host.call({ kind: "panel" }, "refresh")` runs a function from another kind's `methods`, and `host.call({ plugin: "you.recorder" }, "start")` runs one from another plugin. It returns a promise of the result.
-- **Store a value.** `host.storage` keeps JSON values per plugin, shared by its kinds, in `~/Library/Application Support/Gary/storage/<id>.json`.
+- **Store a value.** `host.storage` keeps JSON values per plugin, shared by its kinds, in `~/Library/Application Support/Gary/storage/<id>.json`. If that file is not a JSON object, Gary logs it, renames it to `<id>.corrupt-<time>.json`, and starts the plugin's storage empty.
 
 ## Use capabilities
 

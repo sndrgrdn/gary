@@ -19,6 +19,7 @@
 
 ### Fixes
 
+- A plugin's `host.storage` file that is not a JSON object, such as one cut short or edited by hand, is logged and renamed to `<id>.corrupt-<time>.json` next to it before storage starts empty, instead of reading as empty without a word and being overwritten by the next `host.storage.set`.
 - Quitting Gary stops the processes that a running `host.exec` or `host.spawn` command started, such as both sides of `sh -c "a | b"` or a child it put in the background, instead of only the command itself. Stopping a command or its plugin already stopped them all.
 - `gary hide`, and `host.hide()`, fail with `<id> has no surface <name>` for a surface the plugin doesn't list, as `gary summon` does, instead of printing `hidden` while the surface stays on screen. Name the surface from the manifest's `surfaces`, such as `gary hide sndrgrdn.network:speedtest`, not the kind.
 - A wide widget in `notchLeft`, such as a long track title, shrinks and truncates against the `left` section instead of pushing it off the left edge of the screen.

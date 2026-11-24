@@ -45,4 +45,42 @@ struct PluginStorageTests {
         #expect(try JSON.parse(Data(contentsOf: file)) == .object(["a": .object(["x": .array([.number(1), .string("y")])])]))
         harness.runtime.stop()
     }
+
+    @Test func `a missing storage file reads empty and sets nothing aside`() async throws {
+        let id = "test.storage-missing"
+        let file = Paths.storage.appending(path: "\(id).json")
+        try? FileManager.default.removeItem(at: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let harness = try Harness(Self.source, id: id)
+        #expect(try await harness.text() == "[0,null,null]")
+        #expect(try Self.asides(id).isEmpty)
+        harness.runtime.stop()
+    }
+
+    @Test(arguments: [("test.storage-garbage", "not json{"), ("test.storage-array", "[1,2]")])
+    func `an unreadable storage file is moved aside intact before storage starts empty`(id: String, contents: String) async throws {
+        let file = Paths.storage.appending(path: "\(id).json")
+        try FileManager.default.createDirectory(at: Paths.storage, withIntermediateDirectories: true)
+        try Data(contents.utf8).write(to: file)
+        defer {
+            try? FileManager.default.removeItem(at: file)
+            for aside in (try? Self.asides(id)) ?? [] {
+                try? FileManager.default.removeItem(at: aside)
+            }
+        }
+        let harness = try Harness(Self.source, id: id)
+        #expect(try await harness.text() == "[0,null,null]")
+        harness.runtime.perform("a", .number(1))
+        #expect(try await harness.text() == "[1,1,null]")
+        #expect(try JSON.parse(Data(contentsOf: file)) == .object(["a": .number(1)]))
+        let asides = try Self.asides(id)
+        #expect(asides.count == 1)
+        #expect(try asides.map { try String(contentsOf: $0, encoding: .utf8) } == [contents])
+        harness.runtime.stop()
+    }
+
+    private static func asides(_ id: String) throws -> [URL] {
+        try FileManager.default.contentsOfDirectory(at: Paths.storage, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("\(id).corrupt-") }
+    }
 }
