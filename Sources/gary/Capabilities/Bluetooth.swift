@@ -205,6 +205,7 @@ final class BluetoothTopic: NSObject, TopicFeed {
             notifications.append(notification)
         }
         let timer = Timer(timeInterval: 60, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.send(Trace("bluetooth-poll")) } }
+        timer.tolerance = 10
         RunLoop.main.add(timer, forMode: .common)
         observations = [
             Observation { timer.invalidate() },

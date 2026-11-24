@@ -68,6 +68,7 @@ final class Screens {
         log("bar on \(id.prefix(8)) hides so the macOS menu bar can reveal")
         guard asideTimer == nil else { return }
         let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.returnBarsAside() } }
+        timer.tolerance = 0.02
         RunLoop.main.add(timer, forMode: .common)
         asideTimer = timer
     }

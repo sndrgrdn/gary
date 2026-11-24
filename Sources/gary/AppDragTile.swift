@@ -62,6 +62,7 @@ final class AppDragTile {
         place()
         panel.orderFrontRegardless()
         let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.tick() } }
+        timer.tolerance = 0.1
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
     }

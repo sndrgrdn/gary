@@ -5,7 +5,9 @@ nonisolated extension Capability {
     static let clipboard = Capability(
         name: "clipboard",
         summary: """
-        A clipboard change counter and the types on the clipboard. Read the clipboard, and write text, an image, or files to it. \
+        A clipboard change counter and the types on the clipboard. The topic follows a copy within half a second while the user is active. \
+        After 30 seconds without input it checks every 5 seconds until the next input, and it stops while the screen is locked or asleep. \
+        Read the clipboard, and write text, an image, or files to it. \
         Text written as concealed, such as a password, carries `org.nspasteboard.ConcealedType`, so clipboard managers skip it.
         """,
         types: """
@@ -65,30 +67,89 @@ nonisolated extension Capability {
 }
 
 private final nonisolated class ClipboardTopic: TopicFeed, @unchecked Sendable {
+    private static let activePeriod = 0.5
+    private static let idlePeriod = 5.0
+    private static let idleAfter = 30.0
     private let publish: @Sendable (JSON, Trace) -> Void
-    private let timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "gary.clipboard"))
+    private let queue = DispatchQueue(label: "gary.clipboard")
+    private let timer: DispatchSourceTimer
     private var count = -1
+    private var period: Double?
+    private var away = false
+    private var lastInput = Date.distantPast
+    private var presence: PresenceWatch?
+    private var activation: Observation?
+    private var input: Observation?
 
     init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
+        timer = DispatchSource.makeTimerSource(queue: queue)
         timer.setEventHandler { [weak self] in self?.check() }
-        timer.schedule(deadline: .now(), repeating: 0.5, leeway: .milliseconds(250))
         timer.resume()
+        MainActor.assumeIsolated {
+            let presence = PresenceWatch { [weak self] away in self?.settle(away: away) }
+            self.presence = presence
+            activation = Observation(NSWorkspace.shared.notificationCenter, NSWorkspace.didActivateApplicationNotification) { [weak self] in
+                self?.wake()
+            }
+            settle(away: presence.away)
+        }
     }
 
     deinit {
         timer.cancel()
     }
 
+    private func wake() {
+        queue.async { [weak self] in
+            self?.lastInput = Date()
+            self?.check()
+        }
+    }
+
+    private func settle(away: Bool) {
+        queue.async { [weak self] in
+            self?.away = away
+            self?.check()
+        }
+    }
+
     private func check() {
         let board = NSPasteboard.general
-        guard board.changeCount != count else { return }
-        count = board.changeCount
-        publish(.object([
-            "count": .number(Double(count)),
-            "types": .array((board.types ?? []).map { .string($0.rawValue) }),
-            "access": .string(["default", "ask", "always", "never"][max(0, min(3, board.accessBehavior.rawValue))]),
-        ]), Trace("clipboard"))
+        if board.changeCount != count {
+            count = board.changeCount
+            publish(.object([
+                "count": .number(Double(count)),
+                "types": .array((board.types ?? []).map { .string($0.rawValue) }),
+                "access": .string(["default", "ask", "always", "never"][max(0, min(3, board.accessBehavior.rawValue))]),
+            ]), Trace("clipboard"))
+        }
+        pace()
+    }
+
+    private func pace() {
+        let idle = min(idleSeconds(), -lastInput.timeIntervalSinceNow) >= Self.idleAfter
+        let wanted = away ? nil : idle ? Self.idlePeriod : Self.activePeriod
+        guard wanted != period else { return }
+        period = wanted
+        if let wanted {
+            timer.schedule(deadline: .now() + wanted, repeating: wanted, leeway: .milliseconds(idle ? 1000 : 250))
+        } else {
+            timer.schedule(deadline: .distantFuture, repeating: .never)
+        }
+        if wanted == Self.idlePeriod {
+            DispatchQueue.main.async { [weak self] in self?.watchInput() }
+        }
+    }
+
+    @MainActor private func watchInput() {
+        guard input == nil else { return }
+        let events: NSEvent.EventTypeMask = [.keyDown, .flagsChanged, .leftMouseDown, .rightMouseDown, .mouseMoved, .scrollWheel]
+        guard let monitor = NSEvent.addGlobalMonitorForEvents(matching: events, handler: { [weak self] _ in
+            self?.input = nil
+            self?.wake()
+        }) else { return }
+        input = Observation { NSEvent.removeMonitor(monitor) }
     }
 }
 

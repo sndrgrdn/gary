@@ -48,3 +48,37 @@ private final class SessionTopic: TopicFeed {
         publish(.object(["locked": .bool(locked)]), trace)
     }
 }
+
+final class PresenceWatch {
+    private var locked = (CGSessionCopyCurrentDictionary() as NSDictionary?)?["CGSSessionScreenIsLocked"] as? Bool ?? false
+    private var displayAsleep = CGDisplayIsAsleep(CGMainDisplayID()) != 0
+    private var systemAsleep = false
+    private var observations: [Observation] = []
+    private let changed: @MainActor (Bool) -> Void
+
+    var away: Bool {
+        locked || displayAsleep || systemAsleep
+    }
+
+    init(_ changed: @escaping @MainActor (Bool) -> Void) {
+        self.changed = changed
+        let distributed = DistributedNotificationCenter.default()
+        let workspace = NSWorkspace.shared.notificationCenter
+        observations = [
+            Observation(distributed, Notification.Name("com.apple.screenIsLocked")) { [weak self] in self?.update { $0.locked = true } },
+            Observation(distributed, Notification.Name("com.apple.screenIsUnlocked")) { [weak self] in self?.update { $0.locked = false } },
+            Observation(workspace, NSWorkspace.screensDidSleepNotification) { [weak self] in self?.update { $0.displayAsleep = true } },
+            Observation(workspace, NSWorkspace.screensDidWakeNotification) { [weak self] in self?.update { $0.displayAsleep = false } },
+            Observation(workspace, NSWorkspace.willSleepNotification) { [weak self] in self?.update { $0.systemAsleep = true } },
+            Observation(workspace, NSWorkspace.didWakeNotification) { [weak self] in self?.update { $0.systemAsleep = false } },
+        ]
+    }
+
+    private func update(_ change: (PresenceWatch) -> Void) {
+        let was = away
+        change(self)
+        if away != was {
+            changed(away)
+        }
+    }
+}

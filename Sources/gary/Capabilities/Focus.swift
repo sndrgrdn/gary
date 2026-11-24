@@ -47,6 +47,7 @@ private final class FocusTopic: TopicFeed {
         let timer = Timer(fire: next, interval: 60, repeats: true) { [weak self] _ in
             queue.async { [weak self] in self?.send(Trace("focus-minute")) }
         }
+        timer.tolerance = 0.2
         RunLoop.main.add(timer, forMode: .common)
         observations = [Observation { watch.stop() }, Observation { timer.invalidate() }]
         queue.async { [weak self] in self?.send(Trace("focus-start")) }

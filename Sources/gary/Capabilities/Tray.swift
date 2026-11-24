@@ -7,7 +7,7 @@ private nonisolated let trayQueue = DispatchQueue(label: "gary.tray", qos: .user
 
 nonisolated extension Capability {
     static let tray = Capability(name: "tray", summary: """
-    The status items in the menu bar, with their icons, refreshed every 2 seconds while a plugin subscribes. \
+    The status items in the menu bar, with their icons, refreshed every 2 seconds while a plugin subscribes and the screen is awake and unlocked. \
     An icon is cut to its ink, and x, y, width and height bound that ink on screen in points, or the whole item when it has no icon. \
     Without Screen Recording the items have no icons, and reason says why. Press one with the left or right button and modifier keys.
     """, types: """
@@ -68,16 +68,29 @@ private final nonisolated class TrayTopic: TopicFeed, @unchecked Sendable {
     private let publish: @Sendable (JSON, Trace) -> Void
     private let timer = DispatchSource.makeTimerSource(queue: trayQueue)
     private var icons: Set<String> = []
+    private var presence: PresenceWatch?
 
     init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
         timer.setEventHandler { [weak self] in self?.refresh() }
-        timer.schedule(deadline: .now(), repeating: 2, leeway: .milliseconds(500))
+        MainActor.assumeIsolated {
+            let presence = PresenceWatch { [weak self] away in self?.schedule(away: away) }
+            self.presence = presence
+            schedule(away: presence.away)
+        }
         timer.resume()
     }
 
     deinit {
         timer.cancel()
+    }
+
+    private func schedule(away: Bool) {
+        if away {
+            timer.schedule(deadline: .distantFuture, repeating: .never)
+        } else {
+            timer.schedule(deadline: .now(), repeating: 2, leeway: .milliseconds(500))
+        }
     }
 
     private func refresh() {

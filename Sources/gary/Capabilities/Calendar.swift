@@ -128,7 +128,12 @@ private final class CalendarTopic: TopicFeed {
             count += 1
             send(Trace("calendar"))
         })
-        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.send(Trace("calendar-access")) } }
+        observations.append(Observation(NSWorkspace.shared.notificationCenter, NSWorkspace.didActivateApplicationNotification) { [weak self] in
+            guard self?.accessTimer?.isValid == true else { return }
+            self?.send(Trace("calendar-access"))
+        })
+        let timer = Timer(timeInterval: 10, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.send(Trace("calendar-access")) } }
+        timer.tolerance = 2
         RunLoop.main.add(timer, forMode: .common)
         accessTimer = timer
         observations.append(Observation { timer.invalidate() })

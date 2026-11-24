@@ -71,7 +71,7 @@ private final class SystemTopic: TopicFeed {
 
 private nonisolated let anyInput = CGEventType(rawValue: ~0) ?? .null
 
-private nonisolated func idleSeconds() -> Double {
+nonisolated func idleSeconds() -> Double {
     CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: anyInput).rounded(.down)
 }
 

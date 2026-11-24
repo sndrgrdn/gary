@@ -7,6 +7,10 @@
 - `host.toast` takes a `glyph` in place of an SF Symbol `icon`, such as a Nerd Font glyph, drawn in the `toast-icon` style or in the theme font that `font` names, so a toast can match icons that plugins draw as text.
 - `gary frames` reports whether Gary holds the display's refresh rate, with the hitch time per second, frame time percentiles, and the plugin tree, layout, image decode, or Core Animation commit behind each dropped frame. `gary frames --record <seconds>` reports a fresh window.
 
+### Faster and lighter
+
+- Gary with a full bar wakes about 25 times a minute while idle instead of about 140. The `clipboard` topic checks the clipboard every 5 seconds once the user has given no input for 30 seconds, and at once on the next input or app switch. It and the `tray` topic stop polling while the screen is locked or asleep, the `calendar` topic checks for access every 10 seconds and on each app switch instead of every second, and Gary's remaining timers let macOS coalesce their wakeups.
+
 ## 0.5.0
 
 ### Upgrading

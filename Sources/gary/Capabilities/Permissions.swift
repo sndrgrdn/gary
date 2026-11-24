@@ -80,6 +80,7 @@ private final class PermissionsTopic: TopicFeed {
         self.publish = publish
         send(Trace("permissions-start"))
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.send(Trace("permissions")) } }
+        timer.tolerance = 0.2
         RunLoop.main.add(timer, forMode: .common)
         observation = Observation { timer.invalidate() }
     }
