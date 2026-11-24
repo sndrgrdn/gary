@@ -10,6 +10,7 @@ final class MountedTree: ObservableObject {
     @Published var card: Card?
     @Published var backdrop = false
     @Published var inspection: FrameRecorder?
+    @Published var opening = 0
     var plugin: PluginID?
 
     init(root: Node, theme: Theme) {
@@ -60,6 +61,7 @@ struct TreeView: View {
             .environment(\.frameRecorder, tree.inspection)
             .environment(\.tooltipPanel, tooltipPanel)
             .environment(\.pluginID, tree.plugin)
+            .environment(\.opening, tree.opening)
         if let fit = tree.fit, tree.backdrop {
             fit {
                 ZStack {
@@ -160,7 +162,7 @@ struct NodeView: View {
             .probed(path, look)
             .modifier(VisualEffects(look, node))
             .transaction(value: look.animation == nil ? nil : node) { transaction in
-                guard let animation = look.animation else { return }
+                guard let animation = look.animation, !transaction.disablesAnimations else { return }
                 transaction.animation = reduceMotion ? nil : SwiftUI.Animation(animation, duration: look.duration)
             }
             .transition(AnyTransition(look.transition ?? .opacity))
@@ -366,6 +368,7 @@ private struct ScrollNode: View {
     let padding: Insets
     let maxHeight: Double?
     let path: String?
+    @Environment(\.opening) private var opening
 
     var body: some View {
         let revealed = node.revealedChild.map { node.childIDs[$0] }
@@ -378,8 +381,15 @@ private struct ScrollNode: View {
                         }
                     }
                     .padding(EdgeInsets(padding))
+                    .id("top")
                 }
                 .scrollBounceBehavior(.basedOnSize)
+                .onChange(of: opening) {
+                    proxy.scrollTo("top", anchor: .top)
+                    if let revealed {
+                        proxy.scrollTo(revealed)
+                    }
+                }
                 .onChange(of: revealed, initial: true) { _, id in
                     guard let id else { return }
                     DispatchQueue.main.async { proxy.scrollTo(id) }

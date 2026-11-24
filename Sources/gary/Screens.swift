@@ -1,5 +1,6 @@
 import AppKit
 import GaryCore
+import SwiftUI
 
 struct MountKey: Hashable {
     let slot: SlotKey
@@ -16,6 +17,7 @@ final class Screens {
     private var asideTimer: Timer?
     private var clickMonitors: [Any] = []
     private var previousApp: NSRunningApplication?
+    private let parked = ParkedMounts()
     let tooltipPanel: TooltipPanel
     let theme: CurrentTheme
     let setup: PluginSetup
@@ -110,6 +112,7 @@ final class Screens {
         let slotKey = key.slot
         let onAction: ActionHandler = { [weak self] event in self?.perform(event, slotKey) }
         let changed: Bool
+        var kept: ParkedMount?
         if let view = mounts[key] {
             changed = view.apply(tree)
             if tree == nil {
@@ -117,25 +120,31 @@ final class Screens {
             }
         } else {
             guard let tree else { return false }
-            let mounted = MountedTree(root: tree, theme: theme(for: slotKey.kind))
-            mounted.plugin = slotKey.id
-            mounts[key] = TreeHostingView(tree: mounted, onAction: onAction, tooltipPanel: tooltipPanel) { [weak self] in
-                self?.hide(key, Trace("click-outside"))
+            kept = parked.take(key)
+            if let kept {
+                kept.view.reopen(tree, theme: theme(for: slotKey.kind))
+                mounts[key] = kept.view
+            } else {
+                let mounted = MountedTree(root: tree, theme: theme(for: slotKey.kind))
+                mounted.plugin = slotKey.id
+                mounts[key] = TreeHostingView(tree: mounted, onAction: onAction, tooltipPanel: tooltipPanel) { [weak self] in
+                    self?.hide(key, Trace("click-outside"))
+                }
             }
             changed = true
         }
-        place(key)
+        place(key, reopening: kept?.window)
         return changed
     }
 
-    func place(_ key: MountKey) {
+    func place(_ key: MountKey, reopening kept: SurfaceWindow? = nil) {
         guard let view = mounts[key], let slot = slots[key.slot] else { return }
         if key.slot.kind == .barWidget {
             placeInBar(key)
             return
         }
         guard let display = displays.first(where: { $0.id == key.display }) else { return }
-        let window = windows[key] ?? SurfaceWindow()
+        let window = windows[key] ?? kept ?? SurfaceWindow()
         let isNew = windows[key] == nil
         windows[key] = window
         if isNew {
@@ -173,18 +182,20 @@ final class Screens {
     }
 
     func unmount(_ key: MountKey) {
-        if let view = mounts[key] {
-            tooltipPanel.hide(inside: view)
+        guard let view = mounts.removeValue(forKey: key) else { return }
+        tooltipPanel.hide(inside: view)
+        guard let window = windows.removeValue(forKey: key) else {
+            view.removeFromSuperview()
+            return
         }
-        if let window = windows.removeValue(forKey: key) {
-            let hadFocus = window.panel.isKeyWindow
-            window.close(fade: fade(key.slot))
-            mounts[key] = nil
-            if hadFocus {
-                returnFocus()
-            }
+        let hadFocus = window.panel.isKeyWindow
+        if key.slot.kind.isSurface {
+            parked.park(key, ParkedMount(window: window, view: view), fade: fade(key.slot))
         } else {
-            mounts.removeValue(forKey: key)?.removeFromSuperview()
+            window.panel.close()
+        }
+        if hadFocus {
+            returnFocus()
         }
     }
 
@@ -232,5 +243,16 @@ extension TreeHostingView {
         guard let root, root != tree.root else { return changed }
         tree.root = root
         return true
+    }
+
+    func reopen(_ root: Node, theme: Theme) {
+        isHidden = false
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            tree.root = root
+            tree.theme = theme
+            tree.opening += 1
+        }
     }
 }

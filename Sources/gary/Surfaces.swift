@@ -224,6 +224,7 @@ final class SurfaceWindow {
     let panel = makeSurfacePanel(level: 0)
     let card = NSView()
     private var content: TreeHostingView?
+    private var shows = 0
 
     init() {
         card.wantsLayer = true
@@ -232,7 +233,7 @@ final class SurfaceWindow {
     }
 
     func setContent(_ view: TreeHostingView) {
-        guard view !== content else { return }
+        guard view !== content || view.superview == nil else { return }
         content?.removeFromSuperview()
         content = view
         view.translatesAutoresizingMaskIntoConstraints = true
@@ -280,17 +281,21 @@ final class SurfaceWindow {
     }
 
     func show(fade: Double) {
-        card.alphaValue = 0
+        shows += 1
+        panel.alphaValue = 1
         panel.orderFrontRegardless()
-        let card = card
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = fade
-            card.animator().alphaValue = 1
-        }
+        guard fade > 0 else { return }
+        let appear = CABasicAnimation(keyPath: "opacity")
+        appear.fromValue = 0
+        appear.toValue = 1
+        appear.duration = fade
+        appear.timingFunction = CAMediaTimingFunction(name: .default)
+        card.layer?.add(appear, forKey: "appear")
     }
 
     func focus() {
         panel.makeKey()
+        content?.layoutSubtreeIfNeeded()
         var queue: [NSView] = content.map { [$0] } ?? []
         while !queue.isEmpty {
             let view = queue.removeFirst()
@@ -302,8 +307,9 @@ final class SurfaceWindow {
         }
     }
 
-    func close(fade: Double) {
+    func hide(fade: Double) {
         let panel = panel
+        let shown = shows
         panel.ignoresMouseEvents = true
         panel.onKey = nil
         panel.onScroll = nil
@@ -312,7 +318,12 @@ final class SurfaceWindow {
             context.duration = fade
             panel.animator().alphaValue = 0
         } completionHandler: {
-            MainActor.assumeIsolated { panel.close() }
+            MainActor.assumeIsolated {
+                if self.shows == shown {
+                    panel.orderOut(nil)
+                    self.content?.removeFromSuperview()
+                }
+            }
         }
     }
 

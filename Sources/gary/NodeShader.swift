@@ -121,6 +121,17 @@ extension EnvironmentValues {
     }
 }
 
+private struct OpeningKey: EnvironmentKey {
+    static let defaultValue = 0
+}
+
+extension EnvironmentValues {
+    var opening: Int {
+        get { self[OpeningKey.self] }
+        set { self[OpeningKey.self] = newValue }
+    }
+}
+
 struct ShaderNode: View {
     let shader: Node.Shader
     @Environment(\.pluginID) private var plugin

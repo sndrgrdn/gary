@@ -22,6 +22,7 @@
 - Gary with every plugin loaded uses about 33 MB instead of 40 MB.
 - The bar widgets draw about 50 ms sooner after Gary starts. The check that decides whether to show the permissions window runs a second after start, and the Wi-Fi and Focus states are read off the main thread, instead of holding up the first draw.
 - A panel or menu opens a few milliseconds sooner, the launcher about 9% (42 to 38 ms).
+- A panel, overlay, or menu shown again within a minute of hiding appears in about half the time: the launcher in 23 ms instead of 39, the audio menu in 39 instead of 65, the theme picker in 34 instead of 66. Gary keeps the hidden window for that minute and draws the plugin's new tree in it. The plugin still stops and starts as before, an input shows the text the plugin gives it, and a list starts at its top. Until that minute is over the hidden window keeps the memory it drew with, such as 5 MB for the theme picker or 16 MB for the launcher with 15 results.
 - Gary logs how long each topic source took to start, as `topic wifi: started in 2.5 ms`.
 - `gary doctor` says under Memory whether JavaScriptCore runs on the system allocator, which saves about 4 MB, and fails when a Gary started the usual way missed it.
 

@@ -130,6 +130,7 @@ struct InputNode: View {
     let input: Node.Input
     let font: NSFont
     let color: Color
+    @Environment(\.opening) private var opening
     @Environment(\.nodeAction) private var perform
     private let text = State(initialValue: "")
     private let sent = State(initialValue: [String]())
@@ -153,6 +154,10 @@ struct InputNode: View {
                 guard let key = Self.keys[press.key] else { return .ignored }
                 pressKey(key)
                 return .handled
+            }
+            .onChange(of: opening) {
+                sent.wrappedValue = []
+                text.wrappedValue = input.value
             }
             .onChange(of: input.value, initial: true) { _, value in
                 if let index = sent.wrappedValue.firstIndex(of: value) {

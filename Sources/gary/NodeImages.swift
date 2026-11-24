@@ -20,23 +20,25 @@ struct ImageNode: View {
     let arrival: SwiftUI.Animation?
     let transition: AnyTransition
     @Environment(\.displayScale) private var scale
-    private let shown = State<NSImage?>(initialValue: nil)
+    @Environment(\.opening) private var opening
+    private let kept = State<(image: NSImage, opening: Int)?>(initialValue: nil)
 
     var body: some View {
         let pixels = CGSize(width: (size.width * scale).rounded(.up), height: (size.height * scale).rounded(.up))
         let key = "\(path)|\(Int(pixels.width))x\(Int(pixels.height))|\(fit.rawValue)" as NSString
+        let shown = kept.wrappedValue.flatMap { $0.opening == opening ? $0.image : nil }
         ZStack {
-            if let image = cached(key) ?? (isSmall(path) ? decoded(path, pixels, fit, key)?.image() : nil) ?? shown.wrappedValue {
+            if let image = cached(key) ?? (isSmall(path) ? decoded(path, pixels, fit, key)?.image() : nil) ?? shown {
                 Image(nsImage: image).renderingMode(tint == nil ? .original : .template).resizable().interpolation(.high)
                     .aspectRatio(contentMode: fit == .fill ? .fill : .fit).foregroundStyle(tint ?? .primary).transition(transition)
             }
         }
         .task(id: key) {
             guard cached(key) == nil, let image = await decode(path, pixels, fit, key as String)?.image() else { return }
-            withAnimation(shown.wrappedValue == nil ? arrival : nil) { shown.wrappedValue = image }
+            withAnimation(shown == nil ? arrival : nil) { kept.wrappedValue = (image, opening) }
         }
         .onDisappear {
-            let image = cached(key) ?? shown.wrappedValue
+            let image = cached(key) ?? kept.wrappedValue?.image
             DispatchQueue.main.asyncAfter(deadline: .now() + keptAfterHiding) { _ = image }
         }
     }
