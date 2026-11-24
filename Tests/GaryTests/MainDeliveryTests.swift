@@ -3,7 +3,7 @@ import Foundation
 import GaryCore
 import Testing
 
-@MainActor
+@MainActor @Suite(.serialized)
 struct MainDeliveryTests {
     private func output(_ text: String, refreshRate: Int = 120) -> RuntimeEvent {
         .output(RuntimeOutput(trees: [SurfaceAddress.main: [display.id: Node(.text(text))]], refreshRate: refreshRate), Trace("test"))
@@ -50,5 +50,26 @@ struct MainDeliveryTests {
         let second = try #require(await arrivals.next())
         #expect([first.text, second.text] == [#"text("1")"#, #"text("4")"#])
         #expect(second.at.uptimeNanoseconds - first.at.uptimeNanoseconds >= 500_000_000)
+    }
+
+    @Test func `applies past the main thread's budget for a frame wait for the next frame, oldest first`() async {
+        var time = ProcessInfo.processInfo.systemUptime + 1
+        ApplyBudget.clock = { time }
+        defer { ApplyBudget.clock = { ProcessInfo.processInfo.systemUptime } }
+        let (applied, arrive) = AsyncStream.makeStream(of: Int.self)
+        var order: [Int] = []
+        for index in 0..<4 {
+            ApplyBudget.run(interval: 1 / 120.0) {
+                time += ApplyBudget.perFrame * 0.75
+                order.append(index)
+                arrive.yield(index)
+            }
+        }
+        #expect(order == [0, 1])
+        var arrivals = applied.makeAsyncIterator()
+        for _ in 0..<4 {
+            _ = await arrivals.next()
+        }
+        #expect(order == [0, 1, 2, 3])
     }
 }

@@ -61,18 +61,19 @@ final nonisolated class MainDelivery: @unchecked Sendable {
 
     func send(_ runtime: PluginRuntime, _ event: RuntimeEvent) {
         guard case let .output(output, _) = event else {
-            DispatchQueue.main.async { [self] in handle(runtime, event) }
+            DispatchQueue.main.async { [self] in ApplyBudget.run { self.handle(runtime, event) } }
             return
         }
+        let interval = 1 / Double(max(output.refreshRate, 1))
         let due: DispatchTime? = lock.withLock {
             defer { pending = (runtime, event) }
-            return pending == nil ? applied.map { $0 + 1 / Double(max(output.refreshRate, 1)) } ?? .now() : nil
+            return pending == nil ? applied.map { $0 + interval } ?? .now() : nil
         }
         guard let due else { return }
         if due <= .now() {
-            DispatchQueue.main.async { [self] in flush() }
+            DispatchQueue.main.async { [self] in ApplyBudget.run(interval: interval) { self.flush() } }
         } else {
-            DispatchQueue.main.asyncAfter(deadline: due) { [self] in flush() }
+            DispatchQueue.main.asyncAfter(deadline: due) { [self] in ApplyBudget.run(interval: interval) { self.flush() } }
         }
     }
 
@@ -86,6 +87,45 @@ final nonisolated class MainDelivery: @unchecked Sendable {
         }
         if let latest {
             handle(latest.runtime, latest.event)
+        }
+    }
+}
+
+@MainActor enum ApplyBudget {
+    static let perFrame = 0.004
+    static var clock = { ProcessInfo.processInfo.systemUptime }
+    private static var waiting: [@MainActor () -> Void] = []
+    private static var frame = (start: 0.0, spent: 0.0)
+    private static var interval = 1 / 60.0
+
+    static func run(interval: Double? = nil, _ work: @escaping @MainActor () -> Void) {
+        let now = clock()
+        if let interval {
+            self.interval = interval
+        }
+        if now - frame.start >= self.interval {
+            frame = (now, 0)
+        }
+        guard waiting.isEmpty, frame.spent < perFrame else {
+            waiting.append(work)
+            if waiting.count == 1 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + (frame.start + self.interval - now)) { drain() }
+            }
+            return
+        }
+        work()
+        frame.spent += clock() - now
+    }
+
+    private static func drain() {
+        let now = clock()
+        frame = (now, 0)
+        while !waiting.isEmpty, frame.spent < perFrame {
+            waiting.removeFirst()()
+            frame.spent = clock() - now
+        }
+        if !waiting.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + interval) { drain() }
         }
     }
 }
