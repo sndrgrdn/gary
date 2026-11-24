@@ -78,4 +78,46 @@ struct BarWindowTests {
             }
         }
     }
+
+    @Test func `crowded sections truncate inside the screen, the notch and each other, and left and right keep their width`() throws {
+        let theme = try #require(Self.theme)
+        let sections: [BarSection] = [.left, .notchLeft, .center, .right]
+        let crowds = sections.map { [$0] } + sections.indices.flatMap { index in sections[(index + 1)...].map { [sections[index], $0] } } + [sections]
+        for notch in [nil, 760.0...968.0] {
+            let screen = DisplayInfo(id: "built-in", index: 0, frame: CGRect(x: 0, y: 0, width: 1728, height: 1117), band: 32, notch: notch)
+            func frames(wide: [BarSection]) -> [BarSection: CGRect] {
+                let bar = BarWindow(display: screen, level: 0)
+                defer { bar.close() }
+                bar.layout(theme: theme)
+                let views = sections.map { section in
+                    let text = wide.contains(section) ? String(repeating: "A very long title ", count: 40) : "\(section)"
+                    let widget = view(text, theme: theme)
+                    bar.setSection(section, [widget])
+                    return (section, widget)
+                }
+                bar.content.layoutSubtreeIfNeeded()
+                return Dictionary(uniqueKeysWithValues: views.map { ($0, $1.convert($1.bounds, to: nil)) })
+            }
+            let roomy = frames(wide: [])
+            for wide in crowds {
+                let crowded = frames(wide: wide)
+                let left = try #require(crowded[.left])
+                let notchLeft = try #require(crowded[.notchLeft])
+                let center = try #require(crowded[.center])
+                let right = try #require(crowded[.right])
+                let edge = theme.bar.edge
+                #expect(left.minX >= edge - 0.5 && right.maxX <= screen.frame.width - edge + 0.5, "\(wide) \(crowded)")
+                #expect(
+                    left.maxX <= notchLeft.minX + 0.5 && notchLeft.maxX <= center.minX + 0.5 && center.maxX <= right.minX + 0.5,
+                    "\(wide) \(crowded)",
+                )
+                if let notch {
+                    #expect(notchLeft.maxX <= notch.lowerBound + 0.5 && center.minX >= notch.upperBound - 0.5, "\(wide) \(crowded)")
+                }
+                for section in [BarSection.left, .right] where !wide.contains(section) {
+                    #expect(abs((crowded[section]?.width ?? 0) - (roomy[section]?.width ?? 0)) < 0.5, "\(wide) \(section) \(crowded)")
+                }
+            }
+        }
+    }
 }

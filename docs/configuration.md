@@ -34,7 +34,7 @@ Without the file, the bar shows the built-in `gary.battery` and `gary.clock` wid
 | `settings`          | `{ "<id>": { ... } }`. Each plugin reads its object as `state.settings`, and Gary reloads the plugin when its object changes.                                            |
 | `packages`          | Plugin packages that Gary installs and loads. [Packages](packages.md) describes the sources.                                                                             |
 
-On a display with a notch, `notchLeft` ends at the notch's left edge and `center` starts at its right edge. Without a notch, `center` is centered and `notchLeft` ends just left of it. A plugin that hides the macOS menu bar with the `menubar` capability keeps the bar in place.
+On a display with a notch, `notchLeft` ends at the notch's left edge and `center` starts at its right edge. Without a notch, `center` is centered and `notchLeft` ends just left of it. When the sections do not fit, `notchLeft` shrinks first, then `center`, and `left` and `right` keep their width, so no section crosses the screen edge, the notch, or another section. A plugin that hides the macOS menu bar with the `menubar` capability keeps the bar in place.
 
 A plugin's README lists the settings it reads. `gary doctor` reports mistakes in `shell.json`, and Gary logs the fields that it ignores.
 
