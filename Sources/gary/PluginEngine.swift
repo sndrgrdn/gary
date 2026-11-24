@@ -80,24 +80,35 @@ final nonisolated class PluginEngine: @unchecked Sendable {
         log("cannot drop plugin bytecode: \(missing.joined(separator: ", ")) is missing from JavaScriptCore on this macOS")
     }()
 
-    func run(_ plugin: PluginID, in context: JSContext, _ body: () -> JSValue?) throws -> JSValue? {
+    func run(
+        _ plugin: PluginID,
+        in context: JSContext,
+        _ cause: EngineCause,
+        into metrics: PluginMetrics,
+        _ body: () -> JSValue?,
+    ) throws -> JSValue? {
         entry.lock()
         defer { entry.unlock() }
         let result = timed(plugin, body)
-        guard result.stopped else { return result.value }
-        _ = timed(plugin) { context.evaluateScript("0") }
+        guard state.withLock({ stopped }) else {
+            metrics.entered(cause, spent: result.spent, stopped: false)
+            return result.value
+        }
+        let cleanup = timed(plugin) { context.evaluateScript("0") }
+        metrics.entered(cause, spent: result.spent + cleanup.spent, stopped: true)
         throw RenderError("stopped after running longer than \(Int(Self.timeLimit * 1000)) ms")
     }
 
-    private func timed(_ plugin: PluginID, _ body: () -> JSValue?) -> (value: JSValue?, stopped: Bool) {
+    private func timed(_ plugin: PluginID, _ body: () -> JSValue?) -> (value: JSValue?, spent: Duration) {
         state.withLock {
             current = (plugin, cpuTime())
             stopped = false
         }
         let value = body()
         return state.withLock {
+            let spent = current.map { cpuTime() - $0.started } ?? .zero
             current = nil
-            return (value, stopped)
+            return (value, spent)
         }
     }
 

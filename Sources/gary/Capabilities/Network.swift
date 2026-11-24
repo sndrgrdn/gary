@@ -59,7 +59,9 @@ private nonisolated func load(_ request: FetchRequest, _ resolve: JSValue, _ rej
         urlRequest.setValue(value, forHTTPHeaderField: name)
     }
     urlRequest.httpBody = request.body.map { Data($0.utf8) }
+    plugin.metrics.hostCallStarted("fetch")
     fetchSession.dataTask(with: urlRequest) { [weak plugin] data, response, error in
+        plugin?.metrics.hostCallFinished("fetch")
         plugin?.onQueue { runtime in
             if let error {
                 runtime.callBack(reject, [resolve.context.newError("fetch failed: \(error.localizedDescription)")], Trace("fetch"))

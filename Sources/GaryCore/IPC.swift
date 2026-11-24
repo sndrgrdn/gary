@@ -16,6 +16,7 @@ public enum Request: Equatable, Sendable {
     case applyTheme(JSON?)
     case listPlugins
     case doctor
+    case stats(PluginID?)
     case permissions
     case requestPermission(Permission)
     case call(PluginID, method: String, arguments: [String])
@@ -55,6 +56,9 @@ public enum Request: Equatable, Sendable {
         case "reloadPlugins":
             try expectAtMostOne(arguments, for: verb)
             return try .reloadPlugins(arguments.first.map(plugin))
+        case "stats":
+            try expectAtMostOne(arguments, for: verb)
+            return try .stats(arguments.first.map(plugin))
         case "applyTheme":
             try expectAtMostOne(arguments, for: verb)
             return try .applyTheme(arguments.first.map(themeOverride))
@@ -193,6 +197,7 @@ public enum Request: Equatable, Sendable {
         case .applyTheme: "applyTheme"
         case .listPlugins: "listPlugins"
         case .doctor: "doctor"
+        case .stats: "stats"
         case .permissions, .requestPermission: "permissions"
         case .call: "call"
         case .action: "action"
@@ -210,7 +215,7 @@ public enum Request: Equatable, Sendable {
         case .ping, .quit, .rescanPlugins, .reloadConfig, .listPlugins, .doctor, .permissions: []
         case let .requestPermission(permission): ["request", permission.rawValue]
         case let .summon(address), let .hide(address), let .toggle(address): [address.description]
-        case let .reloadPlugins(id): id.map { [$0.rawValue] } ?? []
+        case let .reloadPlugins(id), let .stats(id): id.map { [$0.rawValue] } ?? []
         case let .applyTheme(payload): payload.map { [$0.text] } ?? []
         case let .call(id, method, arguments): [id.rawValue, method] + arguments
         case let .action(id, kind, action, payload): ["\(id)/\(kind.rawValue)", action] + (payload.map { [$0] } ?? [])
@@ -264,6 +269,15 @@ public extension Request {
         ),
         CommandUsage("listPlugins", "List every plugin with its state.", nil),
         CommandUsage("doctor", "Report the version, private API, permissions, plugin and config problems, and other bars that are running.", nil),
+        CommandUsage(
+            "stats [plugin] [--watch]",
+            """
+            Print one JSON line per loaded plugin kind with what it costs since it loaded: engine CPU time, entries by cause, renders, \
+            timer fires in the last minute, live timers, pending host calls, the longest entry, entries stopped at the time limit, \
+            and the nodes, images, views and layers that Gary holds for it. With --watch, print them again every second.
+            """,
+            "gary stats you.weather --watch",
+        ),
         CommandUsage(
             "onboarding",
             "Show the permissions window, which lists what the enabled plugins need, with a Grant button for each. Starts Gary if needed.",

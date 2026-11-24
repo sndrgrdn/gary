@@ -48,14 +48,34 @@ struct PluginEngineTests {
         let engine = PluginEngine(cpuTime: cpu.read)
         let slow = try burning(cpu, engine)
         let healthy = try burning(cpu, engine)
+        let slowID = try #require(PluginID("test.slow"))
+        let healthyID = try #require(PluginID("test.healthy"))
+        let metrics = PluginMetrics()
         for _ in 1...10 {
-            #expect(try engine.run(#require(PluginID("test.slow")), in: slow) { slow.evaluateScript("burn(70); 1") }?.toInt32() == 1)
-            #expect(try engine.run(#require(PluginID("test.healthy")), in: healthy) { healthy.evaluateScript("burn(40); 1") }?.toInt32() == 1)
+            #expect(try engine.run(slowID, in: slow, .action, into: metrics) { slow.evaluateScript("burn(70); 1") }?.toInt32() == 1)
+            #expect(try engine.run(healthyID, in: healthy, .action, into: metrics) { healthy.evaluateScript("burn(40); 1") }?.toInt32() == 1)
         }
         let error = #expect(throws: RenderError.self) {
-            try engine.run(#require(PluginID("test.slow")), in: slow) { slow.evaluateScript("burn(70); burn(40); 1") }
+            try engine.run(slowID, in: slow, .action, into: metrics) { slow.evaluateScript("burn(70); burn(40); 1") }
         }
         #expect(error?.description == stopped)
+    }
+
+    @Test func `each entry's CPU time is counted by cause, with the longest entry and the entries stopped at the limit`() throws {
+        let cpu = FakeCPU()
+        let engine = PluginEngine(cpuTime: cpu.read)
+        let context = try burning(cpu, engine)
+        let id = try #require(PluginID("test.counted"))
+        let metrics = PluginMetrics()
+        _ = try engine.run(id, in: context, .render, into: metrics) { context.evaluateScript("burn(30); 1") }
+        _ = try engine.run(id, in: context, .timer, into: metrics) { context.evaluateScript("burn(50); 1") }
+        _ = try? engine.run(id, in: context, .action, into: metrics) { context.evaluateScript("burn(70); burn(40); 1") }
+        let stats = metrics.snapshot
+        #expect(stats.cpu == .milliseconds(190))
+        #expect(stats.recentCPU == .milliseconds(190))
+        #expect(stats.longestEntry == .milliseconds(110))
+        #expect(stats.overTimeLimit == 1)
+        #expect(stats.entries == [.load: 0, .render: 1, .timer: 1, .topic: 0, .action: 1, .call: 0, .host: 0])
     }
 
     @Test func `a bar widget does not wait for a panel's long call`() async throws {
@@ -67,7 +87,7 @@ struct PluginEngineTests {
         let release = DispatchSemaphore(value: 0)
         defer { release.signal() }
         DispatchQueue.global().async {
-            _ = try? panel.run(id, in: context) {
+            _ = try? panel.run(id, in: context, .call, into: PluginMetrics()) {
                 entered.signal()
                 release.wait()
                 return nil

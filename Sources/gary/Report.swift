@@ -6,7 +6,8 @@ func runReport() -> Int32 {
     print([
         environmentSummary(),
         "## gary doctor\n\n" + fenced(doctorText()),
-        "## gary listPlugins\n\n" + listPluginsSection(),
+        "## gary listPlugins\n\n" + appSection(.listPlugins),
+        "## gary stats\n\n" + appSection(.stats(nil)),
         "## Log\n\n" + logSection(),
         "## Crash reports\n\n" + crashReportsSection(),
     ].joined(separator: "\n\n"))
@@ -29,9 +30,9 @@ private func environmentSummary() -> String {
         String(decoding: model.prefix { $0 != 0 }, as: UTF8.self)
 }
 
-private func listPluginsSection() -> String {
+private func appSection(_ request: Request) -> String {
     do {
-        switch try Response.decode(line: requestLine(Request.listPlugins.line, path: socketPath, timeout: 10)) {
+        switch try Response.decode(line: requestLine(request.line, path: socketPath, timeout: 10)) {
         case let .ok(list): return fenced(list)
         case let .failure(message): return "gary: \(message)"
         }

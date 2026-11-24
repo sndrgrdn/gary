@@ -61,6 +61,8 @@ extension Shell {
             reply(.ok(listing()))
         case .doctor:
             checkGrants { grants in reply(.ok(Doctor.report(self.doctorRuntime(grants), system: self.theme.system))) }
+        case let .stats(id):
+            reply(stats(id))
         case .permissions:
             checkGrants { grants in reply(.ok(permissionReport(enabled: self.setup.enabledManifests, grants: grants))) }
         case let .requestPermission(permission):

@@ -24,6 +24,7 @@ actor PluginRuntime: Subscriber {
     private var output = RuntimeOutput()
     private(set) var origin: CGRect?
     private var timings = Timings()
+    nonisolated let metrics = PluginMetrics()
 
     init(
         bundle: PluginBundle,
@@ -133,7 +134,7 @@ extension PluginRuntime {
 
     private func announce(_ topic: Topic, _ text: String, to functions: PluginFunctions) throws {
         let arguments = "[{\"topic\":\(encode(.string(topic.description))),\"value\":\(text)}]"
-        try invoke(functions.dispatch, ["onTopic", arguments, stateText(for: nil)], [.jsParse, .handler])
+        try invoke(functions.dispatch, .topic, ["onTopic", arguments, stateText(for: nil)], [.jsParse, .handler])
     }
 
     func handle(
@@ -147,7 +148,7 @@ extension PluginRuntime {
         self.origin = origin
         defer { self.origin = nil }
         do {
-            let handled = try invoke(functions.dispatch, [handler, encode(JSON.array(arguments)), stateText(for: nil)], [.jsParse, .handler])
+            let handled = try invoke(functions.dispatch, .action, [handler, encode(JSON.array(arguments)), stateText(for: nil)], [.jsParse, .handler])
             if !handled.isNull {
                 renderAll(trace)
             }
@@ -171,7 +172,7 @@ extension PluginRuntime {
             self?.assumeIsolated { $0.replies.removeValue(forKey: number)?.reply(ok ? .ok(text) : .failure(text)) }
         }
         do {
-            try invoke(functions.call, [method, encode(JSON.array(arguments.map(JSON.string))), done], [.jsParse, .handler])
+            try invoke(functions.call, .call, [method, encode(JSON.array(arguments.map(JSON.string))), done], [.jsParse, .handler])
             renderAll(Trace("call"))
         } catch {
             replies.removeValue(forKey: number)?.reply(.failure("\(error)"))
@@ -215,7 +216,7 @@ extension PluginRuntime {
     }
 
     private func surfaces(_ functions: PluginFunctions) throws -> [String: SurfaceSpec] {
-        let text = try invoke(functions.surfaces, [stateText(for: nil)], [.jsParse, .render, .stringify])
+        let text = try invoke(functions.surfaces, .render, [stateText(for: nil)], [.jsParse, .render, .stringify])
         let json = try timed(.swiftParse) { try JSON.parse(text.toString() ?? "{}") }
         return try timed(.nodeParse) { try SurfaceSpec.parseAll(json, kind: kind) }
     }
@@ -250,10 +251,10 @@ extension PluginRuntime {
         stops.append(stop)
     }
 
-    func callBack(_ callback: JSValue, _ arguments: @autoclosure () -> [Any], _ trace: Trace) {
+    func callBack(_ callback: JSValue, _ arguments: @autoclosure () -> [Any], _ trace: Trace, cause: EngineCause = .host) {
         guard isRunning else { return }
         do {
-            try invoke(callback, arguments(), [.handler])
+            try invoke(callback, cause, arguments(), [.handler])
             renderAll(trace)
         } catch {
             fail("\(error)")
@@ -261,15 +262,15 @@ extension PluginRuntime {
     }
 
     private func render(_ display: DisplayInfo, _ surface: String, with functions: PluginFunctions) throws -> Node? {
-        let value = try invoke(functions.render, [stateText(for: display, surface: surface)], [.jsParse, .render, .stringify])
+        let value = try invoke(functions.render, .render, [stateText(for: display, surface: surface)], [.jsParse, .render, .stringify])
         let json = try timed(.swiftParse) { () throws -> JSON in
             guard value.isString, let text = value.toString() else { throw RenderError("render returned nothing") }
             return try JSON.parse(text)
         }
-        if json == .null, kind == .barWidget {
-            return nil
-        }
-        return try timed(.nodeParse) { try Node.parse(json).resolvingPaths(against: bundle.directory.path, home: home) }
+        let node = json == .null && kind == .barWidget
+            ? nil : try timed(.nodeParse) { try Node.parse(json).resolvingPaths(against: bundle.directory.path, home: home) }
+        metrics.rendered(nodes: node?.nodeCount ?? 0)
+        return node
     }
 
     private func stateText(for display: DisplayInfo?, surface: String? = nil) -> String {
@@ -341,7 +342,7 @@ private extension PluginRuntime {
 
     func unload(_ functions: PluginFunctions) {
         do {
-            try invoke(functions.unload, [])
+            try invoke(functions.unload, .load, [])
         } catch {
             log("plugin \(id): unload failed: \(error)")
         }
@@ -361,23 +362,23 @@ private extension PluginRuntime {
         let id = nextTimer
         nextTimer += 1
         let interval = max(repeats ? 10 : 0, milliseconds.isFinite ? milliseconds : 0) / 1000
-        timers[id] = startTimer(interval, repeats, queue) { [weak self] in
+        timers[id] = metrics.timer(repeats: repeats, startTimer(interval, repeats, queue) { [weak self] in
             self?.assumeIsolated { runtime in
                 guard runtime.isRunning else { return }
                 if !repeats {
                     runtime.timers.removeValue(forKey: id)?()
                 }
-                runtime.callBack(callback, [], Trace("timer"))
+                runtime.callBack(callback, [], Trace("timer"), cause: .timer)
             }
-        }
+        })
         return id
     }
 
     @discardableResult
-    func invoke(_ function: JSValue, _ arguments: @autoclosure () -> [Any], _ stages: [Stage] = []) throws -> JSValue {
+    func invoke(_ function: JSValue, _ cause: EngineCause, _ arguments: @autoclosure () -> [Any], _ stages: [Stage] = []) throws -> JSValue {
         var spent = Timings()
         defer { timings.merge(spent) }
-        return try check(in: function.context) { function.call(arguments(), timing: stages, into: &spent) }
+        return try check(in: function.context, cause) { function.call(arguments(), timing: stages, into: &spent) }
     }
 
     func timed<T>(_ stage: Stage, _ body: () throws -> T) rethrows -> T {
@@ -387,9 +388,9 @@ private extension PluginRuntime {
     }
 
     @discardableResult
-    func check(in context: JSContext, _ body: () -> JSValue?) throws -> JSValue {
+    func check(in context: JSContext, _ cause: EngineCause = .load, _ body: () -> JSValue?) throws -> JSValue {
         exception = nil
-        let result = try engine.run(id, in: context, body)
+        let result = try engine.run(id, in: context, cause, into: metrics, body)
         if let exception {
             throw RenderError(exception)
         }

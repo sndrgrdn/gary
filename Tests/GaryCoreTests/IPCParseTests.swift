@@ -27,7 +27,7 @@ struct IPCParseTests {
             (Invocation("hide", ["gary.today"]), .hide(SurfaceAddress(today))), (Invocation("reloadPlugins"), .reloadPlugins(nil)),
             (Invocation("toggle", ["gary.today:osd"]), .toggle(osd)),
             (Invocation("reloadPlugins", ["gary.today"]), .reloadPlugins(today)), (Invocation("applyTheme"), .applyTheme(nil)),
-            (Invocation("permissions"), .permissions),
+            (Invocation("permissions"), .permissions), (Invocation("stats"), .stats(nil)), (Invocation("stats", ["gary.today"]), .stats(today)),
             (Invocation("call", ["gary.today", "go", "1", "2"]), .call(today, method: "go", arguments: ["1", "2"])),
             (Invocation("action", ["gary.today/panel", "set"]), .action(today, kind: .panel, action: "set", payload: nil)),
             (Invocation("action", ["gary.today/panel", "set", "0.5"]), .action(today, kind: .panel, action: "set", payload: "0.5")),

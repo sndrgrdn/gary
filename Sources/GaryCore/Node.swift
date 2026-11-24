@@ -118,6 +118,10 @@ public struct Node: Equatable, Sendable {
         }
     }
 
+    public var nodeCount: Int {
+        children.reduce(1) { $0 + $1.nodeCount }
+    }
+
     public func with(children: [Node]) -> Node {
         var node = self
         switch content {

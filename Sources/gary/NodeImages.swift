@@ -8,6 +8,9 @@ private nonisolated(unsafe) let images: NSCache<NSString, Bitmap> = {
     return cache
 }()
 
+private nonisolated let decodedLock = NSLock()
+private nonisolated(unsafe) let decodedPaths = NSMapTable<Bitmap, NSString>.weakToStrongObjects()
+
 private let decoder = DispatchQueue(label: "gary.images", qos: .userInitiated)
 private let decodeAtOnceLimit = 32 << 10
 private let keptAfterHiding = 60.0
@@ -145,7 +148,20 @@ private func isSmall(_ path: String) -> Bool {
 private nonisolated func decoded(_ path: String, _ pixels: CGSize, _ fit: ImageFit, _ key: NSString) -> Bitmap? {
     guard let bitmap = load(path, pixels, fit) else { return nil }
     images.setObject(bitmap, forKey: key, cost: bitmap.width * bitmap.height * 4)
+    decodedLock.withLock { decodedPaths.setObject(path as NSString, forKey: bitmap) }
     return bitmap
+}
+
+nonisolated func decodedImages(at paths: Set<String>) -> (count: Int, bytes: Int) {
+    decodedLock.withLock {
+        var found = (count: 0, bytes: 0)
+        for case let bitmap as Bitmap in decodedPaths.keyEnumerator() {
+            guard let path = decodedPaths.object(forKey: bitmap), paths.contains(path as String) else { continue }
+            found.count += 1
+            found.bytes += bitmap.width * bitmap.height * 4
+        }
+        return found
+    }
 }
 
 private nonisolated func load(_ path: String, _ pixels: CGSize, _ fit: ImageFit) -> Bitmap? {

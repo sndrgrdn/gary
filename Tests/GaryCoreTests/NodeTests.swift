@@ -24,6 +24,17 @@ struct NodeTests {
         ]), style: "bar"))
     }
 
+    @Test func `the node count includes the root and every nested child`() throws {
+        let node = try parse("""
+        {"type":"row","children":[
+          {"type":"text","text":"a"},
+          {"type":"button","action":"go","children":[{"type":"column","children":[{"type":"icon","symbol":"bolt"},{"type":"spacer"}]}]}
+        ]}
+        """)
+        #expect(node.nodeCount == 6)
+        #expect(Node(.text("alone")).nodeCount == 1)
+    }
+
     @Test func `parses the controls and style properties`() throws {
         let node = try parse("""
         {"type":"column","style":"panel","padding":8,"gap":4,"background":"#000000","children":[

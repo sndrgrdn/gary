@@ -39,7 +39,7 @@ nonisolated extension Capability {
                     keys[combo] = name
                 }
                 let id = HotkeyListeners.shared.add(owner: owner, keys: keys) { [weak plugin] name in
-                    plugin?.onQueue { $0.callBack(onPress, [name], Trace("hotkey")) }
+                    plugin?.onQueue { $0.callBack(onPress, [name], Trace("hotkey"), cause: .action) }
                 }
                 return HostHandle { HotkeyListeners.shared.remove(id) }
             }

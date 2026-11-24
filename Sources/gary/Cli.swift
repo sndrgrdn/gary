@@ -9,6 +9,8 @@ func runCli(_ verb: String, _ arguments: [String]) -> Int32 {
     if verb == "applyTheme", let path = arguments.first, !path.hasPrefix("{"), let text = try? String(contentsOfFile: path, encoding: .utf8) {
         arguments[0] = text
     }
+    let watch = verb == "stats" && arguments.contains("--watch")
+    arguments.removeAll { watch && $0 == "--watch" }
     let request: Request
     do {
         request = try Request.parse(verb: verb, arguments: arguments)
@@ -16,6 +18,16 @@ func runCli(_ verb: String, _ arguments: [String]) -> Int32 {
         fputs("gary: \(error)\n", stderr)
         return 64
     }
+    var status = send(request)
+    while watch, status == 0 {
+        fflush(stdout)
+        Thread.sleep(forTimeInterval: 1)
+        status = send(request)
+    }
+    return status
+}
+
+private func send(_ request: Request) -> Int32 {
     do {
         let line: String
         do {
@@ -81,7 +93,7 @@ let appUsage: [CommandUsage] = [
     CommandUsage("update", "Install the latest release from GitHub, after saying which version is installed and which is the latest.", nil),
     CommandUsage(
         "report",
-        "Print a bug report in Markdown: the versions, gary doctor, gary listPlugins, the last 100 log lines, and recent crash reports.",
+        "Print a bug report in Markdown: the versions, gary doctor, gary listPlugins, gary stats, the last 100 log lines, and recent crash reports.",
         nil,
     ),
 ]

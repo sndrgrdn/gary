@@ -48,7 +48,9 @@ extension PluginRuntime {
     }
 
     private func callPlugin(_ target: CallTarget, _ method: String, _ args: [String], _ resolve: JSValue, _ reject: JSValue) {
+        metrics.hostCallStarted("host.call")
         deliver(self, .call(target, method: method, arguments: args) { [weak self] response in
+            self?.metrics.hostCallFinished("host.call")
             self?.onQueue { runtime in
                 switch response {
                 case let .ok(text): runtime.callBack(resolve, [text], Trace("host.call"))

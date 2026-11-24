@@ -274,7 +274,9 @@ extension PluginRuntime {
     ) -> JSValue {
         JSValue(newPromiseIn: context) { [weak self] resolve, reject in
             guard let self, let resolve, let reject else { return }
+            metrics.hostCallStarted(call.name)
             start { [weak self] result in
+                self?.metrics.hostCallFinished(call.name)
                 self?.onQueue { runtime in
                     switch result {
                     case let .success(value): runtime.callBack(resolve, [value.text], Trace(call.name))
