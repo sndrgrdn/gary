@@ -94,8 +94,7 @@ public struct ShellConfig: Equatable, Sendable {
         }
         if BarSection.allCases.contains(where: { sections[$0.rawValue] != nil }) {
             for section in BarSection.allCases {
-                let ids = sections[section.rawValue].map { ids($0, "bar.\(section.rawValue)") } ?? []
-                self.bar[section] = ids
+                self.bar[section] = sections[section.rawValue].map { ids($0, "bar.\(section.rawValue)") } ?? []
             }
         }
     }
