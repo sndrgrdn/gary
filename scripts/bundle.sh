@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 
 VERSION="${VERSION:-0.1}"
 BUILD="${BUILD:-1}"
-IDENTITY="${IDENTITY:-Sander Local Signing}"
+IDENTITY="${IDENTITY:-Developer ID Application: Sander Tuin (8U24BL7PPN)}"
 CONFIG=release
 [[ "${1:-}" == "--debug" ]] && CONFIG=debug
 

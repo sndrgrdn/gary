@@ -23,6 +23,8 @@ fi
 ! gh release view "$tag" --repo "$REPO" >/dev/null 2>&1 || fail "release $tag already exists on $REPO"
 [[ -f "$CASK" ]] || fail "cannot find $CASK; clone sndrgrdn/homebrew-tap to $TAP or set TAP"
 [[ -z "$(git -C "$TAP" status --porcelain)" ]] || fail "$TAP has changes; commit or stash them first"
+security find-identity -v -p codesigning | grep -q '"Developer ID Application: ' || fail "no Developer ID Application certificate in the keychain"
+xcrun notarytool history --keychain-profile "${NOTARY_PROFILE:-GaryNotary}" >/dev/null || fail "cannot use the notarytool keychain profile ${NOTARY_PROFILE:-GaryNotary}"
 
 git fetch -q origin main
 if [[ "$(git log -1 --format=%s)" != "Release $version" ]]; then
@@ -44,6 +46,7 @@ VERSION="$version" BUILD="$(git rev-list --count HEAD)" scripts/bundle.sh
 APP=build/Gary.app
 codesign --verify --deep --strict "$APP"
 codesign -d -r- "$APP" 2>/dev/null | grep -q '^designated => .*certificate' || fail "$APP is not signed with a certificate, so permission grants would not survive an update"
+scripts/notarize.sh "$APP"
 
 out=build/release
 zip="Gary-$version.zip"

@@ -9,6 +9,7 @@
 - An `image` or `shader` path that starts with `~user/`, or is empty, fails the render with the node that holds it, as such a path already fails in a host call.
 - `host.watchFile` returns a handle with `stop()`, and in `gary:effect` it is a stream of the file's text that stops watching when its scope closes. It calls back about 200 ms after a change, and not for a write that leaves the text the same.
 - `host.mkdir` returns true when it created the folder and false when the folder already existed, instead of null. When two processes create the same folder at once, exactly one gets true, so a folder can serve as a lock.
+- Gary is signed with a Developer ID certificate and notarized by Apple, so macOS opens it without a warning and the Homebrew cask no longer removes the quarantine attribute. macOS ties permission grants to the certificate, so after this update run `gary onboarding` and allow each permission once more.
 
 ### New
 

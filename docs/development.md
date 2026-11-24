@@ -22,7 +22,7 @@ You need:
 | `just install` | Bundles Gary, installs it in `~/Applications/Gary.app`, links `~/.local/bin/gary`, and restarts Gary. |
 | `just kill`    | Stops the running Gary.                                                                               |
 
-Set `IDENTITY` to the name of your certificate for `just bundle` and `just install`. It defaults to `Sander Local Signing`. Install Gary in `~/Applications` with `just install` while you work on it, so that macOS keeps its permission grants across rebuilds.
+Set `IDENTITY` to the name of your certificate for `just bundle` and `just install`. It defaults to `Developer ID Application: Sander Tuin (8U24BL7PPN)`, the certificate that signs releases. Install Gary in `~/Applications` with `just install` while you work on it, so that macOS keeps its permission grants across rebuilds.
 
 ## Check a change
 
@@ -75,4 +75,10 @@ just release 0.4.0
 
 Add each user-visible change to the `## Unreleased` section of `CHANGELOG.md` when it lands. Write for the people who use Gary or write plugins: what they can now do, what changed for them, and what they must change, under `### Upgrading` first. Leave out internal work such as refactors, tests, CI, and tooling.
 
-`scripts/release.sh` needs a clean `main` that matches `origin/main`, the GitHub CLI, and a clone of [sndrgrdn/homebrew-tap](https://github.com/sndrgrdn/homebrew-tap) next to this repository, or at `$TAP`. It renames `## Unreleased` to `## 0.4.0` under a new empty `## Unreleased`, then commits and pushes `Release 0.4.0`. Then it bundles and signs Gary, zips it with a SHA-256 checksum, and tags and pushes the version. It creates the GitHub release with the `## 0.4.0` section as its notes, and updates and pushes the Homebrew cask. If a step fails, run the same command again. It reuses the `Release 0.4.0` commit.
+`scripts/release.sh` needs a clean `main` that matches `origin/main`, the GitHub CLI, and a clone of [sndrgrdn/homebrew-tap](https://github.com/sndrgrdn/homebrew-tap) next to this repository, or at `$TAP`. It also needs the Developer ID Application certificate in the keychain and notarization credentials saved as the `GaryNotary` keychain profile, or the profile named by `$NOTARY_PROFILE`:
+
+```sh
+xcrun notarytool store-credentials GaryNotary --apple-id <Apple ID> --team-id 8U24BL7PPN
+```
+
+It renames `## Unreleased` to `## 0.4.0` under a new empty `## Unreleased`, then commits and pushes `Release 0.4.0`. Then it bundles and signs Gary, notarizes it with `scripts/notarize.sh`, which staples the ticket and checks that Gatekeeper accepts the app, zips it with a SHA-256 checksum, and tags and pushes the version. It creates the GitHub release with the `## 0.4.0` section as its notes, and updates and pushes the Homebrew cask. If a step fails, run the same command again. It reuses the `Release 0.4.0` commit.

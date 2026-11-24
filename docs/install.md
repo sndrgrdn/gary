@@ -40,7 +40,7 @@ You need Xcode with Swift 6.2, [`just`](https://github.com/casey/just), and a co
 IDENTITY="<your certificate name>" just install
 ```
 
-`just install` builds a release bundle, copies it to `~/Applications/Gary.app`, links `~/.local/bin/gary`, and restarts Gary if it was running. It does not turn on start at login, so run `gary login on` for that. `IDENTITY` defaults to `Sander Local Signing`. [Develop Gary](development.md) covers the other build commands.
+`just install` builds a release bundle, copies it to `~/Applications/Gary.app`, links `~/.local/bin/gary`, and restarts Gary if it was running. It does not turn on start at login, so run `gary login on` for that. `IDENTITY` defaults to the Developer ID certificate that signs releases, which only its owner has. [Develop Gary](development.md) covers the other build commands.
 
 ## First run
 
@@ -52,7 +52,7 @@ gary onboarding
 
 `gary permissions` prints the same list in the terminal. macOS grants each permission to Gary itself, not to your terminal. [Capabilities and permissions](capabilities.md#permissions) lists which capability needs which permission.
 
-Gary is signed with a local certificate and is not notarized. If macOS says that it cannot verify the developer, open **System Settings > Privacy & Security** and click **Open Anyway**. Every release uses the same certificate, so macOS keeps your permission grants across updates.
+Gary is signed with a Developer ID certificate and notarized by Apple, so macOS opens it without a warning. Every release uses the same certificate, so macOS keeps your permission grants across updates.
 
 ## Teach your coding agent
 
