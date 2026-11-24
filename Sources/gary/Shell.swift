@@ -43,7 +43,7 @@ final class Shell {
         applyResolution()
         refreshDisplays(Trace("start"))
         sync(Trace("start"))
-        offerOnboarding(Trace("start"))
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.offerOnboarding(Trace("start")) }
         reopenAfterRestart(Trace("start"))
         installMissingPackages()
 

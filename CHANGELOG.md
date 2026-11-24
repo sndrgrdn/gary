@@ -20,6 +20,7 @@
 ### Faster and lighter
 
 - Gary with every plugin loaded uses about 33 MB instead of 40 MB.
+- The bar widgets draw sooner after Gary starts. The check that decides whether to show the permissions window now runs a second after start instead of holding up the first draw.
 - `gary doctor` says under Memory whether JavaScriptCore runs on the system allocator, which saves about 4 MB, and fails when a Gary started the usual way missed it.
 
 ### Fixes
