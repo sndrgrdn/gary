@@ -112,9 +112,11 @@ struct SurfaceReuseTests {
     }
 
     private func commit(_ shown: Shown) {
-        shown.window.panel.contentView?.layoutSubtreeIfNeeded()
-        shown.window.panel.displayIfNeeded()
-        CATransaction.flush()
+        for _ in 0..<2 {
+            shown.window.panel.contentView?.layoutSubtreeIfNeeded()
+            shown.window.panel.displayIfNeeded()
+            CATransaction.flush()
+        }
     }
 
     private func hidden(_ shown: Shown) async {
