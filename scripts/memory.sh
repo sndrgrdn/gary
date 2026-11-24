@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 
 usage="usage: scripts/memory.sh [floor | all | gate | images | plugins | plugin:<id> | without | without:<id> | effect | growth | attribution | timeline] ...
 Runs a private Gary from a copy of \$APP (default build/Gary.app), re-signed to load the probe library, per scenario, each with its own home, config, lock, and socket,
-with MallocSpaceEfficient=1 as the supervisor sets it, windows invisible and hotkeys, event taps, keyboard mapping, menu bar, dock, wallpaper, and notifications stubbed,
+with MallocSpaceEfficient=1 and Malloc=1 as the supervisor sets them, windows invisible and hotkeys, event taps, keyboard mapping, menu bar, dock, wallpaper, and notifications stubbed,
 weather answered from one cached open-meteo response, and ~/Library/Caches shared by the runs of one side after a short warm-up run,
 and writes the tables to \$OUT/report.md.
 gate runs all plugins and records the footprint at SETTLE, idle CPU over the next IDLE seconds, startup wall time and CPU
@@ -315,7 +315,7 @@ launch() {
     echo "$tmpdir" >"$dir/tmpdir"
     read -r -a extra <<<"${!extra:-}"
     app="$build/$side.app"
-    env CFFIXED_USER_HOME="$dir/home" HOME="$dir/home" MallocSpaceEfficient=1 GARY_PROBE_TMPDIR="$tmpdir/" GARY_PROBE_DIR="$dir" GARY_PROBE_FETCH_CACHE="$build/fetch" \
+    env CFFIXED_USER_HOME="$dir/home" HOME="$dir/home" MallocSpaceEfficient=1 Malloc=1 GARY_PROBE_TMPDIR="$tmpdir/" GARY_PROBE_DIR="$dir" GARY_PROBE_FETCH_CACHE="$build/fetch" \
         DYLD_INSERT_LIBRARIES="$build/probe.dylib" "${extra[@]}" "$@" "$app/Contents/MacOS/gary" app >"$dir/gary.log" 2>&1 &
     echo $! >"$dir/pid"
     "$build/phys" $! 20 10 >"$dir/startup.cpu" &

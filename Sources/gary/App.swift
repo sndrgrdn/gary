@@ -1,8 +1,11 @@
 import AppKit
 import GaryCore
+import JavaScriptCore
 
 func runApp() -> Int32 {
     unsetenv(spaceEfficientMallocKey)
+    JSStringRelease(JSStringCreateWithUTF8CString("gary"))
+    unsetenv(systemMallocKey)
     setvbuf(stdout, nil, _IOLBF, 0)
     setvbuf(stderr, nil, _IOLBF, 0)
     guard holdLock(appLockPath) else {

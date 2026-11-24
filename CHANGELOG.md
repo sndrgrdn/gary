@@ -17,6 +17,10 @@
 - `host.spawn` ends a line at a carriage return as well as a newline, so a command that redraws a progress line, such as `networkQuality` under `script`, delivers each update. A CR LF pair still ends one line.
 - `onKey` and `gary key` name the function keys `f1` to `f20`, and hotkeys take the `onKey` names `backspace`, `home`, `end`, `pageup`, and `pagedown`.
 
+### Faster and lighter
+
+- Gary with every plugin loaded uses about 35 MB instead of 40 MB.
+
 ### Fixes
 
 - A plugin's `host.storage` file that is not a JSON object, such as one cut short or edited by hand, is logged and renamed to `<id>.corrupt-<time>.json` next to it before storage starts empty, instead of reading as empty without a word and being overwritten by the next `host.storage.set`.

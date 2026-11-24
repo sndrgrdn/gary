@@ -279,7 +279,7 @@ if deep_runs:
     rows = []
     for label in ("settled", "settled-code"):
         found = [zones(run / f"{label}.vmmap.txt") for run in deep_runs]
-        for zone in ("WebKit Malloc", "DefaultMallocZone"):
+        for zone in ("WebKit Malloc", "WebKit Using System Malloc", "DefaultMallocZone"):
             entries = [each[zone] for each in found if zone in each]
             if entries:
                 rows.append([label, zone, *(mb(median([entry[key] for entry in entries])) for key in ("dirty", "allocated", "free"))])

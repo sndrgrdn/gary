@@ -6,6 +6,7 @@ nonisolated let appLockPath = (NSTemporaryDirectory() as NSString).appendingPath
 nonisolated let supervisorLockPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("gary-supervisor.lock")
 private nonisolated let supervisedKey = "GARY_SUPERVISED"
 nonisolated let spaceEfficientMallocKey = "MallocSpaceEfficient"
+nonisolated let systemMallocKey = "Malloc"
 nonisolated let isSupervised = ProcessInfo.processInfo.environment[supervisedKey] != nil
 
 nonisolated func holdLock(_ path: String) -> Bool {
@@ -75,7 +76,8 @@ private nonisolated func supervise(_ child: Child) -> Int32 {
         let process = Process()
         process.executableURL = Bundle.main.executableURL
         process.arguments = ["app"]
-        process.environment = ProcessInfo.processInfo.environment.merging([supervisedKey: "1", spaceEfficientMallocKey: "1"]) { $1 }
+        process.environment = ProcessInfo.processInfo.environment
+            .merging([supervisedKey: "1", spaceEfficientMallocKey: "1", systemMallocKey: "1"]) { $1 }
         let exited = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in exited.signal() }
         guard child.start(process) else { return 0 }
