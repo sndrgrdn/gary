@@ -27,11 +27,15 @@ public enum Request: Equatable, Sendable {
     case click(PluginID, kind: PluginKind, at: CGPoint)
     case tree(PluginID, kind: PluginKind)
     case capture(PluginID, kind: PluginKind, to: String)
+    case frames(record: TimeInterval?)
 
     public static let callTimeout: TimeInterval = 60
 
     public var timeout: TimeInterval {
-        verb == "call" ? Self.callTimeout + 1 : 5
+        if case let .frames(seconds?) = self {
+            return seconds + 5
+        }
+        return verb == "call" ? Self.callTimeout + 1 : 5
     }
 
     private static let bareVerbs: [String: Request] = [
@@ -69,6 +73,7 @@ public enum Request: Equatable, Sendable {
         case "scroll": return try scroll(arguments)
         case "hover": return try hover(arguments)
         case "click": return try click(arguments)
+        case "frames": return try frames(arguments)
         case "capture":
             try expect(arguments, count: 2, for: verb)
             let (id, kind) = try slotWithKind(arguments[0], for: verb)
@@ -184,6 +189,14 @@ public enum Request: Equatable, Sendable {
         return .click(id, kind: kind, at: CGPoint(x: numbers[0], y: numbers[1]))
     }
 
+    private static func frames(_ arguments: [String]) throws -> Request {
+        guard !arguments.isEmpty else { return .frames(record: nil) }
+        guard arguments.count == 2, arguments[0] == "--record", let seconds = Double(arguments[1]), seconds > 0, seconds <= Frame.kept else {
+            throw RequestError(description: "frames takes no arguments, or --record and a number of seconds up to \(Int(Frame.kept))")
+        }
+        return .frames(record: seconds)
+    }
+
     public var verb: String {
         switch self {
         case .ping: "ping"
@@ -207,6 +220,7 @@ public enum Request: Equatable, Sendable {
         case .click: "click"
         case .tree: "tree"
         case .capture: "capture"
+        case .frames: "frames"
         }
     }
 
@@ -226,6 +240,7 @@ public enum Request: Equatable, Sendable {
         case let .tree(id, kind): ["\(id)/\(kind.rawValue)"]
         case let .capture(id, kind, path): ["\(id)/\(kind.rawValue)", path]
         case let .click(id, kind, point): ["\(id)/\(kind.rawValue)", String(Double(point.x)), String(Double(point.y))]
+        case let .frames(seconds): seconds.map { ["--record", String($0)] } ?? []
         }
     }
 
@@ -359,6 +374,16 @@ public extension Request {
             """,
             "gary capture you.launcher/menu /tmp/launcher.png",
         ),
+        CommandUsage(
+            "frames [--record <seconds>]",
+            """
+            Report frame pacing per display: frames, hitch time in ms per second against the display's refresh rate, frame time p50, p99 \
+            and max, and for each hitch the main-thread work inside it, such as a plugin's tree, layout, image decode or the Core Animation \
+            commit. Gary records frames only while a surface changes or animates. Without --record it summarizes the last 60 seconds; \
+            with --record it waits that many seconds and reports only them.
+            """,
+            "gary frames --record 10",
+        ),
     ]
 }
 
@@ -369,25 +394,4 @@ public enum ScrollDistance: Equatable, Sendable {
 
 public extension PluginID {
     static let onboarding = PluginID(builtin: "onboarding")
-}
-
-public enum Response: Equatable, Sendable {
-    case ok(String)
-    case failure(String)
-
-    public var line: String {
-        switch self {
-        case let .ok(result): JSON.object(["ok": .bool(true), "result": .string(result)]).text
-        case let .failure(message): JSON.object(["ok": .bool(false), "error": .string(message)]).text
-        }
-    }
-
-    public static func decode(line: String) throws -> Response {
-        let json = try? JSON.parse(line)
-        switch (json?["ok"]?.bool, json?["result"]?.string, json?["error"]?.string) {
-        case (true?, let result?, _): return .ok(result)
-        case (false?, _, let message?): return .failure(message)
-        default: throw RequestError(description: "malformed response \(line.prefix(200))")
-        }
-    }
 }

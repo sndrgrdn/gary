@@ -135,7 +135,7 @@ extension Shell {
 
     private func present(_ slot: SlotKey, _ output: RuntimeOutput, _ trace: Trace) {
         var timings = trace.timings
-        let changes = measure(.apply, &timings) { screens.present(slot, output) }
+        let changes = measure(.apply, &timings) { FrameLog.shared.record(.tree(slot.description)) { screens.present(slot, output) } }
         timings.merge(screens.commitFrame())
         guard tracing else { return }
         let end = now()

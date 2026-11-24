@@ -20,6 +20,9 @@ final class SurfacePanel: NSPanel {
     }
 
     override func sendEvent(_ event: NSEvent) {
+        if event.type == .scrollWheel {
+            FrameLog.shared.arm(for: 0)
+        }
         if event.type == .scrollWheel, let onScroll, !(contentView?.hitTest(event.locationInWindow) is GestureView) {
             onScroll(event.scrollEvent)
         }
@@ -281,6 +284,7 @@ final class SurfaceWindow {
     }
 
     func show(fade: Double) {
+        FrameLog.shared.arm(for: fade)
         shows += 1
         panel.alphaValue = 1
         panel.orderFrontRegardless()
@@ -308,6 +312,7 @@ final class SurfaceWindow {
     }
 
     func hide(fade: Double) {
+        FrameLog.shared.arm(for: fade)
         let panel = panel
         let shown = shows
         panel.ignoresMouseEvents = true

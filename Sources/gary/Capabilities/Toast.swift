@@ -131,6 +131,7 @@ final class ToastStack {
         let display = screen.display(index: 0, theme: theme)
         let edge = theme.spacing.edge
         var top = display.frame.maxY - display.band - edge
+        FrameLog.shared.arm(for: fade)
         NSAnimationContext.runAnimationGroup { context in
             context.duration = fade
             for card in cards {

@@ -43,6 +43,7 @@ struct IPCParseTests {
             (Invocation("tree", ["gary.today/menu"]), .tree(today, kind: .menu)),
             (Invocation("capture", ["gary.today/menu", "/tmp/a/../b.png"]), .capture(today, kind: .menu, to: "/tmp/b.png")),
             (Invocation("click", ["gary.today/menu", "10", "20.5"]), .click(today, kind: .menu, at: CGPoint(x: 10, y: 20.5))),
+            (Invocation("frames"), .frames(record: nil)), (Invocation("frames", ["--record", "10"]), .frames(record: 10)),
         ]
         for (invocation, request) in cases {
             #expect(try invocation.parse() == request, "\(invocation.verb) \(invocation.arguments)")
@@ -84,6 +85,9 @@ struct IPCParseTests {
             (Invocation("click", ["gary.today/menu", "10"]), "click takes <plugin>/<kind>, an x and a y in points"),
             (Invocation("click", ["gary.today/menu", "10", "inf"]), "click takes <plugin>/<kind>, an x and a y in points"),
             (Invocation("hover", ["gary.today", "row:a"]), "hover takes <plugin>/<kind>, such as gary.today/panel"),
+            (Invocation("frames", ["10"]), "frames takes no arguments, or --record and a number of seconds up to 60"),
+            (Invocation("frames", ["--record", "61"]), "frames takes no arguments, or --record and a number of seconds up to 60"),
+            (Invocation("frames", ["--record", "0"]), "frames takes no arguments, or --record and a number of seconds up to 60"),
             (Invocation("key", ["gary.today/widget", "a"]), "unknown kind \"widget\"; use bar-widget, bar, panel, overlay, menu, service"),
         ]
         for (invocation, message) in cases {

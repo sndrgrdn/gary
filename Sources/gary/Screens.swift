@@ -97,6 +97,7 @@ final class Screens {
 
     private func applyBarLevel(_ display: String) {
         let aside = barsAside[display] != nil
+        FrameLog.shared.arm(for: theme.value.motion.fade)
         let panels = [bars[display]?.panel].compactMap(\.self) + windows.filter { $0.key.slot.kind == .bar && $0.key.display == display }
             .map(\.value.panel)
         NSAnimationContext.runAnimationGroup { context in

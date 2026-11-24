@@ -30,8 +30,9 @@ struct ImageNode: View {
         let pixels = CGSize(width: (size.width * scale).rounded(.up), height: (size.height * scale).rounded(.up))
         let key = "\(path)|\(Int(pixels.width))x\(Int(pixels.height))|\(fit.rawValue)" as NSString
         let shown = kept.wrappedValue.flatMap { $0.opening == opening ? $0.image : nil }
+        let ready = cached(key) ?? (isSmall(path) ? FrameLog.shared.record(.decode) { decoded(path, pixels, fit, key) }?.image() : nil)
         ZStack {
-            if let image = cached(key) ?? (isSmall(path) ? decoded(path, pixels, fit, key)?.image() : nil) ?? shown {
+            if let image = ready ?? shown {
                 Image(nsImage: image).renderingMode(tint == nil ? .original : .template).resizable().interpolation(.high)
                     .aspectRatio(contentMode: fit == .fill ? .fill : .fit).foregroundStyle(tint ?? .primary).transition(transition)
             }

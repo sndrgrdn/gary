@@ -5,6 +5,7 @@
 ### New
 
 - `host.toast` takes a `glyph` in place of an SF Symbol `icon`, such as a Nerd Font glyph, drawn in the `toast-icon` style or in the theme font that `font` names, so a toast can match icons that plugins draw as text.
+- `gary frames` reports whether Gary holds the display's refresh rate, with the hitch time per second, frame time percentiles, and the plugin tree, layout, image decode, or Core Animation commit behind each dropped frame. `gary frames --record <seconds>` reports a fresh window.
 
 ## 0.5.0
 

@@ -81,10 +81,10 @@ extension Screens {
     func commitFrame() -> Timings {
         var timings = Timings()
         for panel in panels where panel.isVisible {
-            measure(.layout, &timings) { panel.contentView?.layoutSubtreeIfNeeded() }
-            measure(.display, &timings) { panel.displayIfNeeded() }
+            measure(.layout, &timings) { FrameLog.shared.record(.layout) { panel.contentView?.layoutSubtreeIfNeeded() } }
+            measure(.display, &timings) { FrameLog.shared.record(.draw) { panel.displayIfNeeded() } }
         }
-        measure(.flush, &timings) { CATransaction.flush() }
+        measure(.flush, &timings) { FrameLog.shared.record(.commit) { CATransaction.flush() } }
         return timings
     }
 

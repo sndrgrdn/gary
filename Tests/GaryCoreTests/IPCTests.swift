@@ -31,6 +31,7 @@ struct IPCTests {
             .action(today, kind: .barWidget, action: "toggle", payload: nil), .action(today, kind: .panel, action: "volume", payload: "0.5"),
             .key(today, kind: nil, keys: ["a", " ", "shift+tab"]), .key(today, kind: .menu, keys: ["enter"]),
             .scroll(today, kind: .panel, over: nil, by: .lines(3)), .scroll(today, kind: .barWidget, over: "volume", by: .points(-0.25)),
+            .frames(record: nil), .frames(record: 2.5),
         ]
         for request in requests {
             #expect(!request.line.contains("\n"))

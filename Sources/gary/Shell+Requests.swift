@@ -72,6 +72,12 @@ extension Shell {
                 guard case let .ok(text) = response, case let .string(string)? = try? JSON.parse(text) else { return reply(response) }
                 reply(.ok(string))
             }
+        case let .frames(seconds?):
+            let start = CACurrentMediaTime()
+            FrameLog.shared.watch(for: seconds)
+            DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { reply(.ok(FrameLog.shared.report(since: start))) }
+        case .frames(nil):
+            reply(.ok(FrameLog.shared.report(since: nil)))
         case .action, .key, .scroll, .hover, .click, .tree, .capture:
             drive(request, reply)
         }
