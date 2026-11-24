@@ -120,4 +120,22 @@ struct PluginMetricsTests {
         #expect(stats.recentCPU == .zero)
         #expect(stats.timerFiresPerMinute == 2)
     }
+
+    @Test func `a plugin with two entries over 16 ms in a minute is reported busy though its CPU stays low`() {
+        let clock = FakeClock()
+        let metrics = PluginMetrics(clock: clock.read)
+        let reports = Counter()
+        metrics.whenBusy { reports.add() }
+        metrics.entered(.timer, spent: .milliseconds(80), stopped: false)
+        metrics.entered(.timer, spent: .milliseconds(16), stopped: false)
+        clock.set(61)
+        metrics.entered(.timer, spent: .milliseconds(80), stopped: false)
+        #expect(reports.total == 0)
+        #expect(metrics.snapshot.recentSlowEntries == 1)
+        clock.set(91)
+        metrics.entered(.timer, spent: .milliseconds(80), stopped: false)
+        #expect(reports.total == 1)
+        #expect(metrics.snapshot.recentSlowEntries == 2)
+        #expect(metrics.snapshot.recentCPU == .milliseconds(160))
+    }
 }

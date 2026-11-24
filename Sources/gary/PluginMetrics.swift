@@ -10,6 +10,7 @@ nonisolated struct PluginStats: Equatable {
     var recentCPU: Duration = .zero
     var entries: [EngineCause: Int] = [:]
     var longestEntry: Duration = .zero
+    var recentSlowEntries = 0
     var overTimeLimit = 0
     var renders = 0
     var lastRenderNodes = 0
@@ -41,12 +42,15 @@ nonisolated struct RecentTotal {
 
 final nonisolated class PluginMetrics: @unchecked Sendable {
     static let busyCPU = Duration.seconds(1)
+    static let slowEntry = Duration.milliseconds(16)
+    static let busySlowEntries = 2
     private let lock = NSLock()
     private let clock: @Sendable () -> Int
     private var stats = PluginStats()
     private var entries = [Int](repeating: 0, count: EngineCause.allCases.count)
     private var recentCPU = RecentTotal()
     private var recentFires = RecentTotal()
+    private var recentSlowEntries = RecentTotal()
     private var busy: (@Sendable () -> Void)?
     private var refusing = false
 
@@ -65,7 +69,12 @@ final nonisolated class PluginMetrics: @unchecked Sendable {
             if cause == .timer {
                 recentFires.add(1, at: second)
             }
-            guard let report = busy, recentCPU.sum(at: second) >= Int64(Self.busyCPU / .nanoseconds(1)) else { return nil }
+            if spent > Self.slowEntry {
+                recentSlowEntries.add(1, at: second)
+            }
+            guard let report = busy,
+                  recentCPU.sum(at: second) >= Int64(Self.busyCPU / .nanoseconds(1))
+                  || recentSlowEntries.sum(at: second) >= Self.busySlowEntries else { return nil }
             busy = nil
             return report
         }
@@ -122,6 +131,7 @@ final nonisolated class PluginMetrics: @unchecked Sendable {
             snapshot.entries = Dictionary(uniqueKeysWithValues: EngineCause.allCases.map { ($0, entries[$0.rawValue]) })
             snapshot.recentCPU = .nanoseconds(recentCPU.sum(at: second))
             snapshot.timerFiresPerMinute = Int(recentFires.sum(at: second))
+            snapshot.recentSlowEntries = Int(recentSlowEntries.sum(at: second))
             snapshot.pendingHostCalls = snapshot.pendingHostCalls.filter { $0.value > 0 }
             return snapshot
         }

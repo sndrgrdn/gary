@@ -123,7 +123,9 @@ extension Shell {
             screens.commitFrame()
         case .busy:
             guard engines.promote(key) else { return }
-            log("plugin \(key): spent over \(PluginMetrics.busyCPU) of CPU in a minute, so it reloads on its own engine")
+            log(
+                "plugin \(key): spent over \(PluginMetrics.busyCPU) of CPU or ran \(PluginMetrics.busySlowEntries) entries over \(Int(PluginMetrics.slowEntry / .milliseconds(1))) ms in a minute, so it reloads on its own engine",
+            )
             perform(slots.reload(key), Trace("busy"))
         }
     }

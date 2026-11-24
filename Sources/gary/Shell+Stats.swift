@@ -20,6 +20,7 @@ extension Shell {
             "cpuMs": .object(["total": milliseconds(stats.cpu), "last60s": milliseconds(stats.recentCPU)]),
             "entries": .object(Dictionary(uniqueKeysWithValues: stats.entries.map { ("\($0.key)", .number(Double($0.value))) })),
             "longestEntryMs": milliseconds(stats.longestEntry),
+            "slowEntriesLast60s": .number(Double(stats.recentSlowEntries)),
             "overTimeLimit": .number(Double(stats.overTimeLimit)),
             "renders": .number(Double(stats.renders)),
             "lastRenderNodes": .number(Double(stats.lastRenderNodes)),

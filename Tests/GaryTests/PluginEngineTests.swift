@@ -19,7 +19,7 @@ private final class FakeCPU: @unchecked Sendable {
     }
 }
 
-private final class Counter: @unchecked Sendable {
+final class Counter: @unchecked Sendable {
     private let lock = NSLock()
     private var value = 0
 
@@ -142,11 +142,11 @@ struct PluginEngineTests {
         let reports = Counter()
         metrics.whenBusy { reports.add() }
         for _ in 1...5 {
-            _ = try engine.run(id, in: context, .timer, into: metrics) { context.evaluateScript("burn(90); 1") }
+            _ = try engine.run(id, in: context, .timer, into: metrics) { context.evaluateScript("burn(16); 1") }
         }
         #expect(reports.total == 0)
-        for _ in 1...10 {
-            _ = try engine.run(id, in: context, .timer, into: metrics) { context.evaluateScript("burn(90); 1") }
+        for _ in 1...60 {
+            _ = try engine.run(id, in: context, .timer, into: metrics) { context.evaluateScript("burn(16); 1") }
         }
         #expect(reports.total == 1)
     }
