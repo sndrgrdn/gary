@@ -18,6 +18,9 @@ func runApp() -> Int32 {
     }
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)
+    #if DEBUG
+        MainThreadWatchdog.start()
+    #endif
     let shell: Shell
     do {
         shell = try Shell()
