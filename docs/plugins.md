@@ -228,7 +228,7 @@ Kinds and plugins share no variables. Pick one of these ways to pass values:
 
 A capability adds functions to `host`, a topic to `state`, or both. List the functions you call in the manifest's `uses`, and the topics you read in `subscribes`. `gary.d.ts` declares only what the manifest asks for, so `tsc` catches a capability that you forgot to list. Some capabilities need a macOS permission. [Capabilities and permissions](capabilities.md) lists each one.
 
-`host.exec` runs a command off the main thread, and finds commands in the `PATH` of your login shell, so `["dinky", "workspace", "2"]` runs `/opt/homebrew/bin/dinky`. Subscribe to `session` to act when the screen is locked or unlocked.
+`host.exec` runs a command off the main thread, and finds commands in the `PATH` of your login shell, so `["dinky", "workspace", "2"]` runs `/opt/homebrew/bin/dinky`. Pass `{ stdin: text }` as its second argument to write text to the command's stdin, such as a secret that should stay out of its arguments. Subscribe to `session` to act when the screen is locked or unlocked.
 
 ## Write services and timers with Effect
 

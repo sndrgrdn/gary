@@ -11,6 +11,8 @@ nonisolated extension Capability {
         when the plugin stops or Gary quits. \
         `host.exec` runs a one-shot command and resolves with its exit status and output when it exits, even if it left a child \
         running in the background. Gary stops an `exec` command that runs longer than 60 seconds and rejects the promise. \
+        Its stdin is empty unless the second argument gives `stdin`, text that Gary writes to the command's stdin before closing it, \
+        so a secret for a command such as `security -i` stays out of its arguments and off disk. \
         `host.spawn` runs a long-running command with no time limit and calls `onLine` with each line it writes to stdout, \
         without the newline, and cuts a line longer than 1 MB to its first 1 MB. A carriage return also ends a line, so each update \
         of a progress line arrives on its own. `stop()` stops it. `exited` resolves when it exits, \
@@ -19,9 +21,10 @@ nonisolated extension Capability {
         types: """
         declare namespace Gary {
           interface Host {
-            exec(argv: string[]): Promise<ExecResult>;
+            exec(argv: string[], options?: ExecOptions): Promise<ExecResult>;
             spawn(argv: string[], onLine: (line: string) => void): SpawnApi;
           }
+          type ExecOptions = { stdin?: string }
           type ExecResult = { status: number; stdout: string; stderr: string }
           interface SpawnApi { exited: Promise<SpawnExit>; stop(): void }
           type SpawnExit = { status: number; stderr: string }
@@ -55,7 +58,8 @@ nonisolated extension Capability {
             plugin.installAPI(host, nil, ["exec"]) { call in
                 let argv = try call.strings(0, "argv")
                 guard !argv.isEmpty else { throw call.fail("argv must not be empty") }
-                return .pending { finish in runs.start(argv, finish) }
+                let stdin = try stdin(call)
+                return .pending { finish in runs.start(argv, stdin: stdin, finish) }
             }
             let forEach: JSValue = host.context
                 .evaluateScript("(function (callback, values) { values.forEach(function (value) { callback(value); }); })")
@@ -84,7 +88,13 @@ final nonisolated class ExecRuns: @unchecked Sendable {
         let process: Process
         let stdout: FileHandle
         let stderr: FileHandle
+        let stdin: DispatchIO?
         let finish: @Sendable (Result<JSON, Error>) -> Void
+
+        func stop() {
+            process.terminate()
+            stdin?.close(flags: .stop)
+        }
     }
 
     private let queue: DispatchQueue
@@ -97,31 +107,36 @@ final nonisolated class ExecRuns: @unchecked Sendable {
         self.limit = limit
     }
 
-    func start(_ argv: [String], _ finish: @escaping @Sendable (Result<JSON, Error>) -> Void) {
+    func start(_ argv: [String], stdin: String?, _ finish: @escaping @Sendable (Result<JSON, Error>) -> Void) {
         queue.async { [self] in
             if !stopped {
-                launch(argv, finish)
+                launch(argv, stdin, finish)
             }
         }
     }
 
-    private func launch(_ argv: [String], _ finish: @escaping @Sendable (Result<JSON, Error>) -> Void) {
+    private func launch(_ argv: [String], _ stdin: String?, _ finish: @escaping @Sendable (Result<JSON, Error>) -> Void) {
         let process = command(argv)
         let id = ObjectIdentifier(process)
         do {
             let stdout = try scratchFile()
             let stderr = try scratchFile()
+            let input = stdin.map { (pipe: Pipe(), text: $0) }
             process.standardOutput = stdout.writer
             process.standardError = stderr.writer
+            if let input {
+                process.standardInput = input.pipe
+            }
             try LiveCommands.shared.run(process) { [weak self] in self?.queue.async { [weak self] in self?.exited(id) } }
-            runs[id] = Run(process: process, stdout: stdout.reader, stderr: stderr.reader, finish: finish)
+            let writer = input.map { write($0.text, to: $0.pipe.fileHandleForWriting) }
+            runs[id] = Run(process: process, stdout: stdout.reader, stderr: stderr.reader, stdin: writer, finish: finish)
         } catch {
             finish(.success(result(status: -1, stdout: "", stderr: "\(error)")))
             return
         }
         queue.asyncAfter(deadline: .now() + limit) { [weak self] in
             guard let self, let run = runs.removeValue(forKey: id) else { return }
-            run.process.terminate()
+            run.stop()
             run.finish(.failure(HostFailure("\(argv[0]) ran longer than \(Int(limit)) seconds and was stopped")))
         }
     }
@@ -129,13 +144,14 @@ final nonisolated class ExecRuns: @unchecked Sendable {
     func stopAll() {
         stopped = true
         for run in runs.values {
-            run.process.terminate()
+            run.stop()
         }
         runs = [:]
     }
 
     private func exited(_ id: ObjectIdentifier) {
         guard let run = runs.removeValue(forKey: id) else { return }
+        run.stdin?.close(flags: .stop)
         run.finish(.success(result(
             status: Int(run.process.terminationStatus),
             stdout: String(decoding: run.stdout.readDataToEndOfFile(), as: UTF8.self),
@@ -304,6 +320,28 @@ private nonisolated func command(_ argv: [String]) -> Process {
     process.environment = environment
     process.standardInput = FileHandle.nullDevice
     return process
+}
+
+private nonisolated func stdin(_ call: HostCall) throws -> String? {
+    let options = call.arguments.dropFirst().first ?? .null
+    guard options == .null || options.object?.keys.allSatisfy({ $0 == "stdin" }) == true else {
+        throw call.fail("options must be an object such as { stdin: \"text\" }")
+    }
+    let stdin = options["stdin"] ?? .null
+    guard stdin == .null || stdin.string != nil else { throw call.fail("options.stdin must be a string") }
+    return stdin.string
+}
+
+private nonisolated func write(_ text: String, to handle: FileHandle) -> DispatchIO {
+    _ = fcntl(handle.fileDescriptor, F_SETNOSIGPIPE, 1)
+    let channel = DispatchIO(type: .stream, fileDescriptor: handle.fileDescriptor, queue: .global()) { _ in try? handle.close() }
+    let data = Data(text.utf8).withUnsafeBytes { DispatchData(bytes: $0) }
+    channel.write(offset: 0, data: data, queue: .global()) { done, _, _ in
+        if done {
+            channel.close()
+        }
+    }
+    return channel
 }
 
 private nonisolated func text(_ line: LineBuffer.Line) -> String? {

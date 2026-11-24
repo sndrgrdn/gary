@@ -81,12 +81,52 @@ struct HostExecTests {
         #expect(!FileManager.default.fileExists(atPath: file))
     }
 
+    @Test func `host exec writes the stdin option to the command and closes it`() async throws {
+        let harness = try Harness(widget("""
+        onAction: function (name) {
+          var big = "0123456789abcdef".repeat(8192) + "end";
+          var runs = {
+            cat: [["/bin/cat"], { stdin: "hello" }],
+            lines: [["/bin/sh", "-c", "read -r a; read -r b; echo \\"$b|$a\\""], { stdin: "add-generic-password -s gary -w s3cret\\nquit\\n" }],
+            big: [["/bin/cat"], { stdin: big }],
+            ignored: [["/usr/bin/true"], { stdin: big.repeat(16) }],
+            none: [["/bin/cat"]],
+            number: [["/bin/cat"], { stdin: 1 }],
+            unknown: [["/bin/cat"], { input: "x" }],
+          };
+          try {
+            host.exec.apply(host, runs[name]).then(function (r) {
+              count = name + " " + r.status + " " + (name === "big" ? r.stdout === big : JSON.stringify(r.stdout));
+            });
+          } catch (e) {
+            count = e.message;
+          }
+        },
+        """), uses: ["exec"])
+        #expect(try await harness.text() == "0")
+        harness.runtime.perform("cat", .null)
+        #expect(try await harness.text() == #"cat 0 "hello""#)
+        harness.runtime.perform("lines", .null)
+        #expect(try await harness.text() == #"lines 0 "quit|add-generic-password -s gary -w s3cret\n""#)
+        harness.runtime.perform("big", .null)
+        #expect(try await harness.text() == "big 0 true")
+        harness.runtime.perform("ignored", .null)
+        #expect(try await harness.text() == #"ignored 0 """#)
+        harness.runtime.perform("none", .null)
+        #expect(try await harness.text() == #"none 0 """#)
+        harness.runtime.perform("number", .null)
+        #expect(try await harness.text() == "host.exec: options.stdin must be a string")
+        harness.runtime.perform("unknown", .null)
+        #expect(try await harness.text() == #"host.exec: options must be an object such as { stdin: "text" }"#)
+        harness.runtime.stop()
+    }
+
     @Test func `a command that outlives the deadline is stopped and rejects`() async {
         let queue = DispatchQueue(label: "test.exec")
         let runs = ExecRuns(queue: queue, limit: 0)
         let outcome = await withCheckedContinuation { continuation in
             queue.async {
-                runs.start(["/usr/bin/tail", "-f", "/dev/null"]) { result in
+                runs.start(["/usr/bin/tail", "-f", "/dev/null"], stdin: nil) { result in
                     continuation.resume(returning: (try? result.get()).map { "\($0)" } ?? "\(result)")
                 }
             }
