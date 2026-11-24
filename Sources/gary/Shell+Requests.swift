@@ -106,12 +106,8 @@ extension Shell {
         }, Trace("call"))
     }
 
-    private func shownSlot(_ address: SurfaceAddress) -> SlotKey? {
-        slots.surfaceSlot(address).flatMap { $0.shown[address.surface] == nil ? nil : $0.key }
-    }
-
     func toggle(_ address: SurfaceAddress, _ trace: Trace, origin: CGRect? = nil, _ reply: ((Response) -> Void)? = nil) {
-        if shownSlot(address) != nil {
+        if slots.surfaceSlot(address)?.shown[address.surface] != nil {
             let response = hide(address, trace)
             reply?(response)
         } else {
@@ -121,18 +117,15 @@ extension Shell {
 
     func summon(_ address: SurfaceAddress, _ trace: Trace, origin: CGRect? = nil, _ reply: ((Response) -> Void)? = nil) {
         guard let slot = slots.surfaceSlot(address) else {
-            reply?(.failure(slots.surfaces(of: address.plugin)
-                    .isEmpty ? "no enabled surface \(address.plugin)" : "\(address.plugin) has no surface \(address.surface)"))
+            reply?(.failure(slots.missingSurface(address)))
             return
         }
         perform(slots.show(address.surface, in: slot.key, ShownSurface(focused: screens.pointerDisplay(), origin: origin), reply), trace)
     }
 
     func hide(_ address: SurfaceAddress, _ trace: Trace) -> Response {
-        guard let key = shownSlot(address) else {
-            return slots.surfaces(of: address.plugin).isEmpty ? .failure("no enabled surface \(address.plugin)") : .ok("hidden")
-        }
-        return hide(address.surface, in: key, trace)
+        guard let slot = slots.surfaceSlot(address) else { return .failure(slots.missingSurface(address)) }
+        return hide(address.surface, in: slot.key, trace)
     }
 
     func hide(_ surface: String, in key: SlotKey, _ trace: Trace) -> Response {

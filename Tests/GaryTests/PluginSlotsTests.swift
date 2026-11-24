@@ -124,6 +124,23 @@ struct PluginSlotsTests {
         #expect(lifecycle.slots.surfaces(of: menu.id).map(\.key) == [menu])
     }
 
+    @Test func `a surface address names the missing surface, so hide fails for a kind name as summon does`() throws {
+        let lifecycle = Lifecycle()
+        let widget = try key("test.multi", .barWidget)
+        let overlay = try key("test.multi", .overlay)
+        let manifest = try PluginManifest(
+            id: #require(PluginID("test.multi")), name: "multi", version: "1", kinds: [.barWidget, .overlay],
+            entryPoints: [.barWidget: "widget.js", .overlay: "overlay.js"], keepLoaded: false, subscriptions: [:], uses: [],
+            hotkeys: [], surfaces: [.overlay: ["speedtest"]],
+        )
+        let multi = PluginBundle(manifest: manifest, directory: URL(fileURLWithPath: "/p/multi"), origin: .user)
+        lifecycle.sync([widget: multi, overlay: multi])
+        let kindName = try #require(SurfaceAddress("test.multi:overlay"))
+        #expect(lifecycle.slots.surfaceSlot(kindName) == nil)
+        #expect(lifecycle.slots.missingSurface(kindName) == "test.multi has no surface overlay")
+        #expect(try lifecycle.slots.missingSurface(#require(SurfaceAddress("test.none:main"))) == "no enabled surface test.none")
+    }
+
     @Test func `a panel that a call or hotkey loads with nothing shown stops a minute after the last one`() throws {
         let lifecycle = Lifecycle()
         let panel = try key("test.panel", .panel)

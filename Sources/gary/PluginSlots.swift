@@ -117,6 +117,10 @@ final class PluginSlots<Runtime: SlotRuntime> {
         surfaces(of: address.plugin).first { $0.bundle.manifest.surfaceKind(address.surface) == $0.key.kind }
     }
 
+    func missingSurface(_ address: SurfaceAddress) -> String {
+        surfaces(of: address.plugin).isEmpty ? "no enabled surface \(address.plugin)" : "\(address.plugin) has no surface \(address.surface)"
+    }
+
     func isCurrent(_ runtime: Runtime, at key: SlotKey) -> Bool {
         slots[key].map { $0.candidate === runtime || $0.runtime === runtime } ?? false
     }

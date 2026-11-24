@@ -19,6 +19,7 @@
 
 ### Fixes
 
+- `gary hide`, and `host.hide()`, fail with `<id> has no surface <name>` for a surface the plugin doesn't list, as `gary summon` does, instead of printing `hidden` while the surface stays on screen. Name the surface from the manifest's `surfaces`, such as `gary hide sndrgrdn.network:speedtest`, not the kind.
 - A wide widget in `notchLeft`, such as a long track title, shrinks and truncates against the `left` section instead of pushing it off the left edge of the screen.
 - `gary doctor` lists a subscription to an installed plugin that is not enabled as a note, not a failure, since a plugin can read a companion plugin's topic only when it runs. A subscription to a plugin that is not installed still fails.
 - Gary runs on macOS 26 and later, down from 27.2.
