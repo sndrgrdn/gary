@@ -205,6 +205,7 @@ final class LocationAccess: NSObject, CLLocationManagerDelegate {
 private final class WiFiTopic: NSObject, CWEventDelegate, TopicFeed {
     private let publish: @Sendable (JSON, Trace) -> Void
     private let client = CWWiFiClient.shared()
+    private let reads = DispatchQueue(label: "gary.wifi", qos: .userInitiated)
 
     init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
@@ -233,10 +234,23 @@ private final class WiFiTopic: NSObject, CWEventDelegate, TopicFeed {
     }
 
     private func send(_ trace: Trace) {
-        guard let interface = client.interface() else {
-            publish(.object(["available": .bool(false), "location": .string(LocationAccess.shared.status)]), trace)
-            return
+        reads.async { [weak self] in
+            let link = Self.link()
+            DispatchQueue.main.async { [weak self] in self?.send(link, trace) }
         }
+    }
+
+    private func send(_ link: [String: JSON]?, _ trace: Trace) {
+        var state = link ?? ["available": .bool(false)]
+        state["location"] = .string(LocationAccess.shared.status)
+        if link != nil {
+            state["networks"] = LatestScan.shared.networks ?? .null
+        }
+        publish(.object(state), trace)
+    }
+
+    private nonisolated static func link() -> [String: JSON]? {
+        guard let interface = CWWiFiClient.shared().interface() else { return nil }
         let power = interface.powerOn()
         func optional(_ value: String?) -> JSON {
             value.map(JSON.string) ?? .null
@@ -245,7 +259,7 @@ private final class WiFiTopic: NSObject, CWEventDelegate, TopicFeed {
             present ? .number(Double(value)) : .null
         }
         let linked = power && interface.wlanChannel() != nil
-        publish(.object([
+        return [
             "available": .bool(true),
             "interface": optional(interface.interfaceName),
             "power": .bool(power),
@@ -256,9 +270,7 @@ private final class WiFiTopic: NSObject, CWEventDelegate, TopicFeed {
             "noise": number(interface.noiseMeasurement(), when: linked),
             "channel": interface.wlanChannel().map { .number(Double($0.channelNumber)) } ?? .null,
             "transmitRate": linked ? .number(interface.transmitRate()) : .null,
-            "location": .string(LocationAccess.shared.status),
-            "networks": LatestScan.shared.networks ?? .null,
-        ]), trace)
+        ]
     }
 
     nonisolated func powerStateDidChangeForWiFiInterface(withName _: String) {
