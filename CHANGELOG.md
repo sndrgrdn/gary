@@ -13,6 +13,7 @@
 
 ### New
 
+- Gary runs on macOS 26 and later, down from macOS 27.2, and the Homebrew cask installs on macOS 26.
 - `gary report` prints a bug report in Markdown, with the versions, `gary doctor`, `gary listPlugins`, the end of the log, and recent crash reports.
 - `gary doctor` flags SketchyBar, StableBar, Übersicht, Zebar, and Barik when they run, since they draw their own bar over Gary's.
 - `fetch` takes an optional second argument with a `method`, `headers`, and a `body`, so a plugin can call an API that needs an `Authorization` header or a POST.
@@ -35,12 +36,12 @@
 ### Fixes
 
 - A plugin's `host.storage` file that is not a JSON object, such as one cut short or edited by hand, is logged and renamed to `<id>.corrupt-<time>.json` next to it before storage starts empty, instead of reading as empty without a word and being overwritten by the next `host.storage.set`.
+- Quitting or reinstalling Gary stops its now playing helper, a `perl` process, instead of leaving one running each time.
 - Quitting Gary stops the processes that a running `host.exec` or `host.spawn` command started, such as both sides of `sh -c "a | b"` or a child it put in the background, instead of only the command itself. Stopping a command or its plugin already stopped them all.
 - `gary hide`, and `host.hide()`, fail with `<id> has no surface <name>` for a surface the plugin doesn't list, as `gary summon` does, instead of printing `hidden` while the surface stays on screen. Name the surface from the manifest's `surfaces`, such as `gary hide sndrgrdn.network:speedtest`, not the kind.
 - A wide widget in `notchLeft`, such as a long track title, shrinks and truncates against the `left` section instead of pushing it off the left edge of the screen.
 - A bar section too wide for its room truncates instead of pushing other sections past the edge of the screen. `notchLeft` gives way first, then `center`, and `left` and `right` keep their width.
 - `gary doctor` lists a subscription to an installed plugin that is not enabled as a note, not a failure, since a plugin can read a companion plugin's topic only when it runs. A subscription to a plugin that is not installed still fails.
-- Gary runs on macOS 26 and later, down from 27.2.
 - `host.apps.installed()` lists Finder and the apps in `/System/Library/CoreServices/Applications`, such as Keychain Access and Archive Utility.
 - A `host.call` with an invalid plugin id rejects with `host.call: <id> is not a plugin id` instead of freezing every plugin on its engine.
 - A `host.call` to a kind that doesn't exist, such as `pannel`, rejects and lists the kinds instead of running in another kind.
