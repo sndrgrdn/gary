@@ -41,6 +41,7 @@ final nonisolated class PluginEngine: @unchecked Sendable {
         context.name = "gary:effect"
         var failure: String?
         context.exceptionHandler = { _, value in failure = value?.toString() ?? "unknown exception" }
+        context.evaluateScript(PluginScripts.textCodec)?.call(withArguments: [])
         if !gary_evaluate_mapped(context, effectScript) {
             do {
                 try context.evaluateScript(String(contentsOf: effectScript, encoding: .utf8), withSourceURL: effectScript)

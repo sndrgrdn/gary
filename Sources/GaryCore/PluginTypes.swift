@@ -150,14 +150,28 @@ public enum PluginTypes {
         \(modules.joined(separator: "\n"))
         }
 
-        declare const host: Gary.Host;
-        declare function setTimeout(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;
-        declare function setInterval(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;
-        declare function clearTimeout(id?: number): void;
-        declare function clearInterval(id?: number): void;
+        \(globals)
         \(capabilities.map { $0 + "\n" }.joined())
         """
     }
+
+    private static let globals = """
+    declare const host: Gary.Host;
+    declare function setTimeout(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;
+    declare function setInterval(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;
+    declare function clearTimeout(id?: number): void;
+    declare function clearInterval(id?: number): void;
+    declare class TextEncoder {
+      readonly encoding: "utf-8";
+      encode(input?: string): Uint8Array;
+    }
+    declare class TextDecoder {
+      constructor(label?: "utf-8", options?: { fatal?: boolean });
+      readonly encoding: "utf-8";
+      readonly fatal: boolean;
+      decode(input?: ArrayBuffer | ArrayBufferView): string;
+    }
+    """
 
     public static func manifestSchema(_ capabilities: CapabilityNames) -> JSON {
         let kinds = strings(PluginKind.allCases.map(\.rawValue))

@@ -1,5 +1,3 @@
-import "./text-encoder";
-import "./text-decoder";
 import { clockOf } from "./clock";
 import { type Hold, heldOf } from "./hyperkey";
 import { type Listen, eventsOf } from "./listen";

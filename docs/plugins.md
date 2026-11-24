@@ -103,6 +103,7 @@ export default {
 - There is no DOM, no `console`, and no Node.js API. Log with `host.log`. Run commands with `host.exec`, read files with the `files` capability, and fetch URLs with the `network` capability.
 - A module cannot use `await` at its top level. Start async work in a function that you call, in a handler, or in the `effect` field.
 - `setTimeout`, `setInterval`, `clearTimeout`, and `clearInterval` work as in a browser.
+- `TextEncoder` and `TextDecoder` encode and decode UTF-8 only.
 
 Gary compiles TypeScript and JSX with a bundled copy of [sucrase](https://github.com/alangpierce/sucrase), keeps line numbers so that errors point at your source, and caches the result. Gary does not type-check, so run `tsc`.
 
