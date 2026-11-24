@@ -56,8 +56,8 @@ extension Shell {
         return refresh.response
     }
 
-    private var missingPermissions: [String] {
-        PermissionNeed.all(enabled: setup.enabledManifests, checkGrants: true).filter(\.isMissing).map(\.permission.rawValue)
+    private func missingPermissions(_ grants: [Permission: Grant]) -> [String] {
+        PermissionNeed.all(enabled: setup.enabledManifests, grants: grants).filter(\.isMissing).map(\.permission.rawValue)
     }
 
     func offerOnboarding(_ trace: Trace) {
@@ -66,21 +66,28 @@ extension Shell {
             LocationAccess.shared.whenReported { [weak self] in self?.offerOnboarding(trace) }
             return
         }
-        let missing = missingPermissions
-        let dismissed = (try? JSON.parse(Data(contentsOf: Paths.onboarding)))?["missing"]?.array?.compactMap(\.string)
-        if let dismissed, Set(missing).isSubset(of: dismissed) {
-            return
+        checkGrants { [weak self] grants in
+            guard let self, slots.surfaces(of: .onboarding).first?.visible == false else { return }
+            let missing = missingPermissions(grants)
+            let dismissed = (try? JSON.parse(Data(contentsOf: Paths.onboarding)))?["missing"]?.array?.compactMap(\.string)
+            if let dismissed, Set(missing).isSubset(of: dismissed) {
+                return
+            }
+            log("onboarding: shown, " + (dismissed == nil ? "first launch" : "missing \(missing.joined(separator: ", "))"))
+            summon(SurfaceAddress(.onboarding), trace)
         }
-        log("onboarding: shown, " + (dismissed == nil ? "first launch" : "missing \(missing.joined(separator: ", "))"))
-        summon(SurfaceAddress(.onboarding), trace)
     }
 
     func recordOnboardingDismissed() {
-        do {
-            try FileManager.default.createDirectory(at: Paths.onboarding.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try Data(JSON.object(["missing": .array(missingPermissions.map(JSON.string))]).text.utf8).write(to: Paths.onboarding, options: .atomic)
-        } catch {
-            log("onboarding: not recorded: \(error)")
+        checkGrants { [weak self] grants in
+            guard let self else { return }
+            do {
+                try FileManager.default.createDirectory(at: Paths.onboarding.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try Data(JSON.object(["missing": .array(missingPermissions(grants).map(JSON.string))]).text.utf8)
+                    .write(to: Paths.onboarding, options: .atomic)
+            } catch {
+                log("onboarding: not recorded: \(error)")
+            }
         }
     }
 

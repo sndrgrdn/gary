@@ -80,7 +80,7 @@ nonisolated extension Capability {
                         DispatchQueue.main.async { do { try BluetoothPairer.start(address, finish) } catch { finish(.failure(error)) } }
                     }
                 case .requestAccess:
-                    return .main { .string(Permission.bluetooth.request()) }
+                    return .request(.bluetooth)
                 }
             }
         },

@@ -59,7 +59,7 @@ nonisolated extension Capability {
                 case .scan: .later(.global(qos: .userInitiated)) { try scan() }
                 case let .join(ssid, password): .later(.global(qos: .userInitiated)) { try join(ssid, password) }
                 case let .forget(ssid): .later(.global(qos: .userInitiated)) { try forget(ssid) }
-                case .requestLocation: .main { .string(Permission.location.request()) }
+                case .requestLocation: .request(.location)
                 }
             }
         },

@@ -136,13 +136,16 @@ private final class CalendarTopic: TopicFeed {
     }
 
     private func send(_ trace: Trace) {
-        guard Permission.calendars.grant == .granted else {
-            publish(.object([
-                "available": .bool(false), "reason": .string(missingGrant(.calendars, "calendar")), "count": .number(Double(count)),
-            ]), trace)
-            return
+        checkGrants([.calendars]) { [weak self] grants in
+            guard let self else { return }
+            guard grants[.calendars] == .granted else {
+                publish(.object([
+                    "available": .bool(false), "reason": .string(missingGrant(.calendars, "calendar")), "count": .number(Double(count)),
+                ]), trace)
+                return
+            }
+            accessTimer?.invalidate()
+            publish(.object(["available": .bool(true), "count": .number(Double(count))]), trace)
         }
-        accessTimer?.invalidate()
-        publish(.object(["available": .bool(true), "count": .number(Double(count))]), trace)
     }
 }

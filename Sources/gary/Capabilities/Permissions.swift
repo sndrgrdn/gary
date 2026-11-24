@@ -48,7 +48,7 @@ nonisolated extension Capability {
         install: { host, plugin in
             plugin.installAPI(host, "permissions", PermissionsRequest.methods) { call in
                 switch try PermissionsRequest.parse(call) {
-                case let .request(permission): return .main { .string(permission.request()) }
+                case let .request(permission): return .request(permission)
                 case .restart:
                     guard isSupervised
                     else { throw HostFailure("Gary runs without its crash supervisor, as with gary app, so it cannot restart itself") }
@@ -75,7 +75,6 @@ private final class PermissionsTopic: TopicFeed {
     private var grantedSinceStart: Set<Permission> = []
     private var probing = false
     private var checking = false
-    private let checks = DispatchQueue(label: "gary.permissions", qos: .utility)
 
     init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
@@ -89,17 +88,9 @@ private final class PermissionsTopic: TopicFeed {
         guard !checking else { return }
         checking = true
         let enabled = PermissionNeed.enabledPlugins
-        let location = Permission.location.grant
-        checks.async { [weak self] in
-            var needs = PermissionNeed.all(enabled: enabled, checkGrants: false)
-            for index in needs.indices {
-                let permission = needs[index].permission
-                needs[index].grant = permission == .location ? location : permission.grant
-            }
-            DispatchQueue.main.async { [weak self, needs] in
-                self?.checking = false
-                self?.deliver(needs, trace)
-            }
+        checkGrants { [weak self] grants in
+            self?.checking = false
+            self?.deliver(PermissionNeed.all(enabled: enabled, grants: grants), trace)
         }
     }
 
@@ -125,6 +116,22 @@ private final class PermissionsTopic: TopicFeed {
                 send(Trace("permissions-granted"))
             }
         }
+    }
+}
+
+private nonisolated let grantChecks = DispatchQueue(label: "gary.permissions", qos: .utility)
+
+func checkGrants(_ permissions: [Permission] = Permission.allCases, _ done: @escaping @MainActor @Sendable ([Permission: Grant]) -> Void) {
+    let location = permissions.contains(.location) ? Permission.location.grant : nil
+    grantChecks.async {
+        let grants = Dictionary(uniqueKeysWithValues: permissions.map { ($0, $0 == .location ? location ?? .notAsked : $0.grant) })
+        DispatchQueue.main.async { done(grants) }
+    }
+}
+
+nonisolated extension HostResult {
+    static func request(_ permission: Permission) -> HostResult {
+        .pending { finish in DispatchQueue.main.async { permission.request { finish(.success(.string($0))) } } }
     }
 }
 
@@ -172,14 +179,14 @@ nonisolated struct PermissionNeed {
     let capabilities: [String]
     let plugins: [(manifest: PluginManifest, capabilities: [String])]
 
-    static func all(enabled manifests: [PluginManifest], checkGrants: Bool) -> [PermissionNeed] {
+    static func all(enabled manifests: [PluginManifest], grants: [Permission: Grant]?) -> [PermissionNeed] {
         Permission.allCases.map { permission in
             let capabilities = Capability.all.filter { $0.permissions.contains(permission) }.map(\.name)
             let plugins = manifests.sorted { $0.id < $1.id }.compactMap { manifest -> (PluginManifest, [String])? in
                 let needing = manifest.capabilities.filter(capabilities.contains)
                 return needing.isEmpty ? nil : (manifest, needing)
             }
-            return PermissionNeed(permission: permission, grant: checkGrants ? permission.grant : nil, capabilities: capabilities, plugins: plugins)
+            return PermissionNeed(permission: permission, grant: grants?[permission], capabilities: capabilities, plugins: plugins)
         }
     }
 
@@ -298,9 +305,13 @@ nonisolated extension Permission {
     }
 
     @MainActor
-    func request() -> String {
+    func request(_ reply: @escaping @MainActor @Sendable (String) -> Void) {
+        checkGrants([self]) { grants in reply(ask(grants[self] ?? .notAsked)) }
+    }
+
+    @MainActor
+    private func ask(_ current: Grant) -> String {
         let pane = "System Settings > Privacy & Security > \(name)"
-        let current = grant
         guard current != .granted else { return "Gary already has \(name)" }
         guard current != .needsRestart else { return "Gary has \(name) once it restarts" }
         switch self {
@@ -359,7 +370,7 @@ nonisolated func launchingProgram() -> String? {
     return nil
 }
 
-nonisolated func permissionReport(enabled manifests: [PluginManifest]) -> String {
+nonisolated func permissionReport(enabled manifests: [PluginManifest], grants: [Permission: Grant]) -> String {
     var lines = ["Gary \(Bundle.main.bundleIdentifier ?? "without a bundle id") at \(Bundle.main.bundlePath), pid \(getpid())"]
     if let program = launchingProgram() {
         lines
@@ -368,7 +379,7 @@ nonisolated func permissionReport(enabled manifests: [PluginManifest]) -> String
             )
     }
     lines.append("")
-    let needs = PermissionNeed.all(enabled: manifests, checkGrants: true)
+    let needs = PermissionNeed.all(enabled: manifests, grants: grants)
     let width = needs.map(\.permission.rawValue.count).max() ?? 0
     for need in needs {
         let grant = (need.grant ?? .notAsked).description

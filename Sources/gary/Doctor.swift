@@ -47,6 +47,7 @@ struct DoctorRuntime {
     var enabled: [PluginManifest]
     var pluginStates: [(plugin: String, problem: String?)]
     var themePayload: JSON?
+    var grants: [Permission: Grant] = [:]
     var supervised = isSupervised
     var allocatorZones = mallocZoneNames()
 }
@@ -162,7 +163,7 @@ struct Doctor {
         {
             fail("\(program) started Gary, so macOS checks \(program)'s permissions instead of Gary's")
         }
-        for need in PermissionNeed.all(enabled: runtime?.enabled ?? [], checkGrants: runtime != nil) {
+        for need in PermissionNeed.all(enabled: runtime?.enabled ?? [], grants: runtime?.grants) {
             let line = "\(need.permission.name)" + (need.grant.map { " \($0.description)" } ?? "") + "; \(need.summary)"
             if need.plugins.isEmpty || need.grant == nil {
                 info(line)

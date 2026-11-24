@@ -60,11 +60,11 @@ extension Shell {
         case .listPlugins:
             reply(.ok(listing()))
         case .doctor:
-            reply(.ok(Doctor.report(doctorRuntime(), system: theme.system)))
+            checkGrants { grants in reply(.ok(Doctor.report(self.doctorRuntime(grants), system: self.theme.system))) }
         case .permissions:
-            reply(.ok(permissionReport(enabled: setup.enabledManifests)))
+            checkGrants { grants in reply(.ok(permissionReport(enabled: self.setup.enabledManifests, grants: grants))) }
         case let .requestPermission(permission):
-            reply(.ok(permission.request()))
+            permission.request { reply(.ok($0)) }
         case let .call(id, method, arguments):
             call(id, nil, method, arguments) { response in
                 guard case let .ok(text) = response, case let .string(string)? = try? JSON.parse(text) else { return reply(response) }
@@ -137,7 +137,7 @@ extension Shell {
         return .ok("hidden")
     }
 
-    private func doctorRuntime() -> DoctorRuntime {
+    private func doctorRuntime(_ grants: [Permission: Grant]) -> DoctorRuntime {
         let states = slots.values.sorted { $0.key.description < $1.key.description }.map { slot -> (String, String?) in
             switch slot.phase {
             case let .failed(reason): (slot.key.description, "failed: \(reason)")
@@ -145,7 +145,7 @@ extension Shell {
             case .stopped, .running: (slot.key.description, nil)
             }
         }
-        return DoctorRuntime(pid: getpid(), enabled: setup.enabledManifests, pluginStates: states, themePayload: theme.payload)
+        return DoctorRuntime(pid: getpid(), enabled: setup.enabledManifests, pluginStates: states, themePayload: theme.payload, grants: grants)
     }
 
     private func listing() -> String {

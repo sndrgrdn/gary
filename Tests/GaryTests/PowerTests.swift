@@ -18,7 +18,7 @@ struct PowerTests {
             id: #require(PluginID("test.menu")), name: "Menu", version: "1", kinds: [.menu], entryPoints: [.menu: "main.js"],
             keepLoaded: false, subscriptions: [.menu: []], uses: ["power"], hotkeys: [],
         )
-        let need = try #require(PermissionNeed.all(enabled: [manifest], checkGrants: false).first { $0.permission == .automation })
+        let need = try #require(PermissionNeed.all(enabled: [manifest], grants: nil).first { $0.permission == .automation })
         #expect(need.summary == "needed by power; used by test.menu (power)")
     }
 
