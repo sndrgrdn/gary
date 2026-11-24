@@ -111,6 +111,7 @@ final class Observation {
 nonisolated struct HostHandle {
     let stop: () -> Void
     var exited: JSValue?
+    var ready: JSValue?
 }
 
 private final nonisolated class LiveHandles {
@@ -230,7 +231,7 @@ extension PluginRuntime {
         """).call(withArguments: [target, bridge, methods])
     }
 
-    func installHandle(_ host: JSValue, _ method: String, _ start: @escaping (HostCall, JSValue) throws -> HostHandle) {
+    func installHandle(_ host: JSValue, _ method: String, stop name: String = "stop", _ start: @escaping (HostCall, JSValue) throws -> HostHandle) {
         let handles = LiveHandles()
         onStop { handles.stopAll() }
         let bridge: @convention(block) (String, JSValue) -> JSValue? = { text, arguments in
@@ -241,11 +242,16 @@ extension PluginRuntime {
                 let id = handles.add(handle.stop)
                 let stop: @convention(block) () -> Void = { handles.stop(id) }
                 let object = JSValue(newObjectIn: context)
-                object?.setObject(stop, forKeyedSubscript: "stop" as NSString)
+                object?.setObject(stop, forKeyedSubscript: name as NSString)
                 if let exited = handle.exited {
                     object?.setObject(exited, forKeyedSubscript: "exited" as NSString)
                 }
-                return object
+                guard let ready = handle.ready, let object else { return object }
+                return context.evaluateScript("""
+                (function (ready, handle, stop) {
+                  return ready.then(function () { return handle; }, function (error) { handle[stop](); throw error; });
+                })
+                """).call(withArguments: [ready, object, name])
             } catch {
                 context.exception = context.newError(message(error, call))
                 return nil

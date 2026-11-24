@@ -3,6 +3,7 @@ import "./text-decoder";
 import { clockOf } from "./clock";
 import { type Hold, heldOf } from "./hyperkey";
 import { type Listen, eventsOf } from "./listen";
+import { type LockFile, lockedOf } from "./lock";
 import { type Spawn, linesOf } from "./spawn";
 import {
   Cache,
@@ -49,8 +50,10 @@ type TextStream = (path: string) => Stream.Stream<string | null, HostError>;
 
 type Held = (options?: Json) => Effect.Effect<void, HostError, Scope.Scope>;
 
+type Locked = (path: string) => Effect.Effect<void, HostError, Scope.Scope>;
+
 interface LiftedHost {
-  [name: string]: Lifted | LiftedHost | LineStream | TextStream | Held;
+  [name: string]: Lifted | LiftedHost | LineStream | TextStream | Held | Locked;
 }
 
 interface Env {
@@ -59,6 +62,7 @@ interface Env {
   readonly hotkeys: Listen<readonly string[], string> | undefined;
   readonly hyperkey: Hold<Json> | undefined;
   readonly watchFile: Listen<string, string | null> | undefined;
+  readonly lockFile: LockFile | undefined;
   readonly fetch: HostFunction | undefined;
   readonly setTimeout: (callback: () => void, ms: number) => number;
   readonly clearTimeout: (id: number) => void;
@@ -108,6 +112,7 @@ function hostOf(env: Env): LiftedHost {
     ...(env.hotkeys && { hotkeys: eventsOf(env.hotkeys, hostError) }),
     ...(env.hyperkey && { hyperkey: heldOf(env.hyperkey, hostError) }),
     ...(env.watchFile && { watchFile: eventsOf(env.watchFile, hostError) }),
+    ...(env.lockFile && { lockFile: lockedOf(env.lockFile, hostError) }),
   };
 }
 
