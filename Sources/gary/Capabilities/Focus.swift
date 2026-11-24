@@ -36,9 +36,10 @@ private final class FocusTopic: TopicFeed {
 
     init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
+        let queue = DispatchQueue(label: "gary.focus")
         let watch = PathWatch(
             ["", "Assertions.json", "ModeConfigurations.json"].map { Self.directory.appending(path: $0).path },
-            queue: DispatchQueue(label: "gary.focus"),
+            queue: queue,
         ) { [weak self] in
             self?.send(Trace("focus"))
         }
@@ -46,7 +47,7 @@ private final class FocusTopic: TopicFeed {
         let timer = Timer(fire: next, interval: 60, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.send(Trace("focus-minute")) } }
         RunLoop.main.add(timer, forMode: .common)
         observations = [Observation { watch.stop() }, Observation { timer.invalidate() }]
-        send(Trace("focus-start"))
+        queue.async { [weak self] in self?.send(Trace("focus-start")) }
     }
 
     private nonisolated func send(_ trace: Trace) {
