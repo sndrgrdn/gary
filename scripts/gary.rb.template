@@ -13,7 +13,7 @@ cask "gary" do
   end
 
   depends_on arch: :arm64
-  depends_on macos: :golden_gate
+  depends_on macos: :tahoe
 
   app "Gary.app"
   binary "#{appdir}/Gary.app/Contents/MacOS/gary"
