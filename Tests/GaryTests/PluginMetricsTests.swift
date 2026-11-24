@@ -49,6 +49,32 @@ struct PluginMetricsTests {
         harness.runtime.stop()
     }
 
+    @Test func `a tree over the node cap is refused, counted, and the last tree stays until a smaller one comes`() async throws {
+        let harness = try Harness("""
+        var count = 0;
+        export default {
+          render: function () {
+            if (count !== 1) return { type: "text", text: String(count) };
+            return { type: "row", children: Array.from({ length: \(Node.maxNodes) }, function (_, i) { return { type: "text", text: String(i) }; }) };
+          },
+          onAction: function () { count += 1; return true; },
+        };
+        """)
+        #expect(try await harness.text() == "0")
+        harness.runtime.perform("next", .null)
+        await harness.settled()
+        #expect(harness.events.isEmpty)
+        var stats = harness.runtime.metrics.snapshot
+        #expect(stats.refusedRenders == 1)
+        #expect(stats.lastRenderNodes == 1)
+        harness.runtime.perform("next", .null)
+        #expect(try await harness.text() == "2")
+        stats = harness.runtime.metrics.snapshot
+        #expect(stats.refusedRenders == 1)
+        #expect(stats.lastRenderNodes == 1)
+        harness.runtime.stop()
+    }
+
     @Test func `a host call is pending until it settles, and its settling is a host entry`() async throws {
         let harness = try Harness(
             widget("""

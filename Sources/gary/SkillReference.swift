@@ -203,7 +203,7 @@ extension Skill {
     - `tooltip` is text that Gary shows below the node after the pointer rests on it for half a second, or above the node when there is no room below. It hides when the pointer leaves, on any click, and when the node goes away. The theme's `tooltip` style paints it.
     - An `image` path that does not start with `/` or `~` is relative to the plugin folder, so a plugin can ship its own images. A path that ends in `.app` shows that app's icon. An `image` with its own `color` draws as a template: its shape filled with that color, so a black menu bar icon shows in `foreground`.
     - Text wraps when its surface is narrower than the text, such as a surface with a fixed `width` or one at the display's edge. Text in a `button` stays on one line.
-    - A tree holds at most 1000 nodes and 16 levels.
+    - A tree holds at most 1000 nodes and 16 levels. Gary refuses a render with more nodes and keeps the last tree on screen; `gary stats` counts it in `refusedRenders`. A deeper tree fails the plugin.
     - Colors are \(ColorExpr.syntax).
 
     ## surface

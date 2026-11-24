@@ -5,13 +5,13 @@ extension Shell {
     func drive(_ request: Request, _ reply: @escaping (Response) -> Void) {
         switch request {
         case let .action(id, kind, action, payload):
-            reply(click(action, payload, on: SlotKey(id: id, kind: kind)))
+            reveal(action, on: SlotKey(id: id, kind: kind)) { reply(self.click(action, payload, on: SlotKey(id: id, kind: kind))) }
         case let .key(id, kind, keys):
             reply(press(keys, on: id, kind))
         case let .scroll(id, kind, over, distance):
             reply(scroll(distance, over: over, on: SlotKey(id: id, kind: kind)))
         case let .hover(id, kind, action, entering):
-            reply(hover(action, entering: entering, on: SlotKey(id: id, kind: kind)))
+            reveal(action, on: SlotKey(id: id, kind: kind)) { reply(self.hover(action, entering: entering, on: SlotKey(id: id, kind: kind))) }
         case let .click(id, kind, point):
             reply(click(at: point, on: SlotKey(id: id, kind: kind)))
         case let .tree(id, kind):
@@ -20,6 +20,19 @@ extension Shell {
             reply(capture(SlotKey(id: id, kind: kind), to: path))
         default:
             reply(.failure("\(request.verb) does not drive a surface"))
+        }
+    }
+
+    private func reveal(_ action: String, on key: SlotKey, then: @escaping () -> Void) {
+        let hosts = mounted(key)
+        guard !hosts.contains(where: { $0.node(withAction: action) != nil }), let host = hosts.first(where: { $0.tree.root.has(action) }) else {
+            then()
+            return
+        }
+        host.tree.revealing = action
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            host.tree.revealing = nil
+            then()
         }
     }
 

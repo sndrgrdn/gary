@@ -14,10 +14,19 @@ private struct FrameRecorderKey: EnvironmentKey {
     static let defaultValue: FrameRecorder? = nil
 }
 
+private struct RevealingKey: EnvironmentKey {
+    static let defaultValue: String? = nil
+}
+
 extension EnvironmentValues {
     var frameRecorder: FrameRecorder? {
         get { self[FrameRecorderKey.self] }
         set { self[FrameRecorderKey.self] = newValue }
+    }
+
+    var revealing: String? {
+        get { self[RevealingKey.self] }
+        set { self[RevealingKey.self] = newValue }
     }
 }
 
@@ -55,12 +64,17 @@ extension String {
 }
 
 extension Node {
-    func outline(_ entries: [String: FrameRecorder.Entry], path: String = "", depth: Int = 0) -> [String] {
+    func outline(_ entries: [String: FrameRecorder.Entry], path: String = "", depth: Int = 0, scrolled: Bool = false) -> [String] {
         let name = key.map { "\(kind.rawValue) \($0)" } ?? kind.rawValue
-        let line = [String(repeating: "  ", count: depth) + name, quoted, entries[path].map(Self.describe)].compactMap(\.self)
+        let frame = entries[path].map(Self.describe) ?? (scrolled && !entries.isEmpty ? "no frame: scrolled out of view" : nil)
+        let line = [String(repeating: "  ", count: depth) + name, quoted, frame].compactMap(\.self)
         return [line.joined(separator: " ")] + zip(childIDs, children).flatMap { id, child in
-            child.outline(entries, path: path.child(id), depth: depth + 1)
+            child.outline(entries, path: path.child(id), depth: depth + 1, scrolled: scrolled || kind == .scroll)
         }
+    }
+
+    func has(_ action: String) -> Bool {
+        actions.values.contains(action) || children.contains { $0.has(action) }
     }
 
     private var quoted: String? {

@@ -23,6 +23,8 @@ extension Shell {
             "overTimeLimit": .number(Double(stats.overTimeLimit)),
             "renders": .number(Double(stats.renders)),
             "lastRenderNodes": .number(Double(stats.lastRenderNodes)),
+            "nodeCap": .number(Double(Node.maxNodes)),
+            "refusedRenders": .number(Double(stats.refusedRenders)),
             "timers": .object([
                 "firesLast60s": .number(Double(stats.timerFiresPerMinute)),
                 "timeouts": .number(Double(stats.timeouts)),

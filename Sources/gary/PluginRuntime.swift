@@ -267,10 +267,10 @@ extension PluginRuntime {
             guard value.isString, let text = value.toString() else { throw RenderError("render returned nothing") }
             return try JSON.parse(text)
         }
-        let node = json == .null && kind == .barWidget
-            ? nil : try timed(.nodeParse) { try Node.parse(json).resolvingPaths(against: bundle.directory.path, home: home) }
-        metrics.rendered(nodes: node?.nodeCount ?? 0)
-        return node
+        return try metrics.rendered(keeping: output.trees[surface]?[display.id].flatMap(\.self), of: "\(id)/\(kind.rawValue) \(surface)") {
+            json == .null && kind == .barWidget
+                ? nil : try timed(.nodeParse) { try Node.parse(json).resolvingPaths(against: bundle.directory.path, home: home) }
+        }
     }
 
     private func stateText(for display: DisplayInfo?, surface: String? = nil) -> String {

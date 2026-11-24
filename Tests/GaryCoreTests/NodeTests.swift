@@ -229,7 +229,7 @@ struct NodeTests {
         #expect(throws: NodeError.self) { try parse(#"{"type":"row","children":[\#(deep)]}"#) }
 
         let wide = Array(repeating: #"{"type":"spacer"}"#, count: Node.maxNodes).joined(separator: ",")
-        #expect(throws: NodeError(path: "root.children[999]", reason: "tree has more than \(Node.maxNodes) nodes")) {
+        #expect(throws: TreeTooLarge(path: "root.children[999]")) {
             try parse(#"{"type":"row","children":[\#(wide)]}"#)
         }
     }

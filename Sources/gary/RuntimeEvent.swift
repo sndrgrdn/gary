@@ -44,28 +44,46 @@ nonisolated enum RuntimeEvent {
 }
 
 final nonisolated class MainDelivery: @unchecked Sendable {
+    static let frame = 1.0 / 120
+
     private let lock = NSLock()
-    private var newestOutput = 0
+    private let interval: Double
+    private var pending: (runtime: PluginRuntime, event: RuntimeEvent)?
+    private var applied: DispatchTime?
     private let handle: @MainActor (PluginRuntime, RuntimeEvent) -> Void
 
-    init(_ handle: @escaping @MainActor (PluginRuntime, RuntimeEvent) -> Void) {
+    init(interval: Double = frame, _ handle: @escaping @MainActor (PluginRuntime, RuntimeEvent) -> Void) {
+        self.interval = interval
         self.handle = handle
     }
 
     func send(_ runtime: PluginRuntime, _ event: RuntimeEvent) {
-        let ticket: Int? = if case .output = event {
-            lock.withLock {
-                newestOutput += 1
-                return newestOutput
-            }
-        } else {
-            nil
+        guard case .output = event else {
+            DispatchQueue.main.async { [self] in handle(runtime, event) }
+            return
         }
-        DispatchQueue.main.async { [self] in
-            if let ticket, lock.withLock({ ticket != newestOutput }) {
-                return
+        let due: DispatchTime? = lock.withLock {
+            defer { pending = (runtime, event) }
+            return pending == nil ? applied.map { $0 + interval } ?? .now() : nil
+        }
+        guard let due else { return }
+        if due <= .now() {
+            DispatchQueue.main.async { [self] in flush() }
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: due) { [self] in flush() }
+        }
+    }
+
+    @MainActor private func flush() {
+        let latest = lock.withLock {
+            defer {
+                pending = nil
+                applied = .now()
             }
-            handle(runtime, event)
+            return pending
+        }
+        if let latest {
+            handle(latest.runtime, latest.event)
         }
     }
 }

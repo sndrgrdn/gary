@@ -1,4 +1,5 @@
 import Foundation
+import GaryCore
 
 nonisolated enum EngineCause: Int, CaseIterable {
     case load, render, timer, topic, action, call, host
@@ -12,6 +13,7 @@ nonisolated struct PluginStats: Equatable {
     var overTimeLimit = 0
     var renders = 0
     var lastRenderNodes = 0
+    var refusedRenders = 0
     var timerFiresPerMinute = 0
     var timeouts = 0
     var intervals = 0
@@ -46,6 +48,7 @@ final nonisolated class PluginMetrics: @unchecked Sendable {
     private var recentCPU = RecentTotal()
     private var recentFires = RecentTotal()
     private var busy: (@Sendable () -> Void)?
+    private var refusing = false
 
     init(clock: @escaping @Sendable () -> Int = { Int(clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW) / 1_000_000_000) }) {
         self.clock = clock
@@ -73,10 +76,26 @@ final nonisolated class PluginMetrics: @unchecked Sendable {
         lock.withLock { busy = report }
     }
 
-    func rendered(nodes: Int) {
-        lock.withLock {
-            stats.renders += 1
-            stats.lastRenderNodes = nodes
+    func rendered(keeping last: Node?, of surface: @autoclosure () -> String, _ parse: () throws -> Node?) throws -> Node? {
+        do {
+            let node = try parse()
+            lock.withLock {
+                stats.renders += 1
+                stats.lastRenderNodes = node?.nodeCount ?? 0
+                refusing = false
+            }
+            return node
+        } catch let error as TreeTooLarge {
+            let first = lock.withLock {
+                stats.renders += 1
+                stats.refusedRenders += 1
+                defer { refusing = true }
+                return !refusing
+            }
+            if first {
+                log("plugin \(surface()): render refused, \(error), so the last tree stays")
+            }
+            return last
         }
     }
 

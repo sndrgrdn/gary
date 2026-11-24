@@ -11,6 +11,7 @@ final class MountedTree: ObservableObject {
     @Published var backdrop = false
     @Published var inspection: FrameRecorder?
     @Published var opening = 0
+    @Published var revealing: String?
     var plugin: PluginID?
 
     init(root: Node, theme: Theme) {
@@ -62,6 +63,7 @@ struct TreeView: View {
             .environment(\.tooltipPanel, tooltipPanel)
             .environment(\.pluginID, tree.plugin)
             .environment(\.opening, tree.opening)
+            .environment(\.revealing, tree.revealing)
         if let fit = tree.fit, tree.backdrop {
             fit {
                 ZStack {
@@ -101,28 +103,14 @@ struct Fit: Layout, Equatable {
     }
 }
 
-private struct ScrollFit: Layout {
-    var maxHeight: Double?
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache _: inout ()) -> CGSize {
-        guard let scroll = subviews.first else { return .zero }
-        let content = scroll.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil))
-        return CGSize(width: proposal.width ?? content.width, height: min(content.height, maxHeight ?? .infinity, proposal.height ?? .infinity))
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal _: ProposedViewSize, subviews: Subviews, cache _: inout ()) {
-        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
-    }
-}
-
-private struct Child: Identifiable {
+struct NodeChild: Identifiable {
     let id: Node.ChildID
     let node: Node
 }
 
-private extension Node {
-    var identifiedChildren: [Child] {
-        zip(childIDs, children).map(Child.init)
+extension Node {
+    var identifiedChildren: [NodeChild] {
+        zip(childIDs, children).map(NodeChild.init)
     }
 
     var scrolls: Bool {
@@ -357,44 +345,6 @@ private extension View {
                         pressing?.wrappedValue = down
                     }
                 }
-        }
-    }
-}
-
-private struct ScrollNode: View {
-    let node: Node
-    let theme: Theme
-    let gap: Double
-    let padding: Insets
-    let maxHeight: Double?
-    let path: String?
-    @Environment(\.opening) private var opening
-
-    var body: some View {
-        let revealed = node.revealedChild.map { node.childIDs[$0] }
-        ScrollFit(maxHeight: maxHeight) {
-            ScrollViewReader { proxy in
-                ScrollView(.vertical) {
-                    VStack(alignment: .leading, spacing: gap) {
-                        ForEach(node.identifiedChildren) { child in
-                            NodeView(node: child.node, theme: theme, axis: .vertical, path: path?.child(child.id)).id(child.id)
-                        }
-                    }
-                    .padding(EdgeInsets(padding))
-                    .id("top")
-                }
-                .scrollBounceBehavior(.basedOnSize)
-                .onChange(of: opening) {
-                    proxy.scrollTo("top", anchor: .top)
-                    if let revealed {
-                        proxy.scrollTo(revealed)
-                    }
-                }
-                .onChange(of: revealed, initial: true) { _, id in
-                    guard let id else { return }
-                    DispatchQueue.main.async { proxy.scrollTo(id) }
-                }
-            }
         }
     }
 }

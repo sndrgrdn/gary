@@ -179,6 +179,14 @@ public struct Node: Equatable, Sendable {
     }
 }
 
+public struct TreeTooLarge: Error, Equatable, CustomStringConvertible {
+    public let path: String
+
+    public var description: String {
+        "\(path): tree has more than \(Node.maxNodes) nodes"
+    }
+}
+
 public struct NodeError: Error, Equatable, CustomStringConvertible {
     public let path: String
     public let reason: String
@@ -211,7 +219,7 @@ struct NodeReader {
 
     static func node(_ json: JSON, path: String, depth: Int, count: inout Int) throws -> Node {
         count += 1
-        guard count <= Node.maxNodes else { throw NodeError(path: path, reason: "tree has more than \(Node.maxNodes) nodes") }
+        guard count <= Node.maxNodes else { throw TreeTooLarge(path: path) }
         guard depth <= Node.maxDepth else { throw NodeError(path: path, reason: "tree is deeper than \(Node.maxDepth)") }
         guard case let .object(fields) = json else { throw NodeError(path: path, reason: "node must be an object") }
         var reader = NodeReader(fields: fields, path: path, depth: depth, count: count)
