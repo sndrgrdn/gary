@@ -62,8 +62,9 @@ final nonisolated class StateHub: @unchecked Sendable {
                     return wanted
                 }
                 if wanted, running[topic] == nil {
-                    log("topic \(topic): started")
+                    let started = now()
                     running[topic] = source { [weak self] value, trace in self?.publish(topic, value, trace) }
+                    log(String(format: "topic %@: started in %.1f ms", topic.description, (now() - started) * 1000))
                 } else if !wanted, running[topic] != nil {
                     lock.withLock {
                         live.remove(topic)
