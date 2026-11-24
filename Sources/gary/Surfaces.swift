@@ -302,16 +302,27 @@ final class SurfaceWindow {
 
     func focus() {
         panel.makeKey()
-        content?.layoutSubtreeIfNeeded()
+        guard !focusField() else { return }
+        let shown = shows
+        DispatchQueue.main.async { [self] in
+            if shows == shown, panel.isKeyWindow {
+                focusField()
+            }
+        }
+    }
+
+    @discardableResult
+    private func focusField() -> Bool {
         var queue: [NSView] = content.map { [$0] } ?? []
         while !queue.isEmpty {
             let view = queue.removeFirst()
             if view is NSTextField {
                 panel.makeFirstResponder(view)
-                return
+                return true
             }
             queue += view.subviews
         }
+        return false
     }
 
     func hide(fade: Double) {
