@@ -88,7 +88,7 @@ struct SurfaceReuseTests {
 
     private func hidden(_ shown: Shown) async {
         shown.window.hide(fade: 0)
-        while shown.window.panel.isVisible {
+        while shown.window.isShown {
             await Task.yield()
         }
     }
@@ -119,11 +119,11 @@ struct SurfaceReuseTests {
         #expect(reused.picture != fresh.picture)
 
         await hidden(reused)
-        #expect(!reused.window.panel.isVisible)
+        #expect(!reused.window.isShown)
         try reused.view.reopen(Self.tree(label), theme: theme)
         open(reused, theme)
 
-        #expect(reused.window.panel.isVisible)
+        #expect(reused.window.isShown)
         #expect(reused.window.panel.alphaValue == 1)
         #expect(reused.field?.stringValue.isEmpty == true)
         #expect(reused.scrolled == fresh.scrolled)
@@ -196,7 +196,7 @@ struct SurfaceReuseTests {
         open(shown, theme)
         await hidden(later)
 
-        #expect(shown.window.panel.isVisible)
+        #expect(shown.window.isShown)
         #expect(shown.window.panel.alphaValue == 1)
     }
 
@@ -211,7 +211,7 @@ struct SurfaceReuseTests {
         defer { shown.window.panel.close() }
 
         parked.park(key, mount, fade: 0)
-        while shown.window.panel.isVisible {
+        while shown.window.isShown {
             await Task.yield()
         }
         #expect(timers.map(\.delay) == [60])

@@ -328,14 +328,17 @@ final class SurfaceWindow {
         } completionHandler: {
             MainActor.assumeIsolated {
                 if self.shows == shown {
-                    panel.orderOut(nil)
                     self.content?.removeFromSuperview()
                 }
             }
         }
     }
 
+    var isShown: Bool {
+        panel.isVisible && content?.superview != nil
+    }
+
     func contains(_ point: NSPoint) -> Bool {
-        panel.isVisible && NSMouseInRect(point, panel.frame, false)
+        isShown && NSMouseInRect(point, panel.frame, false)
     }
 }
