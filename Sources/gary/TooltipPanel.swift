@@ -6,17 +6,25 @@ final class TooltipPanel {
     static let delay = 0.5
 
     var theme: Theme
-    private let panel = makeSurfacePanel(level: Int(CGWindowLevelForKey(.popUpMenuWindow)))
-    private let view: NSHostingView<NodeView>
+    private lazy var view = {
+        let view = NSHostingView(rootView: NodeView(node: Node(.spacer), theme: theme))
+        view.sizingOptions = [.intrinsicContentSize]
+        return view
+    }()
+
+    private lazy var panel = {
+        let panel = makeSurfacePanel(level: Int(CGWindowLevelForKey(.popUpMenuWindow)))
+        panel.contentView = view
+        panel.ignoresMouseEvents = true
+        return panel
+    }()
+
+    private var isShown = false
     private weak var owner: GestureView?
     private var timer: Timer?
 
     init(theme: Theme) {
         self.theme = theme
-        view = NSHostingView(rootView: NodeView(node: Node(.spacer), theme: theme))
-        view.sizingOptions = [.intrinsicContentSize]
-        panel.contentView = view
-        panel.ignoresMouseEvents = true
         _ = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
             self?.hide()
             return event
@@ -31,7 +39,7 @@ final class TooltipPanel {
     }
 
     func refresh(_ owner: GestureView) {
-        if owner === self.owner, panel.isVisible {
+        if owner === self.owner, isShown {
             show()
         }
     }
@@ -52,7 +60,10 @@ final class TooltipPanel {
         timer?.invalidate()
         timer = nil
         owner = nil
-        panel.orderOut(nil)
+        if isShown {
+            isShown = false
+            panel.orderOut(nil)
+        }
     }
 
     private func show() {
@@ -67,6 +78,7 @@ final class TooltipPanel {
         let bounds = screen.frame.insetBy(dx: theme.spacing.edge, dy: theme.spacing.edge)
         panel.setFrame(SurfaceSpec.attached(view.intrinsicContentSize, to: origin, gap: theme.spacing.item, within: bounds), display: true)
         panel.orderFrontRegardless()
+        isShown = true
     }
 }
 
