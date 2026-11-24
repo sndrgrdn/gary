@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.5.0
+
 ### Upgrading
 
 - In a hotkey, `delete` is forward delete, as it already was in `onKey`. Use `backspace` for the key labeled delete on a Mac keyboard. This applies to manifest `hotkeys`, `host.hotkeys`, and the `hyperkey` trigger and tap.
