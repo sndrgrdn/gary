@@ -21,6 +21,7 @@
 
 - Gary with every plugin loaded uses about 33 MB instead of 40 MB.
 - The bar widgets draw about 50 ms sooner after Gary starts. The check that decides whether to show the permissions window runs a second after start, and the Wi-Fi and Focus states are read off the main thread, instead of holding up the first draw.
+- A panel or menu opens a few milliseconds sooner, the launcher about 9% (42 to 38 ms).
 - Gary logs how long each topic source took to start, as `topic wifi: started in 2.5 ms`.
 - `gary doctor` says under Memory whether JavaScriptCore runs on the system allocator, which saves about 4 MB, and fails when a Gary started the usual way missed it.
 

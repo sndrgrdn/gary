@@ -228,6 +228,7 @@ final class SurfaceWindow {
     init() {
         card.wantsLayer = true
         panel.contentView = card
+        panel.initialFirstResponder = card
     }
 
     func setContent(_ view: TreeHostingView) {
