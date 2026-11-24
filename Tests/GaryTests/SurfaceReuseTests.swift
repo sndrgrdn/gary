@@ -3,7 +3,7 @@ import AppKit
 import GaryCore
 import Testing
 
-@MainActor
+@MainActor @Suite(.serialized)
 struct SurfaceReuseTests {
     private let theme: Theme
     private let display = DisplayInfo(id: "display", index: 0, frame: CGRect(x: -4000, y: -4000, width: 1000, height: 800), band: 24)
@@ -70,12 +70,15 @@ struct SurfaceReuseTests {
         }
     }
 
-    private func open(_ shown: Shown, _ theme: Theme, _ spec: SurfaceSpec? = nil) {
+    private func open(_ shown: Shown, _ theme: Theme, _ spec: SurfaceSpec? = nil) async {
         shown.window.setContent(shown.view)
         shown.window.place(spec ?? self.spec, on: display, origin: nil, level: 0, theme: theme)
         shown.window.show(fade: 0)
         shown.window.focus()
         commit(shown)
+        for _ in 0..<2 {
+            await withCheckedContinuation { done in DispatchQueue.main.async { done.resume() } }
+        }
     }
 
     private func commit(_ shown: Shown) {
@@ -106,12 +109,12 @@ struct SurfaceReuseTests {
     @Test(arguments: ["first", "second"])
     func `a surface shown again draws what a new surface draws, with its input empty and its list at the top`(label: String) async throws {
         let fresh = try Shown(Self.tree(label), theme)
-        open(fresh, theme)
+        await open(fresh, theme)
         defer { fresh.window.panel.close() }
         fresh.window.panel.orderOut(nil)
 
         let reused = try Shown(Self.tree("first"), theme)
-        open(reused, theme)
+        await open(reused, theme)
         defer { reused.window.panel.close() }
         try use(reused)
         #expect(reused.field?.stringValue == "sa")
@@ -121,7 +124,7 @@ struct SurfaceReuseTests {
         await hidden(reused)
         #expect(!reused.window.isShown)
         try reused.view.reopen(Self.tree(label), theme: theme)
-        open(reused, theme)
+        await open(reused, theme)
 
         #expect(reused.window.isShown)
         #expect(reused.window.panel.alphaValue == 1)
@@ -134,14 +137,14 @@ struct SurfaceReuseTests {
     func `a surface shown again focuses its input, so typing reaches it and the other keys reach onKey`(size: String) async throws {
         let spec = try SurfaceSpec.parse(JSON.parse(size), kind: .menu)
         let shown = try Shown(Self.tree("first"), theme)
-        open(shown, theme, spec)
+        await open(shown, theme, spec)
         defer { shown.window.panel.close() }
         try use(shown)
         #expect(shown.sent == ["filter s", "filter sa"])
 
         await hidden(shown)
         try shown.view.reopen(Self.tree("first"), theme: theme)
-        open(shown, theme, spec)
+        await open(shown, theme, spec)
         var keys: [String] = []
         shown.window.panel.onKey = { keys.append($0) }
         for key in ["x", "down"] {
@@ -154,13 +157,13 @@ struct SurfaceReuseTests {
 
     @Test func `a surface shown again with the text its plugin kept has it selected, so typing replaces it`() async throws {
         let shown = try Shown(Self.tree("first", query: "kept"), theme)
-        open(shown, theme)
+        await open(shown, theme)
         defer { shown.window.panel.close() }
         try NSApp.sendEvent(#require(NSEvent.keyDown(named: "right", windowNumber: shown.window.panel.windowNumber)))
 
         await hidden(shown)
         try shown.view.reopen(Self.tree("first", query: "kept"), theme: theme)
-        open(shown, theme)
+        await open(shown, theme)
         try NSApp.sendEvent(#require(NSEvent.keyDown(named: "x", windowNumber: shown.window.panel.windowNumber)))
 
         #expect(shown.sent == ["filter x"])
@@ -169,31 +172,31 @@ struct SurfaceReuseTests {
     @Test func `a surface shown again after the theme changed draws the new theme`() async throws {
         let light = try Self.theme(.light)
         let fresh = try Shown(Self.tree("first"), light)
-        open(fresh, light)
+        await open(fresh, light)
         defer { fresh.window.panel.close() }
         fresh.window.panel.orderOut(nil)
 
         let reused = try Shown(Self.tree("first"), theme)
-        open(reused, theme)
+        await open(reused, theme)
         defer { reused.window.panel.close() }
         #expect(reused.picture != fresh.picture)
         await hidden(reused)
         try reused.view.reopen(Self.tree("first"), theme: light)
-        open(reused, light)
+        await open(reused, light)
 
         #expect(reused.picture == fresh.picture)
     }
 
     @Test func `a surface shown again before its hide finished stays on screen`() async throws {
         let shown = try Shown(Self.tree("first", rows: 2), theme)
-        open(shown, theme)
+        await open(shown, theme)
         defer { shown.window.panel.close() }
         let later = try Shown(Self.tree("second", rows: 2), theme)
-        open(later, theme)
+        await open(later, theme)
         defer { later.window.panel.close() }
 
         shown.window.hide(fade: 0)
-        open(shown, theme)
+        await open(shown, theme)
         await hidden(later)
 
         #expect(shown.window.isShown)
@@ -207,7 +210,7 @@ struct SurfaceReuseTests {
         let other = MountKey(slot: key.slot, surface: "second", display: display.id)
         let shown = try Shown(Self.tree("first", rows: 2), theme)
         let mount = ParkedMount(window: shown.window, view: shown.view)
-        open(shown, theme)
+        await open(shown, theme)
         defer { shown.window.panel.close() }
 
         parked.park(key, mount, fade: 0)
@@ -219,7 +222,7 @@ struct SurfaceReuseTests {
         #expect(parked.take(key)?.window === shown.window)
         #expect(parked.take(key) == nil)
 
-        open(shown, theme)
+        await open(shown, theme)
         parked.park(key, mount, fade: 0)
         timers[0].fire()
         #expect(parked.take(key)?.window === shown.window)

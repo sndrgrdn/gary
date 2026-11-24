@@ -301,12 +301,15 @@ final class SurfaceWindow {
     }
 
     func focus() {
-        panel.makeKey()
-        guard !focusField() else { return }
         let shown = shows
         DispatchQueue.main.async { [self] in
-            if shows == shown, panel.isKeyWindow {
-                focusField()
+            guard shows == shown else { return }
+            panel.makeKey()
+            guard !focusField() else { return }
+            DispatchQueue.main.async { [self] in
+                if shows == shown, panel.isKeyWindow {
+                    focusField()
+                }
             }
         }
     }
@@ -328,6 +331,7 @@ final class SurfaceWindow {
     func hide(fade: Double) {
         FrameLog.shared.arm(for: fade)
         let panel = panel
+        shows += 1
         let shown = shows
         panel.ignoresMouseEvents = true
         panel.onKey = nil
