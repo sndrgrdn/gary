@@ -93,7 +93,7 @@ func runRestoreAfter(_ arguments: [String]) -> Int32 {
             continue
         }
         log("restore watchdog: gary \(pid) exited")
-        MainActor.assumeIsolated { SystemState.restore() }
+        SystemState.restore()
         for child in children {
             kill(-child, SIGTERM)
         }

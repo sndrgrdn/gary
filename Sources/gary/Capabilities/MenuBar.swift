@@ -24,10 +24,10 @@ nonisolated extension Capability {
     } satisfies Gary.Bar;
     """, install: { host, plugin in
         let owner = ObjectIdentifier(plugin)
-        plugin.onStop { DispatchQueue.main.async { MenuBar.shared.release(owner) } }
+        plugin.onStop { SystemState.queue.async { MenuBar.shared.release(owner) } }
         plugin.installAPI(host, "menubar", MenuBarRequest.methods) { call in
             let request = try MenuBarRequest.parse(call)
-            return .main {
+            return .later(SystemState.queue) {
                 switch request {
                 case .hide: try MenuBar.shared.hide(owner)
                 case .restore: MenuBar.shared.release(owner)
@@ -39,7 +39,7 @@ nonisolated extension Capability {
     })
 }
 
-private final class MenuBar {
+private final nonisolated class MenuBar: @unchecked Sendable {
     static let shared = MenuBar()
     private var hiders: Set<ObjectIdentifier> = []
 

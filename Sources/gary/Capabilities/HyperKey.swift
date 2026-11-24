@@ -149,14 +149,14 @@ final nonisolated class HyperKeyTap: @unchecked Sendable {
     private func claim() throws {
         let claimed = try Keyboards.claim(replaced ?? [:])
         replaced = claimed
-        DispatchQueue.main.async { SystemState.update { $0.capsLock = claimed } }
+        SystemState.queue.async { SystemState.update { $0.capsLock = claimed } }
     }
 
     private func giveBack() {
         guard let replaced else { return }
         Keyboards.giveBack(replaced)
         self.replaced = nil
-        DispatchQueue.main.async { SystemState.update { $0.capsLock = nil } }
+        SystemState.queue.async { SystemState.update { $0.capsLock = nil } }
     }
 
     private func letGo() {

@@ -31,19 +31,19 @@ nonisolated extension Capability {
     } satisfies Gary.Panel;
     """, install: { host, plugin in
         let owner = ObjectIdentifier(plugin)
-        plugin.onStop { DispatchQueue.main.async { Dock.shared.release(owner) } }
+        plugin.onStop { SystemState.queue.async { Dock.shared.release(owner) } }
         plugin.installAPI(host, "dock", DockRequest.methods) { call in
             let request = try DockRequest.parse(call)
-            return .main { try Dock.shared.perform(request, by: owner) }
+            return .later(SystemState.queue) { try Dock.shared.perform(request, by: owner) }
         }
     })
 }
 
-private final class Dock {
+private final nonisolated class Dock: @unchecked Sendable {
     static let shared = Dock()
     private var reservations = Claims<ObjectIdentifier, DockReservation>()
     private var visibilities = Claims<ObjectIdentifier, DockVisibility>()
-    private var timer: Timer?
+    private var timer: DispatchSourceTimer?
 
     private var screen: CGSize {
         CGDisplayBounds(CGMainDisplayID()).size
@@ -106,12 +106,13 @@ private final class Dock {
         }
         reserve()
         if reservations.current == nil {
-            timer?.invalidate()
+            timer?.cancel()
             timer = nil
         } else if timer == nil {
-            let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.reserve() } }
-            timer.tolerance = 0.2
-            RunLoop.main.add(timer, forMode: .common)
+            let timer = DispatchSource.makeTimerSource(queue: SystemState.queue)
+            timer.schedule(deadline: .now() + 1, repeating: 1, leeway: .milliseconds(200))
+            timer.setEventHandler { [weak self] in self?.reserve() }
+            timer.resume()
             self.timer = timer
         }
     }

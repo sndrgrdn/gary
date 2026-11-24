@@ -100,14 +100,20 @@ nonisolated struct SavedSystemState: Codable, Equatable {
     var capsLock: [String: [HyperKey.Mapping]]?
 }
 
-enum SystemState {
-    private(set) static var saved = SavedSystemState()
+nonisolated enum SystemState {
+    static let queue = DispatchQueue(label: "gary.system-state", qos: .userInitiated)
+    private static let lock = NSLock()
+    private nonisolated(unsafe) static var current = SavedSystemState()
+
+    static var saved: SavedSystemState {
+        lock.withLock { current }
+    }
 
     static func update(_ change: (inout SavedSystemState) -> Void) {
         var next = saved
         change(&next)
         guard next != saved else { return }
-        saved = next
+        lock.withLock { current = next }
         if next == SavedSystemState() {
             try? FileManager.default.removeItem(at: Paths.systemRestore)
             return
@@ -137,7 +143,7 @@ enum SystemState {
             Keyboards.giveBack(capsLock)
         }
         try? FileManager.default.removeItem(at: Paths.systemRestore)
-        saved = SavedSystemState()
+        lock.withLock { current = SavedSystemState() }
         log(
             "restored the system state Gary had changed: menubar hidden=\(state.menuBarHidden) dock=\(state.dock?.own.rect.debugDescription ?? "-") autohide=\(state.dockVisibility.map { String($0.rawValue) } ?? "-") capslock=\(state.capsLock != nil)",
         )

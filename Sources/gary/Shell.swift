@@ -34,7 +34,7 @@ final class Shell {
         HotkeyListeners.shared.changed = { [weak self] in self?.updateHotkeys() }
         mediaKeys = MediaKeyTap { [weak self] event, keys in self?.mediaKeyPressed(event, keys) }
         server = try LineServer(path: Paths.socket) { [weak self] line in self?.serve(line) ?? Response.failure("shutting down").line }
-        SystemState.restore()
+        SystemState.queue.sync { SystemState.restore() }
         try FileManager.default.createDirectory(at: Paths.config, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: Paths.packages, withIntermediateDirectories: true)
         theme.loadPalette()
@@ -65,7 +65,7 @@ final class Shell {
                 MainActor.assumeIsolated { self?.showAppDragTile(until: permission) }
             },
             center.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
-                MainActor.assumeIsolated { SystemState.restore(SystemState.saved) }
+                SystemState.queue.sync { SystemState.restore(SystemState.saved) }
             },
         ]
         for number in [SIGTERM, SIGINT] {
@@ -82,7 +82,7 @@ final class Shell {
     }
 
     func quit(_ status: Int32 = 0) {
-        SystemState.restore(SystemState.saved)
+        SystemState.queue.sync { SystemState.restore(SystemState.saved) }
         server?.stop()
         unlink(Paths.socket)
         exit(status)
