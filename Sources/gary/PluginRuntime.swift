@@ -14,7 +14,7 @@ actor PluginRuntime: Subscriber {
     private var exception: String?
     private var state: StateText
     private var timers: [Int: @Sendable () -> Void] = [:]
-    private let startTimer: StartTimer
+    let startTimer: StartTimer
     private var stops: [() -> Void] = []
     private var nextTimer = 1
     private var replies: [Int: (method: String, reply: @Sendable (Response) -> Void)] = [:]

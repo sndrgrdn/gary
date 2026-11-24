@@ -8,6 +8,7 @@
 - `onKey` keeps Shift in a chord: Control-Shift-A arrives as `ctrl+shift+a`, not `ctrl+a`. A typed character without Control, Option, or Command still arrives as the character, so Shift-A gives `A`.
 - An `image` or `shader` path that starts with `~user/`, or is empty, fails the render with the node that holds it, as such a path already fails in a host call.
 - `host.watchFile` returns a handle with `stop()`, and in `gary:effect` it is a stream of the file's text that stops watching when its scope closes. It calls back about 200 ms after a change, and not for a write that leaves the text the same.
+- `host.mkdir` returns true when it created the folder and false when the folder already existed, instead of null. When two processes create the same folder at once, exactly one gets true, so a folder can serve as a lock.
 
 ### New
 
@@ -18,6 +19,8 @@
 - `onKey` and `gary key` name the function keys `f1` to `f20`, and hotkeys take the `onKey` names `backspace`, `home`, `end`, `pageup`, and `pagedown`.
 - `host.exec` takes an optional second argument with `stdin`, text that Gary writes to the command's stdin, so a plugin can hand a secret to a command such as `security -i` without putting it in the arguments or a temporary file.
 - Every plugin has `TextEncoder` and `TextDecoder` for UTF-8, and `gary plugin types` declares them, so `new TextEncoder().encode(text)` type-checks and runs without importing `gary:effect`.
+- Each `host.list` entry has `modified`, the time of its last change in milliseconds since 1970, so a plugin can tell a stale lock folder from a fresh one.
+- `host.lockFile(path)` takes an exclusive `flock` lock on a file, such as `~/.grok/auth.json.lock`, and resolves with a handle whose `release()` lets it go. Another process that locks the same file waits until then, and `host.lockFile` waits for another process in turn, for up to 10 seconds. Gary releases a plugin's locks when it stops, and in `gary:effect` the lock lasts until its scope closes.
 
 ### Faster and lighter
 

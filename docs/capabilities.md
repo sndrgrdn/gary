@@ -25,7 +25,7 @@ In the **Manifest** column, `uses` means the capability adds `host` functions, a
 | `colorpicker`   | Pick a color from anywhere on screen with the macOS magnifier.                                           | uses             | None                                  |
 | `dock`          | Reserve a screen edge that windows keep clear of, and hide or show the Dock.                             | uses             | None                                  |
 | `exec`          | Run a command, or stream the output of a long-running one.                                               | uses             | None                                  |
-| `files`         | Read, write, list, remove, and watch files.                                                              | uses             | None                                  |
+| `files`         | Read, write, list, remove, watch, and lock files.                                                        | uses             | None                                  |
 | `focus`         | Whether a Focus, such as Do Not Disturb, is on.                                                          | subscribes       | Full Disk Access                      |
 | `hotkeys`       | Global hotkeys registered while the plugin runs, such as ones read from settings.                        | uses             | None                                  |
 | `hyperkey`      | Make a key, Caps Lock by default, a Hyper key that adds Control, Option, and Command.                    | uses             | Accessibility                         |
