@@ -64,18 +64,20 @@ nonisolated extension Capability {
     )
 }
 
-private final class ClipboardTopic: TopicFeed {
+private final nonisolated class ClipboardTopic: TopicFeed, @unchecked Sendable {
     private let publish: @Sendable (JSON, Trace) -> Void
+    private let timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "gary.clipboard"))
     private var count = -1
-    private var observation: Observation?
 
     init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
         self.publish = publish
-        check()
-        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.check() } }
-        timer.tolerance = 0.25
-        RunLoop.main.add(timer, forMode: .common)
-        observation = Observation { timer.invalidate() }
+        timer.setEventHandler { [weak self] in self?.check() }
+        timer.schedule(deadline: .now(), repeating: 0.5, leeway: .milliseconds(250))
+        timer.resume()
+    }
+
+    deinit {
+        timer.cancel()
     }
 
     private func check() {

@@ -44,7 +44,9 @@ private final class FocusTopic: TopicFeed {
             self?.send(Trace("focus"))
         }
         let next = Date(timeIntervalSince1970: (Date().timeIntervalSince1970 / 60).rounded(.down) * 60 + 60)
-        let timer = Timer(fire: next, interval: 60, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.send(Trace("focus-minute")) } }
+        let timer = Timer(fire: next, interval: 60, repeats: true) { [weak self] _ in
+            queue.async { [weak self] in self?.send(Trace("focus-minute")) }
+        }
         RunLoop.main.add(timer, forMode: .common)
         observations = [Observation { watch.stop() }, Observation { timer.invalidate() }]
         queue.async { [weak self] in self?.send(Trace("focus-start")) }

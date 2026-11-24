@@ -19,6 +19,7 @@ nonisolated extension Capability {
 }
 
 private final class BatteryTopic: TopicFeed {
+    private nonisolated static let reads = DispatchQueue(label: "gary.battery", qos: .userInitiated)
     private let publish: @Sendable (JSON, Trace) -> Void
     private var observation: Observation?
 
@@ -35,10 +36,11 @@ private final class BatteryTopic: TopicFeed {
     }
 
     private func send(_ trace: Trace) {
-        publish(Self.read(), trace)
+        let publish = publish
+        Self.reads.async { publish(Self.read(), trace) }
     }
 
-    private static func read() -> JSON {
+    private nonisolated static func read() -> JSON {
         let info = IOPSCopyPowerSourcesInfo().takeRetainedValue()
         let list = IOPSCopyPowerSourcesList(info).takeRetainedValue() as [CFTypeRef]
         let onACPower = (IOPSGetProvidingPowerSourceType(info)?.takeUnretainedValue() as String?) == kIOPMACPowerKey
@@ -50,7 +52,7 @@ private final class BatteryTopic: TopicFeed {
         return snapshot(percent: battery.percent, charging: battery.charging, onACPower: onACPower)
     }
 
-    private static func snapshot(percent: Int?, charging: Bool, onACPower: Bool) -> JSON {
+    private nonisolated static func snapshot(percent: Int?, charging: Bool, onACPower: Bool) -> JSON {
         .object([
             "present": .bool(percent != nil),
             "percent": percent.map { .number(Double($0)) } ?? .null,

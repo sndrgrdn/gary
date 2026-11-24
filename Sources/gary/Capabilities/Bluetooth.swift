@@ -165,7 +165,7 @@ final class BluetoothAccess: NSObject, CBCentralManagerDelegate {
     }
 }
 
-@objc private protocol BluetoothBatteryPercents {
+@objc private nonisolated protocol BluetoothBatteryPercents {
     @objc optional var batteryPercentSingle: UInt8 { get }
     @objc optional var batteryPercentCombined: UInt8 { get }
     @objc optional var batteryPercentLeft: UInt8 { get }
@@ -176,6 +176,7 @@ nonisolated extension IOBluetoothDevice: BluetoothBatteryPercents {}
 
 final class BluetoothTopic: NSObject, TopicFeed {
     weak static var current: BluetoothTopic?
+    private nonisolated static let reads = DispatchQueue(label: "gary.bluetooth", qos: .userInitiated)
     private let publish: @Sendable (JSON, Trace) -> Void
     private var observations: [Observation] = []
     private var notifications: [IOBluetoothUserNotification] = []
@@ -234,6 +235,12 @@ final class BluetoothTopic: NSObject, TopicFeed {
     }
 
     func send(_ trace: Trace) {
+        let nearby = BluetoothDiscovery.shared.nearby
+        let publish = publish
+        Self.reads.async { publish(Self.read(nearby: nearby), trace) }
+    }
+
+    private nonisolated static func read(nearby: [JSON]) -> JSON {
         let permission = switch CBManager.authorization {
         case .allowedAlways: "allowed"
         case .denied: "denied"
@@ -241,18 +248,14 @@ final class BluetoothTopic: NSObject, TopicFeed {
         default: "notDetermined"
         }
         guard permission == "allowed" else {
-            publish(
-                .object([
-                    "available": .bool(false),
-                    "permission": .string(permission),
-                    "power": .null,
-                    "devices": .array([]),
-                    "nearby": .array([]),
-                    "missing": .array([]),
-                ]),
-                trace,
-            )
-            return
+            return .object([
+                "available": .bool(false),
+                "permission": .string(permission),
+                "power": .null,
+                "devices": .array([]),
+                "nearby": .array([]),
+                "missing": .array([]),
+            ])
         }
         let batteries = hidBatteries()
         let devices = (IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []).compactMap { device -> JSON? in
@@ -265,21 +268,21 @@ final class BluetoothTopic: NSObject, TopicFeed {
             ])
         }
         let power = IOBluetoothHostController.default()?.powerState
-        publish(.object([
+        return .object([
             "available": .bool(true), "permission": .string(permission),
             "power": power.map { .bool($0 == kBluetoothHCIPowerStateON) } ?? .null,
-            "devices": .array(devices), "nearby": .array(BluetoothDiscovery.shared.nearby),
+            "devices": .array(devices), "nearby": .array(nearby),
             "missing": .array(BluetoothPower.missing.map(JSON.string)),
-        ]), trace)
+        ])
     }
 
-    private func battery(_ device: IOBluetoothDevice) -> Int? {
+    private nonisolated static func battery(_ device: IOBluetoothDevice) -> Int? {
         let percents: BluetoothBatteryPercents = device
         let levels = [percents.batteryPercentSingle, percents.batteryPercentCombined, percents.batteryPercentLeft, percents.batteryPercentRight]
         return levels.compactMap(\.self).first { $0 > 0 }.map(Int.init)
     }
 
-    private func hidBatteries() -> [String: Int] {
+    private nonisolated static func hidBatteries() -> [String: Int] {
         var iterator = io_iterator_t()
         guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("AppleDeviceManagementHIDEventService"), &iterator) == KERN_SUCCESS
         else { return [:] }
