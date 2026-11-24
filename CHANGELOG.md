@@ -19,7 +19,7 @@
 
 ### Faster and lighter
 
-- Gary with every plugin loaded uses about 35 MB instead of 40 MB.
+- Gary with every plugin loaded uses about 33 MB instead of 40 MB.
 
 ### Fixes
 

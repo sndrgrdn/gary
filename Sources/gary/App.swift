@@ -2,10 +2,14 @@ import AppKit
 import GaryCore
 import JavaScriptCore
 
+private nonisolated let garbageMarkersKey = "JSC_numberOfGCMarkers"
+
 func runApp() -> Int32 {
     unsetenv(spaceEfficientMallocKey)
+    setenv(garbageMarkersKey, "1", 0)
     JSStringRelease(JSStringCreateWithUTF8CString("gary"))
     unsetenv(systemMallocKey)
+    unsetenv(garbageMarkersKey)
     setvbuf(stdout, nil, _IOLBF, 0)
     setvbuf(stderr, nil, _IOLBF, 0)
     guard holdLock(appLockPath) else {

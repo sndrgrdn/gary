@@ -54,6 +54,7 @@ final nonisolated class PluginEngine: @unchecked Sendable {
         }
         context.exceptionHandler = { _, value in log("gary:effect: \(value?.toString() ?? "unknown exception")") }
         effectLibrary = library
+        queue.async { [weak self] in self?.dropCode() }
         return library
     }
 
