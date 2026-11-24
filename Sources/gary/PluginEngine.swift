@@ -41,10 +41,12 @@ final nonisolated class PluginEngine: @unchecked Sendable {
         context.name = "gary:effect"
         var failure: String?
         context.exceptionHandler = { _, value in failure = value?.toString() ?? "unknown exception" }
-        do {
-            try context.evaluateScript(String(contentsOf: effectScript, encoding: .utf8), withSourceURL: effectScript)
-        } catch {
-            throw RenderError("cannot load gary:effect from \(effectScript.path): \(error.localizedDescription)")
+        if !gary_evaluate_mapped(context, effectScript) {
+            do {
+                try context.evaluateScript(String(contentsOf: effectScript, encoding: .utf8), withSourceURL: effectScript)
+            } catch {
+                throw RenderError("cannot load gary:effect from \(effectScript.path): \(error.localizedDescription)")
+            }
         }
         let library = context.objectForKeyedSubscript("GaryEffect")?.objectForKeyedSubscript("forPlugin")
         guard failure == nil, let library, library.isObject else {

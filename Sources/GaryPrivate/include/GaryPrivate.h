@@ -44,5 +44,6 @@ typedef bool (*GaryShouldTerminate)(JSContextRef context, void *_Nullable info);
 
 bool gary_script_time_limit(JSGlobalContextRef context, double seconds, GaryShouldTerminate callback, void *_Nullable info);
 bool gary_drop_compiled_code(JSGlobalContextRef context);
+bool gary_evaluate_mapped(JSContext *context, NSURL *file);
 
 NS_ASSUME_NONNULL_END

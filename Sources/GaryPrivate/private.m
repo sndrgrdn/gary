@@ -89,3 +89,22 @@ bool gary_drop_compiled_code(JSGlobalContextRef context)
     release();
     return true;
 }
+
+@interface GaryMappedScript : NSObject
++ (nullable instancetype)scriptOfType:(NSInteger)type memoryMappedFromASCIIFile:(NSURL *)file withSourceURL:(NSURL *)source andBytecodeCache:(nullable NSURL *)cache inVirtualMachine:(JSVirtualMachine *)machine error:(out NSError **)error;
+@end
+
+@interface JSContext (GaryMappedScript)
+- (JSValue *)evaluateJSScript:(id)script;
+@end
+
+bool gary_evaluate_mapped(JSContext *context, NSURL *file)
+{
+    Class scripts = NSClassFromString(@"JSScript");
+    if (![scripts respondsToSelector:@selector(scriptOfType:memoryMappedFromASCIIFile:withSourceURL:andBytecodeCache:inVirtualMachine:error:)]) return false;
+    if (![context respondsToSelector:@selector(evaluateJSScript:)]) return false;
+    id script = [scripts scriptOfType:0 memoryMappedFromASCIIFile:file withSourceURL:file andBytecodeCache:nil inVirtualMachine:context.virtualMachine error:nil];
+    if (!script) return false;
+    [context evaluateJSScript:script];
+    return true;
+}
