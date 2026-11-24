@@ -51,7 +51,10 @@ struct VisionTests {
         #expect(try await harness.text() == "0")
         harness.runtime.perform(path, .null)
         let text = try await result(harness)
-        withKnownIssue("A paravirtualized Mac on macOS 27 has no text recognition model that runs: Vision fails on its GPU and its CPU", isIntermittent: true) {
+        withKnownIssue(
+            "A paravirtualized Mac on macOS 27 has no text recognition model that runs: Vision fails on its GPU and its CPU",
+            isIntermittent: true,
+        ) {
             #expect(text == "\"Gary reads this\"")
         } when: {
             isVirtualMachine
