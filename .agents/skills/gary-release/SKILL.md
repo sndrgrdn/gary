@@ -18,5 +18,5 @@ description: Release a new Gary version. Use when asked to cut, ship, or publish
 4. Pick the version. Before 1.0, a release with features or upgrade steps bumps the minor version, and a release with only fixes bumps the patch version.
 5. Show the user the version and the final `## Unreleased` section verbatim, and the docs you checked. Get approval for that version and those notes.
 6. Commit the changelog and doc fixes, and push them to `main`. Wait for CI to pass on that commit.
-7. Run `just release <version>` from a clean `main`. After a failure, run the same command again.
-8. Confirm that `gh release view v<version>` shows the notes and both assets, and that the cask in `../homebrew-tap/Casks/gary.rb` names the version.
+7. Run `just release <version>` from a clean `main`. It needs the Developer ID Application certificate and the `GaryNotary` notarytool profile in the keychain. `just package <version>` builds, notarizes, and writes `dist/` without publishing. After a failure, run the same command again; it reuses the `Release <version>` commit and a published release only retries the tap.
+8. Confirm that `gh release view v<version>` shows the notes and the zip, checksum, and cask, and that `gh api repos/sndrgrdn/homebrew-tap/contents/Casks/gary.rb -q .content | base64 -d` names the version.

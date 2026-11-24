@@ -22,7 +22,7 @@ You need:
 | `just install` | Bundles Gary, installs it in `~/Applications/Gary.app`, links `~/.local/bin/gary`, and restarts Gary. |
 | `just kill`    | Stops the running Gary.                                                                               |
 
-Set `IDENTITY` to the name of your certificate for `just bundle` and `just install`. It defaults to `Developer ID Application: Sander Tuin (8U24BL7PPN)`, the certificate that signs releases. Install Gary in `~/Applications` with `just install` while you work on it, so that macOS keeps its permission grants across rebuilds.
+Set `IDENTITY` to the name of your certificate for `just bundle` and `just install`. It defaults to `Sander Local Signing`. Install Gary in `~/Applications` with `just install` while you work on it, so that macOS keeps its permission grants across rebuilds.
 
 ## Check a change
 

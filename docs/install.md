@@ -40,7 +40,7 @@ You need Xcode with Swift 6.2, [`just`](https://github.com/casey/just), and a co
 IDENTITY="<your certificate name>" just install
 ```
 
-`just install` builds a release bundle, copies it to `~/Applications/Gary.app`, links `~/.local/bin/gary`, and restarts Gary if it was running. It does not turn on start at login, so run `gary login on` for that. `IDENTITY` defaults to the Developer ID certificate that signs releases, which only its owner has. [Develop Gary](development.md) covers the other build commands.
+`just install` builds a release bundle, copies it to `~/Applications/Gary.app`, links `~/.local/bin/gary`, and restarts Gary if it was running. It does not turn on start at login, so run `gary login on` for that. `IDENTITY` defaults to `Sander Local Signing`. [Develop Gary](development.md) covers the other build commands.
 
 ## First run
 
