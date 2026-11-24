@@ -5,8 +5,6 @@ description: Release a new Gary version. Use when asked to cut, ship, or publish
 
 # Release Gary
 
-The Release section of `docs/development.md` is the procedure and holds the changelog rules. Read it first.
-
 1. Review the delta since the newest tag:
 
    ```sh
@@ -16,7 +14,7 @@ The Release section of `docs/development.md` is the procedure and holds the chan
    ```
 
 2. Check the docs against the delta. For every changed capability, node, style, config key, command, or default, search `README.md`, `docs/`, and the agent guide in `Sources/gary/SkillGuide.swift` and `Sources/gary/SkillReference.swift`. Fix stale text before you write notes.
-3. Make `## Unreleased` in `CHANGELOG.md` cover the delta, grouped by user-facing area, with `### Upgrading` first and `### Fixes` last. Check each API name against `gary plugin types`.
+3. Make `## Unreleased` in `CHANGELOG.md` cover the delta, grouped by user-facing area, with `### Upgrading` first and `### Fixes` last. Write for the people who use Gary or write plugins: what they can now do, what changed for them, and what they must change. Leave out refactors, tests, CI, and tooling. Check each API name against `gary plugin types`.
 4. Pick the version. Before 1.0, a release with features or upgrade steps bumps the minor version, and a release with only fixes bumps the patch version.
 5. Show the user the version and the final `## Unreleased` section verbatim, and the docs you checked. Get approval for that version and those notes.
 6. Commit the changelog and doc fixes, and push them to `main`. Wait for CI to pass on that commit.

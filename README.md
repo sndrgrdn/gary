@@ -145,7 +145,7 @@ Copy any of these with `gary plugin new you.<name> --from <example>`.
 | [Configure the shell](docs/configuration.md)         | `shell.json`: the bar's sections, enabled plugins, plugin settings, and packages.      |
 | [Themes](docs/themes.md)                             | `palette.toml` and `theme.json`: colors, styles, fonts, spacing, and the bar.          |
 | [Packages](docs/packages.md)                         | Installing, updating, and publishing plugins from git, npm, or a folder.               |
-| [Develop Gary](docs/development.md)                  | Building, testing, and releasing Gary itself.                                          |
+| [Develop Gary](docs/development.md)                  | Building and testing Gary itself.                                                         |
 
 `gary help` lists every command. `gary skill show <topic>` prints the full reference for your version, such as `gary skill show manifest` or `gary skill show audio`.
 
