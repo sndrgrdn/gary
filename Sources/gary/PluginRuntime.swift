@@ -308,6 +308,7 @@ private extension PluginRuntime {
         }
         context.setObject(host, forKeyedSubscript: "host" as NSString)
         try installTimers(in: context)
+        try check(in: context) { context.evaluateScript(PluginScripts.textCodec)?.call(withArguments: []) }
         try check(in: context) { context.evaluateScript(PluginScripts.jsx)?.call(withArguments: []) }
         var factories: [String: JSValue] = [:]
         for module in modules {

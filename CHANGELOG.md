@@ -16,6 +16,7 @@
 - `fetch` takes an optional second argument with a `method`, `headers`, and a `body`, so a plugin can call an API that needs an `Authorization` header or a POST.
 - `host.spawn` ends a line at a carriage return as well as a newline, so a command that redraws a progress line, such as `networkQuality` under `script`, delivers each update. A CR LF pair still ends one line.
 - `onKey` and `gary key` name the function keys `f1` to `f20`, and hotkeys take the `onKey` names `backspace`, `home`, `end`, `pageup`, and `pagedown`.
+- Every plugin has `TextEncoder` and `TextDecoder` for UTF-8, and `gary plugin types` declares them, so `new TextEncoder().encode(text)` type-checks and runs without importing `gary:effect`.
 
 ### Faster and lighter
 

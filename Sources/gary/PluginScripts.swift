@@ -134,6 +134,68 @@ nonisolated enum PluginScripts {
     })
     """
 
+    static let textCodec = """
+    (function () {
+      var replacement = 0xfffd;
+      function encodeCodePoint(code, bytes) {
+        if (code < 0x80) bytes.push(code);
+        else if (code < 0x800) bytes.push(0xc0 | (code >> 6), 0x80 | (code & 63));
+        else if (code < 0x10000) bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63));
+        else bytes.push(0xf0 | (code >> 18), 0x80 | ((code >> 12) & 63), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63));
+      }
+      class TextEncoder {
+        encoding = "utf-8";
+        encode(input = "") {
+          var bytes = [];
+          for (var char of input) {
+            var code = char.codePointAt(0);
+            encodeCodePoint(code >= 0xd800 && code <= 0xdfff ? replacement : code, bytes);
+          }
+          return new Uint8Array(bytes);
+        }
+      }
+      function sequenceLength(lead) {
+        if (lead < 0x80) return 0;
+        if (lead >= 0xc2 && lead < 0xe0) return 1;
+        if (lead >= 0xe0 && lead < 0xf0) return 2;
+        if (lead >= 0xf0 && lead < 0xf5) return 3;
+        return -1;
+      }
+      class TextDecoder {
+        encoding = "utf-8";
+        constructor(label = "utf-8", options = {}) {
+          this.fatal = options.fatal === true;
+        }
+        decode(input) {
+          if (input === undefined) return "";
+          var bytes = ArrayBuffer.isView(input) ? new Uint8Array(input.buffer, input.byteOffset, input.byteLength) : new Uint8Array(input);
+          var out = "", index = 0;
+          while (index < bytes.length) {
+            var need = sequenceLength(bytes[index]);
+            var code = need <= 0 ? bytes[index] : bytes[index] & (0x7f >> (need + 1));
+            var valid = need >= 0 && index + need < bytes.length;
+            for (var offset = 1; valid && offset <= need; offset++) {
+              var next = bytes[index + offset];
+              valid = (next & 0xc0) === 0x80;
+              code = (code << 6) | (next & 63);
+            }
+            if (!valid || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) {
+              if (this.fatal) throw new TypeError("The encoded data was not valid utf-8");
+              out += String.fromCodePoint(replacement);
+              index += 1;
+              continue;
+            }
+            out += String.fromCodePoint(code);
+            index += need + 1;
+          }
+          return out;
+        }
+      }
+      globalThis.TextEncoder = TextEncoder;
+      globalThis.TextDecoder = TextDecoder;
+    })
+    """
+
     static let timers = """
     (function (add, clear) {
       function timer(repeats) {

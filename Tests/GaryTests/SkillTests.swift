@@ -100,6 +100,27 @@ private let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().a
         #expect(errors == nil, "\(errors ?? "")")
     }
 
+    @Test func `a plugin that encodes and decodes UTF-8 with TextEncoder and TextDecoder type checks and runs`() async throws {
+        let source = """
+        const bytes = new TextEncoder().encode("é");
+        export default {
+          render: () => ({ type: "text", text: Array.from(bytes).join(",") + " " + new TextDecoder().decode(bytes) }),
+        };
+        """
+        let folder = FileManager.default.temporaryDirectory.appending(path: "gary-text-codec-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let declarations = PluginTypes.declarations(capabilities: [], topics: [], published: "Json", theme: nil)
+        try Data(declarations.utf8).write(to: folder.appending(path: "gary.d.ts"))
+        try Data(PluginScaffold.tsconfig.utf8).write(to: folder.appending(path: PluginScaffold.tsconfigFile))
+        try Data(source.utf8).write(to: folder.appending(path: "main.ts"))
+        let errors = try typeCheck(folder)
+        #expect(errors == nil, "\(errors ?? "")")
+        let harness = try Harness(source)
+        #expect(try await harness.text() == "195,169 é")
+        harness.runtime.stop()
+    }
+
     private func typeCheck(_ folder: URL) throws -> String? {
         let check = Process()
         check.executableURL = root.appending(path: "node_modules/.bin/tsc")
