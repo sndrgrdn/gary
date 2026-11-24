@@ -106,3 +106,21 @@ public struct TrayItem: Equatable, Sendable {
         ])
     }
 }
+
+public struct AppStalls: Sendable {
+    public static let backoff: TimeInterval = 30
+    private var until: [Int32: TimeInterval]
+
+    public init() {
+        until = [:]
+    }
+
+    public func asks(_ pid: Int32, at now: TimeInterval) -> Bool {
+        until[pid].map { now >= $0 } ?? true
+    }
+
+    public mutating func timedOut(_ pid: Int32, at now: TimeInterval) {
+        until = until.filter { now < $0.value }
+        until[pid] = now + Self.backoff
+    }
+}

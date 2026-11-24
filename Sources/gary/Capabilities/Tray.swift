@@ -54,7 +54,8 @@ nonisolated extension Capability {
                 guard AXIsProcessTrusted() else { throw HostFailure(missingGrant(.accessibility, "the tray")) }
                 switch request {
                 case let .press(id, how):
-                    guard let item = try scan().first(where: { $0.id == id }) else { throw HostFailure("no tray item \(id)") }
+                    var stalls = AppStalls()
+                    guard let item = try scan(&stalls).first(where: { $0.id == id }) else { throw HostFailure("no tray item \(id)") }
                     guard case var .object(fields) = item.json(icon: nil) else { return .null }
                     fields["opened"] = try .bool(click(item.element.frame, how))
                     return .object(fields)
@@ -68,6 +69,7 @@ private final nonisolated class TrayTopic: TopicFeed, @unchecked Sendable {
     private let publish: @Sendable (JSON, Trace) -> Void
     private let timer = DispatchSource.makeTimerSource(queue: trayQueue)
     private var icons: Set<String> = []
+    private var stalls = AppStalls()
     private var presence: PresenceWatch?
 
     init(_ publish: @escaping @Sendable (JSON, Trace) -> Void) {
@@ -97,7 +99,7 @@ private final nonisolated class TrayTopic: TopicFeed, @unchecked Sendable {
         let items: [TrayItem]
         do {
             guard AXIsProcessTrusted() else { throw HostFailure(missingGrant(.accessibility, "the tray")) }
-            items = try scan()
+            items = try scan(&stalls)
         } catch {
             publish(.object(["available": .bool(false), "reason": .string("\(error)"), "items": .array([])]), Trace("tray"))
             return
@@ -128,19 +130,19 @@ nonisolated func children(_ element: AXUIElement, _ name: String = kAXChildrenAt
     attribute(element, name, as: [AXUIElement].self) ?? []
 }
 
-private nonisolated func frame(_ element: AXUIElement) -> CGRect {
+private nonisolated func frame(of element: AXUIElement, _ ask: (AXUIElement, String, AXValue.Type) -> AXValue?) -> CGRect {
     var origin = CGPoint.zero
     var size = CGSize.zero
-    if let position = attribute(element, kAXPositionAttribute, as: AXValue.self) {
+    if let position = ask(element, kAXPositionAttribute, AXValue.self) {
         AXValueGetValue(position, .cgPoint, &origin)
     }
-    if let extent = attribute(element, kAXSizeAttribute, as: AXValue.self) {
+    if let extent = ask(element, kAXSizeAttribute, AXValue.self) {
         AXValueGetValue(extent, .cgSize, &size)
     }
     return CGRect(origin: origin, size: size)
 }
 
-private nonisolated func scan() throws -> [TrayItem] {
+private nonisolated func scan(_ stalls: inout AppStalls) throws -> [TrayItem] {
     guard let agent = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MenuBarAgent").first else {
         throw HostFailure("MenuBarAgent is not running")
     }
@@ -152,12 +154,21 @@ private nonisolated func scan() throws -> [TrayItem] {
             guard let child = children(group).first else { continue }
             var pid: pid_t = 0
             AXUIElementGetPid(child, &pid)
+            func ask<Value>(_ element: AXUIElement, _ name: String, as _: Value.Type) -> Value? {
+                guard stalls.asks(pid, at: ProcessInfo.processInfo.systemUptime) else { return nil }
+                var value: CFTypeRef?
+                let error = AXUIElementCopyAttributeValue(element, name as CFString, &value)
+                if error == .cannotComplete {
+                    stalls.timedOut(pid, at: ProcessInfo.processInfo.systemUptime)
+                }
+                return error == .success ? value as? Value : nil
+            }
             let owner = NSRunningApplication(processIdentifier: pid)
-            let button = attribute(child, kAXRoleAttribute, as: String.self) == kAXButtonRole
+            let button = ask(child, kAXRoleAttribute, as: String.self) == kAXButtonRole
             elements.append(TrayElement(
-                frame: frame(group), app: owner?.bundleIdentifier ?? "pid:\(pid)", name: owner?.localizedName ?? "", pid: pid,
-                title: button ? attribute(child, kAXTitleAttribute, as: String.self) : nil,
-                detail: button ? attribute(child, kAXDescriptionAttribute, as: String.self) : nil,
+                frame: frame(of: group, ask), app: owner?.bundleIdentifier ?? "pid:\(pid)", name: owner?.localizedName ?? "", pid: pid,
+                title: button ? ask(child, kAXTitleAttribute, as: String.self) : nil,
+                detail: button ? ask(child, kAXDescriptionAttribute, as: String.self) : nil,
             ))
         }
     }

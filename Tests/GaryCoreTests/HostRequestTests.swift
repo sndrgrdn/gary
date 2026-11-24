@@ -219,6 +219,16 @@ struct TrayRequestTests {
         #expect(items[0].json(icon: nil)["title"] == .string("2"))
     }
 
+    @Test func `an app that times out is not asked again until the backoff passes`() {
+        var stalls = AppStalls()
+        #expect(stalls.asks(7, at: 100))
+        stalls.timedOut(7, at: 100)
+        #expect(!stalls.asks(7, at: 100))
+        #expect(!stalls.asks(7, at: 100 + AppStalls.backoff - 1))
+        #expect(stalls.asks(8, at: 101))
+        #expect(stalls.asks(7, at: 100 + AppStalls.backoff))
+    }
+
     @Test func `an item with an icon is bounded by its ink and one without by its frame`() {
         let item = TrayItem.merge([element(1239, "com.brnbw.dinky", title: "3")])[0]
         let bounds = { (json: JSON) in ["x", "y", "width", "height"].map { json[$0] } }
