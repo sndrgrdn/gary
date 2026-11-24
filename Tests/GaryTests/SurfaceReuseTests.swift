@@ -63,10 +63,25 @@ struct SurfaceReuseTests {
         }
 
         var picture: Data? {
+            bitmap?.representation(using: .png, properties: [:])
+        }
+
+        var bitmap: NSBitmapImageRep? {
             window.panel.makeFirstResponder(nil)
             guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return nil }
             view.cacheDisplay(in: view.bounds, to: bitmap)
-            return bitmap.representation(using: .png, properties: [:])
+            return bitmap
+        }
+
+        func diff(_ other: Shown) -> String {
+            guard let a = bitmap, let b = other.bitmap else { return "no bitmap" }
+            guard a.pixelsWide == b.pixelsWide, a.pixelsHigh == b.pixelsHigh else { return "size \(a.pixelsWide)x\(a.pixelsHigh) vs \(b.pixelsWide)x\(b.pixelsHigh)" }
+            var count = 0, minX = Int.max, minY = Int.max, maxX = 0, maxY = 0, sample = ""
+            for y in 0..<a.pixelsHigh { for x in 0..<a.pixelsWide {
+                let p = a.colorAt(x: x, y: y), q = b.colorAt(x: x, y: y)
+                if p != q { count += 1; minX = min(minX, x); minY = min(minY, y); maxX = max(maxX, x); maxY = max(maxY, y); if sample.isEmpty { sample = "\(x),\(y) \(String(describing: p)) vs \(String(describing: q))" } }
+            } }
+            return "size \(a.pixelsWide)x\(a.pixelsHigh) differing \(count) bbox \(minX),\(minY)-\(maxX),\(maxY) first \(sample) scroller \(NSScroller.preferredScrollerStyle.rawValue) views \(view.descendants(NSScroller.self).map { "\($0.frame) hidden=\($0.isHidden) alpha=\($0.alphaValue) knob=\($0.doubleValue)" })"
         }
     }
 
@@ -125,7 +140,7 @@ struct SurfaceReuseTests {
         #expect(reused.window.panel.alphaValue == 1)
         #expect(reused.field?.stringValue.isEmpty == true)
         #expect(reused.scrolled == fresh.scrolled)
-        #expect(reused.picture == fresh.picture)
+        #expect(reused.picture == fresh.picture, "\(reused.diff(fresh)) fresh: \(fresh.diff(reused))")
     }
 
     @Test(arguments: [#"{"width":300,"focusable":true}"#, #"{"width":300,"height":200,"focusable":true}"#])
@@ -179,7 +194,7 @@ struct SurfaceReuseTests {
         try reused.view.reopen(Self.tree("first"), theme: light)
         open(reused, light)
 
-        #expect(reused.picture == fresh.picture)
+        #expect(reused.picture == fresh.picture, "\(reused.diff(fresh))")
     }
 
     @Test func `a surface shown again before its hide finished stays on screen`() async throws {
