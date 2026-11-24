@@ -155,7 +155,7 @@ enum SystemState {
         posix_spawnattr_init(&attributes)
         posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_CLOEXEC_DEFAULT))
         posix_spawnattr_setpgroup(&attributes, 0)
-        let argv = ["gary-restore", "restore-after", String(getpid())].map { strdup($0) } + [nil]
+        let argv: [UnsafeMutablePointer<CChar>?] = ["gary-restore", "restore-after", String(getpid())].map { strdup($0) } + [nil]
         let status = posix_spawn(&watchdog, path, &actions, &attributes, argv, environ)
         for argument in argv {
             free(argument)
