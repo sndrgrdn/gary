@@ -71,7 +71,7 @@ CI also builds with warnings as errors: `swift build -Xswiftc -warnings-as-error
 | `examples/`            | The example plugins that Gary.app bundles.                                                                       |
 | `scripts/`             | Bundling, installing, releasing, vendoring, and benchmarks.                                                      |
 | `Vendor/`              | [mediaremote-adapter](https://github.com/ungive/mediaremote-adapter), for now playing.                           |
-| `tools/`               | The custom lint rules for TypeScript and Swift.                                                                  |
+| `tools/`               | The custom lint rules for TypeScript and Swift, and frame-bench.                                                 |
 | `docs/research/`       | Research notes written while designing Gary.                                                                     |
 
 ## Change what plugins see
@@ -85,4 +85,5 @@ CI also builds with warnings as errors: `swift build -Xswiftc -warnings-as-error
 
 - `scripts/memory.sh` runs private Gary instances and reports memory and CPU per scenario. `scripts/memory.sh gate` measures memory and speed together with every plugin from gary-plugins loaded.
 - `scripts/bench/` holds the render and engine benchmarks. [`BASELINE.md`](../scripts/bench/BASELINE.md) and [`RESULTS.md`](../scripts/bench/RESULTS.md) record past runs.
+- `tools/frame-bench/frame-bench.py` runs a frame-pacing scenario several times against two or more bundled builds, alternating them, and reports the median and spread of `gary frames` hitch time per build. Pass `--instruments` to record the first run of each build with Instruments' Animation Hitches.
 - `scripts/rhythm.sh` measures alignment and spacing in a screenshot, in points.

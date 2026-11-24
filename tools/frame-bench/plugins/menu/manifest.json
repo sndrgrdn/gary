@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "bench.menu",
+  "name": "Bench menu",
+  "version": "0.1.0",
+  "kinds": ["menu"],
+  "entryPoints": { "menu": "menu.js" }
+}
