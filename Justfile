@@ -27,6 +27,9 @@ install: bundle
     ls -l ~/.local/bin/gary
     if $running; then open -g ~/Applications/Gary.app && echo "restarted Gary"; fi
 
+package version:
+    scripts/package-release.sh {{version}}
+
 release version:
     scripts/release.sh {{version}}
 

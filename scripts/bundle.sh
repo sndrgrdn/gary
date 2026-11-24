@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 VERSION="${VERSION:-0.1}"
 BUILD="${BUILD:-1}"
 IDENTITY="${IDENTITY:-Sander Local Signing}"
+TIMESTAMP="${TIMESTAMP:---timestamp=none}"
 CONFIG=release
 [[ "${1:-}" == "--debug" ]] && CONFIG=debug
 
@@ -39,6 +40,7 @@ ln -s Versions/Current/MediaRemoteAdapter "$ADAPTER/MediaRemoteAdapter"
 ln -s Versions/Current/Resources "$ADAPTER/Resources"
 cp Vendor/mediaremote-adapter/bin/mediaremote-adapter.pl Vendor/mediaremote-adapter/LICENSE "$APP/Contents/Resources/mediaremote-adapter/"
 
-codesign --force --options runtime --sign "$IDENTITY" "$ADAPTER"
-codesign --force --options runtime --sign "$IDENTITY" "$APP"
+sign() { codesign --force --options runtime "$TIMESTAMP" --sign "$IDENTITY" "$1"; }
+sign "$ADAPTER"
+sign "$APP"
 echo "built $APP ($CONFIG, $VERSION build $BUILD)"

@@ -52,7 +52,7 @@ gary onboarding
 
 `gary permissions` prints the same list in the terminal. macOS grants each permission to Gary itself, not to your terminal. [Capabilities and permissions](capabilities.md#permissions) lists which capability needs which permission.
 
-Gary is signed with a local certificate and is not notarized. If macOS says that it cannot verify the developer, open **System Settings > Privacy & Security** and click **Open Anyway**. Every release uses the same certificate, so macOS keeps your permission grants across updates.
+Gary is signed with a Developer ID certificate and notarized by Apple, so macOS opens it without a warning. Every release uses the same certificate, so macOS keeps your permission grants across updates.
 
 ## Teach your coding agent
 
