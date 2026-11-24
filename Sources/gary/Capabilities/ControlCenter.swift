@@ -37,8 +37,8 @@ nonisolated enum ControlCenter {
         guard let agent = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MenuBarAgent").first,
               let center = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.controlcenter").first
         else { throw HostFailure("Control Center is not running") }
+        AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 1)
         let app = AXUIElementCreateApplication(center.processIdentifier)
-        AXUIElementSetMessagingTimeout(app, 1)
         guard let extras = attribute(AXUIElementCreateApplication(agent.processIdentifier), "AXExtrasMenuBar", as: AXUIElement.self),
               let item = all(in: extras, where: { identifier($0) == menuExtra }).first
         else { throw HostFailure("Control Center is not in the menu bar") }

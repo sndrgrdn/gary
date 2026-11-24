@@ -131,8 +131,8 @@ private nonisolated func scan() throws -> [TrayItem] {
     guard let agent = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MenuBarAgent").first else {
         throw HostFailure("MenuBarAgent is not running")
     }
+    AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 1)
     let application = AXUIElementCreateApplication(agent.processIdentifier)
-    AXUIElementSetMessagingTimeout(application, 1)
     var elements: [TrayElement] = []
     for window in children(application, kAXWindowsAttribute) {
         for group in children(window) {
