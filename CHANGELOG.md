@@ -16,6 +16,7 @@
 - `fetch` takes an optional second argument with a `method`, `headers`, and a `body`, so a plugin can call an API that needs an `Authorization` header or a POST.
 - `host.spawn` ends a line at a carriage return as well as a newline, so a command that redraws a progress line, such as `networkQuality` under `script`, delivers each update. A CR LF pair still ends one line.
 - `onKey` and `gary key` name the function keys `f1` to `f20`, and hotkeys take the `onKey` names `backspace`, `home`, `end`, `pageup`, and `pagedown`.
+- `host.exec` takes an optional second argument with `stdin`, text that Gary writes to the command's stdin, so a plugin can hand a secret to a command such as `security -i` without putting it in the arguments or a temporary file.
 
 ### Faster and lighter
 
