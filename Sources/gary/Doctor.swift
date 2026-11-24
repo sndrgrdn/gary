@@ -47,6 +47,19 @@ struct DoctorRuntime {
     var enabled: [PluginManifest]
     var pluginStates: [(plugin: String, problem: String?)]
     var themePayload: JSON?
+    var supervised = isSupervised
+    var allocatorZones = mallocZoneNames()
+}
+
+private let systemAllocatorZone = "WebKit Using System Malloc"
+
+nonisolated func mallocZoneNames() -> [String] {
+    var addresses: UnsafeMutablePointer<vm_address_t>?
+    var count: UInt32 = 0
+    guard malloc_get_all_zones(mach_task_self_, nil, &addresses, &count) == KERN_SUCCESS, let addresses else { return [] }
+    return (0..<Int(count)).compactMap { index in
+        UnsafeMutablePointer<malloc_zone_t>(bitPattern: addresses[index]).flatMap { malloc_get_zone_name($0) }.map { String(cString: $0) }
+    }
 }
 
 struct Doctor {
@@ -85,6 +98,11 @@ struct Doctor {
         section("Private API")
         checkPrivateSymbols()
 
+        if let runtime {
+            section("Memory")
+            checkAllocator(runtime)
+        }
+
         section("Permissions")
         checkPermissions(runtime)
 
@@ -122,6 +140,16 @@ struct Doctor {
             } else {
                 fail("\(check.symbol) missing from \(check.library); \(check.feature) is off")
             }
+        }
+    }
+
+    private mutating func checkAllocator(_ runtime: DoctorRuntime) {
+        if runtime.allocatorZones.contains(systemAllocatorZone) {
+            ok("JavaScriptCore runs on the system allocator")
+        } else if runtime.supervised {
+            fail("JavaScriptCore runs on its own allocator, so Gary uses about 4 MB more; it started before Gary could set Malloc=1 for it")
+        } else {
+            info("JavaScriptCore runs on its own allocator, which uses about 4 MB more, since this Gary runs without its supervisor")
         }
     }
 

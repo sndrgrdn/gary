@@ -18,4 +18,16 @@ import Testing
         let report = Doctor.report(runtime, system: .dark, files: folder.files)
         #expect(report.contains("  FAIL  theme: colors.mine"))
     }
+
+    @Test func `flags a supervised Gary whose JavaScriptCore missed the system allocator`() {
+        let report = { (supervised: Bool, zones: [String]) in
+            Doctor.report(
+                DoctorRuntime(pid: 1, enabled: [], pluginStates: [], supervised: supervised, allocatorZones: zones),
+                system: .dark, files: folder.files,
+            )
+        }
+        #expect(report(true, ["DefaultMallocZone", "WebKit Using System Malloc"]).contains("  ok    JavaScriptCore runs on the system allocator"))
+        #expect(report(true, ["DefaultMallocZone", "WebKit Malloc"]).contains("  FAIL  JavaScriptCore runs on its own allocator"))
+        #expect(report(false, ["DefaultMallocZone"]).contains("  -     JavaScriptCore runs on its own allocator"))
+    }
 }
