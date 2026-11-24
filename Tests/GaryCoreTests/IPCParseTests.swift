@@ -88,6 +88,9 @@ struct IPCParseTests {
             (Invocation("frames", ["10"]), "frames takes no arguments, or --record and a number of seconds up to 60"),
             (Invocation("frames", ["--record", "61"]), "frames takes no arguments, or --record and a number of seconds up to 60"),
             (Invocation("frames", ["--record", "0"]), "frames takes no arguments, or --record and a number of seconds up to 60"),
+            (Invocation("trace", ["-1"]), "invalid trace cursor \"-1\""),
+            (Invocation("replay", [""]), "no topic values to replay"),
+            (Invocation("replay", [#"{"t":1,"topic":"battery"}"#]), "line 1 is not a JSON object with a number t, a string topic and a value"),
             (Invocation("key", ["gary.today/widget", "a"]), "unknown kind \"widget\"; use bar-widget, bar, panel, overlay, menu, service"),
         ]
         for (invocation, message) in cases {

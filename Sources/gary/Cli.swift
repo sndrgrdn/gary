@@ -3,9 +3,20 @@ import GaryCore
 import GarySocket
 
 func runCli(_ verb: String, _ arguments: [String]) -> Int32 {
+    if verb == "trace" {
+        return runTrace(arguments)
+    }
     var arguments = arguments
     if verb == "applyTheme", let path = arguments.first, !path.hasPrefix("{"), let text = try? String(contentsOfFile: path, encoding: .utf8) {
         arguments[0] = text
+    }
+    if verb == "replay", let path = arguments.first {
+        do {
+            arguments[0] = try String(contentsOfFile: path, encoding: .utf8)
+        } catch {
+            fputs("gary: cannot read \(path): \(error.localizedDescription)\n", stderr)
+            return 66
+        }
     }
     let watch = verb == "stats" && arguments.contains("--watch")
     arguments.removeAll { watch && $0 == "--watch" }

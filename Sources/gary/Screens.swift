@@ -191,6 +191,11 @@ final class Screens {
             return
         }
         let hadFocus = window.panel.isKeyWindow
+        TraceLog.note(
+            "hide",
+            TraceLog.applying,
+            ["plugin": TraceLog.slot(key.slot), "surface": .string(key.surface), "display": .string(key.display)],
+        )
         if key.slot.kind.isSurface {
             parked.park(key, ParkedMount(window: window, view: view), fade: fade(key.slot))
         } else {

@@ -35,7 +35,12 @@ extension Shell {
     }
 
     private func handle(_ request: Request, reply: @escaping (Response) -> Void) {
+        if case let .trace(cursor, values) = request {
+            reply(pollTrace(from: cursor, values: values))
+            return
+        }
         let trace = Trace("ipc-\(request.verb)")
+        TraceLog.note("ipc", trace.id, ["verb": .string(request.verb), "args": .array(request.arguments.map { .string(String($0.prefix(200))) })])
         switch request {
         case .ping:
             reply(.ok("pong"))
@@ -72,14 +77,56 @@ extension Shell {
                 guard case let .ok(text) = response, case let .string(string)? = try? JSON.parse(text) else { return reply(response) }
                 reply(.ok(string))
             }
+        case .frames, .trace, .replay:
+            diagnose(request, reply)
+        case .action, .key, .scroll, .hover, .click, .tree, .capture:
+            drive(request, reply)
+        }
+    }
+
+    private func pollTrace(from cursor: Int?, values: Bool) -> Response {
+        FrameLog.shared.watch(for: TraceLog.idle)
+        let polled = TraceLog.poll(from: cursor, values: values, hitches: FrameLog.shared.hitches(since:))
+        if cursor == nil {
+            hub.traceLatest(Trace("trace-start"))
+        }
+        return .ok(polled.text)
+    }
+
+    private func diagnose(_ request: Request, _ reply: @escaping (Response) -> Void) {
+        switch request {
         case let .frames(seconds?):
             let start = CACurrentMediaTime()
             FrameLog.shared.watch(for: seconds)
             DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { reply(.ok(FrameLog.shared.report(since: start))) }
         case .frames(nil):
             reply(.ok(FrameLog.shared.report(since: nil)))
-        case .action, .key, .scroll, .hover, .click, .tree, .capture:
-            drive(request, reply)
+        case let .replay(records, plugin):
+            replay(records, to: plugin, reply)
+        default:
+            break
+        }
+    }
+
+    private func replay(_ records: [TopicRecord], to plugin: PluginID?, _ reply: @escaping (Response) -> Void) {
+        if let plugin, !slots.values.contains(where: { $0.key.id == plugin && $0.isLive }) {
+            reply(.failure("\(plugin) is not loaded"))
+            return
+        }
+        let topics = Set(records.map(\.topic))
+        guard hub.beginReplay(topics, to: plugin) else {
+            reply(.failure("another replay is running"))
+            return
+        }
+        let start = DispatchTime.now()
+        for (index, record) in records.enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: start + record.time - records[0].time) { [hub] in
+                hub.replay(record.topic, record.value, Trace("replay"))
+                guard index == records.count - 1 else { return }
+                hub.endReplay()
+                let names = topics.map(\.description).sorted().joined(separator: ", ")
+                reply(.ok("replayed \(records.count) values of \(names) to \(plugin?.rawValue ?? "every subscriber")"))
+            }
         }
     }
 

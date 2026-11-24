@@ -13,10 +13,10 @@ actor PluginRuntime: Subscriber {
     private var functions: PluginFunctions?
     private var exception: String?
     private var state: StateText
-    private var timers: [Int: @Sendable () -> Void] = [:]
+    var timers: [Int: @Sendable () -> Void] = [:]
     let startTimer: StartTimer
     private var stops: [() -> Void] = []
-    private var nextTimer = 1
+    var nextTimer = 1
     private var replies: [Int: (method: String, reply: @Sendable (Response) -> Void)] = [:]
     private var nextReply = 1
     let initialScene: Scene
@@ -24,6 +24,7 @@ actor PluginRuntime: Subscriber {
     private var output = RuntimeOutput()
     private(set) var origin: CGRect?
     private var timings = Timings()
+    var entryTrace: UInt64 = 0
     nonisolated let metrics = PluginMetrics()
 
     init(
@@ -71,8 +72,11 @@ nonisolated extension PluginRuntime {
         onQueue { $0.start(trace) }
     }
 
-    func stop() {
-        onQueue { $0.teardown() }
+    func stop(_ trace: Trace? = nil) {
+        onQueue { runtime in
+            runtime.entryTrace = trace?.id ?? 0
+            runtime.teardown()
+        }
     }
 
     func setScene(_ scene: Scene, _ trace: Trace) {
@@ -100,6 +104,7 @@ nonisolated extension PluginRuntime {
 
 extension PluginRuntime {
     private func start(_ trace: Trace) {
+        entryTrace = trace.id
         let topics = hub.subscribe(self, to: bundle.manifest.subscriptions[kind] ?? [])
         let texts = Dictionary(uniqueKeysWithValues: topics.map { topic, value in (topic, timed(.encode) { state.set(topic, value) }) })
         do {
@@ -124,6 +129,7 @@ extension PluginRuntime {
     private func update(_ topic: Topic, _ value: JSON, _ trace: Trace) {
         let text = timed(.encode) { state.set(topic, value) }
         guard let functions else { return }
+        entryTrace = trace.id
         do {
             try announce(topic, text, to: functions)
             renderAll(trace)
@@ -145,6 +151,7 @@ extension PluginRuntime {
         unhandled: (@MainActor @Sendable () -> Void)?,
     ) {
         guard let functions else { return }
+        entryTrace = trace.id
         self.origin = origin
         defer { self.origin = nil }
         do {
@@ -165,6 +172,8 @@ extension PluginRuntime {
             reply(.failure("\(id) is not running"))
             return
         }
+        let trace = Trace("call")
+        entryTrace = trace.id
         let number = nextReply
         nextReply += 1
         replies[number] = (method, reply)
@@ -173,7 +182,7 @@ extension PluginRuntime {
         }
         do {
             try invoke(functions.call, .call, [method, encode(JSON.array(arguments.map(JSON.string))), done], [.jsParse, .handler])
-            renderAll(Trace("call"))
+            renderAll(trace)
         } catch {
             replies.removeValue(forKey: number)?.reply(.failure("\(error)"))
         }
@@ -181,9 +190,11 @@ extension PluginRuntime {
 
     private func renderAll(_ trace: Trace, always: Bool = false) {
         guard let functions else { return }
+        entryTrace = trace.id
         do {
             let next = try renderOutput(functions)
             let changed = timed(.compare) { next != output }
+            TraceLog.note("render", trace.id, ["plugin": TraceLog.slot(slot), "changed": .bool(changed)])
             guard always || changed else {
                 if tracing {
                     log("render plugin=\(id)/\(kind.rawValue) cause=\(trace.cause) unchanged \(traced(trace).timings.fields)")
@@ -253,6 +264,7 @@ extension PluginRuntime {
 
     func callBack(_ callback: JSValue, _ arguments: @autoclosure () -> [Any], _ trace: Trace, cause: EngineCause = .host) {
         guard isRunning else { return }
+        entryTrace = trace.id
         do {
             try invoke(callback, cause, arguments(), [.handler])
             renderAll(trace)
@@ -348,32 +360,6 @@ private extension PluginRuntime {
         }
     }
 
-    func installTimers(in context: JSContext) throws {
-        let add: @convention(block) (JSValue, Double, Bool) -> Int = { [weak self] callback, milliseconds, repeats in
-            self?.assumeIsolated { $0.addTimer(callback, milliseconds: milliseconds, repeats: repeats) } ?? 0
-        }
-        let clear: @convention(block) (Int) -> Void = { [weak self] id in
-            self?.assumeIsolated { $0.timers.removeValue(forKey: id)?() }
-        }
-        try check(in: context) { context.evaluateScript(PluginScripts.timers)?.call(withArguments: [add, clear]) }
-    }
-
-    func addTimer(_ callback: JSValue, milliseconds: Double, repeats: Bool) -> Int {
-        let id = nextTimer
-        nextTimer += 1
-        let interval = max(repeats ? 10 : 0, milliseconds.isFinite ? milliseconds : 0) / 1000
-        timers[id] = metrics.timer(repeats: repeats, startTimer(interval, repeats, queue) { [weak self] in
-            self?.assumeIsolated { runtime in
-                guard runtime.isRunning else { return }
-                if !repeats {
-                    runtime.timers.removeValue(forKey: id)?()
-                }
-                runtime.callBack(callback, [], Trace("timer"), cause: .timer)
-            }
-        })
-        return id
-    }
-
     @discardableResult
     func invoke(_ function: JSValue, _ cause: EngineCause, _ arguments: @autoclosure () -> [Any], _ stages: [Stage] = []) throws -> JSValue {
         var spent = Timings()
@@ -386,10 +372,18 @@ private extension PluginRuntime {
         defer { timings.merge(spent) }
         return try measure(stage, &spent, body)
     }
+}
 
+extension PluginRuntime {
     @discardableResult
     func check(in context: JSContext, _ cause: EngineCause = .load, _ body: () -> JSValue?) throws -> JSValue {
         exception = nil
+        let started = TraceLog.isOn ? TraceLog.uptime() : 0
+        defer { TraceLog.note(
+            "entry",
+            entryTrace,
+            ["plugin": TraceLog.slot(slot), "cause": .string("\(cause)"), "ms": TraceLog.milliseconds(since: started)],
+        ) }
         let result = try engine.run(id, in: context, cause, into: metrics, body)
         if let exception {
             throw RenderError(exception)

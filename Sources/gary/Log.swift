@@ -15,10 +15,12 @@ nonisolated func log(_ message: String) {
 nonisolated struct Trace {
     let cause: String
     let start: Double
+    let id: UInt64
     var timings = Timings()
 
     init(_ cause: String, start: Double = now()) {
         self.cause = cause
         self.start = start
+        id = TraceLog.cause(cause)
     }
 }

@@ -49,12 +49,20 @@ extension PluginRuntime {
 
     private func callPlugin(_ target: CallTarget, _ method: String, _ args: [String], _ resolve: JSValue, _ reject: JSValue) {
         metrics.hostCallStarted("host.call")
+        let note = HostCallNote(self, "host.call")
         deliver(self, .call(target, method: method, arguments: args) { [weak self] response in
             self?.metrics.hostCallFinished("host.call")
+            let trace = Trace("host.call")
+            let ok = if case .ok = response {
+                true
+            } else {
+                false
+            }
+            note.finished(trace, ok: ok)
             self?.onQueue { runtime in
                 switch response {
-                case let .ok(text): runtime.callBack(resolve, [text], Trace("host.call"))
-                case let .failure(message): runtime.callBack(reject, [message], Trace("host.call"))
+                case let .ok(text): runtime.callBack(resolve, [text], trace)
+                case let .failure(message): runtime.callBack(reject, [message], trace)
                 }
             }
         })

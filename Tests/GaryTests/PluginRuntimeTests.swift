@@ -3,19 +3,6 @@ import Foundation
 import GaryCore
 import Testing
 
-final class Listener: Subscriber, @unchecked Sendable {
-    private let lock = NSLock()
-    private var received: [JSON] = []
-
-    func receive(_: Topic, _ value: JSON, _: Trace) {
-        lock.withLock { received.append(value) }
-    }
-
-    var values: [JSON] {
-        lock.withLock { received }
-    }
-}
-
 let vendor = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../../Resources/vendor")
 
 let transpiler = Transpiler(

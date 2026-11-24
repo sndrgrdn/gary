@@ -1,7 +1,7 @@
 import Foundation
 import GaryCore
 
-struct SlotKey: Hashable, CustomStringConvertible {
+nonisolated struct SlotKey: Hashable, CustomStringConvertible {
     let id: PluginID
     let kind: PluginKind
     var description: String {

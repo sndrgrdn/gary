@@ -85,10 +85,13 @@ extension Shell {
     }
 
     func perform(_ effects: [PluginSlots<PluginRuntime>.Effect], _ trace: Trace) {
+        let outer = TraceLog.applying
+        TraceLog.applying = trace.id
+        defer { TraceLog.applying = outer }
         for effect in effects {
             switch effect {
             case let .start(runtime): runtime.load(trace)
-            case let .stop(runtime): runtime.stop()
+            case let .stop(runtime): runtime.stop(trace)
             case let .setScene(runtime, scene): runtime.setScene(scene, trace)
             case let .present(key, output): present(key, output, trace)
             case let .unmount(key, surface): screens.unmount(key, surface: surface)
@@ -141,8 +144,14 @@ extension Shell {
 
     private func present(_ slot: SlotKey, _ output: RuntimeOutput, _ trace: Trace) {
         var timings = trace.timings
+        let started = TraceLog.isOn ? TraceLog.uptime() : 0
         let changes = measure(.apply, &timings) { FrameLog.shared.record(.tree(slot.description)) { screens.present(slot, output) } }
         timings.merge(screens.commitFrame())
+        TraceLog.note("apply", trace.id, [
+            "plugin": TraceLog.slot(slot),
+            "changed": .number(Double(changes.values.count { $0 })),
+            "ms": TraceLog.milliseconds(since: started),
+        ])
         guard tracing else { return }
         let end = now()
         for (key, changed) in changes {

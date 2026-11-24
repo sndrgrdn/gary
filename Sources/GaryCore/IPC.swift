@@ -28,12 +28,17 @@ public enum Request: Equatable, Sendable {
     case tree(PluginID, kind: PluginKind)
     case capture(PluginID, kind: PluginKind, to: String)
     case frames(record: TimeInterval?)
+    case trace(from: Int?, values: Bool)
+    case replay([TopicRecord], to: PluginID?)
 
     public static let callTimeout: TimeInterval = 60
 
     public var timeout: TimeInterval {
         if case let .frames(seconds?) = self {
             return seconds + 5
+        }
+        if case let .replay(records, _) = self, let first = records.first, let last = records.last {
+            return last.time - first.time + 5
         }
         return verb == "call" ? Self.callTimeout + 1 : 5
     }
@@ -74,6 +79,10 @@ public enum Request: Equatable, Sendable {
         case "hover": return try hover(arguments)
         case "click": return try click(arguments)
         case "frames": return try frames(arguments)
+        case "trace": return try trace(arguments)
+        case "replay":
+            guard (1...2).contains(arguments.count) else { throw RequestError(description: "replay takes topic values and an optional plugin") }
+            return try .replay(TopicRecord.parse(lines: arguments[0]), to: arguments.dropFirst().first.map(plugin))
         case "capture":
             try expect(arguments, count: 2, for: verb)
             let (id, kind) = try slotWithKind(arguments[0], for: verb)
@@ -197,6 +206,15 @@ public enum Request: Equatable, Sendable {
         return .frames(record: seconds)
     }
 
+    private static func trace(_ arguments: [String]) throws -> Request {
+        let values = arguments.last == "--values"
+        let rest = values ? arguments.dropLast() : arguments[...]
+        guard rest.count <= 1 else { throw RequestError(description: "trace takes an optional cursor and --values") }
+        guard let raw = rest.first else { return .trace(from: nil, values: values) }
+        guard let cursor = Int(raw), cursor >= 0 else { throw RequestError(description: "invalid trace cursor \"\(raw)\"") }
+        return .trace(from: cursor, values: values)
+    }
+
     public var verb: String {
         switch self {
         case .ping: "ping"
@@ -221,6 +239,8 @@ public enum Request: Equatable, Sendable {
         case .tree: "tree"
         case .capture: "capture"
         case .frames: "frames"
+        case .trace: "trace"
+        case .replay: "replay"
         }
     }
 
@@ -241,6 +261,8 @@ public enum Request: Equatable, Sendable {
         case let .capture(id, kind, path): ["\(id)/\(kind.rawValue)", path]
         case let .click(id, kind, point): ["\(id)/\(kind.rawValue)", String(Double(point.x)), String(Double(point.y))]
         case let .frames(seconds): seconds.map { ["--record", String($0)] } ?? []
+        case let .trace(cursor, values): (cursor.map { [String($0)] } ?? []) + (values ? ["--values"] : [])
+        case let .replay(records, plugin): [records.map(\.json.text).joined(separator: "\n")] + (plugin.map { [$0.rawValue] } ?? [])
         }
     }
 
@@ -257,134 +279,6 @@ public enum Request: Equatable, Sendable {
         guard arguments.count == raw.count else { throw RequestError(description: "args must be strings") }
         return try parse(verb: verb, arguments: arguments)
     }
-}
-
-public extension Request {
-    static let usage: [CommandUsage] = [
-        CommandUsage("ping", "Check that Gary is running.", nil),
-        CommandUsage("quit", "Stop Gary and its crash supervisor, restoring the menu bar and Dock settings that plugins changed.", nil),
-        CommandUsage(
-            "summon <plugin>[:<surface>]",
-            "Load and show a plugin's panel, overlay or menu. Name a surface to show one other than main.",
-            "gary summon you.music:osd",
-        ),
-        CommandUsage(
-            "hide <plugin>[:<surface>]",
-            "Hide a plugin's surface, main unless named, and unload the plugin when no surface of its kind stays shown, unless it is keepLoaded.",
-            nil,
-        ),
-        CommandUsage("toggle <plugin>[:<surface>]", "Summon a hidden surface or hide a shown one.", nil),
-        CommandUsage("reloadPlugins [plugin]", "Reload one plugin, or every loaded plugin, from disk.", nil),
-        CommandUsage("rescanPlugins", "Find added and removed plugin directories.", nil),
-        CommandUsage("reloadConfig", "Re-read ~/.config/gary/shell.json.", nil),
-        CommandUsage(
-            "applyTheme [json]",
-            "Apply a theme override payload, or re-read the theme files.",
-            ##"gary applyTheme '{"colors": {"accent": "#ff8800"}}'"##,
-        ),
-        CommandUsage("listPlugins", "List every plugin with its state.", nil),
-        CommandUsage("doctor", "Report the version, private API, permissions, plugin and config problems, and other bars that are running.", nil),
-        CommandUsage(
-            "stats [plugin] [--watch]",
-            """
-            Print one JSON line per loaded plugin kind with what it costs since it loaded: engine CPU time, entries by cause, renders, \
-            timer fires in the last minute, live timers, pending host calls, the longest entry, entries stopped at the time limit, \
-            and the nodes, images, views and layers that Gary holds for it. With --watch, print them again every second.
-            """,
-            "gary stats you.weather --watch",
-        ),
-        CommandUsage(
-            "onboarding",
-            "Show the permissions window, which lists what the enabled plugins need, with a Grant button for each. Starts Gary if needed.",
-            nil,
-        ),
-        CommandUsage(
-            "permissions",
-            "List each macOS permission, whether Gary has it, and the capabilities and enabled plugins that need it. Starts Gary if needed.",
-            nil,
-        ),
-        CommandUsage(
-            "permissions request <name>",
-            "Show the macOS prompt for a permission, or open its System Settings pane where macOS has no prompt.",
-            "gary permissions request screen-recording",
-        ),
-        CommandUsage(
-            "call <plugin> <method> [args...]",
-            """
-            Call a method a plugin exports, loading it first if needed. Arguments arrive as strings. \
-            Gary waits up to 60 seconds for a method that returns a promise. \
-            A result that is not a string prints as JSON, and a thrown error or rejected promise prints its message and exits with status 1.
-            """,
-            "gary call you.weather forecast 3",
-        ),
-        CommandUsage(
-            "action <plugin>/<kind> <action> [payload]",
-            """
-            Click the shown node of a running kind whose action, rightAction or middleAction has this name, so onAction gets the node's frame \
-            as from a real click. Send any other action, such as an input's change, without a frame. The payload is an optional number or text.
-            """,
-            "gary action you.music/panel volume 0.5",
-        ),
-        CommandUsage(
-            "key <plugin>[/<kind>] <key>...",
-            """
-            Press keys in order, each named as onKey names it, as the user would. A key that the plugin holds as a hotkey, from its manifest \
-            or host.hotkeys, presses that hotkey. \
-            Any other key goes to the plugin's focused surface, where an input takes typed characters and onKey gets the rest.
-            """,
-            "gary key you.launcher s a f enter",
-        ),
-        CommandUsage(
-            "scroll <plugin>/<kind> [action] <dy> [--precise]",
-            """
-            Scroll by dy over the shown node with this action, or over the surface when no action is named, as the user would, so onScroll gets \
-            event.y = dy. A mouse wheel moves in lines; --precise makes a trackpad gesture in points, sent as a began and an ended event.
-            """,
-            "gary scroll you.music/bar-widget volume 3",
-        ),
-        CommandUsage(
-            "hover <plugin>/<kind> <hoverAction> [off]",
-            """
-            Move the pointer onto the shown node with this hoverAction, as the user would, so onAction gets the action with true, \
-            or with off move it away, so onAction gets false.
-            """,
-            "gary hover you.launcher/menu row:safari",
-        ),
-        CommandUsage(
-            "click <plugin>/<kind> <x> <y>",
-            """
-            Click with the left mouse button at a point of the shown surface, in points from its top left corner, as the user would, \
-            whether a node with an action, a node without one, or empty space is there.
-            """,
-            "gary click you.launcher/menu 10 10",
-        ),
-        CommandUsage(
-            "tree <plugin>/<kind>",
-            """
-            Print the shown nodes of a running kind as an outline: each node's type, key and text, then its frame in points from the top left \
-            of its surface, and its color, background, opacity, border and font as drawn now.
-            """,
-            "gary tree you.launcher/menu",
-        ),
-        CommandUsage(
-            "capture <plugin>/<kind> <file.png>",
-            """
-            Draw a running kind's shown surface into a PNG at the display's scale, without Screen Recording and without other windows. \
-            Blur and materials are left out, since macOS composites them later.
-            """,
-            "gary capture you.launcher/menu /tmp/launcher.png",
-        ),
-        CommandUsage(
-            "frames [--record <seconds>]",
-            """
-            Report frame pacing per display: frames, hitch time in ms per second against the display's refresh rate, frame time p50, p99 \
-            and max, and for each hitch the main-thread work inside it, such as a plugin's tree, layout, image decode or the Core Animation \
-            commit. Gary records frames only while a surface changes or animates. Without --record it summarizes the last 60 seconds; \
-            with --record it waits that many seconds and reports only them.
-            """,
-            "gary frames --record 10",
-        ),
-    ]
 }
 
 public enum ScrollDistance: Equatable, Sendable {

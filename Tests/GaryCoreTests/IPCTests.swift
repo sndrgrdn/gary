@@ -31,7 +31,9 @@ struct IPCTests {
             .action(today, kind: .barWidget, action: "toggle", payload: nil), .action(today, kind: .panel, action: "volume", payload: "0.5"),
             .key(today, kind: nil, keys: ["a", " ", "shift+tab"]), .key(today, kind: .menu, keys: ["enter"]),
             .scroll(today, kind: .panel, over: nil, by: .lines(3)), .scroll(today, kind: .barWidget, over: "volume", by: .points(-0.25)),
-            .frames(record: nil), .frames(record: 2.5),
+            .frames(record: nil), .frames(record: 2.5), .trace(from: nil, values: false), .trace(from: 42, values: true),
+            .replay([TopicRecord(time: 1.5, topic: .capability("battery"), value: .object(["percent": .number(15)]))], to: nil),
+            .replay([TopicRecord(time: 0, topic: .plugin(today), value: .string("a\nb"))], to: today),
         ]
         for request in requests {
             #expect(!request.line.contains("\n"))

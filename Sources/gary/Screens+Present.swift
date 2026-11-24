@@ -106,6 +106,11 @@ extension Screens {
             watchTopEdge(of: window.card) { [weak self] in self?.pointerReachedTop(key.display) }
         }
         window.show(fade: fade(key.slot))
+        TraceLog.note(
+            "show",
+            TraceLog.applying,
+            ["plugin": TraceLog.slot(key.slot), "surface": .string(key.surface), "display": .string(key.display)],
+        )
         if key.slot.kind.isSurface {
             let slotKey = key.slot
             window.panel.onScroll = { [weak self] event in self?.slots[slotKey]?.runtime?.scroll(event) }

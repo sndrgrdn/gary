@@ -185,6 +185,20 @@ final class FrameLog: NSObject {
         }.joined(separator: "\n\n")
     }
 
+    func hitches(since start: Double) -> [(time: Double, fields: [String: JSON])] {
+        displays.values.flatMap { display in
+            FrameSummary(display.frames.filter { $0.end > start }, spans: spans).hitches.map { hitch in
+                (hitch.frame.start, [
+                    "display": .string(display.name),
+                    "ms": .number((hitch.frame.duration * 1e6).rounded() / 1000),
+                    "missed": .number(Double(hitch.frame.missed)),
+                    "causes": .object(Dictionary(uniqueKeysWithValues: hitch.causes
+                            .map { ($0.work.label, .number(($0.seconds * 1e6).rounded() / 1000)) })),
+                ])
+            }
+        }
+    }
+
     private static func describe(_ display: Display, _ summary: FrameSummary, origin: Double) -> String {
         let head = "\(display.name) at \(display.rate) Hz"
         guard summary.frames > 0 else { return "\(head): no frames recorded, since no surface changed or animated" }

@@ -60,14 +60,17 @@ private nonisolated func load(_ request: FetchRequest, _ resolve: JSValue, _ rej
     }
     urlRequest.httpBody = request.body.map { Data($0.utf8) }
     plugin.metrics.hostCallStarted("fetch")
+    let note = HostCallNote(plugin, "fetch")
     fetchSession.dataTask(with: urlRequest) { [weak plugin] data, response, error in
         plugin?.metrics.hostCallFinished("fetch")
+        let trace = Trace("fetch")
+        note.finished(trace, ok: error == nil)
         plugin?.onQueue { runtime in
             if let error {
-                runtime.callBack(reject, [resolve.context.newError("fetch failed: \(error.localizedDescription)")], Trace("fetch"))
+                runtime.callBack(reject, [resolve.context.newError("fetch failed: \(error.localizedDescription)")], trace)
             } else {
                 let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                runtime.callBack(resolve, [["status": status, "text": String(decoding: data ?? Data(), as: UTF8.self)]], Trace("fetch"))
+                runtime.callBack(resolve, [["status": status, "text": String(decoding: data ?? Data(), as: UTF8.self)]], trace)
             }
         }
     }.resume()
