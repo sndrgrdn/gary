@@ -75,12 +75,29 @@ struct SurfaceReuseTests {
 
         func diff(_ other: Shown) -> String {
             guard let a = bitmap, let b = other.bitmap else { return "no bitmap" }
-            guard a.pixelsWide == b.pixelsWide, a.pixelsHigh == b.pixelsHigh else { return "size \(a.pixelsWide)x\(a.pixelsHigh) vs \(b.pixelsWide)x\(b.pixelsHigh)" }
-            var count = 0, minX = Int.max, minY = Int.max, maxX = 0, maxY = 0, sample = ""
-            for y in 0..<a.pixelsHigh { for x in 0..<a.pixelsWide {
-                let p = a.colorAt(x: x, y: y), q = b.colorAt(x: x, y: y)
-                if p != q { count += 1; minX = min(minX, x); minY = min(minY, y); maxX = max(maxX, x); maxY = max(maxY, y); if sample.isEmpty { sample = "\(x),\(y) \(String(describing: p)) vs \(String(describing: q))" } }
-            } }
+            guard a.pixelsWide == b.pixelsWide,
+                  a.pixelsHigh == b.pixelsHigh else { return "size \(a.pixelsWide)x\(a.pixelsHigh) vs \(b.pixelsWide)x\(b.pixelsHigh)" }
+            var count = 0
+            var minX = Int.max
+            var minY = Int.max
+            var maxX = 0
+            var maxY = 0
+            var sample = ""
+            for y in 0..<a.pixelsHigh {
+                for x in 0..<a.pixelsWide {
+                    let p = a.colorAt(x: x, y: y)
+                    let q = b.colorAt(x: x, y: y)
+                    if p !=
+                        q
+                    {
+                        count += 1; minX = min(minX, x); minY = min(minY, y); maxX = max(maxX, x); maxY = max(maxY, y); if sample
+                            .isEmpty
+                        {
+                            sample = "\(x),\(y) \(String(describing: p)) vs \(String(describing: q))"
+                        }
+                    }
+                }
+            }
             return "size \(a.pixelsWide)x\(a.pixelsHigh) differing \(count) bbox \(minX),\(minY)-\(maxX),\(maxY) first \(sample) scroller \(NSScroller.preferredScrollerStyle.rawValue) views \(view.descendants(NSScroller.self).map { "\($0.frame) hidden=\($0.isHidden) alpha=\($0.alphaValue) knob=\($0.doubleValue)" })"
         }
     }
