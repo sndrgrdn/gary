@@ -14,15 +14,35 @@ You need:
 
 ## Build and run
 
-| Command        | Does                                                                                                  |
-| -------------- | ----------------------------------------------------------------------------------------------------- |
-| `just build`   | Builds the debug binary with `swift build`.                                                           |
-| `just run`     | Stops the running Gary, builds a debug `build/Gary.app`, and runs it in the foreground with its log.  |
-| `just bundle`  | Builds a signed release `build/Gary.app`. Pass `--debug` for a debug build.                           |
-| `just install` | Bundles Gary, installs it in `~/Applications/Gary.app`, links `~/.local/bin/gary`, and restarts Gary. |
-| `just kill`    | Stops the running Gary.                                                                               |
+| Command         | Does                                                                                                  |
+| --------------- | ----------------------------------------------------------------------------------------------------- |
+| `just build`    | Builds the debug binary with `swift build`.                                                           |
+| `just run`      | Stops the running Gary, builds a debug `build/Gary.app`, and runs it in the foreground with its log.  |
+| `just bundle`   | Builds a signed release `build/Gary.app`. Pass `--debug` for a debug build.                           |
+| `just install`  | Bundles Gary, installs it in `~/Applications/Gary.app`, links `~/.local/bin/gary`, and restarts Gary. |
+| `just kill`     | Stops the running Gary.                                                                               |
+| `just isolated` | Builds a debug `build/Gary.app` and runs it next to your Gary, with its own home. See below.          |
 
 Set `IDENTITY` to the name of your certificate for `just bundle` and `just install`. It defaults to `Sander Local Signing`. Install Gary in `~/Applications` with `just install` while you work on it, so that macOS keeps its permission grants across rebuilds.
+
+## Run an isolated Gary
+
+`just isolated [home]` runs a second Gary next to the one you use, to test plugins, reproduce bugs, and measure, without touching your config or your running Gary. `home` defaults to `tmp/isolated`. The first run seeds it with a `shell.json` that puts the built-in battery and clock in the bar, and marks onboarding as seen. Put plugins in `<home>/.config/gary/plugins`. Stop it with Control-C.
+
+Two environment variables isolate any Gary, and `just isolated` sets both:
+
+| Variable           | Moves                                                                                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GARY_HOME`        | Everything Gary keeps under your home: `.config/gary`, `Library/Application Support/Gary`, `Library/Caches`, `Library/Logs/gary.log`, and installed skills. |
+| `GARY_RUNTIME_DIR` | The lock, the socket, the supervisor lock, and the temporary files of capabilities. It defaults to `$TMPDIR`.                                               |
+
+The `gary` command reaches the Gary whose socket is in `GARY_RUNTIME_DIR`. Use the one in the build, since an installed Gary may predate it:
+
+```sh
+GARY_RUNTIME_DIR="$PWD/tmp/isolated/run" build/Gary.app/Contents/MacOS/gary listPlugins
+```
+
+An isolated Gary leaves global hotkeys, the Hyper key, media keys, the Dock, and the menu bar to your Gary. It keeps the hotkeys its plugins declare for `gary key`, and `host.hyperkey`, `host.dock`, and `host.menubar.hide` throw. Set `GARY_ISOLATED_SYSTEM=1` to let it take them. The paths a plugin passes, such as `~/Pictures/a.png`, still resolve against your real home, as do the macOS databases Gary reads for Focus and notifications, `~/Applications`, and crash reports. Code in `Sources/` resolves the home and temporary folders only through `Paths`, and a SwiftLint rule enforces it.
 
 ## Check a change
 

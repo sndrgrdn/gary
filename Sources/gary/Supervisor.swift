@@ -2,14 +2,13 @@ import Foundation
 import GaryCore
 import ServiceManagement
 
-nonisolated let appLockPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("gary.lock")
-nonisolated let supervisorLockPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("gary-supervisor.lock")
 private nonisolated let supervisedKey = "GARY_SUPERVISED"
 nonisolated let spaceEfficientMallocKey = "MallocSpaceEfficient"
 nonisolated let systemMallocKey = "Malloc"
 nonisolated let isSupervised = ProcessInfo.processInfo.environment[supervisedKey] != nil
 
 nonisolated func holdLock(_ path: String) -> Bool {
+    try? FileManager.default.createDirectory(at: Paths.runtime, withIntermediateDirectories: true)
     let fd = open(path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
     guard fd >= 0 else { return false }
     guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
@@ -55,7 +54,7 @@ private final nonisolated class Child: @unchecked Sendable {
 
 nonisolated func runSupervisor() -> Int32 {
     setvbuf(stdout, nil, _IOLBF, 0)
-    guard holdLock(supervisorLockPath) else {
+    guard holdLock(Paths.supervisorLock) else {
         log("supervisor: another supervisor is running")
         return 0
     }

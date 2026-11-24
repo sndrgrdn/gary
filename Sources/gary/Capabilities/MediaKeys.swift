@@ -49,6 +49,7 @@ final nonisolated class MediaKeyTap: @unchecked Sendable {
     }
 
     func claim(_ claims: [MediaKey: [SlotKey]]) {
+        let claims = Paths.drivesSystem ? claims : [:]
         lock.withLock {
             self.claims = claims
             if claims.isEmpty, let tap {

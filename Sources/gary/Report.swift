@@ -32,7 +32,7 @@ private func environmentSummary() -> String {
 
 private func appSection(_ request: Request) -> String {
     do {
-        switch try Response.decode(line: requestLine(request.line, path: socketPath, timeout: 10)) {
+        switch try Response.decode(line: requestLine(request.line, path: Paths.socket, timeout: 10)) {
         case let .ok(list): return fenced(list)
         case let .failure(message): return "gary: \(message)"
         }
@@ -44,12 +44,12 @@ private func appSection(_ request: Request) -> String {
 }
 
 private func logSection() -> String {
-    guard let data = try? Data(contentsOf: logURL) else { return "No log at \(logURL.path)." }
+    guard let data = try? Data(contentsOf: Paths.log) else { return "No log at \(Paths.log.path)." }
     return fenced(String(decoding: data, as: UTF8.self).split(separator: "\n").suffix(100).joined(separator: "\n"))
 }
 
 private func crashReportsSection() -> String {
-    let folder = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Logs/DiagnosticReports")
+    let folder = Paths.userHome.appending(path: "Library/Logs/DiagnosticReports")
     let since = Date(timeIntervalSinceNow: -14 * 24 * 60 * 60)
     let reports = ((try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.contentModificationDateKey])) ?? [])
         .filter { $0.lastPathComponent.hasPrefix("gary") && $0.pathExtension == "ips" }

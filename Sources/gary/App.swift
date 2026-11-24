@@ -12,9 +12,12 @@ func runApp() -> Int32 {
     unsetenv(garbageMarkersKey)
     setvbuf(stdout, nil, _IOLBF, 0)
     setvbuf(stderr, nil, _IOLBF, 0)
-    guard holdLock(appLockPath) else {
+    guard holdLock(Paths.appLock) else {
         fputs("gary: already running\n", stderr)
         return ProcessExit.alreadyRunning
+    }
+    if Paths.isolated {
+        log("isolated: home \(Paths.home.path), runtime \(Paths.runtime.path), drives the system: \(Paths.drivesSystem)")
     }
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)

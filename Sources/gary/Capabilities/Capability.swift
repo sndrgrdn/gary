@@ -150,7 +150,11 @@ nonisolated struct HostFailure: Error, CustomStringConvertible {
     }
 }
 
-nonisolated let home = FileManager.default.homeDirectoryForCurrentUser.path
+nonisolated let home = Paths.userHome.path
+
+nonisolated func isolatedSystem(_ what: String) -> String {
+    "an isolated Gary leaves \(what) to the main Gary; start it with GARY_ISOLATED_SYSTEM=1 to take it"
+}
 
 nonisolated func missingGrant(_ permission: Permission, _ api: String) -> String {
     "\(api) needs \(permission.name) for Gary; run gary permissions request \(permission.rawValue)"
@@ -174,7 +178,7 @@ nonisolated extension HostCall {
 }
 
 nonisolated func pngFolder(_ folder: String) -> URL {
-    URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: "gary/\(folder)")
+    Paths.runtime.appending(path: "gary/\(folder)")
 }
 
 nonisolated func savePNG(_ data: Data, in folder: String) throws -> String {

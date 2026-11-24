@@ -62,7 +62,7 @@ nonisolated extension Capability {
 }
 
 private nonisolated struct Adapter {
-    static let artwork = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appending(path: "com.sndrgrdn.gary/nowplaying")
+    static let artwork = Paths.caches.appending(path: "com.sndrgrdn.gary/nowplaying")
 
     let script: URL
     let framework: URL

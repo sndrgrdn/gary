@@ -30,7 +30,7 @@ nonisolated extension Capability {
 }
 
 private final class FocusTopic: TopicFeed {
-    nonisolated static let directory = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/DoNotDisturb/DB")
+    nonisolated static let directory = Paths.userHome.appending(path: "Library/DoNotDisturb/DB")
     private let publish: @Sendable (JSON, Trace) -> Void
     private var observations: [Observation] = []
 

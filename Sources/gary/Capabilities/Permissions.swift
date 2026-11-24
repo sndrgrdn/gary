@@ -271,7 +271,7 @@ nonisolated extension Permission {
             default: return .denied
             }
         case .fullDiskAccess:
-            let home = FileManager.default.homeDirectoryForCurrentUser
+            let home = Paths.userHome
             let probes = [
                 "Library/Group Containers/group.com.apple.usernoted/db2/db",
                 "Library/Safari/Bookmarks.plist",

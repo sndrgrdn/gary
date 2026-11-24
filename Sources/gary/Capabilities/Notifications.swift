@@ -57,7 +57,7 @@ nonisolated extension Capability {
 }
 
 private nonisolated enum NotificationStore {
-    static let directory = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Group Containers/group.com.apple.usernoted/db2")
+    static let directory = Paths.userHome.appending(path: "Library/Group Containers/group.com.apple.usernoted/db2")
 
     struct Failure: Error {
         let reason: String

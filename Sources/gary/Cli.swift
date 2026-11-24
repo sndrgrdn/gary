@@ -2,8 +2,6 @@ import Foundation
 import GaryCore
 import GarySocket
 
-let socketPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("gary.sock")
-
 func runCli(_ verb: String, _ arguments: [String]) -> Int32 {
     var arguments = arguments
     if verb == "applyTheme", let path = arguments.first, !path.hasPrefix("{"), let text = try? String(contentsOfFile: path, encoding: .utf8) {
@@ -31,10 +29,10 @@ private func send(_ request: Request) -> Int32 {
     do {
         let line: String
         do {
-            line = try requestLine(request.line, path: socketPath, timeout: request.timeout + 5)
+            line = try requestLine(request.line, path: Paths.socket, timeout: request.timeout + 5)
         } catch SocketError.unreachable where request.verb == Request.permissions.verb || request == .summon(SurfaceAddress(.onboarding)) {
             try startApp()
-            line = try requestLine(request.line, path: socketPath, timeout: request.timeout + 5)
+            line = try requestLine(request.line, path: Paths.socket, timeout: request.timeout + 5)
         }
         switch try Response.decode(line: line) {
         case let .ok(result):
@@ -52,7 +50,7 @@ private func send(_ request: Request) -> Int32 {
     } catch where request == .quit {
         return awaitQuit("Gary is not running")
     } catch SocketError.unreachable {
-        fputs("gary: not running (\(socketPath))\n", stderr)
+        fputs("gary: not running (\(Paths.socket))\n", stderr)
         return 1
     } catch {
         fputs("gary: \(error)\n", stderr)
@@ -62,7 +60,7 @@ private func send(_ request: Request) -> Int32 {
 
 private func awaitQuit(_ done: String) -> Int32 {
     for _ in 0..<50 {
-        if !lockIsHeld(appLockPath), !lockIsHeld(supervisorLockPath) {
+        if !lockIsHeld(Paths.appLock), !lockIsHeld(Paths.supervisorLock) {
             print(done)
             return 0
         }
@@ -73,17 +71,17 @@ private func awaitQuit(_ done: String) -> Int32 {
 }
 
 private func startApp() throws {
-    guard Bundle.main.bundleIdentifier != nil else { throw SocketError.unreachable(socketPath) }
+    guard Bundle.main.bundleIdentifier != nil, !Paths.isolated else { throw SocketError.unreachable(Paths.socket) }
     fputs("gary: starting \(Bundle.main.bundlePath)\n", stderr)
     let open = try Process.run(URL(fileURLWithPath: "/usr/bin/open"), arguments: ["-g", Bundle.main.bundlePath])
     open.waitUntilExit()
     for _ in 0..<50 {
-        if (try? requestLine(Request.ping.line, path: socketPath, timeout: 1)) != nil {
+        if (try? requestLine(Request.ping.line, path: Paths.socket, timeout: 1)) != nil {
             return
         }
         Thread.sleep(forTimeInterval: 0.2)
     }
-    throw SocketError.unreachable(socketPath)
+    throw SocketError.unreachable(Paths.socket)
 }
 
 let appUsage: [CommandUsage] = [
@@ -118,7 +116,7 @@ func runUpdate(_ arguments: [String]) -> Int32 {
 }
 
 func runHelp() -> Int32 {
-    print("usage: gary <verb> [args], sent to the running app over \(socketPath)\n")
+    print("usage: gary <verb> [args], sent to the running app over \(Paths.socket)\n")
     for usage in Request.usage {
         printUsage(usage)
     }

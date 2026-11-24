@@ -262,7 +262,7 @@ struct Doctor {
 func doctorText() -> String {
     let onDisk = { Doctor.report(nil, system: Palette.Mode(NSApplication.shared.effectiveAppearance)) }
     do {
-        switch try Response.decode(line: requestLine(Request.doctor.line, path: socketPath, timeout: 10)) {
+        switch try Response.decode(line: requestLine(Request.doctor.line, path: Paths.socket, timeout: 10)) {
         case let .ok(report): return report
         case let .failure(message): return "gary: \(message)"
         }

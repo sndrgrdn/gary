@@ -15,6 +15,19 @@ run: kill
     scripts/bundle.sh --debug
     ./build/Gary.app/Contents/MacOS/gary
 
+isolated home="tmp/isolated":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p "{{home}}"
+    home="$(cd "{{home}}" && pwd)"
+    support="$home/Library/Application Support/Gary"
+    mkdir -p "$home/.config/gary/plugins" "$home/Library/Logs" "$support" "$home/run"
+    [[ -f "$home/.config/gary/shell.json" ]] || echo '{ "bar": { "right": ["gary.battery", "gary.clock"] } }' > "$home/.config/gary/shell.json"
+    [[ -f "$support/onboarding.json" ]] || echo '{ "missing": ["accessibility", "audio-capture", "automation", "bluetooth", "calendars", "full-disk-access", "location", "notifications", "screen-recording"] }' > "$support/onboarding.json"
+    scripts/bundle.sh --debug
+    echo "drive it with: GARY_RUNTIME_DIR=$home/run $PWD/build/Gary.app/Contents/MacOS/gary <verb>"
+    exec env GARY_HOME="$home" GARY_RUNTIME_DIR="$home/run" ./build/Gary.app/Contents/MacOS/gary
+
 install: bundle
     #!/usr/bin/env bash
     set -euo pipefail

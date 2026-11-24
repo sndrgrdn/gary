@@ -7,7 +7,7 @@ nonisolated struct HotkeyBinding: Hashable {
 }
 
 final class HotkeyCenter {
-    private var registered: [HotkeyBinding: (number: UInt32, ref: EventHotKeyRef)] = [:]
+    private var registered: [HotkeyBinding: (number: UInt32, ref: EventHotKeyRef?)] = [:]
     private var owners: [UInt32: HotkeyBinding] = [:]
     private var nextNumber: UInt32 = 1
     private var handler: EventHandlerRef?
@@ -43,7 +43,9 @@ final class HotkeyCenter {
     func update(_ wanted: [HotkeyBinding]) {
         let keep = Set(wanted)
         for (binding, entry) in registered where !keep.contains(binding) {
-            UnregisterEventHotKey(entry.ref)
+            if let ref = entry.ref {
+                UnregisterEventHotKey(ref)
+            }
             owners[entry.number] = nil
             registered[binding] = nil
         }
@@ -56,23 +58,26 @@ final class HotkeyCenter {
             var ref: EventHotKeyRef?
             let number = nextNumber
             nextNumber += 1
-            let status = RegisterEventHotKey(
-                binding.hotkey.keys.keyCode,
-                UInt32(binding.hotkey.keys.modifiers.held.reduce(0) { $0 | $1.carbonFlag }),
-                EventHotKeyID(signature: OSType(0x4761_7279), id: number),
-                GetEventDispatcherTarget(),
-                0,
-                &ref,
-            )
-            guard status == noErr, let ref else {
-                let reason = status == eventHotKeyExistsErr ? "is already taken by another app" : "could not be registered (\(status))"
-                log("hotkey \(binding.hotkey.keys) of \(binding.owner) \(reason)")
-                continue
+            if Paths.drivesSystem {
+                let status = RegisterEventHotKey(
+                    binding.hotkey.keys.keyCode,
+                    UInt32(binding.hotkey.keys.modifiers.held.reduce(0) { $0 | $1.carbonFlag }),
+                    EventHotKeyID(signature: OSType(0x4761_7279), id: number),
+                    GetEventDispatcherTarget(),
+                    0,
+                    &ref,
+                )
+                guard status == noErr, ref != nil else {
+                    let reason = status == eventHotKeyExistsErr ? "is already taken by another app" : "could not be registered (\(status))"
+                    log("hotkey \(binding.hotkey.keys) of \(binding.owner) \(reason)")
+                    continue
+                }
             }
             registered[binding] = (number, ref)
             owners[number] = binding
             taken[binding.hotkey.keys] = binding
-            log("hotkey \(binding.hotkey.keys) registered for \(binding.owner)/\(binding.hotkey.id)")
+            let scope = ref == nil ? ", for gary key only" : ""
+            log("hotkey \(binding.hotkey.keys) registered for \(binding.owner)/\(binding.hotkey.id)\(scope)")
         }
     }
 }

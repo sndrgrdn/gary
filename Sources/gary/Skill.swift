@@ -65,7 +65,7 @@ enum Skill {
     ]
 
     private static var homeURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser
+        Paths.home
     }
 
     private enum State: String {

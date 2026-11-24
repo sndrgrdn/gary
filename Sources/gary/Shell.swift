@@ -33,7 +33,7 @@ final class Shell {
         hotkeys = HotkeyCenter { [weak self] binding in self?.hotkeyPressed(binding) }
         HotkeyListeners.shared.changed = { [weak self] in self?.updateHotkeys() }
         mediaKeys = MediaKeyTap { [weak self] event, keys in self?.mediaKeyPressed(event, keys) }
-        server = try LineServer(path: socketPath) { [weak self] line in self?.serve(line) ?? Response.failure("shutting down").line }
+        server = try LineServer(path: Paths.socket) { [weak self] line in self?.serve(line) ?? Response.failure("shutting down").line }
         SystemState.restore()
         try FileManager.default.createDirectory(at: Paths.config, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: Paths.packages, withIntermediateDirectories: true)
@@ -84,7 +84,7 @@ final class Shell {
     func quit(_ status: Int32 = 0) {
         SystemState.restore(SystemState.saved)
         server?.stop()
-        unlink(socketPath)
+        unlink(Paths.socket)
         exit(status)
     }
 

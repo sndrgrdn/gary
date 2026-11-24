@@ -72,4 +72,6 @@ tail -f ~/Library/Logs/gary.log | grep --line-buffered 'plugin you.hello'
 - `gary plugin validate <folder>` runs the checks that Gary runs when it loads a plugin.
 - When `gary` prints `not running`, start Gary with `open -a Gary`.
 
+To test without touching the Gary you use, run `just isolated` from a checkout. It starts a second Gary with its own config, plugins, log, and socket, as [Develop Gary](development.md#run-an-isolated-gary) describes. It prints its log in the terminal, and `gary` reaches it when `GARY_RUNTIME_DIR` names its runtime folder.
+
 To run Gary in the foreground with its log in the terminal, quit it with `gary quit` and run `gary app`. macOS then checks your terminal's permissions instead of Gary's.

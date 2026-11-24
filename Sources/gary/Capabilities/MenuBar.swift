@@ -44,6 +44,7 @@ private final class MenuBar {
     private var hiders: Set<ObjectIdentifier> = []
 
     func hide(_ owner: ObjectIdentifier) throws {
+        guard Paths.drivesSystem else { throw HostFailure(isolatedSystem("the menu bar")) }
         if let missing = SkyLight.missing(SkyLight.menuBarSymbols) {
             throw HostFailure(missing)
         }

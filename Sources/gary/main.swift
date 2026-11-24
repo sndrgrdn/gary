@@ -1,7 +1,5 @@
 import Foundation
 
-let logURL = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Logs/gary.log")
-
 func stdoutIsDiscarded() -> Bool {
     var out = stat()
     var null = stat()
@@ -20,11 +18,11 @@ if !args.isEmpty, Bundle.main.bundleIdentifier == nil, let invoked = Bundle.main
 guard let verb = args.first else {
     if Bundle.main.bundleIdentifier != nil {
         if stdoutIsDiscarded() {
-            if (try? logURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) ?? 0 > 5_000_000 {
-                try? FileManager.default.removeItem(at: logURL)
+            if (try? Paths.log.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) ?? 0 > 5_000_000 {
+                try? FileManager.default.removeItem(at: Paths.log)
             }
             for stream in [stdout, stderr] {
-                freopen(logURL.path, "a", stream)
+                freopen(Paths.log.path, "a", stream)
             }
         }
         exit(runSupervisor())

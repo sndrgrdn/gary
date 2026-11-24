@@ -70,7 +70,8 @@ final nonisolated class HyperKeyTap: @unchecked Sendable {
     private nonisolated(unsafe) static let runLoop = runLoopThread("gary.hyperkey")
 
     func hold(_ options: HyperKey.Options) throws -> Int {
-        try lock.withLock {
+        guard Paths.drivesSystem else { throw HostFailure(isolatedSystem("the Hyper key")) }
+        return try lock.withLock {
             if tap == nil {
                 try start(options)
             } else {

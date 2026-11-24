@@ -50,6 +50,7 @@ private final class Dock {
     }
 
     func perform(_ request: DockRequest, by owner: ObjectIdentifier) throws -> JSON {
+        guard Paths.drivesSystem || request == .state else { throw HostFailure(isolatedSystem("the Dock")) }
         switch request {
         case let .reserve(reservation):
             if let missing = SkyLight.missing(SkyLight.dockSymbols) {

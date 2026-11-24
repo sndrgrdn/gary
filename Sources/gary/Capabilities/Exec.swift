@@ -356,7 +356,7 @@ private nonisolated func result(status: Int, stdout: String, stderr: String) -> 
 }
 
 private nonisolated func scratchFile() throws -> (writer: FileHandle, reader: FileHandle) {
-    let url = FileManager.default.temporaryDirectory.appending(path: "gary-exec-\(UUID().uuidString)")
+    let url = Paths.runtime.appending(path: "gary-exec-\(UUID().uuidString)")
     guard FileManager.default.createFile(atPath: url.path, contents: nil) else { throw HostFailure("cannot create \(url.path)") }
     defer { try? FileManager.default.removeItem(at: url) }
     return try (FileHandle(forWritingTo: url), FileHandle(forReadingFrom: url))
