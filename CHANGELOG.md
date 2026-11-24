@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New
+
+- `host.toast` takes a `glyph` in place of an SF Symbol `icon`, such as a Nerd Font glyph, drawn in the `toast-icon` style or in the theme font that `font` names, so a toast can match icons that plugins draw as text.
+
 ## 0.5.0
 
 ### Upgrading

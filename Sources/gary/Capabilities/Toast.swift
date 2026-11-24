@@ -6,15 +6,17 @@ nonisolated extension Capability {
     static let toast = Capability(
         name: "toast",
         summary: """
-        Show a toast: a card with a title, an optional body and SF Symbol icon, which Gary draws with the theme's \
+        Show a toast: a card with a title, an optional body and an optional icon, which Gary draws with the theme's \
         `toast`, `toast-title`, `toast-body`, and `toast-icon` styles at the top right of the display under the pointer. \
         Newer toasts stack above older ones, and Gary shows at most \(ToastStack.limit). A toast hides after `timeout` \
         seconds, \(Int(ToastRequest.defaultTimeout)) by default, or when the user clicks it, and the promise resolves with \
-        which. A `timeout` of 0 keeps it until the click.
+        which. A `timeout` of 0 keeps it until the click. The icon is either `icon`, an SF Symbol name, or `glyph`, text such \
+        as a Nerd Font glyph drawn in the `toast-icon` style's font, or in the theme font that `font` names.
         """,
         types: """
         declare namespace Gary {
-          type Toast = { title: string; body?: string; icon?: string; timeout?: number }
+          type Toast = { title: string; body?: string; timeout?: number }
+            & ({ icon?: string; glyph?: null; font?: null } | { icon?: null; glyph: string; font?: FontName })
           interface Host { toast(toast: Toast): Promise<"clicked" | "expired"> }
         }
         """,
@@ -28,6 +30,7 @@ nonisolated extension Capability {
             host.toast({ title: time, body: "Click to log it", icon: "clock" }).then((outcome) => {
               if (outcome === "clicked") host.log(`it was ${time}`);
             });
+            host.toast({ title: "Saved", glyph: "\\u{F0193}", font: "icon" });
           },
         } satisfies Gary.BarWidget;
         """,
@@ -62,7 +65,7 @@ final class ToastStack {
         if cards.isEmpty {
             screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
         }
-        let card = ToastCard(node: Self.node(request), theme: theme, finish: finish)
+        let card = ToastCard(node: Self.node(request, theme), theme: theme, finish: finish)
         card.onClick = { [weak self, weak card] in
             if let card {
                 self?.close(card, .clicked)
@@ -84,10 +87,24 @@ final class ToastStack {
         arrange()
     }
 
-    private static func node(_ request: ToastRequest) -> Node {
+    private static func node(_ request: ToastRequest, _ theme: Theme) -> Node {
         let lines = [Node(.text(request.title), style: "toast-title")] + (request.body.map { [Node(.text($0), style: "toast-body")] } ?? [])
-        let icon = request.icon.map { Node(.icon($0), style: "toast-icon") }
+        let icon = request.icon.map { node($0, theme) }
         return Node(.row([icon, Node(.column(lines), props: StyleProps(gap: 0))].compactMap(\.self)), style: "toast")
+    }
+
+    private static func node(_ icon: ToastRequest.Icon, _ theme: Theme) -> Node {
+        switch icon {
+        case let .symbol(symbol):
+            return Node(.icon(symbol), style: "toast-icon")
+        case let .glyph(glyph, font):
+            let look = theme.resolve("toast-icon", StyleProps(font: font))
+            return Node(
+                .text(glyph),
+                style: "toast-icon",
+                props: StyleProps(width: look.width ?? (look.font.size * 1.2).rounded(), align: .center, font: font),
+            )
+        }
     }
 
     private func close(_ card: ToastCard, _ outcome: ToastOutcome) {
