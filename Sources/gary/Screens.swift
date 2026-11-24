@@ -257,8 +257,12 @@ extension TreeHostingView {
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
-            tree.root = root
-            tree.theme = theme
+            if tree.root != root {
+                tree.root = root
+            }
+            if tree.theme != theme {
+                tree.theme = theme
+            }
             tree.opening += 1
         }
     }
