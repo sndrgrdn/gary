@@ -33,4 +33,12 @@ spctl --assess --type execute --verbose=1 "$APP"
 ditto -c -k --keepParent "$APP" "dist/$zip"
 (cd dist && shasum -a 256 "$zip" >"$zip.sha256")
 sed -e "s/@VERSION@/$version/" -e "s/@SHA256@/$(cut -d ' ' -f 1 "dist/$zip.sha256")/" scripts/gary.rb.template >dist/gary.rb
+! grep -q '@[A-Z0-9_]*@' dist/gary.rb || { echo "dist/gary.rb has an unfilled placeholder" >&2; exit 1; }
+
+echo "==> Checking the shipping zip"
+ditto -x -k "dist/$zip" "$tmp/unpacked"
+shipped="$tmp/unpacked/Gary.app"
+codesign --verify --deep --strict -R='anchor apple generic and certificate leaf[subject.OU] = "8U24BL7PPN" and identifier "com.sndrgrdn.gary"' "$shipped"
+[[ "$(spctl --assess --type execute --verbose=2 "$shipped" 2>&1)" == *"source=Notarized Developer ID"* ]] || { echo "Gatekeeper does not see a notarized Developer ID app in dist/$zip" >&2; exit 1; }
+[[ "$("$shipped/Contents/MacOS/gary" --version)" == "gary $version" ]] || { echo "the gary in dist/$zip does not report version $version" >&2; exit 1; }
 echo "==> dist/$zip ($(du -h "dist/$zip" | cut -f 1)), Gary $version build $(git rev-list --count HEAD)"

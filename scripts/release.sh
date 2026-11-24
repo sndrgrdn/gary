@@ -7,12 +7,17 @@ fail() { echo "release: $*" >&2; exit 1; }
 
 update_tap() (
     checkout="$(mktemp -d)"
-    trap 'rm -rf "$checkout"' EXIT
+    trap 'brew untap -q sndrgrdn/release-check >/dev/null 2>&1 || true; rm -rf "$checkout"' EXIT
     git clone --quiet --depth 1 https://github.com/sndrgrdn/homebrew-tap.git "$checkout"
     cp dist/gary.rb "$checkout/Casks/gary.rb"
     git -C "$checkout" add Casks/gary.rb
     if ! git -C "$checkout" diff --cached --quiet; then
         git -C "$checkout" commit -q -m "Update gary to $version"
+        export HOMEBREW_NO_AUTO_UPDATE=1
+        brew tap -q sndrgrdn/release-check "$checkout"
+        if brew trust --help >/dev/null 2>&1; then brew trust sndrgrdn/release-check >/dev/null; fi
+        brew style --cask sndrgrdn/release-check/gary
+        brew audit --cask --strict --online sndrgrdn/release-check/gary
         git -C "$checkout" push -q
     fi
     echo "==> tap: gary $version"
