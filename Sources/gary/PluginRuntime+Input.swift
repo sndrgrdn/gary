@@ -31,6 +31,8 @@ nonisolated extension PluginRuntime {
         origin: CGRect? = nil,
         unhandled: (@MainActor @Sendable () -> Void)? = nil,
     ) {
-        onQueue { $0.handle(handler, arguments, trace, origin: origin, unhandled: unhandled) }
+        queue.async(qos: .userInitiated, flags: .enforceQoS) {
+            self.assumeIsolated { $0.handle(handler, arguments, trace, origin: origin, unhandled: unhandled) }
+        }
     }
 }

@@ -8,7 +8,7 @@ actor PluginRuntime: Subscriber {
     let hub: StateHub
     let deliver: @Sendable (PluginRuntime, RuntimeEvent) -> Void
     nonisolated let queue: DispatchSerialQueue
-    private let engine: PluginEngine
+    nonisolated let engine: PluginEngine
     private let transpiler: Transpiler
     private var functions: PluginFunctions?
     private var exception: String?
@@ -48,7 +48,7 @@ actor PluginRuntime: Subscriber {
         self.engine = engine
         self.transpiler = transpiler
         self.startTimer = startTimer
-        queue = DispatchSerialQueue(label: "gary.plugin.\(bundle.manifest.id)", qos: .userInitiated, target: engine.queue)
+        queue = DispatchSerialQueue(label: "gary.plugin.\(bundle.manifest.id)", qos: kind.isSurface ? .userInitiated : .utility, target: engine.queue)
     }
 }
 

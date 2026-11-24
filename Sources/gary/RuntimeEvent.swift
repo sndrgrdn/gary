@@ -40,6 +40,7 @@ nonisolated enum RuntimeEvent {
     case surface(SurfaceRequest, SurfaceAddress, origin: CGRect?)
     case call(CallTarget, method: String, arguments: [String], reply: @Sendable (Response) -> Void)
     case failed(String)
+    case busy
 }
 
 final nonisolated class MainDelivery: @unchecked Sendable {

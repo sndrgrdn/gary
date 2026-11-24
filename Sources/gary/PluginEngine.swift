@@ -7,7 +7,8 @@ final nonisolated class PluginEngine: @unchecked Sendable {
     static let timeLimit = 0.1
     static let quiet: TimeInterval = 10
 
-    let queue = DispatchQueue(label: "gary.engine", qos: .userInitiated)
+    let name: String
+    let queue: DispatchQueue
     private let machine: JSVirtualMachine = .init()
     private let effectScript: URL
     private var effectLibrary: JSValue?
@@ -18,7 +19,9 @@ final nonisolated class PluginEngine: @unchecked Sendable {
     private var dropping: DispatchWorkItem?
     private let cpuTime: @Sendable () -> Duration
 
-    init(effect: URL = Paths.effect, cpuTime: @escaping @Sendable () -> Duration = threadCPUTime) {
+    init(_ name: String = "own", effect: URL = Paths.effect, cpuTime: @escaping @Sendable () -> Duration = threadCPUTime) {
+        self.name = name
+        queue = DispatchQueue(label: "gary.engine.\(name)", qos: .utility)
         effectScript = effect
         self.cpuTime = cpuTime
         if let context = JSContext(virtualMachine: machine), !limit(context.jsGlobalContextRef) {

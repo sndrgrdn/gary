@@ -103,7 +103,7 @@ struct Harness {
             return text
         case let .failed(reason):
             throw RenderError("failed: \(reason)")
-        case .surface, .call:
+        case .surface, .call, .busy:
             throw RenderError("unexpected \(event)")
         }
     }

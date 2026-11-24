@@ -19,6 +19,19 @@ private final class FakeCPU: @unchecked Sendable {
     }
 }
 
+private final class Counter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+
+    var total: Int {
+        lock.withLock { value }
+    }
+
+    func add() {
+        lock.withLock { value += 1 }
+    }
+}
+
 private func burning(_ cpu: FakeCPU, _ engine: PluginEngine) throws -> JSContext {
     let context = try #require(engine.makeContext())
     let burn: @convention(block) (Int) -> Void = { milliseconds in
@@ -78,9 +91,9 @@ struct PluginEngineTests {
         #expect(stats.entries == [.load: 0, .render: 1, .timer: 1, .topic: 0, .action: 1, .call: 0, .host: 0])
     }
 
-    @Test func `a bar widget does not wait for a panel's long call`() async throws {
+    @MainActor @Test func `a bar widget does not wait for a panel's long call`() async throws {
         let engines = PluginEngines()
-        let panel = engines.engine(for: .panel)
+        let panel = try engines.engine(for: SlotKey(id: #require(PluginID("test.panel")), kind: .panel))
         nonisolated(unsafe) let context = try #require(panel.makeContext())
         let id = try #require(PluginID("test.panel"))
         let entered = DispatchSemaphore(value: 0)
@@ -94,11 +107,48 @@ struct PluginEngineTests {
             }
         }
         await withCheckedContinuation { done in DispatchQueue.global().async { entered.wait(); done.resume() } }
-        let bar = try Harness(widget("onAction: function () { count += 1; return true; },"), id: "test.bar", engine: engines.engine(for: .barWidget))
+        let bar = try Harness(
+            widget("onAction: function () { count += 1; return true; },"),
+            id: "test.bar",
+            engine: engines.engine(for: SlotKey(id: #require(PluginID("test.bar")), kind: .barWidget)),
+        )
         #expect(try await bar.text() == "0")
         bar.runtime.perform("tick", .null)
         #expect(try await bar.text() == "1")
         bar.runtime.stop()
+    }
+
+    @MainActor @Test func `a promoted plugin loads on its own engine while the other bar plugins keep sharing one`() throws {
+        let engines = PluginEngines()
+        let busy = try SlotKey(id: #require(PluginID("test.busy")), kind: .barWidget)
+        let clock = try SlotKey(id: #require(PluginID("test.clock")), kind: .barWidget)
+        let battery = try SlotKey(id: #require(PluginID("test.battery")), kind: .barWidget)
+        #expect(engines.engine(for: busy) === engines.engine(for: clock))
+        #expect(engines.promote(busy))
+        #expect(!engines.promote(busy))
+        let own = engines.engine(for: busy)
+        #expect(own.name == "own")
+        #expect(own !== engines.engine(for: clock))
+        #expect(engines.engine(for: clock) === engines.engine(for: battery))
+        #expect(engines.engine(for: clock).name == "bar")
+    }
+
+    @Test func `a plugin that spends over a second of CPU in a minute is reported busy once`() throws {
+        let cpu = FakeCPU()
+        let engine = PluginEngine(cpuTime: cpu.read)
+        let context = try burning(cpu, engine)
+        let id = try #require(PluginID("test.busy"))
+        let metrics = PluginMetrics()
+        let reports = Counter()
+        metrics.whenBusy { reports.add() }
+        for _ in 1...5 {
+            _ = try engine.run(id, in: context, .timer, into: metrics) { context.evaluateScript("burn(90); 1") }
+        }
+        #expect(reports.total == 0)
+        for _ in 1...10 {
+            _ = try engine.run(id, in: context, .timer, into: metrics) { context.evaluateScript("burn(90); 1") }
+        }
+        #expect(reports.total == 1)
     }
 
     @Test func `a runaway after the last loaded plugin unloads is stopped`() async throws {

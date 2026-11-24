@@ -38,12 +38,14 @@ nonisolated struct RecentTotal {
 }
 
 final nonisolated class PluginMetrics: @unchecked Sendable {
+    static let busyCPU = Duration.seconds(1)
     private let lock = NSLock()
     private let clock: @Sendable () -> Int
     private var stats = PluginStats()
     private var entries = [Int](repeating: 0, count: EngineCause.allCases.count)
     private var recentCPU = RecentTotal()
     private var recentFires = RecentTotal()
+    private var busy: (@Sendable () -> Void)?
 
     init(clock: @escaping @Sendable () -> Int = { Int(clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW) / 1_000_000_000) }) {
         self.clock = clock
@@ -51,7 +53,7 @@ final nonisolated class PluginMetrics: @unchecked Sendable {
 
     func entered(_ cause: EngineCause, spent: Duration, stopped: Bool) {
         let second = clock()
-        lock.withLock {
+        let report: (@Sendable () -> Void)? = lock.withLock {
             entries[cause.rawValue] += 1
             stats.cpu += spent
             recentCPU.add(Int64(spent / .nanoseconds(1)), at: second)
@@ -60,7 +62,15 @@ final nonisolated class PluginMetrics: @unchecked Sendable {
             if cause == .timer {
                 recentFires.add(1, at: second)
             }
+            guard let report = busy, recentCPU.sum(at: second) >= Int64(Self.busyCPU / .nanoseconds(1)) else { return nil }
+            busy = nil
+            return report
         }
+        report?()
+    }
+
+    func whenBusy(_ report: @escaping @Sendable () -> Void) {
+        lock.withLock { busy = report }
     }
 
     func rendered(nodes: Int) {

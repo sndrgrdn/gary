@@ -4,18 +4,19 @@ import GaryCore
 extension Shell {
     func stats(_ id: PluginID?) -> Response {
         let loaded = slots.values.filter { id == nil || $0.key.id == id }
-            .compactMap { slot in slot.runtime.map { (key: slot.key, metrics: $0.metrics) } }
+            .compactMap { slot in slot.runtime.map { (key: slot.key, engine: $0.engine.name, metrics: $0.metrics) } }
             .sorted { $0.key.description < $1.key.description }
         if let id, loaded.isEmpty {
             return .failure("\(id) is not loaded")
         }
-        return .ok(loaded.map { statsLine($0.key, $0.metrics.snapshot).text }.joined(separator: "\n"))
+        return .ok(loaded.map { statsLine($0.key, $0.engine, $0.metrics.snapshot).text }.joined(separator: "\n"))
     }
 
-    private func statsLine(_ key: SlotKey, _ stats: PluginStats) -> JSON {
+    private func statsLine(_ key: SlotKey, _ engine: String, _ stats: PluginStats) -> JSON {
         .object([
             "plugin": .string(key.id.rawValue),
             "kind": .string(key.kind.rawValue),
+            "engine": .string(engine),
             "cpuMs": .object(["total": milliseconds(stats.cpu), "last60s": milliseconds(stats.recentCPU)]),
             "entries": .object(Dictionary(uniqueKeysWithValues: stats.entries.map { ("\($0.key)", .number(Double($0.value))) })),
             "longestEntryMs": milliseconds(stats.longestEntry),

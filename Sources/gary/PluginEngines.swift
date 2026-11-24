@@ -1,16 +1,26 @@
 import Foundation
 import GaryCore
 
-nonisolated struct PluginEngines {
+final class PluginEngines {
+    private let effect: URL
     private let bar: PluginEngine
-    private let rest: PluginEngine
+    private let other: PluginEngine
+    private var own: Set<SlotKey> = []
 
     init(effect: URL = Paths.effect) {
-        bar = PluginEngine(effect: effect)
-        rest = PluginEngine(effect: effect)
+        self.effect = effect
+        bar = PluginEngine("bar", effect: effect)
+        other = PluginEngine("other", effect: effect)
     }
 
-    func engine(for kind: PluginKind) -> PluginEngine {
-        kind == .barWidget || kind == .bar ? bar : rest
+    func engine(for key: SlotKey) -> PluginEngine {
+        if own.contains(key) {
+            return PluginEngine(effect: effect)
+        }
+        return key.kind == .barWidget || key.kind == .bar ? bar : other
+    }
+
+    func promote(_ key: SlotKey) -> Bool {
+        own.insert(key).inserted
     }
 }

@@ -75,11 +75,13 @@ extension Shell {
 
     func makeRuntime(_ key: SlotKey, _ bundle: PluginBundle, _ scene: Scene) -> PluginRuntime {
         let delivery = MainDelivery { [weak self] runtime, event in self?.handle(event, from: runtime, key) }
-        return PluginRuntime(
+        let runtime = PluginRuntime(
             bundle: bundle, kind: key.kind, scene: scene,
             settings: setup.config.settings[key.id] ?? .object([:]), theme: theme.value.json, hub: hub,
-            deliver: { delivery.send($0, $1) }, engine: engines.engine(for: key.kind),
+            deliver: { delivery.send($0, $1) }, engine: engines.engine(for: key),
         )
+        runtime.metrics.whenBusy { [weak runtime] in runtime.map { delivery.send($0, .busy) } }
+        return runtime
     }
 
     func perform(_ effects: [PluginSlots<PluginRuntime>.Effect], _ trace: Trace) {
@@ -116,6 +118,10 @@ extension Shell {
         case let .failed(reason):
             perform(slots.failed(runtime, at: key, reason), Trace("bar-fallback"))
             screens.commitFrame()
+        case .busy:
+            guard engines.promote(key) else { return }
+            log("plugin \(key): spent over \(PluginMetrics.busyCPU) of CPU in a minute, so it reloads on its own engine")
+            perform(slots.reload(key), Trace("busy"))
         }
     }
 
