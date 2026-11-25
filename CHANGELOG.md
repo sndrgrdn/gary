@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New
+
+- `theme.json` has a JSON Schema. Add `"$schema": "https://raw.githubusercontent.com/sndrgrdn/gary/main/schemas/theme.schema.json"` to it, and your editor completes its keys and marks typos, unknown font weights, and unknown style properties.
+
 ## 0.6.1
 
 ### Fixes

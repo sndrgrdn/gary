@@ -1,0 +1,386 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/sndrgrdn/gary/main/schemas/theme.schema.json",
+  "title": "Gary theme",
+  "description": "An override of Gary's built-in theme, read from ~/.config/gary/theme.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "bar": {
+      "additionalProperties": false,
+      "properties": {
+        "edge": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "fonts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/font"
+          },
+          "type": "object"
+        },
+        "gap": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "height": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "colors": {
+      "additionalProperties": {
+        "$ref": "#/$defs/color"
+      },
+      "type": "object"
+    },
+    "fonts": {
+      "additionalProperties": {
+        "$ref": "#/$defs/font"
+      },
+      "type": "object"
+    },
+    "motion": {
+      "additionalProperties": false,
+      "properties": {
+        "fade": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "radius": {
+      "additionalProperties": false,
+      "properties": {
+        "control": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "surface": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "spacing": {
+      "additionalProperties": false,
+      "properties": {
+        "edge": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "item": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "section": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "styles": {
+      "additionalProperties": {
+        "$ref": "#/$defs/style"
+      },
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "color": {
+      "anyOf": [
+        {
+          "description": "a theme or palette colour name, #rgb, #rrggbb, #rrggbbaa, mix(a, b, t), alpha(a, t) or contrast(a)",
+          "type": "string"
+        },
+        {
+          "items": {
+            "description": "a theme or palette colour name, #rgb, #rrggbb, #rrggbbaa, mix(a, b, t), alpha(a, t) or contrast(a)",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      ]
+    },
+    "font": {
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "anyOf": [
+            {
+              "enum": ["system", "monospaced"]
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "system, monospaced, or the name of an installed font family"
+        },
+        "size": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "weight": {
+          "enum": [
+            "ultralight",
+            "thin",
+            "light",
+            "regular",
+            "medium",
+            "semibold",
+            "bold",
+            "heavy",
+            "black"
+          ]
+        }
+      },
+      "required": ["family", "size"],
+      "type": "object"
+    },
+    "style": {
+      "additionalProperties": false,
+      "properties": {
+        "align": {
+          "enum": ["leading", "center", "trailing"]
+        },
+        "animation": {
+          "enum": ["smooth", "spring", "none"]
+        },
+        "background": {
+          "anyOf": [
+            {
+              "description": "a theme or palette colour name, #rgb, #rrggbb, #rrggbbaa, mix(a, b, t), alpha(a, t) or contrast(a)",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "angle": {
+                  "type": "number"
+                },
+                "colors": {
+                  "items": {
+                    "description": "a theme or palette colour name, #rgb, #rrggbb, #rrggbbaa, mix(a, b, t), alpha(a, t) or contrast(a)",
+                    "type": "string"
+                  },
+                  "minItems": 2,
+                  "type": "array"
+                },
+                "gradient": {
+                  "enum": ["linear", "radial", "angular"]
+                }
+              },
+              "required": ["gradient", "colors"],
+              "type": "object"
+            }
+          ]
+        },
+        "blend": {
+          "enum": [
+            "normal",
+            "multiply",
+            "screen",
+            "overlay",
+            "plusLighter",
+            "plusDarker",
+            "difference"
+          ]
+        },
+        "blur": {
+          "type": "number"
+        },
+        "border": {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "description": "a theme or palette colour name, #rgb, #rrggbb, #rrggbbaa, mix(a, b, t), alpha(a, t) or contrast(a)",
+              "type": "string"
+            },
+            "width": {
+              "type": "number"
+            }
+          },
+          "required": ["color"],
+          "type": "object"
+        },
+        "clip": {
+          "type": "boolean"
+        },
+        "color": {
+          "description": "a theme or palette colour name, #rgb, #rrggbb, #rrggbbaa, mix(a, b, t), alpha(a, t) or contrast(a)",
+          "type": "string"
+        },
+        "colorScheme": {
+          "enum": ["dark", "light"]
+        },
+        "duration": {
+          "type": "number"
+        },
+        "fit": {
+          "enum": ["fit", "fill"]
+        },
+        "font": {
+          "type": "string"
+        },
+        "fontSize": {
+          "type": "number"
+        },
+        "gap": {
+          "type": "number"
+        },
+        "height": {
+          "type": "number"
+        },
+        "lines": {
+          "type": "integer"
+        },
+        "loop": {
+          "additionalProperties": false,
+          "properties": {
+            "duration": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "opacity": {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "reverse": {
+              "type": "boolean"
+            },
+            "rotation": {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "scale": {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "x": {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "y": {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "material": {
+          "enum": ["vibrant", "glass", "none"]
+        },
+        "minWidth": {
+          "type": "number"
+        },
+        "opacity": {
+          "type": "number"
+        },
+        "padding": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            }
+          ]
+        },
+        "radius": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "enum": ["control", "surface"]
+            }
+          ]
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "type": "number"
+        },
+        "shadow": {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "description": "a theme or palette colour name, #rgb, #rrggbb, #rrggbbaa, mix(a, b, t), alpha(a, t) or contrast(a)",
+              "type": "string"
+            },
+            "radius": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            }
+          },
+          "required": ["color"],
+          "type": "object"
+        },
+        "transition": {
+          "enum": ["opacity", "scale", "none"]
+        },
+        "truncate": {
+          "enum": ["tail", "middle", "head"]
+        },
+        "width": {
+          "type": "number"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "zIndex": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  }
+}

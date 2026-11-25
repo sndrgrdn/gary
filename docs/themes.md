@@ -40,6 +40,8 @@ Put only the keys that you change in `~/.config/gary/theme.json`. Gary merges ob
 }
 ```
 
+Add `"$schema": "https://raw.githubusercontent.com/sndrgrdn/gary/main/schemas/theme.schema.json"` to `theme.json`, and your editor completes its keys and marks typos, unknown font weights, and unknown style properties.
+
 `gary skill show theme` lists the styles, colors, and fonts of the installed theme. `gary doctor` reports theme values that do not resolve, and Gary logs them.
 
 ### Colors

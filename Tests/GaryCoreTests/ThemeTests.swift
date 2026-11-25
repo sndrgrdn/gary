@@ -196,6 +196,21 @@ struct ThemeTests {
         #expect(theme.style(nil) == theme.style("default"))
     }
 
+    @Test func `an override may point at its schema`() throws {
+        let theme = try theme(#"{"$schema": "./theme.schema.json", "bar": {"height": 28}}"#)
+        #expect(theme.bar.height == 28)
+        #expect(theme.warnings.isEmpty)
+    }
+
+    @Test func `the published schema lists every style property and font weight the parser reads`() throws {
+        let schema = try JSON.parse(Data(contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("schemas/theme.schema.json")))
+        let properties = try #require(schema["$defs"]?["style"]?["properties"]?.object)
+        #expect(Set(properties.keys) == Set(StyleProps.names))
+        #expect(schema["$defs"]?["font"]?["properties"]?["weight"]?["enum"] == .array(FontToken.Weight.allCases.map { .string($0.rawValue) }))
+    }
+
     @Test func `an override changes one token and keeps the rest`() throws {
         let theme = try theme(##"{"colors": {"accent": "#ff0000"}, "bar": {"height": 28}}"##)
         #expect(theme.style("active").color == RGBA(hex: "#ff0000"))
