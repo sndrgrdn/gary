@@ -40,7 +40,7 @@ ln -s Versions/Current/MediaRemoteAdapter "$ADAPTER/MediaRemoteAdapter"
 ln -s Versions/Current/Resources "$ADAPTER/Resources"
 cp Vendor/mediaremote-adapter/bin/mediaremote-adapter.pl Vendor/mediaremote-adapter/LICENSE "$APP/Contents/Resources/mediaremote-adapter/"
 
-sign() { codesign --force --options runtime "$TIMESTAMP" --sign "$IDENTITY" "$1"; }
+sign() { codesign --force --options runtime "$TIMESTAMP" --sign "$IDENTITY" "${@:2}" "$1"; }
 sign "$ADAPTER"
-sign "$APP"
+sign "$APP" --entitlements Resources/Gary.entitlements
 echo "built $APP ($CONFIG, $VERSION build $BUILD)"
