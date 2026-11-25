@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- Gary can ask for Calendars, Location, and Automation again. Its signature now carries the entitlements that macOS requires before it shows those prompts to an app with the hardened runtime, so the prompts no longer fail silently.
+
 ## 0.6.0
 
 ### Upgrading
