@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.0
+
 ### Upgrading
 
 - A render with more than 1000 nodes no longer stops the plugin. Gary refuses that render, keeps the last tree on screen, and logs it once; `gary stats` counts it in `refusedRenders`.
