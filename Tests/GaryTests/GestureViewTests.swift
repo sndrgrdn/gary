@@ -89,6 +89,7 @@ struct GestureViewTests {
         var sent: [ActionEvent] = []
         let host = try mount(#"{"type":"row","hoverAction":"row:a","width":80,"height":20,"children":[]}"#) { sent.append($0) }
         let view = try #require(host.descendants(GestureView.self).first)
+        view.pointerMoved = { true }
         let entered = try #require(NSEvent.enterExitEvent(
             with: .mouseEntered, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, eventNumber: 0, trackingNumber: 0,
             userData: nil,
@@ -99,6 +100,30 @@ struct GestureViewTests {
         #expect(sent.map(\.payload) == [.bool(true), .bool(false)])
         #expect(sent.first?.origin == view.screenFrame)
         #expect(host.clickable("row:a") == nil)
+    }
+
+    @Test func `a node that appears under a still pointer sends hover only once the pointer moves`() throws {
+        var sent: [JSON] = []
+        let host = try mount(#"{"type":"row","hoverAction":"row:a","width":80,"height":20,"children":[]}"#) { sent.append($0.payload) }
+        let view = try #require(host.descendants(GestureView.self).first)
+        view.pointerMoved = { false }
+        let entered = try #require(NSEvent.enterExitEvent(
+            with: .mouseEntered, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, eventNumber: 0, trackingNumber: 0,
+            userData: nil,
+        ))
+        let moved = try #require(NSEvent.mouseEvent(
+            with: .mouseMoved, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, eventNumber: 0, clickCount: 0,
+            pressure: 0,
+        ))
+        view.mouseEntered(with: entered)
+        view.mouseExited(with: entered)
+        #expect(sent.isEmpty)
+        view.mouseEntered(with: entered)
+        #expect(sent.isEmpty)
+        view.mouseMoved(with: moved)
+        view.mouseMoved(with: moved)
+        view.mouseExited(with: entered)
+        #expect(sent == [.bool(true), .bool(false)])
     }
 
     @Test func `a scroll over a node goes to the innermost node with a scroll action under its centre`() throws {

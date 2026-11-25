@@ -6,6 +6,10 @@
 
 - `theme.json` has a JSON Schema. Add `"$schema": "https://raw.githubusercontent.com/sndrgrdn/gary/main/schemas/theme.schema.json"` to it, and your editor completes its keys and marks typos, unknown font weights, and unknown style properties.
 
+### Fixes
+
+- `hoverAction` fires only when the pointer moves. A row that opens or re-renders under a still pointer no longer sends `true`, so a launcher keeps its top result selected while you type, and Return opens it.
+
 ## 0.6.1
 
 ### Fixes

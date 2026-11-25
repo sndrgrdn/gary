@@ -185,14 +185,14 @@ A path that does not start with `/` or `~` is relative to the plugin folder, in 
 
 ## Handle input
 
-| Field on a node | Sends                                                                              |
-| --------------- | ---------------------------------------------------------------------------------- |
-| `action`        | A click to `onAction`. On a `slider`, the new value as the user drags.             |
-| `rightAction`   | A right click to `onAction`.                                                       |
-| `middleAction`  | A middle click to `onAction`.                                                      |
-| `hoverAction`   | `true` to `onAction` when the pointer enters the node, and `false` when it leaves. |
-| `scrollAction`  | A scroll over the node to `onScroll`, with the name in `event.action`.             |
-| `tooltip`       | Text that Gary shows below the node when the pointer rests on it.                  |
+| Field on a node | Sends                                                                                                                                                           |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `action`        | A click to `onAction`. On a `slider`, the new value as the user drags.                                                                                          |
+| `rightAction`   | A right click to `onAction`.                                                                                                                                    |
+| `middleAction`  | A middle click to `onAction`.                                                                                                                                   |
+| `hoverAction`   | `true` to `onAction` when the pointer moves onto the node, and `false` when it leaves. A node that appears under a still pointer waits for the pointer to move. |
+| `scrollAction`  | A scroll over the node to `onScroll`, with the name in `event.action`.                                                                                          |
+| `tooltip`       | Text that Gary shows below the node when the pointer rests on it.                                                                                               |
 
 An `input` sends its text to the action named by `change` on each edit, and to the action named by `submit` on Return. A menu, or a surface with `focusable: true`, sends other keys to `onKey`, such as `down`, `escape`, or `cmd+k`. Escape hides a menu or overlay unless `onKey` returns `true`.
 

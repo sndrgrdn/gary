@@ -43,6 +43,12 @@ final class GestureView: NSView {
     }
 
     private var pointerInside = false
+    private var hoverPending = false
+    var pointerMoved: () -> Bool = {
+        let idle = [CGEventType.mouseMoved, .leftMouseDragged, .scrollWheel]
+            .map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }.min()
+        return (idle ?? .infinity) < 0.1
+    }
 
     static func gesture(of event: NSEvent) -> Node.Gesture? {
         switch event.type {
@@ -80,20 +86,34 @@ final class GestureView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if trackingAreas.isEmpty {
-            addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+            addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect], owner: self))
         }
     }
 
     override func mouseEntered(with _: NSEvent) {
         pointerInside = true
         hover()
+        if pointerMoved() {
+            send(.hover, .bool(true))
+        } else {
+            hoverPending = true
+        }
+    }
+
+    override func mouseMoved(with _: NSEvent) {
+        guard hoverPending else { return }
+        hoverPending = false
         send(.hover, .bool(true))
     }
 
     override func mouseExited(with _: NSEvent) {
         pointerInside = false
         tooltipPanel?.hide(for: self)
-        send(.hover, .bool(false))
+        if hoverPending {
+            hoverPending = false
+        } else {
+            send(.hover, .bool(false))
+        }
     }
 
     private func hover() {
