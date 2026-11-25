@@ -2,14 +2,35 @@
 
 ## Unreleased
 
+### Upgrading
+
+- A render with more than 1000 nodes no longer stops the plugin. Gary refuses that render, keeps the last tree on screen, and logs it once; `gary stats` counts it in `refusedRenders`.
+- A plugin that spends more than 1 second of CPU time in a minute, or makes two calls longer than 16 ms within a minute, reloads once on a JavaScript engine of its own, so it cannot delay other plugins. The reload starts its module again, so keep state that must survive in `host.storage`.
+- While the user has given no input for 30 seconds, the `clipboard` topic checks every 5 seconds, so a copy made without input, such as `pbcopy` from a script, can arrive up to about 6 seconds late. A copy the user makes arrives within half a second, as before.
+
 ### New
 
 - `host.toast` takes a `glyph` in place of an SF Symbol `icon`, such as a Nerd Font glyph, drawn in the `toast-icon` style or in the theme font that `font` names, so a toast can match icons that plugins draw as text.
-- `gary frames` reports whether Gary holds the display's refresh rate, with the hitch time per second, frame time percentiles, and the plugin tree, layout, image decode, or Core Animation commit behind each dropped frame. `gary frames --record <seconds>` reports a fresh window.
+- `gary stats [id] [--watch]` prints what each loaded plugin has cost: CPU time in total and over the last minute, calls by cause, renders and tree size, timers, pending host calls, decoded images and memory, the longest call, and the engine it runs on. `gary report` includes it.
+- `gary frames` reports whether Gary holds the display's refresh rate, with the hitch time per second, frame time percentiles, and the plugin tree, layout, image decode, or Core Animation commit behind each dropped frame. `gary frames --record <seconds>` records every frame for a fresh window. A frame only counts as dropped when Gary had something to draw.
+- `gary trace --record <seconds>` or `--follow` prints what Gary does as JSON lines in order: topic publishes, plugin calls, host calls, renders, tree applies, shown and hidden surfaces, CLI requests, and dropped frames, each linked to its cause. `--topics <file>` also saves the topic values.
+- `gary replay <file> [plugin]` feeds recorded or hand-written topic values back into Gary, or into one plugin, in order and with their timing, then returns to the live values. A plugin's behavior can be reproduced without the hardware state, such as a battery at 15%.
+- `GARY_HOME` and `GARY_RUNTIME_DIR` run a second Gary next to the one you use, with its own config, plugins, storage, log, and socket. It leaves hotkeys, media keys, the Hyper key, the Dock, and the menu bar to your Gary unless `GARY_ISOLATED_SYSTEM=1` is set. `just isolated` starts one from a checkout.
+- `gary action` and `gary hover` reach a row of a long list that is scrolled out of view by scrolling it in first, and `gary tree` marks such a row as `no frame: scrolled out of view`.
 
 ### Faster and lighter
 
-- Gary with a full bar wakes about 25 times a minute while idle instead of about 140. The `clipboard` topic checks the clipboard every 5 seconds once the user has given no input for 30 seconds, and at once on the next input or app switch. It and the `tray` topic stop polling while the screen is locked or asleep, the `calendar` topic checks for access every 10 seconds and on each app switch instead of every second, and Gary's remaining timers let macOS coalesce their wakeups.
+- Gary with a full bar wakes about 25 times a minute while idle instead of about 150. The `clipboard` topic slows down after 30 seconds without input, and it and the `tray` topic stop polling while the screen is locked or asleep. The `calendar` topic checks for access every 10 seconds and on each app switch instead of every second, and Gary's remaining timers let macOS coalesce their wakeups.
+- A busy plugin no longer holds up the others: plugins run below the priority of the interface, and a plugin that keeps the CPU busy moves to its own engine. A clock widget next to a plugin that spins near its time limit updated within 1 ms at the 99th percentile instead of 82 ms.
+- Gary applies at most one tree per plugin per display frame, the newest, and shares a main-thread budget of 4 ms per frame among plugins. A widget that renders a thousand times a second no longer drops frames, and 16 widgets updating together drop about a quarter as many as before.
+- Opening a menu drops far fewer frames: long lists build only the rows on screen, a reopened menu with an unchanged tree skips handing it to SwiftUI again, and the menu takes keyboard focus right after its first frame. Hiding no longer waits on the window server.
+- Checking permissions, `gary doctor`, onboarding, and the Bluetooth, battery, clipboard, Focus, and calendar topics no longer block the main thread, and the Dock and menu bar capabilities run off it. Gary starts its topics one at a time across run loop turns.
+
+### Fixes
+
+- A crash or kill of Gary stops the commands it ran, such as the now playing helper, `host.exec`, and `host.spawn`, instead of leaving them running.
+- A frozen app in the menu bar no longer slows each tray refresh to about 5 seconds. Gary skips that app's remaining questions after its first timeout and asks it again after 30 seconds.
+- Accessibility questions to every tray and Control Center element time out after 1 second, not only those to the app itself.
 
 ## 0.5.0
 
