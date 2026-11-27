@@ -9,6 +9,9 @@ nonisolated extension Capability {
         summary: """
         Audio devices, volume, mute, the apps that play audio, and the apps that use the microphone. \
         Set the volume, mute, the default device, and the volume of each app. \
+        setEqualizer runs everything that plays through peak and shelf filters on the way to the output, until it gets null, \
+        and a limiter keeps the result under -1 dBFS, \
+        and the topic's equalizer holds the filters that play now. \
         airplay lists the AirPlay speakers and selectAirPlay plays to one, by opening Control Center's Sound control for about a second.
         """,
         types: """
@@ -20,7 +23,10 @@ nonisolated extension Capability {
             input: AudioDeviceState | null;
             microphone: { pid: number; app: string | null; bundleId: string | null }[];
             apps: AudioApp[];
+            equalizer: Equalizer | null;
           }
+          type EqualizerBand = { type: "peak" | "lowShelf" | "highShelf"; frequency: number; gain?: number; q?: number }
+          type Equalizer = { preamp?: number; bands: EqualizerBand[] }
           type AudioApp = { pid: number; name: string; bundleId: string | null; path: string | null; volume: number }
           type AudioDeviceSummary = { id: string; name: string; transport: string; output: boolean; input: boolean }
           type AudioDeviceState = { id: string; name: string; transport: string; volume: number | null; muted: boolean | null }
@@ -31,6 +37,7 @@ nonisolated extension Capability {
             setMuted(muted: boolean, scope?: AudioScope): null;
             setDefaultDevice(id: string, scope?: AudioScope): null;
             setAppVolume(pid: number, volume: number): Promise<null>;
+            setEqualizer(equalizer: Equalizer | null): Promise<null>;
             airplay(): Promise<AirPlayTarget[]>;
             selectAirPlay(name: string): Promise<null>;
           }
@@ -67,10 +74,9 @@ nonisolated extension Capability {
                         kAudioHardwareUnsupportedOperationError
                     guard status == noErr else { throw HostFailure("cannot make \(device.name) the default \(scope.rawValue) device (\(status))") }
                 case let .setAppVolume(pid, volume):
-                    return .later(appVolumes.queue) {
-                        try appVolumes.set(pid, volume)
-                        return .null
-                    }
+                    return audioTaps.later { try $0.setVolume(pid, volume) }
+                case let .setEqualizer(equalizer):
+                    return audioTaps.later { try $0.setEqualizer(equalizer) }
                 case .airplay:
                     return .later(ControlCenter.queue) { try airplayTargets() }
                 case let .selectAirPlay(name):
@@ -142,7 +148,7 @@ nonisolated func stringProperty(_ object: AudioObjectID, _ address: AudioObjectP
     property(object, address, nil as Unmanaged<CFString>?)??.takeRetainedValue() as String?
 }
 
-private nonisolated func objects(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress) -> [AudioObjectID] {
+nonisolated func audioObjects(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress) -> [AudioObjectID] {
     var address = address
     var size: UInt32 = 0
     guard AudioObjectGetPropertyDataSize(object, &address, 0, nil, &size) == noErr, size > 0 else { return [] }
@@ -187,11 +193,11 @@ nonisolated struct AudioDevice {
         self.uid = uid
         name = stringProperty(id, address(kAudioObjectPropertyName)) ?? uid
         transport = property(id, address(kAudioDevicePropertyTransportType), UInt32(0)).flatMap { transports[$0] } ?? "other"
-        scopes = Set(AudioScope.allCases.filter { !objects(id, address(kAudioDevicePropertyStreams, $0.scope)).isEmpty })
+        scopes = Set(AudioScope.allCases.filter { !audioObjects(id, address(kAudioDevicePropertyStreams, $0.scope)).isEmpty })
     }
 
     static func all() -> [AudioDevice] {
-        objects(AudioObjectID(kAudioObjectSystemObject), address(kAudioHardwarePropertyDevices)).compactMap(AudioDevice.init)
+        audioObjects(AudioObjectID(kAudioObjectSystemObject), address(kAudioHardwarePropertyDevices)).compactMap(AudioDevice.init)
             .sorted { $0.name < $1.name }
     }
 
@@ -257,7 +263,7 @@ private final nonisolated class AudioTopic: TopicFeed, @unchecked Sendable {
     private let publish: @Sendable (JSON, Trace) -> Void
     private let queue: DispatchQueue
     private let listeners: AudioListeners
-    private var volumes: [pid_t: Double] = [:]
+    private var taps = AudioTapsState(volumes: [:], equalizer: nil)
     private var scheduled = false
     private var poll: DispatchWorkItem?
 
@@ -267,9 +273,9 @@ private final nonisolated class AudioTopic: TopicFeed, @unchecked Sendable {
         listeners = AudioListeners(queue)
         listeners.changed = { [weak self] in self?.changed() }
         queue.async { [weak self] in self?.refresh(Trace("audio-start")) }
-        appVolumes.observe { [weak self] volumes in
+        audioTaps.observe { [weak self] taps in
             self?.queue.async { [weak self] in
-                self?.volumes = volumes
+                self?.taps = taps
                 self?.changed()
             }
         }
@@ -310,6 +316,7 @@ private final nonisolated class AudioTopic: TopicFeed, @unchecked Sendable {
             wanted.insert(Listener(object: device.id, selector: kAudioDevicePropertyMute, scope: scope.scope))
         }
         state.merge(processes(&wanted)) { $1 }
+        state["equalizer"] = taps.equalizer?.json ?? .null
         listeners.listen(to: wanted)
         publish(.object(state), trace)
         poll?.cancel()
@@ -322,11 +329,11 @@ private final nonisolated class AudioTopic: TopicFeed, @unchecked Sendable {
     private func processes(_ wanted: inout Set<Listener>) -> [String: JSON] {
         var microphone: [JSON] = []
         var apps: [(name: String, json: JSON)] = []
-        for process in objects(AudioObjectID(kAudioObjectSystemObject), address(kAudioHardwarePropertyProcessObjectList)) {
+        for process in audioObjects(AudioObjectID(kAudioObjectSystemObject), address(kAudioHardwarePropertyProcessObjectList)) {
             wanted.insert(Listener(object: process, selector: kAudioProcessPropertyIsRunningOutput))
             guard let pid = property(process, address(kAudioProcessPropertyPID), pid_t(0)), pid != getpid() else { continue }
             let recording = property(process, address(kAudioProcessPropertyIsRunningInput), UInt32(0)) == 1
-            let volume = volumes[pid] ?? (property(process, address(kAudioProcessPropertyIsRunningOutput), UInt32(0)) == 1 ? 1 : nil)
+            let volume = taps.volumes[pid] ?? (property(process, address(kAudioProcessPropertyIsRunningOutput), UInt32(0)) == 1 ? 1 : nil)
             guard recording || volume != nil else { continue }
             let app = NSRunningApplication(processIdentifier: pid)
             let bundleID = stringProperty(process, address(kAudioProcessPropertyBundleID)).flatMap { $0.isEmpty ? nil : $0 } ?? app?.bundleIdentifier

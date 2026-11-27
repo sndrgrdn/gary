@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New
+
+- `host.audio.setEqualizer({ preamp, bands })` plays all system audio through up to 16 peak and shelf filters on the way to the output, so a plugin can tune a pair of headphones. A limiter after the filters keeps peaks under -1 dBFS, so a boost needs no matching cut in `preamp` to keep from clipping. Pass `null` to turn it off. The `audio` topic's `equalizer` holds the filters that play now. It needs System Audio Recording, as `setAppVolume` does.
+
 ## 0.7.0
 
 ### New
